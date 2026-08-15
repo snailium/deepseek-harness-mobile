@@ -104,10 +104,7 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
                     )
                 }
             }
-            val text = node.blocks
-                .filter { it.kind == "text" }
-                .joinToString("\n") { it.text.orEmpty() }
-                .ifBlank { node.previewText }
+            val text = node.displayText()
             if (text.isNotBlank()) UserBubble(text)
         }
 

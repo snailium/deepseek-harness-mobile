@@ -138,18 +138,31 @@ class DshApiClient(
                 is RpcResult.Ok -> try {
                     RpcResult.Ok(decodeFromJsonElement(value, result.value))
                 } catch (e: SerializationException) {
-                    RpcResult.Err(RpcError("internal", "response value decode failed: ${e.message}", JsonObject(emptyMap())))
+                    RpcResult.Err(notAHarness("response value decode failed: ${e.message}"))
                 }
                 is RpcResult.Err -> result
             }
         } catch (e: RpcTransportException) {
             RpcResult.Err(transportError(e))
         } catch (e: SerializationException) {
-            RpcResult.Err(RpcError("internal", "response envelope decode failed: ${e.message}", JsonObject(emptyMap())))
+            RpcResult.Err(notAHarness("response envelope decode failed: ${e.message}"))
         } catch (e: IllegalArgumentException) {
-            RpcResult.Err(RpcError("internal", e.message ?: "invalid response", JsonObject(emptyMap())))
+            RpcResult.Err(notAHarness(e.message ?: "invalid response"))
         }
     }
+
+    /**
+     * A 2xx answer this client could not read as the harness protocol.
+     *
+     * Anything else listening on the port — a dev server, a router admin page — lands here rather
+     * than in [transportError], so the marker has to be set here too or a probe against the wrong
+     * port reports a generic failure instead of "that is not a harness".
+     */
+    private fun notAHarness(message: String): RpcError = RpcError(
+        code = "internal",
+        message = message,
+        details = TransportFailures.details(TransportFailure.NOT_A_HARNESS),
+    )
 
     /**
      * Classify a carrier failure so callers can tell "this harness does not have that capability"
@@ -165,7 +178,9 @@ class DshApiClient(
             else -> "internal"
         },
         message = e.message ?: "transport error",
-        details = JsonObject(emptyMap()),
+        // The `code` above answers "can this build do that"; the details answer "why did the wire
+        // fail", which is what a connect screen needs to tell a firewall from a loopback bind.
+        details = TransportFailures.details(TransportFailures.classify(e), e.status),
     )
 
     /** POST one unary call with a typed @Serializable request payload. */

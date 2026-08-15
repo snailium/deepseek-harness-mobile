@@ -4,13 +4,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.ConversationSnapshot
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
@@ -31,32 +36,51 @@ import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsType
+
+/**
+ * How close to the top a reader must get before the next page is fetched.
+ *
+ * Deliberately not zero. Item keys are stable, so the list re-anchors the viewport on the key that
+ * was first visible when older items are prepended — which only holds a reader's place if that
+ * anchor is a message row that moves down with the rest. The paging row sits at index 0 and stays
+ * there, so if it is the anchor the prepended page pushes everything being read below the fold.
+ * Firing a couple of rows early keeps a `seq`-keyed message as the anchor.
+ */
+private const val LOAD_OLDER_THRESHOLD = 2
 
 /**
  * The conversation itself.
  *
  * Auto-scroll only follows the tail when the reader is already there — scrolling back through a
- * long transcript while a turn streams should not keep yanking the view down.
+ * long transcript while a turn streams should not keep yanking the view down. Scrolling the other
+ * way pages history in without a button.
  */
 @Composable
 internal fun ChatTranscript(
     conversation: ConversationSnapshot?,
     loading: Boolean,
+    loadingOlder: Boolean,
+    loadOlderFailed: Boolean,
     context: ChatNodeContext,
     listState: LazyListState,
     onLoadOlder: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = DsTheme.colors
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
     // worth of structural events stacks those gaps into a blank band under the chrome.
     val nodes = remember(conversation?.nodes) {
         conversation?.nodes.orEmpty().filter { it.rendersContent() }
     }
-    val itemCount = nodes.size + if (conversation?.hasMore == true) 1 else 0
+    val hasMore = conversation?.hasMore == true
+    val itemCount = nodes.size + if (hasMore) 1 else 0
+    val sessionId = conversation?.sessionId
 
-    var wasNearBottom by remember { mutableStateOf(true) }
-    LaunchedEffect(listState) {
+    // Both keyed on the session so a freshly opened one starts from a clean assumption rather than
+    // inheriting the previous transcript's position — and so the collector always writes to the
+    // state the composition is currently reading.
+    var wasNearBottom by remember(sessionId) { mutableStateOf(true) }
+    LaunchedEffect(listState, sessionId) {
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
@@ -64,10 +88,26 @@ internal fun ChatTranscript(
             total == 0 || last >= total - 2
         }.collect { wasNearBottom = it }
     }
-    // Keyed on the session too: a freshly opened session should land at its tail, not inherit the
-    // previous one's scroll position.
-    LaunchedEffect(itemCount, conversation?.sessionId) {
-        if (wasNearBottom && itemCount > 0) listState.animateScrollToItem(itemCount - 1)
+
+    var lastSession by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(itemCount, sessionId) {
+        if (itemCount == 0) return@LaunchedEffect
+        val switched = sessionId != lastSession
+        lastSession = sessionId
+        // Opening a session should land on its tail, not animate the whole list to get there.
+        if (switched) listState.scrollToItem(itemCount - 1)
+        else if (wasNearBottom) listState.animateScrollToItem(itemCount - 1)
+    }
+
+    // Reaching the top pulls the next page. The guard matters: this effect sits above the `loading`
+    // early return, so without it the trigger would fire against an empty list and race the initial
+    // history fetch. It also re-arms once a page lands, which is what fills the first screen when a
+    // session opens on fewer messages than the viewport holds.
+    val canPage = hasMore && !loading && !loadingOlder && !loadOlderFailed
+    LaunchedEffect(listState, sessionId, canPage) {
+        if (!canPage) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .collect { if (it <= LOAD_OLDER_THRESHOLD) onLoadOlder() }
     }
 
     if (loading) {
@@ -83,14 +123,13 @@ internal fun ChatTranscript(
         // pinned under the tab strip with the empty half below it.
         verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
     ) {
-        if (conversation?.hasMore == true) {
+        if (hasMore) {
+            // Present whenever there is more to fetch, so index 0 stays stable across pages.
             item(key = "load-older") {
-                DsButton(
-                    text = stringResource(R.string.chat_load_older),
-                    onClick = onLoadOlder,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                    modifier = Modifier.fillMaxWidth(),
+                LoadOlderRow(
+                    loading = loadingOlder,
+                    failed = loadOlderFailed,
+                    onRetry = onLoadOlder,
                 )
             }
         }
@@ -108,6 +147,47 @@ internal fun ChatTranscript(
                 }
             }
         }
+    }
+}
+
+/**
+ * Head of the transcript while more history exists.
+ *
+ * Silent by default — paging is automatic, so an affordance would only invite a tap that does
+ * nothing. It speaks up while fetching, and offers a retry when a page failed, because the scroll
+ * trigger will not fire again on its own until the reader moves.
+ */
+@Composable
+private fun LoadOlderRow(loading: Boolean, failed: Boolean, onRetry: () -> Unit) {
+    val colors = DsTheme.colors
+    when {
+        failed -> DsButton(
+            text = stringResource(R.string.chat_load_older_retry),
+            onClick = onRetry,
+            variant = DsButtonVariant.Ghost,
+            size = DsButtonSize.Small,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        loading -> Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = colors.labelTertiary,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.chat_loading_older),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+        }
+
+        else -> Spacer(Modifier.height(1.dp))
     }
 }
 

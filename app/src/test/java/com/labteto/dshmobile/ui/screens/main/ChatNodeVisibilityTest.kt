@@ -71,6 +71,47 @@ class ChatNodeVisibilityTest {
         assertTrue(node.copy(blocks = listOf(ChatBlock("text", "hello"))).rendersContent())
     }
 
+    /**
+     * A harness that labels a block something this client has not seen should still put the user's
+     * words on screen. The predicate and the renderer share [displayText] so they cannot disagree
+     * about it — a node judged renderable that then draws nothing costs a gap, and one judged empty
+     * that holds text loses the message.
+     */
+    @Test
+    fun `an unknown block carrying text still counts as a user message`() {
+        val node = UserMessageNode(
+            seq = 9,
+            messageId = null,
+            blocks = listOf(ChatBlock("unknown", text = "typed this")),
+            sourceKind = "user",
+        )
+        assertTrue(node.rendersContent())
+        assertEquals("typed this", node.displayText())
+    }
+
+    @Test
+    fun `an unknown block with no text is still nothing to draw`() {
+        val node = UserMessageNode(
+            seq = 10,
+            messageId = null,
+            blocks = listOf(ChatBlock("unknown", text = null)),
+            sourceKind = "user",
+        )
+        assertFalse(node.rendersContent())
+        assertEquals("", node.displayText())
+    }
+
+    @Test
+    fun `multiple text blocks join in order`() {
+        val node = UserMessageNode(
+            seq = 11,
+            messageId = null,
+            blocks = listOf(ChatBlock("text", "one"), ChatBlock("text", "two")),
+            sourceKind = "user",
+        )
+        assertEquals("one\ntwo", node.displayText())
+    }
+
     @Test
     fun `a turn of tool work collapses to just its calls`() {
         val nodes = listOf(

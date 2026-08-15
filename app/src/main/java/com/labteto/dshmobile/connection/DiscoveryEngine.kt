@@ -4,6 +4,8 @@ import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.RpcResult
+import com.labteto.dshmobile.core.wire.TransportFailure
+import com.labteto.dshmobile.core.wire.TransportFailures
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -11,11 +13,36 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import java.io.IOException
+import java.net.ConnectException
 import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
+import java.net.NoRouteToHostException
+import java.net.Socket
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.Enumeration
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Whether [target] sits in the same /24 as any of [localIps].
+ *
+ * Free function so it is testable without a device: the sweep only ever looks at the phone's own
+ * /24, so an address outside it can be rejected instantly with a message that also explains why
+ * scanning found nothing. A non-literal host (a name) is not judged here — it cannot be.
+ */
+internal fun sameSubnet(target: String, localIps: List<String>): Boolean {
+    val targetParts = target.split('.')
+    if (targetParts.size != 4 || targetParts.any { part -> part.toIntOrNull()?.takeIf { it in 0..255 } == null }) {
+        return true // Not an IPv4 literal — nothing to compare, so do not claim a mismatch.
+    }
+    if (localIps.isEmpty()) return true
+    val targetPrefix = targetParts.take(3)
+    return localIps.any { it.split('.').take(3) == targetPrefix }
+}
 
 /**
  * Finds DeepSeek Harness instances on the local Wi-Fi.
@@ -52,22 +79,107 @@ class DiscoveryEngine @Inject constructor(
         return (1..254).map { "$prefix.$it" }.filter { it != ip }
     }
 
-    /** Probe one authority; null when it is not a harness. */
-    suspend fun probe(host: String, port: Int): HostDescription? = withContext(Dispatchers.IO) {
+    /**
+     * Probe one authority; null when it is not a harness.
+     *
+     * [timeouts] defaults to the sweep budget, which is right for a candidate pulled out of a /24
+     * and wrong for a host someone named — pass [ProbeTimeouts.Manual] for those. (Until the
+     * transport learned to honour these, every probe silently used 30s, so a named host was
+     * accidentally patient and a sweep accidentally slow.)
+     */
+    suspend fun probe(
+        host: String,
+        port: Int,
+        timeouts: ProbeTimeouts = ProbeTimeouts.Sweep,
+    ): HostDescription? = (probeOutcome(host, port, timeouts) as? ProbeOutcome.Reachable)?.description
+
+    /**
+     * Probe one authority and keep the reason it failed.
+     *
+     * With [preflight] the connect deadline is enforced by a raw socket before the HTTP call. That
+     * is not redundant: Android can surface a kernel connect timeout as a plain `ConnectException`
+     * naming ETIMEDOUT, which blurs "refused" into "timed out" — and those two are exactly what
+     * separates "the firewall is dropping this" from "the harness is still bound to loopback". The
+     * sweep skips it (254 extra sockets to learn the same thing OkHttp will report anyway); the one
+     * address a user typed is worth the ~5ms.
+     */
+    suspend fun probeOutcome(
+        host: String,
+        port: Int,
+        timeouts: ProbeTimeouts = ProbeTimeouts.Sweep,
+        preflight: Boolean = false,
+    ): ProbeOutcome = withContext(Dispatchers.IO) {
+        if (preflight) {
+            preflight(host, port, timeouts.connectMs)?.let { return@withContext it }
+        }
         val client = DshApiClient(
+            // Timeouts go through the transport's own parameters: it rebuilds the client it is
+            // handed, so anything applied to the builder here would be silently replaced by the 30s
+            // default — which is why this probe used to be able to block for thirty seconds.
             transport = OkHttpRpcTransport(
                 baseUrl = "http://$host:$port",
-                client = okHttpClient.newBuilder()
-                    .connectTimeout(700, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    .readTimeout(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    .build(),
+                client = okHttpClient,
+                connectTimeoutMs = timeouts.connectMs,
+                readTimeoutMs = timeouts.readMs,
             ),
             wsFactory = { _, _ -> throw UnsupportedOperationException("probe does not open streams") },
         )
         when (val result = client.hostDescribe()) {
-            is RpcResult.Ok -> result.value
-            is RpcResult.Err -> null
+            is RpcResult.Ok -> ProbeOutcome.Reachable(result.value)
+            is RpcResult.Err -> when (TransportFailures.of(result.error)) {
+                TransportFailure.TRUST_FENCE -> ProbeOutcome.TrustFence
+                TransportFailure.REFUSED -> ProbeOutcome.Refused
+                TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
+                TransportFailure.DNS -> ProbeOutcome.DnsFailure
+                TransportFailure.UNREACHABLE -> ProbeOutcome.Unreachable
+                TransportFailure.NOT_FOUND, TransportFailure.NOT_A_HARNESS -> ProbeOutcome.NotAHarness
+                TransportFailure.OTHER, null -> ProbeOutcome.Other(result.error.message)
+            }
         }
+    }
+
+    /**
+     * One raw TCP connect with our own deadline, so a drop is distinguishable from a refusal.
+     * Returns null when the socket opened — the HTTP call then decides what is listening.
+     */
+    private fun preflight(host: String, port: Int, connectMs: Long): ProbeOutcome? = try {
+        // Resolve explicitly: InetSocketAddress(String, Int) yields an *unresolved* address on a
+        // DNS failure rather than throwing, which would surface later as a confusing socket error.
+        val address = InetAddress.getByName(host)
+        Socket().use { it.connect(InetSocketAddress(address, port), connectMs.toInt()) }
+        null
+    } catch (e: SocketTimeoutException) {
+        ProbeOutcome.Timeout
+    } catch (e: UnknownHostException) {
+        ProbeOutcome.DnsFailure
+    } catch (e: NoRouteToHostException) {
+        ProbeOutcome.Unreachable
+    } catch (e: ConnectException) {
+        ProbeOutcome.Refused
+    } catch (e: IOException) {
+        when (TransportFailures.classify(e)) {
+            TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
+            TransportFailure.REFUSED -> ProbeOutcome.Refused
+            TransportFailure.UNREACHABLE -> ProbeOutcome.Unreachable
+            else -> ProbeOutcome.Other(e.message ?: "connection failed")
+        }
+    }
+
+    /**
+     * True when [host] is an IPv4 literal in one of this device's own /24s.
+     *
+     * Suspending because enumerating interfaces is a syscall walk, and this runs on the tap that
+     * starts a connection — not somewhere a stall is acceptable.
+     */
+    suspend fun isOnLocalSubnet(host: String): Boolean =
+        withContext(Dispatchers.IO) { sameSubnet(host, localIpv4s()) }
+
+    /** This device's own /24 as a label, e.g. `192.168.1.x`; null when it has no IPv4. */
+    suspend fun localSubnetLabel(): String? = withContext(Dispatchers.IO) {
+        localIpv4s().firstOrNull()
+            ?.split('.')
+            ?.takeIf { it.size == 4 }
+            ?.let { "${it[0]}.${it[1]}.${it[2]}.x" }
     }
 
     /**

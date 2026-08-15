@@ -132,6 +132,39 @@ class EventFoldTest {
         assertEquals("bash", assistant.blocks[1].toolName)
     }
 
+    /**
+     * A build that sends `content` as a bare string instead of a block array used to fold to no
+     * blocks at all — the user's own message would disappear from the transcript rather than render
+     * imperfectly, which is the opposite of the fold's leniency contract everywhere else.
+     */
+    @Test
+    fun foldsStringUserContentIntoATextBlock() {
+        val events = listOf(
+            event("user/message", 1, buildJsonObject {
+                put("id", "m1")
+                put("content", "just a string")
+            }),
+        )
+        val snapshot = EventFold("s1").fold(events)
+        val user = snapshot.nodes.single() as UserMessageNode
+        assertEquals(1, user.blocks.size)
+        assertEquals("text", user.blocks[0].kind)
+        assertEquals("just a string", user.blocks[0].text)
+        assertEquals("just a string", user.previewText)
+    }
+
+    @Test
+    fun ignoresBlankStringUserContent() {
+        val events = listOf(
+            event("user/message", 1, buildJsonObject {
+                put("id", "m1")
+                put("content", "   ")
+            }),
+        )
+        val user = EventFold("s1").fold(events).nodes.single() as UserMessageNode
+        assertTrue(user.blocks.isEmpty())
+    }
+
     @Test
     fun roundTripsThroughWireJson() {
         // The wire JSON parser (lenient) must accept the event envelope.

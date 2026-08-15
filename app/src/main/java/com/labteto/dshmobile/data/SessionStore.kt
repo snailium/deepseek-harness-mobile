@@ -165,6 +165,19 @@ data class PendingQuestions(
 )
 
 /**
+ * Whether more history remains after folding a backwards page.
+ *
+ * The load-bearing clause is [freshCount]: history paging is driven by scroll position, so a page
+ * that added nothing new has to end the paging regardless of what the host claims. Believing a
+ * `hasMore` that a `beforeSeq` query can no longer advance past leaves the scroll trigger firing
+ * against the same page forever.
+ *
+ * File-level so it is testable without standing up the whole store.
+ */
+internal fun nextHasMore(freshCount: Int, hostHasMore: Boolean, overDelivered: Boolean): Boolean =
+    freshCount > 0 && (hostHasMore || overDelivered)
+
+/**
  * Single source of truth for the connected harness's live state. All public surface is
  * [StateFlow]; every RPC error becomes [connectionError] and never throws. The store survives
  * reconnects by re-baselining on the connection state transition and on `session/subscribed`.
@@ -214,6 +227,20 @@ class SessionStore @Inject constructor(
 
     private val _toolViews = MutableStateFlow<Map<Long, ToolEventView>>(emptyMap())
     val toolViews: StateFlow<Map<Long, ToolEventView>> = _toolViews.asStateFlow()
+
+    /** A backwards page is in flight; the transcript shows a spinner and suppresses re-entry. */
+    private val _loadingOlder = MutableStateFlow(false)
+    val loadingOlder: StateFlow<Boolean> = _loadingOlder.asStateFlow()
+
+    /**
+     * The last backwards page failed.
+     *
+     * Paging is driven by scroll position, and `snapshotFlow` only emits distinct values — with the
+     * index unchanged after a failure nothing re-fires until the reader scrolls again. So the retry
+     * has to be an affordance rather than an automatic repeat.
+     */
+    private val _loadOlderFailed = MutableStateFlow(false)
+    val loadOlderFailed: StateFlow<Boolean> = _loadOlderFailed.asStateFlow()
 
     private val _subagents = MutableStateFlow<List<SubagentListEntry>>(emptyList())
     val subagents: StateFlow<List<SubagentListEntry>> = _subagents.asStateFlow()
@@ -803,6 +830,7 @@ class SessionStore @Inject constructor(
 
     suspend fun openSession(sessionId: String) {
         val api = apiOrNull() ?: return
+        _loadOlderFailed.value = false
         synchronized(lock) {
             val same = currentId == sessionId
             currentId = sessionId
@@ -869,38 +897,54 @@ class SessionStore @Inject constructor(
             .onFailure { log("could not remember last session", it) }
     }
 
+    /**
+     * Page one screen further back.
+     *
+     * Called from the transcript's scroll position, so it has to be safe to call repeatedly: the
+     * in-flight flag collapses a burst of scroll emissions into one request, and a page that adds
+     * nothing new ends the paging rather than leaving `hasMore` set for the trigger to fire on
+     * again.
+     */
     suspend fun loadOlder() {
         val sid = currentSessionId.value ?: return
         val api = apiOrNull() ?: return
-        val oldestSeq = synchronized(lock) { currentEvents.firstOrNull()?.seq }
-        when (val r = api.sessionHistory(SessionHistoryRequest(sid, oldestSeq?.toInt(), HISTORY_PAGE_SIZE))) {
-            is RpcResult.Ok -> {
-                clearConnectionError()
-                // Same guard as the initial page, so paging backwards stays bounded instead of
-                // pulling the whole log at once.
-                val page = historyTail(r.value.events)
-                val overDelivered = r.value.events.size > page.size
-                val envelopes = ArrayList<SessionEventEnvelope>(page.size)
-                val views = HashMap<Long, ToolEventView>()
-                for (entry in page) {
-                    envelopes.add(sessionEventToEnvelope(entry.event))
-                    entry.view?.let { views[entry.event.seq.toLong()] = it }
-                }
-                synchronized(lock) {
-                    if (currentId != sid) return@synchronized
-                    val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
-                    val fresh = envelopes.filter { it.seq !in existingSeqs }
-                    if (fresh.isNotEmpty()) {
-                        currentEvents.addAll(fresh)
-                        currentEvents.sortBy { it.seq }
+        if (!_loadingOlder.compareAndSet(expect = false, update = true)) return
+        try {
+            val oldestSeq = synchronized(lock) { currentEvents.firstOrNull()?.seq }
+            when (val r = api.sessionHistory(SessionHistoryRequest(sid, oldestSeq?.toInt(), HISTORY_PAGE_SIZE))) {
+                is RpcResult.Ok -> {
+                    clearConnectionError()
+                    _loadOlderFailed.value = false
+                    // Same guard as the initial page, so paging backwards stays bounded instead of
+                    // pulling the whole log at once.
+                    val page = historyTail(r.value.events)
+                    val overDelivered = r.value.events.size > page.size
+                    val envelopes = ArrayList<SessionEventEnvelope>(page.size)
+                    val views = HashMap<Long, ToolEventView>()
+                    for (entry in page) {
+                        envelopes.add(sessionEventToEnvelope(entry.event))
+                        entry.view?.let { views[entry.event.seq.toLong()] = it }
                     }
-                    views.forEach { (seq, view) -> toolViewsBySeq[seq] = view }
-                    _toolViews.value = toolViewsBySeq.toMap()
-                    currentHasMore = r.value.hasMore || overDelivered
-                    rebuildCurrentLocked()
+                    synchronized(lock) {
+                        if (currentId != sid) return@synchronized
+                        val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
+                        val fresh = envelopes.filter { it.seq !in existingSeqs }
+                        if (fresh.isNotEmpty()) {
+                            currentEvents.addAll(fresh)
+                            currentEvents.sortBy { it.seq }
+                        }
+                        views.forEach { (seq, view) -> toolViewsBySeq[seq] = view }
+                        _toolViews.value = toolViewsBySeq.toMap()
+                        currentHasMore = nextHasMore(fresh.size, r.value.hasMore, overDelivered)
+                        rebuildCurrentLocked()
+                    }
                 }
+                // Not a connection fault: the session is healthy and the tail still streams, so this
+                // offers a retry in the transcript rather than raising a connection banner over it.
+                is RpcResult.Err -> _loadOlderFailed.value = true
             }
-            is RpcResult.Err -> setConnectionError(r.error.message)
+        } finally {
+            _loadingOlder.value = false
         }
     }
 

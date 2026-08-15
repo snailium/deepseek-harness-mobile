@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,7 +39,14 @@ import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 import java.util.Locale
 
-/** Right-aligned user message bubble (r22, userBubble fill, max 300dp wide). */
+/**
+ * Right-aligned user message bubble (r22, userBubble fill, hairline border, max 320dp wide).
+ *
+ * The fill alone cannot draw the shape: the transcript is painted on `bgBase`, which is pure white
+ * in the light theme, and `userBubble` is `#EDF3FE` — a 1.06:1 ratio against it. The bubble was
+ * being drawn and read as plain text. `borderL2` gives it an edge in both themes without moving off
+ * the harness's own fill token.
+ */
 @Composable
 fun UserBubble(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
@@ -48,9 +56,9 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
             style = DsType.bubbleText,
             color = colors.labelPrimary,
             modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(DsShapes.bubble)
-                .background(colors.userBubble)
+                .widthIn(max = 320.dp)
+                .background(colors.userBubble, DsShapes.bubble)
+                .border(1.dp, colors.borderL2, DsShapes.bubble)
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }

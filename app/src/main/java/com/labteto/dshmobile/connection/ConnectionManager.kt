@@ -8,7 +8,10 @@ import com.labteto.dshmobile.core.wire.ConnectionState
 import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.LoopConfig
+import com.labteto.dshmobile.core.wire.GenerationFailure
+import com.labteto.dshmobile.core.wire.HandshakeStep
 import com.labteto.dshmobile.core.wire.LoopSinks
+import com.labteto.dshmobile.ui.screens.connect.ConnectFailure
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.WsDownlink
@@ -28,11 +31,23 @@ import javax.inject.Singleton
 /** UI-facing connection state. */
 enum class ConnectionPhase { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING }
 
+/** How far the readiness handshake has got, so the connect screen can say what it is doing. */
+enum class ConnectStage { Idle, Validating, Reaching, OpeningStreams, Verifying, Connected }
+
 data class ConnectionUiState(
     val phase: ConnectionPhase = ConnectionPhase.DISCONNECTED,
     val host: HostConfig? = null,
     val description: HostDescription? = null,
-    val error: String? = null,
+    val stage: ConnectStage = ConnectStage.Idle,
+    /**
+     * Why the most recent generation failed, or null.
+     *
+     * Survives the backoff ticks between attempts on purpose: the loop keeps retrying, and wiping
+     * this on every state change would blank the only explanation the user gets.
+     */
+    val failure: ConnectFailure? = null,
+    /** Consecutive failed handshake attempts; 0 while none has failed. */
+    val attempts: Int = 0,
     /** True once at least one generation completed the readiness handshake. */
     val hasConnected: Boolean = false,
 )
@@ -73,16 +88,46 @@ class ConnectionManager @Inject constructor(
         override fun onConnected(description: HostDescription) {
             val host = activeHost
             if (host != null) scope.launch { hostsStore.touchHost(host.host, host.port) }
-            _state.value = ConnectionUiState(ConnectionPhase.CONNECTED, activeHost, description, null, hasConnected = true)
+            _state.value = ConnectionUiState(
+                phase = ConnectionPhase.CONNECTED,
+                host = activeHost,
+                description = description,
+                stage = ConnectStage.Connected,
+                failure = null,
+                attempts = 0,
+                hasConnected = true,
+            )
             maybeStartService()
         }
 
         override fun onStateChange(state: ConnectionState) {
-            val phase = when (state) {
-                ConnectionState.CONNECTED -> ConnectionPhase.CONNECTED
-                ConnectionState.RECONNECTING -> ConnectionPhase.RECONNECTING
+            val current = _state.value
+            val phase = when {
+                state == ConnectionState.CONNECTED -> ConnectionPhase.CONNECTED
+                // The loop opens every generation the same way, but the first one is not a
+                // *re*connect — calling it that is what let a never-connected attempt look like a
+                // healthy session dropping, and hid it from the connect screen entirely.
+                current.hasConnected -> ConnectionPhase.RECONNECTING
+                else -> ConnectionPhase.CONNECTING
             }
-            _state.value = _state.value.copy(phase = phase, error = null)
+            // Note: does not clear `failure`. The loop emits this on every retry, so clearing here
+            // would erase the explanation a fraction of a second after showing it.
+            _state.value = current.copy(phase = phase)
+        }
+
+        override fun onHandshakeStep(step: HandshakeStep) {
+            val stage = when (step) {
+                HandshakeStep.OPENING_STREAMS -> ConnectStage.OpeningStreams
+                HandshakeStep.DESCRIBING -> ConnectStage.Verifying
+            }
+            _state.value = _state.value.copy(stage = stage)
+        }
+
+        override fun onGenerationFailed(attempt: Int, failure: GenerationFailure) {
+            _state.value = _state.value.copy(
+                failure = ConnectFailure.from(failure),
+                attempts = attempt,
+            )
         }
     }
 
@@ -94,26 +139,29 @@ class ConnectionManager @Inject constructor(
 
     val connectedApi: DshApiClient? get() = api
 
-    suspend fun connect(config: HostConfig, failure: (String) -> Unit) {
+    /**
+     * Start driving [config]. Progress and failure arrive through [state], not a callback.
+     *
+     * There used to be a 2500ms timer here that reported failure if the phase was still CONNECTING.
+     * It could never fire: the loop's first act is to publish RECONNECTING, so the phase had always
+     * moved on by the time the timer checked. The result was a Connect button that stayed disabled
+     * forever with nothing on screen. The loop now reports each failed generation directly, which
+     * is both sooner and specific.
+     */
+    suspend fun connect(config: HostConfig) {
         disconnect()
         activeHost = config
-        _state.value = ConnectionUiState(ConnectionPhase.CONNECTING, config, null, null)
+        _state.value = ConnectionUiState(
+            phase = ConnectionPhase.CONNECTING,
+            host = config,
+            stage = ConnectStage.OpeningStreams,
+        )
         val client = probeClient(config.host, config.port)
         api = client
         val loop = ConnectionLoop(client, sinks, LoopConfig())
         this.loop = loop
         loop.start()
         hostsStore.upsertHost(config)
-        // The loop publishes CONNECTED/RECONNECTING on its own; a hard failure
-        // (e.g. trust-fence 403) surfaces here through describe errors — poll once.
-        scope.launch {
-            kotlinx.coroutines.delay(2500)
-            if (_state.value.phase == ConnectionPhase.CONNECTING) {
-                // Loop is stuck (unreachable host keeps backing off). Keep trying
-                // but surface a hint once.
-                failure("")
-            }
-        }
     }
 
     fun disconnect() {

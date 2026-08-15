@@ -82,6 +82,8 @@ fun ChatScreen(
     val subagentConversation by store.subagentConversation.collectAsStateWithLifecycle()
     val subagentMode by store.subagentMode.collectAsStateWithLifecycle()
     val connectionError by store.connectionError.collectAsStateWithLifecycle()
+    val loadingOlder by store.loadingOlder.collectAsStateWithLifecycle()
+    val loadOlderFailed by store.loadOlderFailed.collectAsStateWithLifecycle()
     val pendingApproval by store.pendingApproval.collectAsStateWithLifecycle()
     val pendingQuestions by store.pendingQuestions.collectAsStateWithLifecycle()
     val permissions by store.permissions.collectAsStateWithLifecycle()
@@ -245,6 +247,8 @@ fun ChatScreen(
                     ChatTab.Chat -> ChatTranscript(
                         conversation = conversation,
                         loading = conversation == null && currentSessionId != null,
+                        loadingOlder = loadingOlder,
+                        loadOlderFailed = loadOlderFailed,
                         context = nodeContext,
                         listState = chatListState,
                         onLoadOlder = { scope.launch { store.loadOlder() } },

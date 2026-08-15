@@ -260,6 +260,13 @@ private class FoldState(private val sessionId: String) {
     }
 
     private fun parseBlocks(content: JsonElement?): List<ChatBlock> {
+        // A build that sends `content` as a bare string rather than a block array would otherwise
+        // fold to no blocks at all, and the message would vanish from the transcript instead of
+        // rendering. Leniency here is the same contract the rest of the fold keeps.
+        if (content is JsonPrimitive && content.isString) {
+            val text = content.contentOrNull.orEmpty()
+            return if (text.isBlank()) emptyList() else listOf(ChatBlock("text", text = text, raw = content))
+        }
         val array = content as? JsonArray ?: return emptyList()
         return array.mapNotNull { element ->
             val obj = element as? JsonObject ?: return@mapNotNull null

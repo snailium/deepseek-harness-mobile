@@ -2,11 +2,15 @@ package com.labteto.dshmobile.ui.screens.connect
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.ConnectionManager
+import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.DiscoveryEngine
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.connection.ProbeOutcome
+import com.labteto.dshmobile.connection.ProbeTimeouts
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -45,13 +49,30 @@ data class ConnectUiState(
     val discovered: List<DiscoveredHost> = emptyList(),
     val scanning: Boolean = false,
     val scanProgress: ScanProgress? = null,
-    val connecting: Boolean = false,
-    val error: String? = null,
+    /** What the connect attempt is doing right now. */
+    val stage: ConnectStage = ConnectStage.Idle,
+    /** Why the last attempt failed, or null. */
+    val failure: ConnectFailure? = null,
+    /** The authority actually attempted, e.g. `192.168.1.20:3080` — never the live field text. */
+    val attempted: String? = null,
+    /** The loop is still retrying in the background, so a cancel is worth offering. */
+    val retrying: Boolean = false,
     val autoConnectLast: Boolean = true,
     val autoConnectLan: Boolean = false,
     val autoConnectLoopback: Boolean = true,
     val showAdvanced: Boolean = false,
 ) {
+    /**
+     * Derived, never stored.
+     *
+     * The old stored boolean was only ever cleared by a callback that could not fire, so a failed
+     * connect left the button disabled for the rest of the session. Reading it off the stage means
+     * there is no latch to get stuck: `disconnect()` resets the whole state object, and every other
+     * path ends in either [ConnectStage.Connected] or a failure the screen displays.
+     */
+    val connecting: Boolean
+        get() = stage != ConnectStage.Idle && stage != ConnectStage.Connected
+
     /**
      * Discovered harnesses that are not already remembered.
      *
@@ -74,6 +95,42 @@ class ConnectViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(ConnectUiState())
     val state: StateFlow<ConnectUiState> = _state.asStateFlow()
+
+    /**
+     * Non-null while this ViewModel owns the outcome rather than the manager.
+     *
+     * Validation and the pre-flight probe happen here and can end the attempt before the manager is
+     * ever engaged; everything from the handshake on belongs to the manager. Set to null only when
+     * handing over, so a locally-decided result is not overwritten by a manager still reporting the
+     * previous attempt — and so a stale manager stage cannot pin the screen on "Reaching…".
+     */
+    private var localStage: ConnectStage? = null
+
+    init {
+        viewModelScope.launch {
+            connectionManager.state.collect { conn ->
+                _state.update { current ->
+                    val connected = conn.phase == ConnectionPhase.CONNECTED
+                    val owned = localStage != null
+                    current.copy(
+                        stage = localStage ?: conn.stage,
+                        failure = when {
+                            connected -> null
+                            owned -> current.failure
+                            else -> conn.failure
+                        },
+                        retrying = !owned && !connected && conn.attempts > 0,
+                        // The Recent card's liveness dot used to be greyed by the failure callback
+                        // that no longer exists; without this a dead entry keeps looking healthy.
+                        recentStatus = current.attempted
+                            ?.takeIf { !owned && conn.failure != null }
+                            ?.let { current.recentStatus + (it to HostProbe.Unreachable) }
+                            ?: current.recentStatus,
+                    )
+                }
+            }
+        }
+    }
 
     init {
         viewModelScope.launch {
@@ -109,7 +166,10 @@ class ConnectViewModel @Inject constructor(
         supervisorScope {
             hosts.map { host ->
                 async {
-                    val description = runCatching { discoveryEngine.probe(host.host, host.port) }.getOrNull()
+                    val description = runCatching {
+                        // A remembered host is named, not swept — worth waiting for.
+                        discoveryEngine.probe(host.host, host.port, ProbeTimeouts.Manual)
+                    }.getOrNull()
                     _state.update { current ->
                         current.copy(
                             recentStatus = current.recentStatus + (
@@ -138,7 +198,7 @@ class ConnectViewModel @Inject constructor(
         if (settings.autoConnectLast) {
             val last = hostsStore.hosts.first().firstOrNull()
             if (last != null) {
-                val desc = discoveryEngine.probe(last.host, last.port)
+                val desc = discoveryEngine.probe(last.host, last.port, ProbeTimeouts.Manual)
                 if (desc != null) {
                     connectTo(last)
                     return
@@ -179,7 +239,7 @@ class ConnectViewModel @Inject constructor(
 
     fun scan() {
         if (_state.value.scanning) return
-        _state.update { it.copy(scanning = true, scanProgress = null, error = null) }
+        _state.update { it.copy(scanning = true, scanProgress = null, failure = null) }
         viewModelScope.launch {
             val settings = hostsStore.settingsOnce()
             val found = discoveryEngine.scan(settings.knownPorts) { probed, total ->
@@ -190,18 +250,36 @@ class ConnectViewModel @Inject constructor(
     }
 
     fun connectManual(host: String, port: String) {
+        val trimmed = host.trim()
         val portInt = port.trim().toIntOrNull()
-        if (host.isBlank() || portInt == null || portInt !in 1..65535) {
-            _state.update { it.copy(error = ERROR_FAILED) }
+        if (trimmed.isBlank() || portInt == null || portInt !in 1..65535) {
+            fail(ConnectFailure.InvalidInput, attempted = null)
             return
         }
-        val trimmed = host.trim()
+        val authority = "$trimmed:$portInt"
         val isLoopback = trimmed == LOOPBACK || trimmed == "localhost"
-        _state.update { it.copy(connecting = true, error = null) }
+
+        localStage = ConnectStage.Validating
+        _state.update { it.copy(stage = ConnectStage.Validating, failure = null, attempted = authority) }
+
         viewModelScope.launch {
-            val desc = discoveryEngine.probe(trimmed, portInt)
-            if (desc == null) {
-                _state.update { it.copy(connecting = false, error = ERROR_FAILED) }
+            // Cheap and decisive: the sweep only ever looks at this phone's own /24, so an address
+            // outside it can never be reached from here and can never be found by scanning either.
+            // Saying so now beats a four-second timeout that blames the firewall.
+            if (!isLoopback && !discoveryEngine.isOnLocalSubnet(trimmed)) {
+                fail(ConnectFailure.DifferentSubnet(discoveryEngine.localSubnetLabel()), authority)
+                return@launch
+            }
+            localStage = ConnectStage.Reaching
+            _state.update { it.copy(stage = ConnectStage.Reaching) }
+            val outcome = discoveryEngine.probeOutcome(
+                host = trimmed,
+                port = portInt,
+                timeouts = ProbeTimeouts.Manual,
+                preflight = true,
+            )
+            if (outcome !is ProbeOutcome.Reachable) {
+                fail(ConnectFailure.from(outcome), authority)
                 return@launch
             }
             hostsStore.addKnownPort(portInt)
@@ -210,37 +288,63 @@ class ConnectViewModel @Inject constructor(
                 host = trimmed,
                 port = portInt,
                 isLoopback = isLoopback,
-                description = desc,
+                description = outcome.description,
             )
             connectTo(config)
+        }
+    }
+
+    /** Stop a connect attempt that the loop would otherwise keep retrying every few seconds. */
+    fun cancelConnect() {
+        // Keep ownership: the manager resets its own state on disconnect, but claiming Idle here
+        // means the screen is never briefly re-driven by a trailing emission.
+        localStage = ConnectStage.Idle
+        connectionManager.disconnect()
+        _state.update { it.copy(stage = ConnectStage.Idle, failure = null, retrying = false) }
+    }
+
+    /**
+     * End the attempt with a reason, and mark the attempted host unreachable if there was one.
+     *
+     * Holds [localStage] at Idle rather than releasing it: this outcome was decided here, and a
+     * manager emission from an earlier attempt must not replace it or revive `connecting`.
+     */
+    private fun fail(failure: ConnectFailure, attempted: String?) {
+        localStage = ConnectStage.Idle
+        _state.update {
+            it.copy(
+                stage = ConnectStage.Idle,
+                failure = failure,
+                attempted = attempted ?: it.attempted,
+                retrying = false,
+                recentStatus = attempted?.let { key -> it.recentStatus + (key to HostProbe.Unreachable) }
+                    ?: it.recentStatus,
+            )
         }
     }
 
     /**
      * Connect to a remembered host, and say so when it does not work.
      *
-     * The manager reports failure through the callback's argument; ignoring it left a tap on a dead
-     * Recent entry looking like the button was inert.
+     * Progress and failure now arrive on the manager's own state flow, which the collector in
+     * `init` folds in — so a tap on a dead Recent entry reports the same diagnosis as a manual
+     * attempt instead of looking like an inert button.
      */
     fun connectTo(host: HostConfig) {
-        _state.update { it.copy(connecting = true, error = null) }
-        viewModelScope.launch {
-            connectionManager.connect(host) { reason ->
-                _state.update {
-                    it.copy(
-                        connecting = false,
-                        error = reason.ifBlank { ERROR_FAILED },
-                    )
-                }
-                _state.update { current ->
-                    current.copy(recentStatus = current.recentStatus + (host.authority to HostProbe.Unreachable))
-                }
-            }
+        localStage = null
+        _state.update {
+            it.copy(
+                stage = ConnectStage.OpeningStreams,
+                failure = null,
+                attempted = host.authority,
+                retrying = false,
+            )
         }
+        viewModelScope.launch { connectionManager.connect(host) }
     }
 
     fun connectDiscovered(discovered: DiscoveredHost) {
-        _state.update { it.copy(connecting = true, error = null) }
+        _state.update { it.copy(failure = null, attempted = discovered.authority) }
         viewModelScope.launch {
             hostsStore.addKnownPort(discovered.port)
             val config = hostsStore.rememberHost(
@@ -278,7 +382,7 @@ class ConnectViewModel @Inject constructor(
         }
     }
 
-    fun clearError() = _state.update { it.copy(error = null) }
+    fun clearError() = _state.update { it.copy(failure = null) }
 
     /**
      * A readable name for an address: reverse DNS when the network offers one, the address itself
@@ -294,6 +398,5 @@ class ConnectViewModel @Inject constructor(
     private companion object {
         const val LOOPBACK = "127.0.0.1"
         const val DEFAULT_PORT = 3080
-        const val ERROR_FAILED = "connect_failed"
     }
 }

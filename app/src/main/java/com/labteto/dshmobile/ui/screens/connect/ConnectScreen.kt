@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.ui.components.DsButton
@@ -55,8 +57,9 @@ import com.labteto.dshmobile.ui.theme.DsType
 fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
-    var host by remember { mutableStateOf("") }
-    var port by remember { mutableStateOf("3080") }
+    // Saveable: a rotation mid-connect used to wipe a hand-typed address.
+    var host by rememberSaveable { mutableStateOf("") }
+    var port by rememberSaveable { mutableStateOf("3080") }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         Column(
@@ -172,16 +175,13 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     variant = DsButtonVariant.Info,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                state.error?.let { error ->
-                    Text(
-                        text = when (error) {
-                            "connect_failed" -> stringResource(R.string.connect_failed, host, port)
-                            "connect_failed_fence" -> stringResource(R.string.connect_failed_fence)
-                            else -> stringResource(R.string.common_error)
-                        },
-                        style = DsType.std14,
-                        color = colors.error,
-                        modifier = Modifier.fillMaxWidth(),
+                if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
+                state.failure?.let { failure ->
+                    ConnectFailureBlock(
+                        failure = failure,
+                        attempted = state.attempted,
+                        retrying = state.retrying,
+                        onCancel = viewModel::cancelConnect,
                     )
                 }
             }
@@ -357,6 +357,116 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+/**
+ * What the connect attempt is doing, named.
+ *
+ * A greyed-out button is the same picture whether the handshake is a second from finishing or the
+ * packets are being dropped by a firewall. Naming the stage costs one line and turns a wait into a
+ * progress report — and when it stops, the stage it stopped on is itself a clue.
+ */
+@Composable
+private fun ConnectProgressRow(stage: ConnectStage, attempted: String?) {
+    val colors = DsTheme.colors
+    val label = when (stage) {
+        ConnectStage.Validating -> stringResource(R.string.connect_stage_validating)
+        ConnectStage.Reaching -> stringResource(R.string.connect_stage_reaching, attempted.orEmpty())
+        ConnectStage.OpeningStreams -> stringResource(R.string.connect_stage_streams)
+        ConnectStage.Verifying -> stringResource(R.string.connect_stage_verifying)
+        ConnectStage.Connected -> stringResource(R.string.connect_stage_connected)
+        ConnectStage.Idle -> return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StateDot(StateDotState.Running, size = 8.dp)
+            Spacer(Modifier.width(DsSpacing.xsmall))
+            Text(label, style = DsType.std14, color = colors.labelTertiary)
+        }
+        LinearProgressIndicator(
+            progress = { stage.ordinal / (ConnectStage.entries.size - 1).toFloat() },
+            modifier = Modifier.fillMaxWidth(),
+            color = colors.accent,
+            trackColor = colors.hoverSolid,
+        )
+    }
+}
+
+/**
+ * Why it did not connect, and what to do about it.
+ *
+ * Deliberately one sentence of cause and one of action, with no commands: the device that failed is
+ * the phone, and the fix almost always happens on the computer. `harness/README.md` carries the
+ * PowerShell.
+ */
+@Composable
+private fun ConnectFailureBlock(
+    failure: ConnectFailure,
+    attempted: String?,
+    retrying: Boolean,
+    onCancel: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    val authority = attempted.orEmpty()
+    val port = authority.substringAfterLast(':', "").toIntOrNull() ?: 0
+    // `connect_failed` is formatted from the two halves so it reads as one address; feeding it the
+    // whole authority plus an empty port left a trailing colon. Blank means there was nothing to
+    // attempt (bad input), and a headline naming no address would say nothing.
+    val title = when {
+        failure is ConnectFailure.TrustFence -> stringResource(R.string.connect_fail_fence_title)
+        authority.isBlank() -> null
+        else -> stringResource(
+            R.string.connect_failed,
+            authority.substringBeforeLast(':', authority),
+            port.toString(),
+        )
+    }
+    val body = when (failure) {
+        ConnectFailure.InvalidInput -> stringResource(R.string.connect_fail_invalid)
+        is ConnectFailure.DifferentSubnet -> stringResource(
+            R.string.connect_fail_subnet,
+            authority,
+            failure.localPrefix ?: stringResource(R.string.connect_unreachable),
+        )
+        ConnectFailure.Timeout -> stringResource(R.string.connect_fail_timeout, authority, port)
+        ConnectFailure.Refused -> stringResource(R.string.connect_fail_refused, authority)
+        ConnectFailure.TrustFence -> stringResource(R.string.connect_failed_fence)
+        ConnectFailure.DnsFailure -> stringResource(R.string.connect_fail_dns, authority)
+        ConnectFailure.NotAHarness -> stringResource(R.string.connect_fail_not_harness, authority)
+        ConnectFailure.StreamsBlocked -> stringResource(R.string.connect_fail_streams, authority)
+        is ConnectFailure.Other -> stringResource(R.string.connect_fail_other, authority, failure.detail)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = colors.warnTertiary,
+    ) {
+        Column(
+            modifier = Modifier.padding(DsSpacing.medium),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                StateDot(StateDotState.Error, size = 8.dp)
+                Spacer(Modifier.width(DsSpacing.xsmall))
+                Text(
+                    title ?: body,
+                    style = DsType.std14,
+                    color = colors.warnLabel,
+                )
+            }
+            // With no headline the body has already been shown beside the dot.
+            if (title != null) Text(body, style = DsType.small13, color = colors.warnLabel)
+            // The loop backs off and retries forever; without this there is no way to stop it.
+            if (retrying) {
+                DsButton(
+                    text = stringResource(R.string.connect_cancel),
+                    onClick = onCancel,
+                    variant = DsButtonVariant.Ghost,
+                    size = DsButtonSize.Small,
+                )
+            }
+        }
     }
 }
 

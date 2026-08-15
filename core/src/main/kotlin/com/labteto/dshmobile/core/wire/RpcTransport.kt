@@ -65,12 +65,20 @@ private val JSON_MEDIA_TYPE: MediaType = "application/json; charset=utf-8".toMed
 
 /**
  * OkHttp-backed [RpcTransport]. Sends `Content-Type: application/json`, sets the `Host` header
- * from the base URL, and times out at 30s. Non-2xx responses throw [RpcTransportException]
- * (403 mentions the harness trust fence).
+ * from the base URL, and times out at [connectTimeoutMs]/[readTimeoutMs] (30s by default). Non-2xx
+ * responses throw [RpcTransportException] (403 mentions the harness trust fence).
+ *
+ * The timeouts are constructor parameters rather than something a caller pre-applies to [client]:
+ * this class rebuilds the client it is handed, so a builder-applied deadline was silently replaced
+ * by the 30s default. That is why a discovery probe advertising a 700ms budget could block for
+ * thirty seconds.
  */
 class OkHttpRpcTransport(
     baseUrl: String,
     client: OkHttpClient = defaultClient(),
+    connectTimeoutMs: Long = 30_000,
+    readTimeoutMs: Long = 30_000,
+    writeTimeoutMs: Long = 30_000,
 ) : RpcTransport {
 
     private val base: HttpUrl = baseUrl.toHttpUrl()
@@ -83,9 +91,9 @@ class OkHttpRpcTransport(
         if (base.port == defaultPort) base.host else "${base.host}:${base.port}"
     }
     private val httpClient: OkHttpClient = client.newBuilder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS)
+        .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
+        .writeTimeout(writeTimeoutMs, TimeUnit.MILLISECONDS)
         .build()
 
     override suspend fun post(path: String, body: String): RpcHttpResponse =
@@ -166,14 +174,19 @@ class OkHttpRpcTransport(
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .build()
-
-        /** Carrier-layer failure text; 403 names the trust fence because that is the usual cause. */
-        fun carrierMessage(status: Int): String = if (status == 403) {
-            "harness trust fence rejected the request (HTTP 403)"
-        } else {
-            "carrier returned HTTP $status"
-        }
     }
+}
+
+/**
+ * Carrier-layer failure text; 403 names the trust fence because that is the usual cause.
+ *
+ * File-level so the WebSocket path can wrap a failed upgrade in the same shape as a failed POST —
+ * a fence rejection of `/api/events.mux` is the same fact as one on `/api/host.describe`.
+ */
+internal fun carrierMessage(status: Int): String = if (status == 403) {
+    "harness trust fence rejected the request (HTTP 403)"
+} else {
+    "carrier returned HTTP $status"
 }
 
 /** Receives downlink WebSocket events; all callbacks may run on OkHttp's socket threads. */
@@ -233,12 +246,22 @@ open class WsDownlink(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-            sink.onClosed(t)
+            // A rejected upgrade carries its status only on the response; OkHttp reports it as a
+            // bare ProtocolException ("Expected HTTP 101 … was '403'"), which no caller can
+            // classify without reading English. Re-wrap so a trust-fence rejection of the stream
+            // reads the same as one on a POST.
+            sink.onClosed(
+                if (response != null) {
+                    RpcTransportException(response.code, carrierMessage(response.code), t)
+                } else {
+                    t
+                },
+            )
         }
     }
 
     /** Perform the RFC 6455 handshake and begin reading frames. Idempotent. */
-    fun start() {
+    open fun start() {
         if (started) return
         started = true
         val request = Request.Builder().url(url).build()
@@ -246,7 +269,7 @@ open class WsDownlink(
     }
 
     /** Tear the socket down. Idempotent. */
-    fun close() {
+    open fun close() {
         webSocket?.cancel()
         webSocket = null
     }

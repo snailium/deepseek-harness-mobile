@@ -32,6 +32,21 @@ import kotlinx.serialization.json.JsonObject
  * The `when` is exhaustive against [ChatNode] on purpose: a new node type is a compile error here,
  * which is the only thing keeping this in step with [ChatNodeItem]'s own dispatch.
  */
+/**
+ * The text a user turn renders in its bubble.
+ *
+ * Shared by [rendersContent] and [ChatNodeItem] so the two cannot disagree about whether a turn has
+ * anything to show — a node judged renderable but drawing nothing costs a gap in the transcript, and
+ * one judged empty but holding text loses the message.
+ *
+ * `"unknown"` blocks carrying text count: a harness build that labels a block something this client
+ * has not seen should still put the user's words on screen rather than drop them.
+ */
+internal fun UserMessageNode.displayText(): String = blocks
+    .filter { it.kind == "text" || (it.kind == "unknown" && it.text != null) }
+    .joinToString("\n") { it.text.orEmpty() }
+    .ifBlank { previewText }
+
 internal fun ChatNode.rendersContent(): Boolean = when (this) {
     // Structure, not content.
     is TurnStartNode -> false
@@ -43,12 +58,7 @@ internal fun ChatNode.rendersContent(): Boolean = when (this) {
     is OtherNode -> type !in STRUCTURAL_EVENT_TYPES
 
     // Content that can still fold to nothing.
-    is UserMessageNode ->
-        blocks.any { it.kind == "image" } ||
-            blocks.filter { it.kind == "text" }
-                .joinToString("\n") { it.text.orEmpty() }
-                .ifBlank { previewText }
-                .isNotBlank()
+    is UserMessageNode -> blocks.any { it.kind == "image" } || displayText().isNotBlank()
     is AssistantMessageNode -> interrupted || blocks.any { block ->
         when (block.kind) {
             // Tool calls arrive as their own nodes; the inline block is a duplicate reference.

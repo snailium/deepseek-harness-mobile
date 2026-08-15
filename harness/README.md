@@ -49,6 +49,66 @@ configuration seam.
 4. In DSH Mobile: Settings → Connect, tap **Scan network**, or enter
    `192.168.1.20` / `3080` manually.
 
+## Troubleshooting
+
+The app names the failure it hit; find that heading below. Everything here is run on the
+**computer** — the phone is the device that reports the problem, not the one that fixes it.
+
+### "Nothing answered" / the connect stalls and times out
+
+The packets are being dropped, not refused. Almost always the computer's firewall: Windows puts an
+unrecognised network into the **Public** profile, which blocks inbound TCP. In an elevated
+PowerShell:
+
+```powershell
+New-NetFirewallRule -DisplayName "DeepSeek Harness (dsh web)" -Direction Inbound `
+    -Action Allow -Protocol TCP -LocalPort 3080 -Profile Private,Domain
+```
+
+Then set the Wi-Fi/Ethernet connection to **Private** (Settings → Network & internet → *your
+network* → Network profile type). If it still times out, the router is the suspect: many have
+*AP isolation* / *client isolation* that stops wireless clients reaching wired ones, and guest
+SSIDs almost always do. Check that the phone's IP and the computer's IP share their first three
+octets.
+
+### "Refused the connection"
+
+The computer is reachable and nothing is listening on that port — the harness is still bound to
+loopback. Confirm:
+
+```powershell
+netstat -ano | findstr 3080
+```
+
+`127.0.0.1:3080` means the LAN patch is not in effect; `0.0.0.0:3080` means it is. Re-check
+`<harness-home>/profiles/web/cordis.patch.yml` against the steps above and restart `dsh web`.
+If you changed the port, make sure the app's Port field matches.
+
+### "The harness rejected this address" (HTTP 403)
+
+The trust fence only auto-trusts the IP literals it derives from the bind host. Connect using the
+IP address rather than a hostname, or start the harness with `dsh web --trusted-host myhost.local`.
+
+### "Not on this phone's network"
+
+The address you typed is outside the phone's own /24, so nothing on the phone can route to it — and
+**Scan network** cannot find it either, since the sweep only walks the phone's own subnet. Different
+bands of one SSID (2.4 GHz vs 5 GHz) are normally the same subnet and are fine; a *guest* SSID
+usually is not. Compare `ipconfig` on the computer with the address the app reports.
+
+### "Its event stream would not open"
+
+The `/api` calls succeed but the WebSocket upgrade does not. A VPN, private DNS, or an HTTP proxy on
+the phone is the usual cause — turn it off and retry.
+
+### Finding the computer's LAN IP
+
+```sh
+ipconfig                      # Windows
+ip addr                       # Linux
+ipconfig getifaddr en0        # macOS (Wi-Fi)
+```
+
 ## Notes
 
 - **Security**: there is no authentication. Anyone on your LAN can reach the

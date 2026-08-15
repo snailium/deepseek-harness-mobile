@@ -29,6 +29,27 @@ enum class ConnectionState {
     RECONNECTING,
 }
 
+/** Which part of the readiness handshake is under way. */
+enum class HandshakeStep {
+    /** Both downlink WebSockets are being opened. */
+    OPENING_STREAMS,
+
+    /** The streams are up; `host.describe` is in flight. */
+    DESCRIBING,
+}
+
+/** Why one generation failed to reach [ConnectionState.CONNECTED]. */
+sealed class GenerationFailure {
+    /** Neither stream finished opening inside the budget. */
+    data class StreamsTimedOut(val timeoutMs: Long) : GenerationFailure()
+
+    /** A stream failed outright — a refused connection, or a rejected upgrade. */
+    data class StreamFailed(val kind: TransportFailure, val message: String?) : GenerationFailure()
+
+    /** The streams opened but `host.describe` did not answer usefully. */
+    data class DescribeFailed(val error: RpcError) : GenerationFailure()
+}
+
 /** Callbacks from the connection loop. Exceptions thrown here never kill the loop. */
 interface LoopSinks {
     /** One parsed mux-stream frame (including stream/error frames). */
@@ -42,6 +63,16 @@ interface LoopSinks {
 
     /** The connection state changed. */
     fun onStateChange(state: ConnectionState)
+
+    /** Progress within the current generation's handshake. Default no-op. */
+    fun onHandshakeStep(step: HandshakeStep) {}
+
+    /**
+     * One generation failed; [attempt] is 1 for the first. The loop keeps retrying afterwards —
+     * this reports *why* so a caller can say so rather than waiting on a timer that cannot know.
+     * Default no-op.
+     */
+    fun onGenerationFailed(attempt: Int, failure: GenerationFailure) {}
 }
 
 /**
@@ -115,20 +146,31 @@ class ConnectionLoop(
         var attempt = 0
         while (currentCoroutineContext().isActive) {
             safeSink { sinks.onStateChange(ConnectionState.RECONNECTING) }
-            val opened = openGeneration()
-            if (opened != null) {
-                attempt = 0
-                generation = opened
-                safeSink { sinks.onConnected(opened.description) }
-                safeSink { sinks.onStateChange(ConnectionState.CONNECTED) }
-                consumeGeneration(opened)
-                closeGeneration()
-            } else {
-                attempt += 1
+            when (val opened = openGeneration()) {
+                is Opened.Ok -> {
+                    attempt = 0
+                    generation = opened.generation
+                    safeSink { sinks.onConnected(opened.generation.description) }
+                    safeSink { sinks.onStateChange(ConnectionState.CONNECTED) }
+                    consumeGeneration(opened.generation)
+                    closeGeneration()
+                }
+
+                is Opened.Failed -> {
+                    attempt += 1
+                    val current = attempt
+                    safeSink { sinks.onGenerationFailed(current, opened.failure) }
+                }
             }
             if (!currentCoroutineContext().isActive) break
             config.delay(nextBackoff(attempt))
         }
+    }
+
+    /** Outcome of one handshake attempt: the open generation, or why it did not open. */
+    private sealed class Opened {
+        data class Ok(val generation: Generation) : Opened()
+        data class Failed(val failure: GenerationFailure) : Opened()
     }
 
     /** The open streams of the current generation, plus their frame/failure channels. */
@@ -164,8 +206,8 @@ class ConnectionLoop(
         }
     }
 
-    /** Open both streams and complete the readiness handshake; null when the generation failed. */
-    private suspend fun openGeneration(): Generation? {
+    /** Open both streams and complete the readiness handshake, or report why it did not. */
+    private suspend fun openGeneration(): Opened {
         val muxFrames = Channel<ServerRequest>(Channel.UNLIMITED)
         val hostFrames = Channel<ServerRequest>(Channel.UNLIMITED)
         val muxOpened = CompletableDeferred<Unit>()
@@ -173,6 +215,7 @@ class ConnectionLoop(
         val muxFailed = CompletableDeferred<Throwable>()
         val hostFailed = CompletableDeferred<Throwable>()
 
+        safeSink { sinks.onHandshakeStep(HandshakeStep.OPENING_STREAMS) }
         val muxWs = api.openEvents(mux = true, sink = BridgeSink(muxFrames, muxOpened, muxFailed))
         val hostWs = api.openEvents(mux = false, sink = BridgeSink(hostFrames, hostOpened, hostFailed))
         muxWs.start()
@@ -188,25 +231,42 @@ class ConnectionLoop(
             false
         }
         if (!opened || muxFailed.isCompleted || hostFailed.isCompleted) {
+            // A stream that failed outright says more than the timeout does — a rejected upgrade
+            // carries its status. `await` on an already-completed deferred returns at once, which
+            // avoids the experimental getCompleted().
+            val cause = when {
+                muxFailed.isCompleted -> muxFailed.await()
+                hostFailed.isCompleted -> hostFailed.await()
+                else -> null
+            }
             muxWs.close()
             hostWs.close()
-            return null
+            return Opened.Failed(
+                if (cause != null) {
+                    GenerationFailure.StreamFailed(TransportFailures.classify(cause), cause.message)
+                } else {
+                    GenerationFailure.StreamsTimedOut(config.streamOpenTimeoutMs)
+                },
+            )
         }
 
+        safeSink { sinks.onHandshakeStep(HandshakeStep.DESCRIBING) }
         return when (val describe = api.hostDescribe()) {
-            is RpcResult.Ok -> Generation(
-                muxWs = muxWs,
-                hostWs = hostWs,
-                muxFrames = muxFrames,
-                hostFrames = hostFrames,
-                muxFailed = muxFailed,
-                hostFailed = hostFailed,
-                description = describe.value,
+            is RpcResult.Ok -> Opened.Ok(
+                Generation(
+                    muxWs = muxWs,
+                    hostWs = hostWs,
+                    muxFrames = muxFrames,
+                    hostFrames = hostFrames,
+                    muxFailed = muxFailed,
+                    hostFailed = hostFailed,
+                    description = describe.value,
+                ),
             )
             is RpcResult.Err -> {
                 muxWs.close()
                 hostWs.close()
-                null
+                Opened.Failed(GenerationFailure.DescribeFailed(describe.error))
             }
         }
     }
