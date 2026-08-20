@@ -3,6 +3,56 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.5.0] - 2026-08-20
+
+DSH Mobile learns to reach a harness that is **not on your Wi-Fi**. The connect
+screen no longer assumes a LAN: you can enter any host (IP or domain), choose
+`http` or `https`, and — for a harness published behind an edge proxy — set the
+credentials that proxy expects. The port can stay empty to use the protocol's
+default. Connecting to an address outside your local network asks for one
+confirmation first; after that the attempt, the failure diagnosis, and the
+connected experience are exactly what a LAN connection gives you.
+
+### Added
+
+- **Manual connect to any address.** The local-subnet gate is gone: a public IP
+  or a domain like `ds.example.com` is probed instead of being rejected as "a
+  different network". A scheme toggle (HTTP/HTTPS) sits above the host/port
+  fields, and a pasted full URL in the host field sets the scheme for you.
+- **Optional per-host credentials**, stored app-private with the address and
+  sent on every exchange — the unary POSTs, the session-export download, and
+  both WebSocket upgrades:
+  - an **access token**, sent as `Authorization: Bearer …`;
+  - a **Cloudflare Access service token**, sent as
+    `CF-Access-Client-Id` / `CF-Access-Client-Secret` — the supported way for
+    an app to pass a Cloudflare Access application without a browser login.
+- **Remote-connect confirmation.** The first manual connect to an address that
+  is not an IPv4 literal on this phone's own /24 pauses for a one-time
+  "this is outside your local network" confirmation; the choice is remembered
+  per endpoint. LAN hosts and loopback are unaffected.
+- **Edge-proxy diagnosis.** A refusal that carries a `WWW-Authenticate`
+  challenge — Cloudflare Access answering 302/401/403 — is reported as
+  "the access service rejected the request — check the token and the Cloudflare
+  Client ID/Secret", instead of a bare "carrier returned HTTP 302" or a
+  trust-fence hint. The harness's own 403 trust fence keeps its own message.
+- **Scheme-aware display.** Remembered and connected hosts show an `https://`
+  prefix when they are https.
+
+### Changed
+
+- Remembered hosts are probed (and auto-reconnect re-checks them) with their
+  own stored scheme and credentials, so a remote host's Recent card shows its
+  real liveness instead of an always-off dot.
+- The connect-screen security banner now says the harness itself has no login
+  and recommends protecting remote access with a token, VPN, or Cloudflare
+  Access.
+
+### Removed
+
+- The "not on this phone's network" hard failure (`connect_fail_subnet`) and
+  its `DifferentSubnet` diagnosis — remote addresses are now attempted, with
+  confirmation, rather than refused.
+
 ## [0.4.0] - 2026-08-18
 
 Two threads run through this release. The first is the question the agent asks

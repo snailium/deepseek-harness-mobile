@@ -22,9 +22,49 @@ data class HostConfig(
     val lastVersion: String? = null,
     val lastCwd: String? = null,
     val lastSessions: Int? = null,
+    /**
+     * URL scheme, `http` or `https`. Defaults keep hosts saved by older builds decoding as the
+     * plain-HTTP endpoints they were. Normalize through [normalizeScheme] before storing.
+     */
+    val scheme: String = "http",
+    /**
+     * Optional `Authorization: Bearer` value, for a bearer-gated proxy in front of the harness.
+     * Stored app-private like the address itself; only ever sent when set.
+     */
+    val authToken: String? = null,
+    /** Cloudflare Access service-token Client ID, sent as `CF-Access-Client-Id`. */
+    val cfClientId: String? = null,
+    /** Cloudflare Access service-token Client Secret, sent as `CF-Access-Client-Secret`. */
+    val cfClientSecret: String? = null,
+    /** True once the user confirmed connecting to this remote (off-LAN) endpoint. */
+    val remoteConfirmed: Boolean = false,
 ) {
     val authority: String get() = "$host:$port"
-    val baseUrl: String get() = "http://$authority"
+    val baseUrl: String get() = "$scheme://$authority"
+
+    /**
+     * The extra headers an edge proxy in front of the harness needs, or empty for a plain LAN
+     * endpoint. This is the single place auth values become wire headers — the transport applies
+     * the map verbatim to every POST, download and WebSocket upgrade.
+     */
+    val authHeaders: Map<String, String> get() = authHeaders(authToken, cfClientId, cfClientSecret)
+
+    /** A short label for screens: `https://host:port` — the scheme only when it is https. */
+    val displayAddress: String get() = if (scheme == "https") "$scheme://$authority" else authority
+
+    companion object {
+        /** Coerce any input to the two schemes the wire understands. */
+        fun normalizeScheme(value: String?): String =
+            if (value.equals("https", ignoreCase = true)) "https" else "http"
+
+        /** Compose the wire headers for the three optional auth values; empty when none is set. */
+        fun authHeaders(token: String?, cfClientId: String?, cfClientSecret: String?): Map<String, String> =
+            buildMap {
+                token?.takeIf { it.isNotBlank() }?.let { put("Authorization", "Bearer $it") }
+                cfClientId?.takeIf { it.isNotBlank() }?.let { put("CF-Access-Client-Id", it) }
+                cfClientSecret?.takeIf { it.isNotBlank() }?.let { put("CF-Access-Client-Secret", it) }
+            }
+    }
 }
 
 /**

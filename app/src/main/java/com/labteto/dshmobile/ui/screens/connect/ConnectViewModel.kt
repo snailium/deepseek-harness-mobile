@@ -45,6 +45,24 @@ sealed interface HostProbe {
 /** How far the subnet sweep has got, so the UI can show more than a spinner. */
 data class ScanProgress(val probed: Int, val total: Int)
 
+/**
+ * A manual-connect attempt held at the remote-confirmation step: the address is outside this
+ * phone's local network, and the user has not confirmed this endpoint yet. Everything the attempt
+ * needs is carried here so confirming (or dismissing) does not depend on the fields still holding
+ * the same text.
+ */
+data class PendingRemoteConnect(
+    val host: String,
+    val port: Int,
+    val scheme: String,
+    val token: String?,
+    val cfClientId: String?,
+    val cfClientSecret: String?,
+    val isLoopback: Boolean,
+    val authority: String,
+    val label: String,
+)
+
 data class ConnectUiState(
     val remembered: List<HostConfig> = emptyList(),
     /** Liveness per remembered host, keyed by `host:port`. Absent = not probed yet. */
@@ -60,6 +78,8 @@ data class ConnectUiState(
     val attempted: String? = null,
     /** The loop is still retrying in the background, so a cancel is worth offering. */
     val retrying: Boolean = false,
+    /** A remote (off-LAN) manual attempt awaiting the user's confirmation. */
+    val pendingRemoteConfirm: PendingRemoteConnect? = null,
     val autoConnectLast: Boolean = true,
     val autoConnectLan: Boolean = false,
     val autoConnectLoopback: Boolean = true,
@@ -173,8 +193,10 @@ class ConnectViewModel @Inject constructor(
             hosts.map { host ->
                 async {
                     val description = runCatching {
-                        // A remembered host is named, not swept — worth waiting for.
-                        discoveryEngine.probe(host.host, host.port, ProbeTimeouts.Manual)
+                        // A remembered host is named, not swept — worth waiting for. The probe uses
+                        // the host's own scheme and auth headers, so a remote https endpoint behind
+                        // Cloudflare Access reports live with the same credentials it connects with.
+                        discoveryEngine.probeConfig(host, ProbeTimeouts.Manual)
                     }.getOrNull()
                     _state.update { current ->
                         current.copy(
@@ -204,7 +226,7 @@ class ConnectViewModel @Inject constructor(
         if (settings.autoConnectLast) {
             val last = hostsStore.hosts.first().firstOrNull()
             if (last != null) {
-                val desc = discoveryEngine.probe(last.host, last.port, ProbeTimeouts.Manual)
+                val desc = discoveryEngine.probeConfig(last, ProbeTimeouts.Manual)
                 if (desc != null) {
                     connectTo(last)
                     return
@@ -303,49 +325,158 @@ class ConnectViewModel @Inject constructor(
         scanJob = null
     }
 
-    fun connectManual(host: String, port: String) {
-        val trimmed = host.trim()
-        val portInt = port.trim().toIntOrNull()
-        if (trimmed.isBlank() || portInt == null || portInt !in 1..65535) {
+    fun connectManual(
+        host: String,
+        port: String,
+        scheme: String,
+        token: String,
+        cfClientId: String,
+        cfClientSecret: String,
+    ) {
+        // A pasted full URL lands in the host field; its scheme wins over the toggle.
+        val pasted = host.trim()
+        val pastedPrefix = pasted.substringBefore("://", "").lowercase()
+        val schemeValue = if (pastedPrefix == "http" || pastedPrefix == "https") {
+            pastedPrefix
+        } else {
+            HostConfig.normalizeScheme(scheme)
+        }
+        val hostValue = if (pastedPrefix == "http" || pastedPrefix == "https") {
+            pasted.substringAfter("://")
+        } else {
+            pasted
+        }
+        val portText = port.trim()
+        val portInt = if (portText.isBlank()) {
+            if (schemeValue == "https") DEFAULT_HTTPS_PORT else DEFAULT_HTTP_PORT
+        } else {
+            portText.toIntOrNull()
+        }
+        if (hostValue.isBlank() || portInt == null || portInt !in 1..65535) {
             fail(ConnectFailure.InvalidInput, attempted = null)
             return
         }
-        val authority = "$trimmed:$portInt"
-        val isLoopback = trimmed == LOOPBACK || trimmed == "localhost"
+        val authority = "$hostValue:$portInt"
+        val isLoopback = hostValue == LOOPBACK || hostValue == "localhost"
+        val tokenValue = token.trim().takeIf { it.isNotBlank() }
+        val cfIdValue = cfClientId.trim().takeIf { it.isNotBlank() }
+        val cfSecretValue = cfClientSecret.trim().takeIf { it.isNotBlank() }
 
         localStage = ConnectStage.Validating
         _state.update { it.copy(stage = ConnectStage.Validating, failure = null, attempted = authority) }
 
         viewModelScope.launch {
-            // Cheap and decisive: the sweep only ever looks at this phone's own /24, so an address
-            // outside it can never be reached from here and can never be found by scanning either.
-            // Saying so now beats a four-second timeout that blames the firewall.
-            if (!isLoopback && !discoveryEngine.isOnLocalSubnet(trimmed)) {
-                fail(ConnectFailure.DifferentSubnet(discoveryEngine.localSubnetLabel()), authority)
-                return@launch
+            // Anything that is not a local-subnet IPv4 literal counts as remote — a public IP or a
+            // domain like ds.yeasin.tech. Confirm once (unless this endpoint was confirmed before),
+            // then the attempt proceeds exactly like a LAN one.
+            val remote = !isLoopback && !discoveryEngine.isDefinitelyLocal(hostValue)
+            if (remote) {
+                val alreadyConfirmed = hostsStore.hosts.first()
+                    .any { it.host == hostValue && it.port == portInt && it.remoteConfirmed }
+                if (!alreadyConfirmed) {
+                    _state.update {
+                        it.copy(
+                            pendingRemoteConfirm = PendingRemoteConnect(
+                                host = hostValue,
+                                port = portInt,
+                                scheme = schemeValue,
+                                token = tokenValue,
+                                cfClientId = cfIdValue,
+                                cfClientSecret = cfSecretValue,
+                                isLoopback = isLoopback,
+                                authority = authority,
+                                label = hostLabel(hostValue),
+                            ),
+                        )
+                    }
+                    return@launch
+                }
             }
-            localStage = ConnectStage.Reaching
-            _state.update { it.copy(stage = ConnectStage.Reaching) }
-            val outcome = discoveryEngine.probeOutcome(
-                host = trimmed,
+            attemptConnect(
+                host = hostValue,
                 port = portInt,
-                timeouts = ProbeTimeouts.Manual,
-                preflight = true,
-            )
-            if (outcome !is ProbeOutcome.Reachable) {
-                fail(ConnectFailure.from(outcome), authority)
-                return@launch
-            }
-            hostsStore.addKnownPort(portInt)
-            val config = hostsStore.rememberHost(
-                name = hostLabel(trimmed),
-                host = trimmed,
-                port = portInt,
+                scheme = schemeValue,
+                token = tokenValue,
+                cfClientId = cfIdValue,
+                cfClientSecret = cfSecretValue,
                 isLoopback = isLoopback,
-                description = outcome.description,
+                authority = authority,
+                remoteConfirmed = remote,
             )
-            connectTo(config)
         }
+    }
+
+    /** The user accepted the remote-connect confirmation; run the held attempt. */
+    fun confirmRemote() {
+        val pending = _state.value.pendingRemoteConfirm ?: return
+        _state.update { it.copy(pendingRemoteConfirm = null) }
+        viewModelScope.launch {
+            attemptConnect(
+                host = pending.host,
+                port = pending.port,
+                scheme = pending.scheme,
+                token = pending.token,
+                cfClientId = pending.cfClientId,
+                cfClientSecret = pending.cfClientSecret,
+                isLoopback = pending.isLoopback,
+                authority = pending.authority,
+                remoteConfirmed = true,
+            )
+        }
+    }
+
+    /** The user declined the remote-connect confirmation; drop the attempt. */
+    fun dismissRemoteConfirm() {
+        localStage = ConnectStage.Idle
+        _state.update {
+            it.copy(pendingRemoteConfirm = null, stage = ConnectStage.Idle, failure = null)
+        }
+    }
+
+    /**
+     * Probe, remember and connect one endpoint with the scheme and auth headers it will be reached
+     * by. Shared by the LAN manual path and the remote path after confirmation, so both speak the
+     * same wire and fail with the same diagnosis.
+     */
+    private suspend fun attemptConnect(
+        host: String,
+        port: Int,
+        scheme: String,
+        token: String?,
+        cfClientId: String?,
+        cfClientSecret: String?,
+        isLoopback: Boolean,
+        authority: String,
+        remoteConfirmed: Boolean,
+    ) {
+        localStage = ConnectStage.Reaching
+        _state.update { it.copy(stage = ConnectStage.Reaching) }
+        val outcome = discoveryEngine.probeOutcome(
+            host = host,
+            port = port,
+            timeouts = ProbeTimeouts.Manual,
+            preflight = true,
+            scheme = scheme,
+            headers = HostConfig.authHeaders(token, cfClientId, cfClientSecret),
+        )
+        if (outcome !is ProbeOutcome.Reachable) {
+            fail(ConnectFailure.from(outcome), authority)
+            return
+        }
+        hostsStore.addKnownPort(port)
+        val config = hostsStore.rememberHost(
+            name = hostLabel(host),
+            host = host,
+            port = port,
+            isLoopback = isLoopback,
+            description = outcome.description,
+            scheme = scheme,
+            authToken = token,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+            remoteConfirmed = remoteConfirmed,
+        )
+        connectTo(config)
     }
 
     /** Stop a connect attempt that the loop would otherwise keep retrying every few seconds. */
@@ -452,5 +583,7 @@ class ConnectViewModel @Inject constructor(
     private companion object {
         const val LOOPBACK = "127.0.0.1"
         const val DEFAULT_PORT = 3080
+        const val DEFAULT_HTTP_PORT = 80
+        const val DEFAULT_HTTPS_PORT = 443
     }
 }

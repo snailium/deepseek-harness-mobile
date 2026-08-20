@@ -131,11 +131,19 @@ class ConnectionManager @Inject constructor(
         }
     }
 
-    /** Build a client for manual probing/prompting without the full loop. */
-    fun probeClient(host: String, port: Int): DshApiClient = DshApiClient(
-        transport = OkHttpRpcTransport("http://$host:$port", okHttpClient),
-        wsFactory = { path, sink -> WsDownlink("http://$host:$port$path", okHttpClient, sink) },
-    )
+    /**
+     * Build a client for [config] with its scheme and auth headers — the same client the loop and
+     * the probe use, so a manual probe and the real connection always speak the same wire.
+     */
+    fun clientFor(config: HostConfig): DshApiClient {
+        val headers = config.authHeaders
+        return DshApiClient(
+            transport = OkHttpRpcTransport(config.baseUrl, okHttpClient, extraHeaders = headers),
+            wsFactory = { path, sink ->
+                WsDownlink("${config.baseUrl}$path", okHttpClient, sink, headers)
+            },
+        )
+    }
 
     val connectedApi: DshApiClient? get() = api
 
@@ -156,7 +164,7 @@ class ConnectionManager @Inject constructor(
             host = config,
             stage = ConnectStage.OpeningStreams,
         )
-        val client = probeClient(config.host, config.port)
+        val client = clientFor(config)
         api = client
         val loop = ConnectionLoop(client, sinks, LoopConfig())
         this.loop = loop
@@ -176,7 +184,7 @@ class ConnectionManager @Inject constructor(
     fun reconnectIfNeeded() {
         val host = activeHost ?: return
         loop?.stop()
-        val client = api ?: probeClient(host.host, host.port).also { api = it }
+        val client = api ?: clientFor(host).also { api = it }
         loop = ConnectionLoop(client, sinks, LoopConfig()).also { it.start() }
     }
 

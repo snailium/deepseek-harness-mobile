@@ -89,6 +89,36 @@ If a connect attempt fails, the app names the cause; the wiki's
 [Troubleshooting](https://github.com/sorsama/deepseek-harness-mobile/wiki/Troubleshooting) page is
 keyed on that exact sentence.
 
+### Connect to a remote harness (VPS / anywhere)
+
+The manual connect screen accepts **any** host — a public IP or a domain — with a
+scheme toggle (`http` / `https`), an optional access token, and optional
+**Cloudflare Access** credentials. The first connect to an address outside your
+local network asks for a confirmation once, then behaves exactly like a LAN
+connection.
+
+The safe way to publish a harness is to keep the port closed and put an
+authenticating edge in front of it, e.g. **Cloudflare Tunnel + Cloudflare
+Access**:
+
+1. Run the harness bound to `127.0.0.1` (its default) with the public hostname
+   trusted: `dsh web --trusted-host your-domain.example`.
+2. Point a Cloudflare Tunnel hostname at `http://localhost:3080`.
+3. In the Cloudflare Zero Trust dashboard, create an **Access application** for
+   that hostname. Browsers will sign in through the Access login page.
+4. For the app, create a **service token** (Zero Trust → Access → Service Auth →
+   Service tokens) and add it to the application's policy under **Service Auth**.
+   A service token is a Client ID + Client Secret pair.
+5. In the app: scheme **HTTPS**, host `your-domain.example`, port empty (or
+   `443`), and paste the **Client ID** and **Client Secret** into the two
+   Cloudflare fields. The app sends them as `CF-Access-Client-Id` /
+   `CF-Access-Client-Secret` on every request and WebSocket upgrade.
+
+A bearer-gated proxy instead? Fill only the **Access token** field; it is sent
+as `Authorization: Bearer …`. If the edge refuses the credentials, the app says
+so explicitly ("the access service rejected the request") rather than blaming
+the network.
+
 ## Compatibility & security
 
 - See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the harness version matrix and

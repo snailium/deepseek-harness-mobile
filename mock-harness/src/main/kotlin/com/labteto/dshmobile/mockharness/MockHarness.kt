@@ -71,6 +71,23 @@ class MockHarness(
     @Volatile
     var sessionExportBytes: ByteArray = ByteArray(0)
 
+    /**
+     * The auth-relevant headers observed on each endpoint, keyed by endpoint name
+     * (`host.describe`, `session.export`, `events.mux`, `events.host`). Values are null when the
+     * request carried no such header. Lets a test assert that a client's configured credentials
+     * ride on every exchange — POST, download, and WebSocket upgrade alike.
+     */
+    val observedHeaders = ConcurrentHashMap<String, Map<String, String?>>()
+
+    private fun ApplicationCall.recordAuthHeaders(key: String) {
+        observedHeaders[key] = buildMap {
+            put("Authorization", request.headers["Authorization"])
+            put("CF-Access-Client-Id", request.headers["CF-Access-Client-Id"])
+            put("CF-Access-Client-Secret", request.headers["CF-Access-Client-Secret"])
+            put("Host", request.headers["Host"])
+        }
+    }
+
     private val normalizedTrustedHosts: Set<String> =
         trustedHosts.mapTo(mutableSetOf()) { normalizeHost(it) }
 
@@ -103,9 +120,11 @@ class MockHarness(
                     call.handleApi("$namespace/$method")
                 }
                 webSocket("/api/events.mux") {
+                    call.recordAuthHeaders("events.mux")
                     handleMuxSocket()
                 }
                 webSocket("/api/events.host") {
+                    call.recordAuthHeaders("events.host")
                     handleHostSocket()
                 }
             }
@@ -221,6 +240,7 @@ class MockHarness(
             respondText("Forbidden", status = HttpStatusCode.Forbidden)
             return
         }
+        recordAuthHeaders("session.export")
         val sessionId = request.queryParameters["sessionId"]
         if (sessionId.isNullOrBlank()) {
             respondText("missing sessionId", status = HttpStatusCode.BadRequest)
@@ -236,6 +256,7 @@ class MockHarness(
             return
         }
         val pathMethod = pathMethodOverride ?: parameters["method"] ?: ""
+        recordAuthHeaders(pathMethod)
         if (pathMethod == "respond") {
             respondJson(judgeRespond(runCatching { receiveText() }.getOrDefault("")))
             return

@@ -17,8 +17,11 @@ sealed interface ConnectFailure {
     /** The address or port was not usable as typed. */
     data object InvalidInput : ConnectFailure
 
-    /** The address is not on this phone's own /24, so nothing here can reach it. */
-    data class DifferentSubnet(val localPrefix: String?) : ConnectFailure
+    /**
+     * An edge proxy (Cloudflare Access or similar) in front of the harness refused the request —
+     * the endpoint is reachable, but the credentials it carries were missing or rejected.
+     */
+    data object AccessDenied : ConnectFailure
 
     /** Nothing answered — dropped packets. Firewall, or a router isolating wireless clients. */
     data object Timeout : ConnectFailure
@@ -46,12 +49,12 @@ sealed interface ConnectFailure {
         /** Map a pre-flight probe outcome. */
         fun from(outcome: ProbeOutcome): ConnectFailure = when (outcome) {
             is ProbeOutcome.Reachable -> Other("")
+            ProbeOutcome.AccessDenied -> AccessDenied
             ProbeOutcome.TrustFence -> TrustFence
             ProbeOutcome.Refused -> Refused
             ProbeOutcome.Timeout -> Timeout
             ProbeOutcome.DnsFailure -> DnsFailure
-            // No route is a different-network problem; the subnet pre-check catches most of these
-            // first, and when it does not, "nothing answered" is the honest reading.
+            // No route is a different-network problem; "nothing answered" is the honest reading.
             ProbeOutcome.Unreachable -> Timeout
             ProbeOutcome.NotAHarness -> NotAHarness
             is ProbeOutcome.Other -> Other(outcome.detail)
@@ -71,6 +74,7 @@ sealed interface ConnectFailure {
             fallback: ConnectFailure,
         ): ConnectFailure = when (kind) {
             TransportFailure.TRUST_FENCE -> TrustFence
+            TransportFailure.ACCESS_DENIED -> AccessDenied
             TransportFailure.REFUSED -> Refused
             TransportFailure.TIMEOUT, TransportFailure.UNREACHABLE -> Timeout
             TransportFailure.DNS -> DnsFailure

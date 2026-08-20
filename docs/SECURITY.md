@@ -25,9 +25,31 @@ not authentication:
   file pickers) remain loopback-only by harness design and are shown
   read-only over the network.
 
+## Remote connections and edge authentication
+
+The app can connect to any endpoint you enter, not just your LAN. The harness
+itself still has no login, so a remote connection is only as safe as the edge
+in front of it:
+
+- **Keep the port closed** and publish the harness through a tunnel or reverse
+  proxy. A bare `http://` endpoint on the public internet hands agent control —
+  including command execution on the host — to anyone who finds it.
+- The app supports optional per-host credentials, stored app-private with the
+  address and sent on every exchange (POSTs, the session-export download, and
+  both WebSocket upgrades):
+  - an **access token** (`Authorization: Bearer …`) for a bearer-gated proxy;
+  - a **Cloudflare Access service token** (`CF-Access-Client-Id` /
+    `CF-Access-Client-Secret`) for a Cloudflare Access application — the
+    non-interactive counterpart to the browser login page.
+- The first connect to an address outside your local network asks for a
+  confirmation; the app re-states it by reporting an edge-proxy refusal
+  ("the access service rejected the request") separately from the harness
+  trust fence.
+
 ## What DSH Mobile stores
 
-- Remembered host addresses (host, port, display name) and app preferences,
+- Remembered host addresses (host, port, display name), optional edge
+  credentials (access token, Cloudflare Client ID/Secret) and app preferences,
   in app-private storage only.
 - No session content is persisted to disk in v1 (chat history lives in
   memory and is re-fetched on connect).
@@ -36,7 +58,7 @@ not authentication:
 
 ## What DSH Mobile connects to
 
-Every connection is to a LAN endpoint you entered or picked from a scan, with
+Every connection is to an endpoint you entered or picked from a scan, with
 one exception:
 
 - **The update check.** On start the app asks
@@ -44,9 +66,11 @@ one exception:
   tell you when a newer APK exists. It sends no identifying information beyond
   what any HTTPS request carries, and it is the only request that leaves your
   network. Turn it off in **Settings → About → Check for updates**; nothing else
-  in the app contacts anything but the harness.
+  in the app contacts anything but the harness and the edge proxies in front of
+  it.
 - **Scanning** probes only your own device's IPv4 /24, and only with a TCP
-  connect followed by the harness's own `host.describe`.
+  connect followed by the harness's own `host.describe`. Remote hosts are never
+  scanned — they are entered manually.
 
 ## Reporting a vulnerability
 

@@ -519,7 +519,7 @@ private fun ConnectionSection(connectionState: ConnectionUiState, onDisconnect: 
     if (isConnected && connectionState.host != null) {
         LabelledValue(
             stringResource(R.string.settings_connection_host),
-            connectionState.host.authority,
+            connectionState.host.displayAddress,
         )
         DsButton(
             text = stringResource(R.string.settings_connection_disconnect),

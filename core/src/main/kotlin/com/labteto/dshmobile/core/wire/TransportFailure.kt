@@ -38,6 +38,13 @@ enum class TransportFailure {
     /** HTTP 403: the harness answered and its `Host` trust fence rejected the request. */
     TRUST_FENCE,
 
+    /**
+     * An edge proxy (Cloudflare Access or similar) refused the request before the harness saw it:
+     * a 302/401, or a 403 whose `WWW-Authenticate` names the proxy's challenge. The endpoint is
+     * reachable and the credentials carried by the request were missing or rejected.
+     */
+    ACCESS_DENIED,
+
     /** HTTP 404: no route claimed the path; the build does not compose that service. */
     NOT_FOUND,
 
@@ -67,10 +74,16 @@ object TransportFailures {
     const val STATUS_KEY: String = "httpStatus"
 
     /** Classify a carrier exception: HTTP status first, then the underlying I/O cause. */
-    fun classify(e: RpcTransportException): TransportFailure = when (e.status) {
-        403 -> TransportFailure.TRUST_FENCE
-        404 -> TransportFailure.NOT_FOUND
-        0 -> classify(e.cause)
+    fun classify(e: RpcTransportException): TransportFailure = when {
+        // An auth challenge outranks every status rule: a 403 from the harness trust fence carries
+        // no WWW-Authenticate, while an edge proxy that refused us names its challenge. Both are
+        // reachable endpoints; the fix is credentials on one side and --trusted-host on the other.
+        e.authChallenge?.isNotBlank() == true && (e.status == 302 || e.status == 401 || e.status == 403) ->
+            TransportFailure.ACCESS_DENIED
+        e.status == 302 || e.status == 401 -> TransportFailure.ACCESS_DENIED
+        e.status == 403 -> TransportFailure.TRUST_FENCE
+        e.status == 404 -> TransportFailure.NOT_FOUND
+        e.status == 0 -> classify(e.cause)
         // A 5xx or a stray 200-shaped answer from something that is not the harness.
         else -> TransportFailure.NOT_A_HARNESS
     }

@@ -18,6 +18,7 @@ class ConnectDiagnosisTest {
     @Test
     fun `probe outcomes map to their own diagnosis`() {
         assertEquals(ConnectFailure.TrustFence, ConnectFailure.from(ProbeOutcome.TrustFence))
+        assertEquals(ConnectFailure.AccessDenied, ConnectFailure.from(ProbeOutcome.AccessDenied))
         assertEquals(ConnectFailure.Refused, ConnectFailure.from(ProbeOutcome.Refused))
         assertEquals(ConnectFailure.Timeout, ConnectFailure.from(ProbeOutcome.Timeout))
         assertEquals(ConnectFailure.DnsFailure, ConnectFailure.from(ProbeOutcome.DnsFailure))
@@ -53,6 +54,10 @@ class ConnectDiagnosisTest {
             ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.TRUST_FENCE, "403")),
         )
         assertEquals(
+            ConnectFailure.AccessDenied,
+            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.ACCESS_DENIED, "302")),
+        )
+        assertEquals(
             ConnectFailure.Refused,
             ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.REFUSED, null)),
         )
@@ -78,6 +83,13 @@ class ConnectDiagnosisTest {
             details = TransportFailures.details(TransportFailure.TRUST_FENCE, 403),
         )
         assertEquals(ConnectFailure.TrustFence, ConnectFailure.from(GenerationFailure.DescribeFailed(fenced)))
+
+        val denied = RpcError(
+            code = "internal",
+            message = "carrier returned HTTP 302",
+            details = TransportFailures.details(TransportFailure.ACCESS_DENIED, 302),
+        )
+        assertEquals(ConnectFailure.AccessDenied, ConnectFailure.from(GenerationFailure.DescribeFailed(denied)))
 
         val notHarness = RpcError(
             code = "internal",

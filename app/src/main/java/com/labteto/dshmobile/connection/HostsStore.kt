@@ -106,6 +106,11 @@ class HostsStore @Inject constructor(
         port: Int,
         isLoopback: Boolean,
         description: HostDescription? = null,
+        scheme: String = "http",
+        authToken: String? = null,
+        cfClientId: String? = null,
+        cfClientSecret: String? = null,
+        remoteConfirmed: Boolean = false,
     ): HostConfig {
         val existing = hosts.first().firstOrNull { it.host == host && it.port == port }
         val config = HostConfig(
@@ -118,9 +123,25 @@ class HostsStore @Inject constructor(
             lastVersion = description?.version ?: existing?.lastVersion,
             lastCwd = description?.cwd ?: existing?.lastCwd,
             lastSessions = description?.attachedSessions ?: existing?.lastSessions,
+            scheme = HostConfig.normalizeScheme(scheme),
+            authToken = authToken,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+            remoteConfirmed = remoteConfirmed,
         )
         upsertHost(config)
         return config
+    }
+
+    /** Record that the user confirmed connecting to this remote (off-LAN) endpoint. */
+    suspend fun markRemoteConfirmed(host: String, port: Int) {
+        val current = hosts.first()
+        if (current.none { it.host == host && it.port == port }) return
+        persist(
+            current.map {
+                if (it.host == host && it.port == port) it.copy(remoteConfirmed = true) else it
+            },
+        )
     }
 
     /** Fold a fresh `host.describe` into the remembered entry without touching its recency. */
