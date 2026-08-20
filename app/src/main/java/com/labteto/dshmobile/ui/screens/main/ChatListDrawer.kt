@@ -54,6 +54,7 @@ import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsIconButton
@@ -88,9 +89,14 @@ private const val SORT_UPDATED = "updated"
  * Two rules keep it readable. Blank sessions are hidden — the harness treats a session with no turn
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
+ *
+ * The header names the connected harness and offers Switch, so "which host am I on" is answered
+ * where the list lives and leaving it is one tap.
  */
 @Composable
 fun ChatListDrawer(
+    hostLabel: String?,
+    onSwitchHost: () -> Unit,
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -219,6 +225,37 @@ fun ChatListDrawer(
                 onClick = onOpenSettings,
                 tint = colors.labelTertiary,
             )
+        }
+
+        // Where this phone is connected, and the one-tap way to leave: the Settings detour used to
+        // be the only route to another harness.
+        hostLabel?.let { label ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(DsShapes.row)
+                    .background(colors.sidebarNavActive)
+                    .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                StateDot(StateDotState.Done, size = 6.dp)
+                Spacer(Modifier.width(DsSpacing.small))
+                Text(
+                    stringResource(R.string.chatlist_connected_to, label),
+                    style = DsType.small13,
+                    color = colors.labelSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                DsButton(
+                    text = stringResource(R.string.chatlist_switch_host),
+                    onClick = onSwitchHost,
+                    variant = DsButtonVariant.Ghost,
+                    size = DsButtonSize.Small,
+                )
+            }
+            Spacer(Modifier.height(DsSpacing.small))
         }
 
         DsButton(
@@ -687,6 +724,13 @@ private fun SessionRowItem(
                     session.pendingInteraction != null -> StateDotState.Warning
                     else -> StateDotState.Idle
                 },
+                contentDescription = stringResource(
+                    when {
+                        session.running -> R.string.status_running
+                        session.pendingInteraction != null -> R.string.chatlist_needs_action
+                        else -> R.string.status_idle
+                    },
+                ),
             )
             Spacer(Modifier.width(DsSpacing.small))
             Column(Modifier.weight(1f)) {

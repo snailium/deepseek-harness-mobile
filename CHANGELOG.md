@@ -3,6 +3,51 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.6.0] - 2026-08-21
+
+A pass over the screens you touch every day, aimed at the two questions a phone
+user keeps asking: *what will this connect to?* and *where am I right now?* The
+connect form now takes one address instead of three fields and says what it will
+do with it before you tap Connect; the chat chrome names the harness you are on,
+the session title opens the chat list, and a dropped connection offers a Retry
+instead of an unanswerable red strip.
+
+### Added
+
+- **One address field.** Scheme and port are derived from what you type —
+  `ds.example.com` means HTTPS on 443, a bare IP means the harness's own
+  http on 3080, and a pasted full URL wins outright — with an **Advanced**
+  section to override either. A live caption states the effective endpoint
+  before Connect.
+- **Authentication (optional) section.** The Bearer token and Cloudflare
+  Access fields are tucked behind one disclosure instead of always filling
+  the form.
+- **Edit on a Recent host.** The manual form re-fills with that host's
+  address, scheme, port and credentials, so a mistyped secret is corrected
+  without deleting the host.
+- **Resume card.** With a remembered host, the connect screen leads with a
+  one-tap Connect button for the most recent one.
+- **Where am I?** The chat top bar shows the connected harness under the
+  session title; the chat-list drawer names it too, with a **Switch** button
+  that returns to the connect screen without the Settings detour. The session
+  title itself opens the chat list.
+- **Connection notices split.** A hard failure gets the red strip plus a
+  **Retry** button (drops the backoff wait and re-handshakes); routine
+  reconnecting is the calm blue notice.
+- **Suggestion chips** on an empty transcript — tap one to prefill the
+  composer.
+- **Help card in Settings** linking to the wiki's connecting guide and the
+  issue tracker.
+- **Status dots speak**: the running/online/offline dots now carry a content
+  description for screen readers.
+
+### Changed
+
+- The connect screen's redundant **Auto-connect toggles** moved out; they
+  live in Settings only. The security banner is calmer and info-toned.
+- The hardcoded "Preview" pill is gone from empty states (it was never
+  translatable).
+
 ## [0.5.0] - 2026-08-20
 
 DSH Mobile learns to reach a harness that is **not on your Wi-Fi**. The connect

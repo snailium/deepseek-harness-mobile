@@ -39,6 +39,7 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.data.QuestionOutcome
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.ui.components.ApprovalPanel
+import com.labteto.dshmobile.ui.components.BannerTone
 import com.labteto.dshmobile.ui.components.ConnectionBanner
 import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.PlanReviewPanel
@@ -61,6 +62,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun ChatScreen(
+    hostLabel: String?,
     onOpenDetails: () -> Unit,
     onOpenDrawer: () -> Unit,
     detailsOpen: Boolean,
@@ -207,6 +209,7 @@ fun ChatScreen(
             ChatTopBar(
                 title = title,
                 running = conversation?.running == true,
+                hostLabel = hostLabel,
                 models = models,
                 agentPresetLabel = currentSession?.agentPreset?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
@@ -223,9 +226,20 @@ fun ChatScreen(
                 onTabChange = { tab = it },
             )
 
-            connectionError?.let { ConnectionBanner(it) }
+            // The two connection notices are different messages: a hard failure earns the red
+            // strip and a Retry; the loop's own backoff recovery is the calm blue notice.
+            connectionError?.let { error ->
+                ConnectionBanner(
+                    message = error,
+                    actionLabel = stringResource(R.string.common_retry),
+                    onAction = { scope.launch { store.retryConnection() } },
+                )
+            }
             if (conversation?.gap == true) {
-                ConnectionBanner(stringResource(R.string.common_reconnecting))
+                ConnectionBanner(
+                    stringResource(R.string.common_reconnecting),
+                    tone = BannerTone.Info,
+                )
             }
 
             val nodeContext = ChatNodeContext(
@@ -265,6 +279,9 @@ fun ChatScreen(
                         context = nodeContext,
                         listState = chatListState,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
+                        // A suggestion chip composes the message; sending stays on the explicit
+                        // send button, so a tap never fires a prompt by surprise.
+                        onSuggest = { suggestion -> draft = suggestion },
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,

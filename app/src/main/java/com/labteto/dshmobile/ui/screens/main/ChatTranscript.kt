@@ -84,6 +84,7 @@ internal fun ChatTranscript(
     context: ChatNodeContext,
     listState: LazyListState,
     onLoadOlder: () -> Unit,
+    onSuggest: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
@@ -180,9 +181,17 @@ internal fun ChatTranscript(
         }
         if (nodes.isEmpty()) {
             item(key = "empty") {
+                // A blank session should say what it is for: the chips prefill the composer, so a
+                // first-time user gets a concrete next step instead of an empty page.
                 EmptyHero(
                     headline = stringResource(R.string.chat_empty_title),
                     subtitle = stringResource(R.string.chat_empty_hint),
+                    chips = listOf(
+                        stringResource(R.string.chat_suggest_summarize),
+                        stringResource(R.string.chat_suggest_tests),
+                        stringResource(R.string.chat_suggest_diff),
+                    ),
+                    onChipClick = onSuggest,
                 )
             }
         } else {

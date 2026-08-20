@@ -41,9 +41,17 @@ import kotlinx.coroutines.launch
  * surface, so an always-consuming detector here would starve the drawer's open gesture.
  * Horizontal edge drags are axis-orthogonal to the chat list's vertical scroll, so the two
  * never conflict.
+ *
+ * [hostLabel] is the connected harness (shown in the chrome and the drawer); [onSwitchHost]
+ * disconnects and returns to the connect screen, so switching harnesses never requires the
+ * Settings detour.
  */
 @Composable
-fun MainScreen(onOpenSettings: () -> Unit) {
+fun MainScreen(
+    hostLabel: String?,
+    onSwitchHost: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var detailsOpen by remember { mutableStateOf(false) }
@@ -53,6 +61,8 @@ fun MainScreen(onOpenSettings: () -> Unit) {
         drawerState = drawerState,
         drawerContent = {
             ChatListDrawer(
+                hostLabel = hostLabel,
+                onSwitchHost = onSwitchHost,
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
             )
@@ -111,6 +121,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
                 },
         ) {
             ChatScreen(
+                hostLabel = hostLabel,
                 onOpenDetails = { detailsOpen = true },
                 onOpenDrawer = { scope.launch { drawerState.open() } },
                 detailsOpen = detailsOpen,

@@ -263,6 +263,15 @@ class SessionStore @Inject constructor(
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
 
+    /**
+     * Drop the backoff wait and start a fresh handshake with the same host now.
+     *
+     * The loop already retries on its own schedule; this is the user's "Retry" on the failure
+     * banner, for when the cause (a tunnel restart, a VPN coming up) is fixed before the next
+     * backoff tick.
+     */
+    fun retryConnection() = connectionManager.reconnectIfNeeded()
+
     private val _toolViews = MutableStateFlow<Map<Long, ToolEventView>>(emptyMap())
     val toolViews: StateFlow<Map<Long, ToolEventView>> = _toolViews.asStateFlow()
 

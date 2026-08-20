@@ -220,6 +220,8 @@ internal fun Composer(
                             onClick = {
                                 val text = currentDraft
                                 currentOnDraftChange("")
+                                // The long-press feedback doubles as the send tick; the heavier
+                                // long-press haptic stays on stop, the disruptive action.
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 currentOnSend(text)
                             },

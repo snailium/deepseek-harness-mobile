@@ -91,11 +91,16 @@ keyed on that exact sentence.
 
 ### Connect to a remote harness (VPS / anywhere)
 
-The manual connect screen accepts **any** host — a public IP or a domain — with a
-scheme toggle (`http` / `https`), an optional access token, and optional
-**Cloudflare Access** credentials. The first connect to an address outside your
-local network asks for a confirmation once, then behaves exactly like a LAN
-connection.
+The manual connect screen takes **one address field** — `ds.example.com`,
+`https://ds.example.com:8443`, or a bare IP like `192.168.1.20` — and derives
+scheme and port from what you type (a domain means HTTPS on 443, a bare IP
+means the harness's own http on 3080; an **Advanced** section overrides
+either). Below it, an **Authentication (optional)** section holds the access
+token and the optional **Cloudflare Access** credentials. The first connect to
+an address outside your local network asks for a confirmation once, then
+behaves exactly like a LAN connection. With a remembered host, the screen
+leads with a one-tap **Resume** card, and each Recent entry can be **edited**
+to fix a mistyped credential without deleting the host.
 
 The safe way to publish a harness is to keep the port closed and put an
 authenticating edge in front of it, e.g. **Cloudflare Tunnel + Cloudflare
@@ -109,9 +114,9 @@ Access**:
 4. For the app, create a **service token** (Zero Trust → Access → Service Auth →
    Service tokens) and add it to the application's policy under **Service Auth**.
    A service token is a Client ID + Client Secret pair.
-5. In the app: scheme **HTTPS**, host `your-domain.example`, port empty (or
-   `443`), and paste the **Client ID** and **Client Secret** into the two
-   Cloudflare fields. The app sends them as `CF-Access-Client-Id` /
+5. In the app: address `your-domain.example` (it defaults to HTTPS on 443), and
+   paste the **Client ID** and **Client Secret** into the two Cloudflare
+   fields. The app sends them as `CF-Access-Client-Id` /
    `CF-Access-Client-Secret` on every request and WebSocket upgrade.
 
 A bearer-gated proxy instead? Fill only the **Access token** field; it is sent

@@ -27,8 +27,8 @@
     <string name="connect_title">Conectar con Harness</string>
     <string name="connect_subtitle">DSH Mobile refleja el DeepSeek Harness que se ejecuta en tu ordenador.</string>
     <string name="connect_manual_title">Conectar manualmente</string>
-    <string name="connect_host_label">Dirección del host</string>
-    <string name="connect_host_hint">192.168.1.20 o ds.example.com</string>
+
+
     <string name="connect_port_label">Puerto</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">Conectar</string>
@@ -53,7 +53,8 @@
     <string name="connect_remote_confirm_body">%1$s está fuera de tu red local. El Harness no tiene inicio de sesión: continúa solo si este punto de acceso es tuyo (por ejemplo, detrás de Cloudflare Access, una VPN u otro control de acceso).</string>
     <string name="connect_remote_confirm_continue">Continuar</string>
     <string name="connect_fail_access">Un servicio de acceso frente a %1$s rechazó la solicitud: comprueba el token de acceso y el ID/Secreto de cliente de Cloudflare, y que el token de servicio esté adjunto a la política de la aplicación.</string>
-    <string name="connect_security_banner">Seguridad: el Harness no tiene inicio de sesión. Protege el acceso remoto con un token, una VPN o Cloudflare Access.</string>
+    <string name="connect_security_banner">El harness no tiene inicio de sesión propio: protege el acceso remoto con Cloudflare Access, un token o una VPN.</string>
+
     <string name="connect_failed">No se pudo conectar con un Harness en %1$s:%2$s</string>
     <string name="connect_failed_fence">Conéctate usando la dirección IP del ordenador en lugar de su nombre, o inicia el harness con --trusted-host.</string>
     <string name="connect_stage_validating">Comprobando la dirección…</string>
@@ -372,4 +373,24 @@
     <string name="update_later">Más tarde</string>
     <string name="settings_update_check">Buscar actualizaciones</string>
     <string name="settings_update_check_hint">Consulta en GitHub la última versión al iniciar la app.</string>
+    <string name="connect_address_label">Dirección</string>
+    <string name="connect_address_hint">ds.example.com, https://ds.example.com o 192.168.1.20:3080</string>
+    <string name="connect_endpoint">Se conectará a %1$s</string>
+    <string name="connect_advanced_title">Avanzado</string>
+    <string name="connect_port_auto">Automático</string>
+    <string name="connect_auth_title">Autenticación (opcional)</string>
+    <string name="connect_auth_hint">Para puntos de acceso protegidos: un token Bearer o un ID de cliente + secreto de Cloudflare Access.</string>
+    <string name="connect_help">¿Cómo conectarse?</string>
+    <string name="chatlist_connected_to">Conectado a %1$s</string>
+    <string name="chatlist_switch_host">Cambiar</string>
+    <string name="chat_suggest_summarize">Resume este repositorio</string>
+    <string name="chat_suggest_tests">Ejecuta la suite de pruebas</string>
+    <string name="chat_suggest_diff">Explica un diff</string>
+    <string name="settings_help">Ayuda</string>
+    <string name="settings_help_connect">Cómo conectarse</string>
+    <string name="settings_help_issues">Informar de un problema</string>
+    <string name="status_running">En ejecución</string>
+    <string name="status_idle">Inactivo</string>
+    <string name="status_online">En línea</string>
+    <string name="status_offline">Sin conexión</string>
 </resources>

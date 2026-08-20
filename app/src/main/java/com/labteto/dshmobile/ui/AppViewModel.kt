@@ -18,7 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class AppViewModel @Inject constructor(
     hostsStore: HostsStore,
-    connectionManager: ConnectionManager,
+    private val connectionManager: ConnectionManager,
     private val updateChecker: UpdateChecker,
 ) : ViewModel() {
 
@@ -32,6 +32,11 @@ class AppViewModel @Inject constructor(
 
     /** A newer release to offer, or null. See [UpdateChecker]. */
     val availableUpdate: StateFlow<AvailableUpdate?> = updateChecker.available
+
+    /** Leave the current harness, returning the app to the connect screen. */
+    fun disconnect() {
+        connectionManager.disconnect()
+    }
 
     fun checkForUpdate(currentVersion: String) {
         viewModelScope.launch { updateChecker.checkOnce(currentVersion) }

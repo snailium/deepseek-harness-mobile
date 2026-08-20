@@ -27,8 +27,8 @@
     <string name="connect_title">الاتصال بـ Harness</string>
     <string name="connect_subtitle">يعكس DSH Mobile تطبيق DeepSeek Harness الذي يعمل على جهاز الكمبيوتر الخاص بك.</string>
     <string name="connect_manual_title">الاتصال يدويًا</string>
-    <string name="connect_host_label">عنوان المضيف</string>
-    <string name="connect_host_hint">192.168.1.20 أو ds.example.com</string>
+
+
     <string name="connect_port_label">المنفذ</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">اتصال</string>
@@ -53,7 +53,8 @@
     <string name="connect_remote_confirm_body">%1$s خارج شبكتك المحلية. لا يوجد تسجيل دخول في Harness نفسه — تابع فقط إذا كانت هذه النقطة ملكك (مثل خلف Cloudflare Access أو VPN أو أي نظام تحكم آخر بالوصول).</string>
     <string name="connect_remote_confirm_continue">متابعة</string>
     <string name="connect_fail_access">رفضت خدمة وصول أمام %1$s الطلب — تحقق من رمز الوصول ومعرف/سر عميل Cloudflare، ومن أن رمز الخدمة مضاف إلى سياسة التطبيق.</string>
-    <string name="connect_security_banner">الأمان: لا يوجد تسجيل دخول في Harness نفسه. احمِ الوصول عن بُعد باستخدام رمز مميز أو VPN أو Cloudflare Access.</string>
+    <string name="connect_security_banner">لا يحتوي النظام نفسه على تسجيل دخول — احمِ الوصول عن بُعد باستخدام Cloudflare Access أو رمز أو VPN.</string>
+
     <string name="connect_failed">تعذر الوصول إلى Harness على %1$s:%2$s</string>
     <string name="connect_failed_fence">اتصل باستخدام عنوان IP للكمبيوتر بدلًا من اسمه، أو شغّل الـ harness مع --trusted-host.</string>
     <string name="connect_stage_validating">جارٍ التحقق من العنوان…</string>
@@ -372,4 +373,24 @@
     <string name="update_later">لاحقًا</string>
     <string name="settings_update_check">التحقق من التحديثات</string>
     <string name="settings_update_check_hint">يسأل GitHub عن أحدث إصدار عند بدء التطبيق.</string>
+    <string name="connect_address_label">العنوان</string>
+    <string name="connect_address_hint">ds.example.com أو https://ds.example.com أو 192.168.1.20:3080</string>
+    <string name="connect_endpoint">سيتم الاتصال بـ %1$s</string>
+    <string name="connect_advanced_title">خيارات متقدمة</string>
+    <string name="connect_port_auto">تلقائي</string>
+    <string name="connect_auth_title">المصادقة (اختياري)</string>
+    <string name="connect_auth_hint">للنقاط الطرفية المحمية — رمز Bearer أو معرف عميل Cloudflare Access مع السر.</string>
+    <string name="connect_help">كيف تتصل؟</string>
+    <string name="chatlist_connected_to">متصل بـ %1$s</string>
+    <string name="chatlist_switch_host">تبديل</string>
+    <string name="chat_suggest_summarize">لخّص هذا المستودع</string>
+    <string name="chat_suggest_tests">شغّل مجموعة الاختبارات</string>
+    <string name="chat_suggest_diff">اشرح الفرق (diff)</string>
+    <string name="settings_help">المساعدة</string>
+    <string name="settings_help_connect">كيف تتصل</string>
+    <string name="settings_help_issues">الإبلاغ عن مشكلة</string>
+    <string name="status_running">قيد التشغيل</string>
+    <string name="status_idle">خامل</string>
+    <string name="status_online">متصل</string>
+    <string name="status_offline">غير متصل</string>
 </resources>

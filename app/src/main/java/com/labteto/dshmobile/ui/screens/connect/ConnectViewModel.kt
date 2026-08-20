@@ -80,10 +80,6 @@ data class ConnectUiState(
     val retrying: Boolean = false,
     /** A remote (off-LAN) manual attempt awaiting the user's confirmation. */
     val pendingRemoteConfirm: PendingRemoteConnect? = null,
-    val autoConnectLast: Boolean = true,
-    val autoConnectLan: Boolean = false,
-    val autoConnectLoopback: Boolean = true,
-    val showAdvanced: Boolean = false,
 ) {
     /**
      * Derived, never stored.
@@ -160,14 +156,6 @@ class ConnectViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val settings = hostsStore.settingsOnce()
-            _state.update {
-                it.copy(
-                    autoConnectLast = settings.autoConnectLast,
-                    autoConnectLan = settings.autoConnectLan,
-                    autoConnectLoopback = settings.autoConnectLoopback,
-                )
-            }
             hostsStore.hosts.collect { hosts ->
                 _state.update { it.copy(remembered = hosts) }
             }
@@ -545,26 +533,6 @@ class ConnectViewModel @Inject constructor(
 
     fun forget(host: HostConfig) {
         viewModelScope.launch { hostsStore.removeHost(host.id) }
-    }
-
-    fun setAuto(key: String, value: Boolean) {
-        viewModelScope.launch {
-            hostsStore.setSetting { current ->
-                when (key) {
-                    "last" -> current.copy(autoConnectLast = value)
-                    "lan" -> current.copy(autoConnectLan = value)
-                    else -> current.copy(autoConnectLoopback = value)
-                }
-            }
-            val settings = hostsStore.settingsOnce()
-            _state.update {
-                it.copy(
-                    autoConnectLast = settings.autoConnectLast,
-                    autoConnectLan = settings.autoConnectLan,
-                    autoConnectLoopback = settings.autoConnectLoopback,
-                )
-            }
-        }
     }
 
     fun clearError() = _state.update { it.copy(failure = null) }

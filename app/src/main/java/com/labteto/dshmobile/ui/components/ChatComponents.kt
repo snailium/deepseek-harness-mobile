@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -116,29 +117,52 @@ fun ThinkingRow(
     }
 }
 
-/** Full-width top strip announcing a connection problem. */
+/** How a connection notice should read: a hard failure, or a recovery in progress. */
+enum class BannerTone { Error, Info }
+
+/**
+ * Full-width top strip announcing a connection problem.
+ *
+ * Error is the red failure strip; Info is the calm "reconnecting" notice — the two used to share
+ * the red, which made a routine backoff retry look like a crash. [actionLabel]/[onAction] add a
+ * right-aligned Retry for the failure case; the recovery case has nothing to press.
+ */
 @Composable
-fun ConnectionBanner(message: String) {
+fun ConnectionBanner(
+    message: String,
+    tone: BannerTone = BannerTone.Error,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val colors = DsTheme.colors
+    val background = if (tone == BannerTone.Error) colors.error else colors.accentTertiary
+    val foreground = if (tone == BannerTone.Error) Color.White else colors.labelSecondary
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DsTheme.colors.error)
+            .background(background)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
             Icons.Filled.Warning,
             contentDescription = null,
-            tint = Color.White,
+            tint = foreground,
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
             message,
             style = DsType.small13,
-            color = Color.White,
+            color = foreground,
             modifier = Modifier.weight(1f),
         )
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.width(8.dp))
+            TextButton(onClick = onAction) {
+                Text(actionLabel, style = DsType.small13Strong, color = foreground)
+            }
+        }
     }
 }
 

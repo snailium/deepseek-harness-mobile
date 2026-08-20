@@ -27,8 +27,8 @@
     <string name="connect_title">Harness-এ সংযুক্ত হোন</string>
     <string name="connect_subtitle">DSH Mobile আপনার কম্পিউটারে চলমান DeepSeek Harness-কে মিরর করে।</string>
     <string name="connect_manual_title">ম্যানুয়ালি সংযুক্ত হোন</string>
-    <string name="connect_host_label">হোস্ট ঠিকানা</string>
-    <string name="connect_host_hint">192.168.1.20 অথবা ds.example.com</string>
+
+
     <string name="connect_port_label">পোর্ট</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">সংযুক্ত হোন</string>
@@ -53,7 +53,8 @@
     <string name="connect_remote_confirm_body">%1$s আপনার লোকাল নেটওয়ার্কের বাইরে। এই Harness-এ কোনো লগইন নেই — শুধুমাত্র তখনই চালিয়ে যান যখন এই এন্ডপয়েন্টটি আপনার (উদাহরণস্বরূপ Cloudflare Access, VPN বা অন্য কোনো অ্যাক্সেস নিয়ন্ত্রণের পেছনে)।</string>
     <string name="connect_remote_confirm_continue">চালিয়ে যান</string>
     <string name="connect_fail_access">%1$s-এর সামনে একটি অ্যাক্সেস পরিষেবা অনুরোধ প্রত্যাখ্যান করেছে — অ্যাক্সেস টোকেন এবং Cloudflare ক্লায়েন্ট ID/সিক্রেট যাচাই করুন এবং নিশ্চিত করুন যে সার্ভিস টোকেনটি অ্যাপ্লিকেশন পলিসির সাথে যুক্ত আছে।</string>
-    <string name="connect_security_banner">নিরাপত্তা: এই Harness-এ কোনো লগইন নেই। রিমোট অ্যাক্সেস টোকেন, VPN বা Cloudflare Access দিয়ে সুরক্ষিত করুন।</string>
+    <string name="connect_security_banner">হারনেসের নিজস্ব লগইন নেই — Cloudflare Access, টোকেন বা VPN দিয়ে দূরবর্তী অ্যাক্সেস সুরক্ষিত করুন।</string>
+
     <string name="connect_failed">%1$s:%2$s-এ কোনো Harness-এ পৌঁছানো যায়নি</string>
     <string name="connect_failed_fence">নামের বদলে কম্পিউটারের IP ঠিকানা দিয়ে সংযোগ করুন, অথবা --trusted-host দিয়ে harness চালু করুন।</string>
     <string name="connect_stage_validating">ঠিকানা যাচাই করা হচ্ছে…</string>
@@ -372,4 +373,24 @@
     <string name="update_later">পরে</string>
     <string name="settings_update_check">আপডেট পরীক্ষা করুন</string>
     <string name="settings_update_check_hint">অ্যাপ চালু হলে GitHub-এ সর্বশেষ রিলিজ জিজ্ঞাসা করে।</string>
+    <string name="connect_address_label">ঠিকানা</string>
+    <string name="connect_address_hint">ds.example.com, https://ds.example.com, বা 192.168.1.20:3080</string>
+    <string name="connect_endpoint">%1$s-এ সংযোগ হবে</string>
+    <string name="connect_advanced_title">উন্নত</string>
+    <string name="connect_port_auto">স্বয়ংক্রিয়</string>
+    <string name="connect_auth_title">প্রমাণীকরণ (ঐচ্ছিক)</string>
+    <string name="connect_auth_hint">অ্যাক্সেস-নিয়ন্ত্রিত এন্ডপয়েন্টের জন্য — Bearer টোকেন বা Cloudflare Access ক্লায়েন্ট আইডি + সিক্রেট।</string>
+    <string name="connect_help">কীভাবে সংযোগ করবেন?</string>
+    <string name="chatlist_connected_to">%1$s-এর সাথে সংযুক্ত</string>
+    <string name="chatlist_switch_host">পরিবর্তন করুন</string>
+    <string name="chat_suggest_summarize">এই রিপোজিটরি সারসংক্ষেপ করুন</string>
+    <string name="chat_suggest_tests">টেস্ট স্যুট চালান</string>
+    <string name="chat_suggest_diff">একটি ডিফ ব্যাখ্যা করুন</string>
+    <string name="settings_help">সাহায্য</string>
+    <string name="settings_help_connect">কীভাবে সংযোগ করবেন</string>
+    <string name="settings_help_issues">সমস্যা জানান</string>
+    <string name="status_running">চলছে</string>
+    <string name="status_idle">নিষ্ক্রিয়</string>
+    <string name="status_online">অনলাইন</string>
+    <string name="status_offline">অফলাইন</string>
 </resources>

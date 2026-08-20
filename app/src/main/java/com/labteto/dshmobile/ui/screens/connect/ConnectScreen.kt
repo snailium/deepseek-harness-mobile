@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -23,20 +25,26 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -48,6 +56,7 @@ import com.labteto.dshmobile.R
 import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.HostConfig
+import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
@@ -65,27 +74,87 @@ import com.labteto.dshmobile.ui.components.relativeTime
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import kotlinx.coroutines.launch
 
 @Composable
 fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     // Saveable: a rotation mid-connect used to wipe a hand-typed address.
-    var host by rememberSaveable { mutableStateOf("") }
-    var port by rememberSaveable { mutableStateOf("3080") }
+    var address by rememberSaveable { mutableStateOf("") }
     var scheme by rememberSaveable { mutableStateOf("http") }
+    var port by rememberSaveable { mutableStateOf("") }
     var token by rememberSaveable { mutableStateOf("") }
     var cfClientId by rememberSaveable { mutableStateOf("") }
     var cfClientSecret by rememberSaveable { mutableStateOf("") }
     var showToken by rememberSaveable { mutableStateOf(false) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
+    // Until the user touches the Advanced controls the scheme and port follow the address field;
+    // the first edit hands them over to the explicit values.
+    var advancedTouched by rememberSaveable { mutableStateOf(false) }
+    var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    var authExpanded by rememberSaveable { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    // Where the manual form sits in the scroll, so Edit can bring it into view.
+    var manualTop by remember { mutableStateOf(0) }
+
+    val parsed = remember(address) { parseAddress(address) }
+    val effectiveScheme = if (advancedTouched) scheme else (parsed?.scheme ?: scheme)
+    val effectivePortText =
+        if (advancedTouched && port.isNotBlank()) port else parsed?.port?.toString() ?: ""
+    // Read outside the effect: CompositionLocals are only reachable from composition, and the
+    // scroll-to-edit effect below needs the pixel value in its suspend body.
+    val scrollPadPx = with(LocalDensity.current) { DsSpacing.medium.toPx() }.toInt()
+
+    fun connect() {
+        val target = parseAddress(address)
+        if (target == null) {
+            // The parser rejected the text (garbage, an IPv6 literal, a bad port), so the form
+            // has no endpoint to offer — hand the VM nothing and let its InvalidInput diagnosis
+            // say what an address must look like. The field keeps what the user typed.
+            viewModel.connectManual("", "", "http", token, cfClientId, cfClientSecret)
+            return
+        }
+        viewModel.connectManual(
+            host = target.host,
+            port = effectivePortText,
+            scheme = effectiveScheme,
+            token = token,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+        )
+    }
+
+    // Edit on a Recent card pre-fills the whole form and scrolls it into view, so a mistyped
+    // secret can be corrected without deleting the host and starting over.
+    LaunchedEffect(editingId) {
+        val target = editingId
+            ?.let { id -> state.remembered.firstOrNull { it.id == id } }
+            ?: return@LaunchedEffect
+        address = target.displayAddress
+        scheme = target.scheme
+        port = target.port.toString()
+        token = target.authToken.orEmpty()
+        cfClientId = target.cfClientId.orEmpty()
+        cfClientSecret = target.cfClientSecret.orEmpty()
+        advancedTouched = true
+        advancedExpanded = true
+        authExpanded = token.isNotBlank() || cfClientId.isNotBlank() || cfClientSecret.isNotBlank()
+        if (manualTop > 0) {
+            scope.launch { scrollState.animateScrollTo((manualTop - scrollPadPx).coerceAtLeast(0)) }
+        }
+        editingId = null
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
                 .padding(DsSpacing.xlarge),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.large),
         ) {
@@ -108,21 +177,217 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                 onChipClick = {},
             )
 
-            // Security banner (always on the connect screen).
+            // Security banner (always on the connect screen). Info-toned: the point is a calm
+            // reminder of where the protection lives, not an alarm about a fault.
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.medium,
-                color = colors.warnTertiary,
+                color = colors.accentTertiary,
             ) {
                 Text(
                     stringResource(R.string.connect_security_banner),
                     style = DsType.small13,
-                    color = colors.warnLabel,
+                    color = colors.labelSecondary,
                     modifier = Modifier.padding(DsSpacing.medium),
                 )
             }
 
-            // ---- Recent ------------------------------------------------------
+            // ---- Resume -----------------------------------------------------
+            // The one-tap path back for a returning user: the most recent harness, big and
+            // primary. First-time users see no card here and the manual form below is the top.
+            state.remembered.firstOrNull()?.let { last ->
+                val probe = state.recentStatus[last.authority]
+                val reachable = probe as? HostProbe.Reachable
+                val version = reachable?.description?.version ?: last.lastVersion
+                val sessions = reachable?.description?.attachedSessions ?: last.lastSessions
+                DsCard(onClick = { viewModel.connectTo(last) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StateDot(
+                            when (probe) {
+                                is HostProbe.Reachable -> StateDotState.Done
+                                HostProbe.Probing -> StateDotState.Running
+                                else -> StateDotState.Idle
+                            },
+                            size = 8.dp,
+                            contentDescription = stringResource(
+                                when (probe) {
+                                    is HostProbe.Reachable -> R.string.status_online
+                                    HostProbe.Probing -> R.string.status_running
+                                    else -> R.string.status_offline
+                                },
+                            ),
+                        )
+                        Spacer(Modifier.width(DsSpacing.compact))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                last.displayAddress,
+                                style = DsType.std14Strong,
+                                color = colors.labelPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                statusLine(probe, version, sessions),
+                                style = DsType.caption11,
+                                color = colors.labelTertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        DsButton(
+                            text = stringResource(R.string.connect_button),
+                            onClick = { viewModel.connectTo(last) },
+                            variant = DsButtonVariant.Info,
+                            size = DsButtonSize.Small,
+                        )
+                    }
+                }
+            }
+
+            // ---- Manual -----------------------------------------------------
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { manualTop = it.positionInParent().y.toInt() },
+                verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            ) {
+                SectionHeader(stringResource(R.string.connect_manual_title))
+                TextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(stringResource(R.string.connect_address_hint), style = DsType.std14)
+                    },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.connect_address_label)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { connect() }),
+                    colors = connectFieldColors(),
+                )
+                // The endpoint the form will actually use, stated before Connect is tapped:
+                // scheme and port defaults are guesses, and a guess the user can see is a guess
+                // the user can correct.
+                parsed?.let {
+                    Text(
+                        stringResource(
+                            R.string.connect_endpoint,
+                            "$effectiveScheme://${it.host}:$effectivePortText",
+                        ),
+                        style = DsType.caption11,
+                        color = colors.labelTertiary,
+                    )
+                }
+                DisclosureRow(
+                    title = stringResource(R.string.connect_advanced_title),
+                    expanded = advancedExpanded,
+                    onToggle = { advancedExpanded = !advancedExpanded },
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = DsSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        DsSegmented(
+                            segments = listOf(
+                                DsSegment("http", stringResource(R.string.connect_scheme_http)),
+                                DsSegment("https", stringResource(R.string.connect_scheme_https)),
+                            ),
+                            selectedKey = effectiveScheme,
+                            onSelect = {
+                                scheme = it
+                                advancedTouched = true
+                            },
+                        )
+                        TextField(
+                            value = port,
+                            onValueChange = {
+                                port = it.filter { c -> c.isDigit() }
+                                advancedTouched = true
+                            },
+                            modifier = Modifier.width(140.dp),
+                            singleLine = true,
+                            label = { Text(stringResource(R.string.connect_port_label)) },
+                            placeholder = {
+                                Text(stringResource(R.string.connect_port_auto), style = DsType.std14)
+                            },
+                            colors = connectFieldColors(),
+                        )
+                    }
+                }
+                // Optional edge-proxy credentials, sent only when filled in. The token is an
+                // `Authorization: Bearer`; the two Cloudflare fields are a Cloudflare Access
+                // service token, which travels as its own pair of headers. The Client ID is not
+                // secret (it identifies the token); the Secret and the access token are masked.
+                DisclosureRow(
+                    title = stringResource(R.string.connect_auth_title),
+                    expanded = authExpanded,
+                    onToggle = { authExpanded = !authExpanded },
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = DsSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        Text(
+                            stringResource(R.string.connect_auth_hint),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                        SecretField(
+                            value = token,
+                            onValueChange = { token = it },
+                            label = stringResource(R.string.connect_token_label),
+                            visible = showToken,
+                            onToggleVisibility = { showToken = it },
+                        )
+                        SecretField(
+                            value = cfClientId,
+                            onValueChange = { cfClientId = it },
+                            label = stringResource(R.string.connect_cf_id_label),
+                            visible = true,
+                            toggleable = false,
+                        )
+                        SecretField(
+                            value = cfClientSecret,
+                            onValueChange = { cfClientSecret = it },
+                            label = stringResource(R.string.connect_cf_secret_label),
+                            visible = showSecret,
+                            onToggleVisibility = { showSecret = it },
+                        )
+                    }
+                }
+                DsButton(
+                    text = stringResource(R.string.connect_button),
+                    onClick = { connect() },
+                    enabled = !state.connecting,
+                    variant = DsButtonVariant.Info,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
+                state.failure?.let { failure ->
+                    ConnectFailureBlock(
+                        failure = failure,
+                        attempted = state.attempted,
+                        retrying = state.retrying,
+                        onCancel = viewModel::cancelConnect,
+                    )
+                }
+                // The wiki is the user guide; a caption link keeps the form self-servicing.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    DsButton(
+                        text = stringResource(R.string.connect_help),
+                        onClick = {
+                            runCatching { uriHandler.openUri(HELP_URL) }
+                        },
+                        variant = DsButtonVariant.Ghost,
+                        size = DsButtonSize.Small,
+                    )
+                }
+            }
+
+            // ---- Recent -----------------------------------------------------
             Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
                 SectionHeader(stringResource(R.string.connect_remembered))
                 if (state.remembered.isEmpty()) {
@@ -137,6 +402,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                             host = saved,
                             probe = state.recentStatus[saved.authority],
                             onConnect = { viewModel.connectTo(saved) },
+                            onEdit = { editingId = saved.id },
                             onForget = { viewModel.forget(saved) },
                         )
                     }
@@ -168,96 +434,6 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     unknown.forEach { found ->
                         DiscoveredHarnessCard(found) { viewModel.connectDiscovered(found) }
                     }
-                }
-            }
-
-            // ---- Manual ------------------------------------------------------
-            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                SectionHeader(stringResource(R.string.connect_manual_title))
-                DsSegmented(
-                    segments = listOf(
-                        DsSegment("http", stringResource(R.string.connect_scheme_http)),
-                        DsSegment("https", stringResource(R.string.connect_scheme_https)),
-                    ),
-                    selectedKey = scheme,
-                    onSelect = { scheme = it },
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextField(
-                        value = host,
-                        onValueChange = { host = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text(stringResource(R.string.connect_host_hint), style = DsType.std14) },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.connect_host_label)) },
-                        colors = connectFieldColors(),
-                    )
-                    Spacer(Modifier.width(DsSpacing.compact))
-                    TextField(
-                        value = port,
-                        onValueChange = { port = it.filter { c -> c.isDigit() } },
-                        modifier = Modifier.width(92.dp),
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.connect_port_label)) },
-                        colors = connectFieldColors(),
-                    )
-                }
-                // Optional edge-proxy credentials, sent only when filled in. The token is an
-                // `Authorization: Bearer`; the two Cloudflare fields are a Cloudflare Access
-                // service token, which travels as its own pair of headers. The Client ID is not
-                // secret (it identifies the token); the Secret and the access token are masked.
-                SecretField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = stringResource(R.string.connect_token_label),
-                    visible = showToken,
-                    onToggleVisibility = { showToken = it },
-                )
-                SecretField(
-                    value = cfClientId,
-                    onValueChange = { cfClientId = it },
-                    label = stringResource(R.string.connect_cf_id_label),
-                    visible = true,
-                    toggleable = false,
-                )
-                SecretField(
-                    value = cfClientSecret,
-                    onValueChange = { cfClientSecret = it },
-                    label = stringResource(R.string.connect_cf_secret_label),
-                    visible = showSecret,
-                    onToggleVisibility = { showSecret = it },
-                )
-                DsButton(
-                    text = stringResource(R.string.connect_button),
-                    onClick = {
-                        viewModel.connectManual(host, port, scheme, token, cfClientId, cfClientSecret)
-                    },
-                    enabled = !state.connecting,
-                    variant = DsButtonVariant.Info,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
-                state.failure?.let { failure ->
-                    ConnectFailureBlock(
-                        failure = failure,
-                        attempted = state.attempted,
-                        retrying = state.retrying,
-                        onCancel = viewModel::cancelConnect,
-                    )
-                }
-            }
-
-            // ---- Auto-connect ------------------------------------------------
-            Column {
-                SectionHeader(stringResource(R.string.connect_auto_title))
-                AutoToggle(stringResource(R.string.connect_auto_last), state.autoConnectLast) {
-                    viewModel.setAuto("last", it)
-                }
-                AutoToggle(stringResource(R.string.connect_auto_lan), state.autoConnectLan) {
-                    viewModel.setAuto("lan", it)
-                }
-                AutoToggle(stringResource(R.string.connect_auto_loopback), state.autoConnectLoopback) {
-                    viewModel.setAuto("loopback", it)
                 }
             }
 
@@ -342,20 +518,6 @@ private fun connectFieldColors() = TextFieldDefaults.colors(
     cursorColor = DsTheme.colors.accent,
 )
 
-@Composable
-private fun AutoToggle(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = DsSpacing.tiny),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, style = DsType.std14, color = colors.labelSecondary, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
-    }
-}
-
 /**
  * One remembered harness.
  *
@@ -369,6 +531,7 @@ private fun RecentHarnessCard(
     host: HostConfig,
     probe: HostProbe?,
     onConnect: () -> Unit,
+    onEdit: () -> Unit,
     onForget: () -> Unit,
 ) {
     val colors = DsTheme.colors
@@ -388,6 +551,13 @@ private fun RecentHarnessCard(
                     null -> StateDotState.Idle
                 },
                 size = 8.dp,
+                contentDescription = stringResource(
+                    when (probe) {
+                        is HostProbe.Reachable -> R.string.status_online
+                        HostProbe.Probing -> R.string.status_running
+                        else -> R.string.status_offline
+                    },
+                ),
             )
             Spacer(Modifier.width(DsSpacing.compact))
             Text(
@@ -424,6 +594,15 @@ private fun RecentHarnessCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
+            )
+            // Edit restores the host into the manual form — the one way to fix a mistyped
+            // credential short of deleting the host and typing everything again.
+            DsButton(
+                text = stringResource(R.string.common_edit),
+                icon = Icons.Filled.Edit,
+                onClick = onEdit,
+                variant = DsButtonVariant.Ghost,
+                size = DsButtonSize.Small,
             )
             DsButton(
                 text = stringResource(R.string.common_delete),
@@ -653,3 +832,6 @@ private fun ScanProgressRow(progress: ScanProgress?, onCancel: () -> Unit) {
 /** Last path segment of a host cwd, so a card can name the project rather than print a full path. */
 private fun basename(path: String): String =
     path.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\').ifBlank { path }
+
+/** The user-facing connect guide, from the upstream wiki. */
+private const val HELP_URL = "https://github.com/sorsama/deepseek-harness-mobile/wiki/Connecting"

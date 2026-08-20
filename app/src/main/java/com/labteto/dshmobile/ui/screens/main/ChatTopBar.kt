@@ -61,11 +61,17 @@ internal enum class ChatTab { Chat, Trajectory }
  * The title and the chips share row two rather than stacking, and the row disappears entirely when
  * it would be empty: four stacked rows of chrome over a white page ate a third of a phone screen
  * before the first message, and the chip row kept its padding even with no chips to pad.
+ *
+ * The title is a tap target: it opens the chat list, which is where "which session am I in" is
+ * answered — and the hamburger alone was easy to miss for the single most frequent navigation in
+ * the app. [hostLabel] names the connected harness under the title, so "where am I connected" is
+ * answered in the chrome instead of behind Settings.
  */
 @Composable
 internal fun ChatTopBar(
     title: String,
     running: Boolean,
+    hostLabel: String?,
     models: SessionModelsValue?,
     agentPresetLabel: String?,
     subagentCount: Int,
@@ -97,7 +103,12 @@ internal fun ChatTopBar(
             )
             ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f, fill = false))
             Spacer(Modifier.weight(1f))
-            StateDot(if (running) StateDotState.Running else StateDotState.Idle)
+            StateDot(
+                if (running) StateDotState.Running else StateDotState.Idle,
+                contentDescription = stringResource(
+                    if (running) R.string.status_running else R.string.status_idle,
+                ),
+            )
             if (!detailsOpen) {
                 DsIconButton(
                     icon = FeatherIcons.Info,
@@ -118,14 +129,37 @@ internal fun ChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
             ) {
-                Text(
-                    title,
-                    style = DsType.std14Strong,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(DsShapes.row)
+                        .clickable(
+                            role = Role.Button,
+                            onClick = onOpenDrawer,
+                        )
+                        .padding(vertical = DsSpacing.tiny),
+                ) {
+                    Text(
+                        title,
+                        style = DsType.std14Strong,
+                        color = colors.labelPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    hostLabel?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            StateDot(StateDotState.Done, size = 6.dp)
+                            Spacer(Modifier.width(DsSpacing.xsmall))
+                            Text(
+                                it,
+                                style = DsType.caption11,
+                                color = colors.labelTertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                }
                 if (agentPresetLabel != null) {
                     MetaChip(
                         icon = Icons.Outlined.Dashboard,

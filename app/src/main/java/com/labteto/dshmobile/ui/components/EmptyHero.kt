@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,8 +26,7 @@ import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 
 /**
- * Centered empty state: whale mark, hero headline, optional subtitle, a mono
- * "Preview" pill, and suggestion chips.
+ * Centered empty state: whale mark, hero headline, optional subtitle, and suggestion chips.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -59,15 +57,6 @@ fun EmptyHero(
                 textAlign = TextAlign.Center,
             )
         }
-        Text(
-            "Preview",
-            style = DsType.xsmall12.copy(fontFamily = DsType.codeFont, color = colors.accent),
-            color = colors.accent,
-            modifier = Modifier
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.accentTertiary)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-        )
         if (chips.isNotEmpty()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),

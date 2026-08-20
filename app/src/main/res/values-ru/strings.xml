@@ -27,8 +27,8 @@
     <string name="connect_title">Подключиться к Harness</string>
     <string name="connect_subtitle">DSH Mobile отражает DeepSeek Harness, работающий на вашем компьютере.</string>
     <string name="connect_manual_title">Подключиться вручную</string>
-    <string name="connect_host_label">Адрес хоста</string>
-    <string name="connect_host_hint">192.168.1.20 или ds.example.com</string>
+
+
     <string name="connect_port_label">Порт</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">Подключиться</string>
@@ -53,7 +53,8 @@
     <string name="connect_remote_confirm_body">%1$s находится вне вашей локальной сети. У Harness нет входа — продолжайте, только если этот адрес ваш (например, за Cloudflare Access, VPN или другим контролем доступа).</string>
     <string name="connect_remote_confirm_continue">Продолжить</string>
     <string name="connect_fail_access">Служба доступа перед %1$s отклонила запрос — проверьте токен доступа и Client ID/Secret Cloudflare, а также что сервисный токен добавлен в политику приложения.</string>
-    <string name="connect_security_banner">Безопасность: у Harness нет входа. Защитите удалённый доступ токеном, VPN или Cloudflare Access.</string>
+    <string name="connect_security_banner">У самого harness нет входа — защитите удалённый доступ с помощью Cloudflare Access, токена или VPN.</string>
+
     <string name="connect_failed">Не удалось связаться с Harness по адресу %1$s:%2$s</string>
     <string name="connect_failed_fence">Подключайтесь по IP-адресу компьютера, а не по имени, либо запустите harness с --trusted-host.</string>
     <string name="connect_stage_validating">Проверка адреса…</string>
@@ -372,4 +373,24 @@
     <string name="update_later">Позже</string>
     <string name="settings_update_check">Проверять обновления</string>
     <string name="settings_update_check_hint">При запуске запрашивает у GitHub последний релиз.</string>
+    <string name="connect_address_label">Адрес</string>
+    <string name="connect_address_hint">ds.example.com, https://ds.example.com или 192.168.1.20:3080</string>
+    <string name="connect_endpoint">Будет подключение к %1$s</string>
+    <string name="connect_advanced_title">Дополнительно</string>
+    <string name="connect_port_auto">Авто</string>
+    <string name="connect_auth_title">Аутентификация (необязательно)</string>
+    <string name="connect_auth_hint">Для защищённых конечных точек — Bearer-токен или идентификатор клиента + секрет Cloudflare Access.</string>
+    <string name="connect_help">Как подключиться?</string>
+    <string name="chatlist_connected_to">Подключено к %1$s</string>
+    <string name="chatlist_switch_host">Сменить</string>
+    <string name="chat_suggest_summarize">Обобщить этот репозиторий</string>
+    <string name="chat_suggest_tests">Запустить набор тестов</string>
+    <string name="chat_suggest_diff">Объяснить diff</string>
+    <string name="settings_help">Справка</string>
+    <string name="settings_help_connect">Как подключиться</string>
+    <string name="settings_help_issues">Сообщить о проблеме</string>
+    <string name="status_running">Выполняется</string>
+    <string name="status_idle">Простой</string>
+    <string name="status_online">Онлайн</string>
+    <string name="status_offline">Офлайн</string>
 </resources>

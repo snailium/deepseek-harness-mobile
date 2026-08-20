@@ -27,8 +27,8 @@
     <string name="connect_title">连接到 Harness</string>
     <string name="connect_subtitle">DSH Mobile 会镜像运行在你电脑上的 DeepSeek Harness。</string>
     <string name="connect_manual_title">手动连接</string>
-    <string name="connect_host_label">主机地址</string>
-    <string name="connect_host_hint">192.168.1.20 或 ds.example.com</string>
+
+
     <string name="connect_port_label">端口</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">连接</string>
@@ -53,7 +53,8 @@
     <string name="connect_remote_confirm_body">%1$s 位于您的本地网络之外。Harness 本身没有登录验证 — 请仅在确认该端点属于您时继续（例如位于 Cloudflare Access、VPN 或其他访问控制之后）。</string>
     <string name="connect_remote_confirm_continue">继续</string>
     <string name="connect_fail_access">%1$s 前面的访问服务拒绝了请求 — 请检查访问令牌和 Cloudflare Client ID/Secret，并确认服务令牌已添加到应用策略中。</string>
-    <string name="connect_security_banner">安全提示：Harness 本身没有登录验证。远程访问请使用令牌、VPN 或 Cloudflare Access 保护。</string>
+    <string name="connect_security_banner">Harness 本身没有登录 — 请使用 Cloudflare Access、令牌或 VPN 保护远程访问。</string>
+
     <string name="connect_failed">无法连接 %1$s:%2$s 上的 Harness</string>
     <string name="connect_failed_fence">请使用电脑的 IP 地址而不是主机名进行连接，或使用 --trusted-host 启动 harness。</string>
     <string name="connect_stage_validating">正在检查地址…</string>
@@ -372,4 +373,24 @@
     <string name="update_later">稍后</string>
     <string name="settings_update_check">检查更新</string>
     <string name="settings_update_check_hint">应用启动时向 GitHub 查询最新发行版。</string>
+    <string name="connect_address_label">地址</string>
+    <string name="connect_address_hint">ds.example.com、https://ds.example.com 或 192.168.1.20:3080</string>
+    <string name="connect_endpoint">将连接到 %1$s</string>
+    <string name="connect_advanced_title">高级</string>
+    <string name="connect_port_auto">自动</string>
+    <string name="connect_auth_title">身份验证（可选）</string>
+    <string name="connect_auth_hint">适用于受访问控制的端点 — Bearer 令牌或 Cloudflare Access 客户端 ID + 密钥。</string>
+    <string name="connect_help">如何连接？</string>
+    <string name="chatlist_connected_to">已连接到 %1$s</string>
+    <string name="chatlist_switch_host">切换</string>
+    <string name="chat_suggest_summarize">总结这个仓库</string>
+    <string name="chat_suggest_tests">运行测试套件</string>
+    <string name="chat_suggest_diff">解释一个 diff</string>
+    <string name="settings_help">帮助</string>
+    <string name="settings_help_connect">如何连接</string>
+    <string name="settings_help_issues">报告问题</string>
+    <string name="status_running">运行中</string>
+    <string name="status_idle">空闲</string>
+    <string name="status_online">在线</string>
+    <string name="status_offline">离线</string>
 </resources>

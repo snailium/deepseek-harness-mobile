@@ -47,15 +47,37 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 
     DshTheme(preference = themePreference) {
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        // Switching harnesses lands here: the connection is dropped and the connect screen is
+        // shown regardless of the old phase, until a new connect (or a state reset) moves on.
+        var showConnect by rememberSaveable { mutableStateOf(false) }
         if (showSettings) {
             SettingsScreen(onClose = { showSettings = false })
         } else {
-            val showMain = connection.phase == ConnectionPhase.CONNECTED ||
-                (connection.phase == ConnectionPhase.RECONNECTING && connection.hasConnected)
+            val showMain = !showConnect && (
+                connection.phase == ConnectionPhase.CONNECTED ||
+                    (connection.phase == ConnectionPhase.RECONNECTING && connection.hasConnected)
+                )
             if (showMain) {
-                MainScreen(onOpenSettings = { showSettings = true })
+                MainScreen(
+                    hostLabel = connection.host?.displayAddress,
+                    onSwitchHost = {
+                        viewModel.disconnect()
+                        showConnect = true
+                    },
+                    onOpenSettings = { showSettings = true },
+                )
             } else {
                 ConnectScreen(onOpenSettings = { showSettings = true })
+            }
+        }
+
+        // A fresh connect clears the "switch host" latch, so the next successful handshake returns
+        // to the chat surface instead of being trapped on the connect screen.
+        LaunchedEffect(connection.phase) {
+            if (connection.phase == ConnectionPhase.CONNECTING ||
+                connection.phase == ConnectionPhase.CONNECTED
+            ) {
+                showConnect = false
             }
         }
 

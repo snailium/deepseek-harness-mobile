@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -207,6 +208,18 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                         onClick = { viewModel.clearLastSessions { toast.second(sessionsCleared) } },
                         variant = DsButtonVariant.Ghost,
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                SettingsCard(stringResource(R.string.settings_help)) {
+                    val uriHandler = LocalUriHandler.current
+                    HelpRow(
+                        title = stringResource(R.string.settings_help_connect),
+                        onClick = { runCatching { uriHandler.openUri(HELP_CONNECT_URL) } },
+                    )
+                    HelpRow(
+                        title = stringResource(R.string.settings_help_issues),
+                        onClick = { runCatching { uriHandler.openUri(HELP_ISSUES_URL) } },
                     )
                 }
 
@@ -531,6 +544,32 @@ private fun ConnectionSection(connectionState: ConnectionUiState, onDisconnect: 
 }
 
 @Composable
+private fun HelpRow(title: String, onClick: () -> Unit) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onClick)
+            .padding(vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = DsType.std14,
+            color = colors.labelSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
 private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
     val colors = DsTheme.colors
     // A dropdown, not a grid of twelve cells. The grid spent four rows of a settings page on a
@@ -631,3 +670,9 @@ private fun AppearanceChip(label: String, selected: Boolean, onClick: () -> Unit
         )
     }
 }
+
+/** The user-facing connect guide, from the upstream wiki. */
+private const val HELP_CONNECT_URL = "https://github.com/sorsama/deepseek-harness-mobile/wiki/Connecting"
+
+/** The upstream issue tracker, for problem reports. */
+private const val HELP_ISSUES_URL = "https://github.com/sorsama/deepseek-harness-mobile/issues"
