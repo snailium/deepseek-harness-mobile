@@ -393,4 +393,5 @@
     <string name="status_idle">ไม่ได้ใช้งาน</string>
     <string name="status_online">অনলাইন</string>
     <string name="status_offline">ออฟไลน์</string>
+    <string name="chat_typing">ผู้ช่วยกำลังพิมพ์…</string>
 </resources>

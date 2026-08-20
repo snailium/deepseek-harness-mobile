@@ -393,4 +393,5 @@
     <string name="status_idle">بیکار</string>
     <string name="status_online">آن لائن</string>
     <string name="status_offline">آف لائن</string>
+    <string name="chat_typing">معاون ٹائپ کر رہا ہے…</string>
 </resources>

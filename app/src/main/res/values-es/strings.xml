@@ -393,4 +393,5 @@
     <string name="status_idle">Inactivo</string>
     <string name="status_online">En línea</string>
     <string name="status_offline">Sin conexión</string>
+    <string name="chat_typing">El asistente está escribiendo…</string>
 </resources>

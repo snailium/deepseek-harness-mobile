@@ -393,4 +393,5 @@
     <string name="status_idle">خامل</string>
     <string name="status_online">متصل</string>
     <string name="status_offline">غير متصل</string>
+    <string name="chat_typing">المساعد يكتب…</string>
 </resources>

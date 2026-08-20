@@ -3,6 +3,17 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.7.0] - 2026-08-21
+
+The transcript stops looking like a console log and starts looking like a chat.
+Assistant turns now render as left-aligned cards with a "DS" avatar chip, the
+same way user turns already rendered as right-aligned bubbles; a typing
+indicator with three animated dots shows while a turn streams; the composer
+floats above the transcript with a soft shadow; and message rows get real
+breathing room. Nothing about the underlying conversation changed — this pass
+is purely visual, and the harness web UI's container-less assistant turns are
+deliberately diverged from here, the same way `userBubble` already was.
+
 ## [0.6.0] - 2026-08-21
 
 A pass over the screens you touch every day, aimed at the two questions a phone

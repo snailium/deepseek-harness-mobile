@@ -1,10 +1,19 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +22,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.CallSplit
 import androidx.compose.material.icons.filled.ContentCopy
@@ -28,8 +39,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -213,54 +228,138 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     val streaming = context.running && isLast
     val reasoningExpanded = remember(node.seq) { mutableStateMapOf<Int, Boolean>() }
     var actionsVisible by remember(node.seq) { mutableStateOf(false) }
+    // A message whose blocks are all tool-call references renders nothing; streaming still earns
+    // the typing card, because the first visible chunk can be seconds away.
+    val hasVisibleContent = node.blocks.any {
+        (it.kind == "text" && !it.text.isNullOrBlank()) || it.kind == "reasoning" || it.kind == "image"
+    }
+    if (!streaming && !hasVisibleContent) return
 
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = !streaming) { actionsVisible = !actionsVisible },
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        node.blocks.forEachIndexed { index, block ->
-            when (block.kind) {
-                "text" -> MarkdownText(block.text.orEmpty())
-                "reasoning" -> {
-                    val expanded = reasoningExpanded[index] ?: false
-                    ThinkingRow(
-                        summary = block.text?.lineSequence()?.firstOrNull()
-                            ?: stringResource(R.string.chat_thinking),
-                        expanded = expanded,
-                        onToggle = { reasoningExpanded[index] = !expanded },
-                        streaming = streaming,
-                    )
-                    AnimatedVisibility(visible = expanded) {
-                        MarkdownText(block.text.orEmpty())
+        AssistantAvatar()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .background(colors.assistantBubble, AssistantBubbleShape)
+                .border(1.dp, colors.borderL1, AssistantBubbleShape)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            node.blocks.forEachIndexed { index, block ->
+                when (block.kind) {
+                    "text" -> MarkdownText(block.text.orEmpty())
+                    "reasoning" -> {
+                        val expanded = reasoningExpanded[index] ?: false
+                        ThinkingRow(
+                            summary = block.text?.lineSequence()?.firstOrNull()
+                                ?: stringResource(R.string.chat_thinking),
+                            expanded = expanded,
+                            onToggle = { reasoningExpanded[index] = !expanded },
+                            streaming = streaming,
+                        )
+                        AnimatedVisibility(visible = expanded) {
+                            MarkdownText(block.text.orEmpty())
+                        }
+                    }
+                    // Tool calls arrive as their own nodes and render as cards; the inline block is a
+                    // duplicate reference, so it stays quiet here.
+                    "tool-call", "tool-result" -> Unit
+                    "image" -> parseImageRef(block)?.let { ref ->
+                        AttachmentImage(
+                            attachmentId = ref.attachmentId,
+                            intrinsicWidth = ref.width,
+                            intrinsicHeight = ref.height,
+                            contentDescription = ref.name,
+                        )
+                    }
+                    else -> block.text?.let {
+                        Text(it, style = DsType.caption11, color = colors.labelTertiary)
                     }
                 }
-                // Tool calls arrive as their own nodes and render as cards; the inline block is a
-                // duplicate reference, so it stays quiet here.
-                "tool-call", "tool-result" -> Unit
-                "image" -> parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
-                        attachmentId = ref.attachmentId,
-                        intrinsicWidth = ref.width,
-                        intrinsicHeight = ref.height,
-                        contentDescription = ref.name,
-                    )
-                }
-                else -> block.text?.let {
-                    Text(it, style = DsType.caption11, color = colors.labelTertiary)
-                }
+            }
+            if (node.interrupted) {
+                DsPill(text = stringResource(R.string.chat_stopped), warn = true)
+            }
+            if (streaming) {
+                TypingIndicator()
+            }
+            AnimatedVisibility(
+                visible = actionsVisible && !streaming,
+                enter = fadeIn(DsAnimations.fade),
+                exit = fadeOut(DsAnimations.fade),
+            ) {
+                MessageActionsRow(node, context)
             }
         }
-        if (node.interrupted) {
-            DsPill(text = stringResource(R.string.chat_stopped), warn = true)
-        }
-        AnimatedVisibility(
-            visible = actionsVisible && !streaming,
-            enter = fadeIn(DsAnimations.fade),
-            exit = fadeOut(DsAnimations.fade),
-        ) {
-            MessageActionsRow(node, context)
+    }
+}
+
+/**
+ * Left-tail bubble shape: the card points at the avatar, mirroring the user bubble's right pill.
+ * The harness web UI draws assistant turns container-less, but the mobile transcript diverges the
+ * same way it already does for `userBubble` — a conversation needs two visual sides.
+ */
+private val AssistantBubbleShape = RoundedCornerShape(
+    topStart = 18.dp,
+    topEnd = 18.dp,
+    bottomStart = 6.dp,
+    bottomEnd = 18.dp,
+)
+
+/** 26dp accent chip marking the assistant's side of the conversation. */
+@Composable
+private fun AssistantAvatar() {
+    val colors = DsTheme.colors
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(colors.accentTertiary),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("DS", style = DsType.caption11Strong, color = colors.accent)
+    }
+}
+
+/** Three staggered dots while a turn streams, in place of a silent wait. */
+@Composable
+private fun TypingIndicator() {
+    val colors = DsTheme.colors
+    val typingLabel = stringResource(R.string.chat_typing)
+    val transition = rememberInfiniteTransition(label = "typingDots")
+    Row(
+        modifier = Modifier
+            .padding(top = 2.dp)
+            .semantics { contentDescription = typingLabel },
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(
+                        durationMillis = 450,
+                        delayMillis = index * 150,
+                        easing = FastOutSlowInEasing,
+                    ),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "typingDot$index",
+            )
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .graphicsLayer { this.alpha = alpha }
+                    .background(colors.labelTertiary, CircleShape),
+            )
         }
     }
 }

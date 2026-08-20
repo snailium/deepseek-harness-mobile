@@ -393,4 +393,5 @@
     <string name="status_idle">空闲</string>
     <string name="status_online">在线</string>
     <string name="status_offline">离线</string>
+    <string name="chat_typing">助手正在输入…</string>
 </resources>

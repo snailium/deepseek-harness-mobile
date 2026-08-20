@@ -393,4 +393,5 @@
     <string name="status_idle">निष्क्रिय</string>
     <string name="status_online">ऑनलाइन</string>
     <string name="status_offline">ऑफ़लाइन</string>
+    <string name="chat_typing">सहायक टाइप कर रहा है…</string>
 </resources>

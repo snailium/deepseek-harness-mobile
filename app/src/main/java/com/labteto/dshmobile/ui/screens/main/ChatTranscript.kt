@@ -165,8 +165,10 @@ internal fun ChatTranscript(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         // Bottom-anchored: a transcript shorter than the viewport belongs above the composer, not
-        // pinned under the tab strip with the empty half below it.
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        // pinned under the tab strip with the empty half below it. 10dp between rows gives the
+        // message cards room to breathe — 4dp was tuned for flat text and reads cramped around
+        // bubbles.
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
     ) {
         if (hasMore) {
             // Present whenever there is more to fetch, so index 0 stays stable across pages.

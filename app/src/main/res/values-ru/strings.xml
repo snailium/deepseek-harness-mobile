@@ -393,4 +393,5 @@
     <string name="status_idle">Простой</string>
     <string name="status_online">Онлайн</string>
     <string name="status_offline">Офлайн</string>
+    <string name="chat_typing">Ассистент печатает…</string>
 </resources>

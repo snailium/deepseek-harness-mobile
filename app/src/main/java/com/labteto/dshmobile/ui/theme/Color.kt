@@ -130,6 +130,14 @@ object DsLight {
      */
     val userBubble = Ds.Deepseek100
     val userBubbleHighlight = Ds.Deepseek200
+    /**
+     * The assistant's card fill. The harness web UI renders assistant turns container-less, and this
+     * app used to copy that — which left the transcript as plain text on white and the user bubble
+     * as the only thing saying who said what. On a phone that reads as a console log, not a chat,
+     * so the mobile app diverges the same way it already does for `userBubble`: a soft card that
+     * mirrors the bubble on the other side of the conversation.
+     */
+    val assistantBubble = Ds.Bluish60
     val composerCard = Color(0xFFFFFFFF)
     val sidebar = Ds.Bluish50
     val sidebarNavActive = Ds.Bluish100
@@ -188,6 +196,8 @@ object DsDark {
     val tooltipBg = Ds.Bluish750
     val userBubble = Ds.Bluish850
     val userBubbleHighlight = Ds.Bluish750
+    /** One step off the transcript background, so the card edge reads without a bright border. */
+    val assistantBubble = Ds.Bluish875
     val composerCard = Ds.Bluish850
     val sidebar = Ds.Bluish900
     val sidebarNavActive = Ds.Bluish750
