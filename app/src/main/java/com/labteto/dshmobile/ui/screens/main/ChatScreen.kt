@@ -242,14 +242,12 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 hostLabel = hostLabel,
-                models = models,
                 agentPresetLabel = currentSession?.agentPreset?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
                 collapsed = chromeCollapsed,
                 onOpenDrawer = onOpenDrawer,
-                onOpenModels = { sheet = ChatSheet.Models },
                 onOpenPresets = {
                     scope.launch { store.refreshAgentPresets() }
                     sheet = ChatSheet.Presets
@@ -418,7 +416,9 @@ fun ChatScreen(
                 contextPressure = contextPressure,
                 running = conversation?.running == true,
                 enabled = currentSessionId != null,
+                models = models,
                 onOpenSheet = { sheet = ChatSheet.Commands },
+                onOpenModels = { sheet = ChatSheet.Models },
                 onSend = ::send,
                 onStop = { scope.launch { store.cancelTurn() } },
             )

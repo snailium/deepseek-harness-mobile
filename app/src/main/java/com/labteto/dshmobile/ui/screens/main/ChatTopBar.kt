@@ -11,7 +11,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,14 +32,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
-import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -55,7 +51,9 @@ internal enum class ChatTab { Chat, Trajectory }
  * The session chrome: two rows — an identity row and a utility row.
  *
  * The identity row carries the session's title and host, which open the chat list, and the
- * controls that belong to the *connection*: the model selector, the live status, the details.
+ * controls that belong to the *connection*: the live status and the details. (The model selector
+ * used to sit here too; it now lives above the composer, where the model it switches configures
+ * the next turn.)
  * The utility row carries the Chat / Trajectory view switcher, which never folds, with the
  * session's agent preset and subagent chips in its trailing space — those fold away once the
  * reader scrolls. Two rows instead of three (title, chips, tabs): the chips and the tab strip
@@ -74,7 +72,6 @@ internal fun ChatTopBar(
     title: String,
     running: Boolean,
     hostLabel: String?,
-    models: SessionModelsValue?,
     agentPresetLabel: String?,
     subagentCount: Int,
     detailsOpen: Boolean,
@@ -82,7 +79,6 @@ internal fun ChatTopBar(
     /** True once the reader scrolls the transcript: the session-meta row folds away. */
     collapsed: Boolean,
     onOpenDrawer: () -> Unit,
-    onOpenModels: () -> Unit,
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
@@ -136,8 +132,6 @@ internal fun ChatTopBar(
                     }
                 }
             }
-            Spacer(Modifier.width(DsSpacing.tiny))
-            ModelChip(models = models, onClick = onOpenModels)
             Spacer(Modifier.width(DsSpacing.tiny))
             StateDot(
                 if (running) StateDotState.Running else StateDotState.Idle,
@@ -213,79 +207,7 @@ internal fun ChatTopBar(
     }
 }
 
-/**
- * The model chip: display names, not wire ids.
- *
- * `session.models` returns `deepseek-official / deepseek-v4-pro / max`, which is not what anyone
- * calls it — the catalog's own names resolve that to `DeepSeek-V4-Pro Max`.
- *
- * Drawn as a filled pill rather than the harness's transparent trigger. That is not a style
- * preference: on the web the affordance is the hover state, and a touch screen has no hover, so
- * bare text over the transcript gave no sign the model was switchable at all.
- *
- * Compact on purpose: it shares row one with the session title, so it carries the model name and
- * nothing else. The reasoning effort used to sit inline; it still lives one tap away inside the
- * model sheet, where it is actually changed.
- */
-@Composable
-private fun ModelChip(
-    models: SessionModelsValue?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = DsTheme.colors
-    if (models == null) {
-        Box(
-            modifier
-                .padding(horizontal = DsSpacing.small)
-                .width(120.dp)
-                .height(14.dp)
-                .skeleton(colors.bgLayer2, colors.hover),
-        )
-        return
-    }
-    val current = models.current
-    val group = models.groups.firstOrNull { it.id == current.provider }
-    val model = group?.models?.firstOrNull { it.id == current.model }
-    val modelLabel = model?.name ?: current.model
-
-    Row(
-        modifier = modifier
-            .widthIn(max = 150.dp)
-            .heightIn(min = 28.dp)
-            .clip(DsShapes.pillFull)
-            .background(colors.hoverSolid)
-            .border(1.dp, colors.borderL2, DsShapes.pillFull)
-            .clickable(
-                role = Role.Button,
-                onClickLabel = stringResource(R.string.models_title),
-                onClick = onClick,
-            )
-            .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-    ) {
-        if (!models.routable) {
-            StateDot(StateDotState.Warning, size = 6.dp)
-        }
-        Text(
-            modelLabel,
-            style = DsType.std14Strong,
-            color = colors.labelPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Icon(
-            FeatherIcons.ChevronDown,
-            contentDescription = null,
-            tint = colors.labelSecondary,
-            modifier = Modifier.size(14.dp),
-        )
-    }
-}
-
-/** The preset and subagent chips. Same reasoning as [ModelChip]: a tap target has to look like one. */
+/** The preset and subagent chips: a tap target has to look like one. */
 @Composable
 private fun MetaChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,

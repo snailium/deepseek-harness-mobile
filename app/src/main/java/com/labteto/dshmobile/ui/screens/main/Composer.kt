@@ -55,11 +55,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
+import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
 import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
 import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
 import com.labteto.dshmobile.ui.components.ContextMeter
+import com.labteto.dshmobile.ui.components.StateDot
+import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
@@ -87,9 +90,10 @@ internal data class PendingAttachment(
  * grows (the ChatGPT/WhatsApp arrangement), so the card stays ~66dp at rest and only earns
  * height for what is actually typed.
  *
- * The model selector is deliberately *not* here — it lives in the top bar, which leaves this
- * card for the two controls you change mid-conversation and keeps the composer from wrapping on
- * a narrow phone.
+ * The model selector lives here, above the input: a model choice configures the *next* turn,
+ * so it belongs at the point of action — the same reasoning that put Gemini's picker inside its
+ * prompt bar (2025 redesign) and ChatGPT's inside its composer. The header keeps identity and
+ * navigation only.
  */
 @Composable
 internal fun Composer(
@@ -104,7 +108,9 @@ internal fun Composer(
     contextPressure: ContextPressureView?,
     running: Boolean,
     enabled: Boolean,
+    models: SessionModelsValue?,
     onOpenSheet: () -> Unit,
+    onOpenModels: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -140,6 +146,10 @@ internal fun Composer(
             Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
+            models?.let { m ->
+                ModelStrip(models = m, enabled = enabled, onClick = onOpenModels)
+            }
+
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
                 AttachmentStrip(attachments, onRemoveAttachment)
             }
@@ -351,6 +361,61 @@ private fun PermissionChip(
                 confirming = null
                 onPick(target)
             },
+        )
+    }
+}
+
+/**
+ * The model selector trigger, above the input.
+ *
+ * A text-style trigger rather than the filled pill the header used to carry. The pill existed to
+ * fake a hover affordance over the transcript, where nothing else looked tappable; here the
+ * chevron sits next to the very action the choice configures, so the plainest reading is a
+ * control. The name comes from the wire catalog, not the wire ids, and the non-routable warning
+ * dot survives from the old placement — it is the one thing the model chip said that this strip
+ * must keep saying.
+ */
+@Composable
+private fun ModelStrip(
+    models: SessionModelsValue,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = DsTheme.colors
+    val current = models.current
+    val group = models.groups.firstOrNull { it.id == current.provider }
+    val model = group?.models?.firstOrNull { it.id == current.model }
+    val modelLabel = model?.name ?: current.model
+
+    Row(
+        modifier = modifier
+            .clip(DsShapes.pillFull)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.models_title),
+                onClick = onClick,
+            )
+            .padding(horizontal = DsSpacing.xsmall, vertical = DsSpacing.tiny),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+    ) {
+        if (!models.routable) {
+            StateDot(StateDotState.Warning, size = 6.dp)
+        }
+        Text(
+            modelLabel,
+            style = DsType.small13Strong,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            FeatherIcons.ChevronDown,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(13.dp),
         )
     }
 }
