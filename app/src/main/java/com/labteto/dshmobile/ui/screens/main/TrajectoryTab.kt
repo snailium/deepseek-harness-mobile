@@ -62,6 +62,13 @@ internal fun TrajectoryTab(
     val colors = DsTheme.colors
     val nodes = conversation?.nodes ?: emptyList()
     val groups = remember(nodes) { groupByTurn(nodes) }
+    // Result lookup by call id, built once per snapshot instead of a filterIsInstance scan per
+    // tool row per composition.
+    val resultsByCallId = remember(nodes) {
+        nodes.mapNotNull { it as? ToolResultNode }
+            .filter { it.callId.isNotBlank() }
+            .associateBy { it.callId }
+    }
 
     LazyColumn(
         state = listState,
@@ -89,7 +96,7 @@ internal fun TrajectoryTab(
                 count = turnNodes.size,
                 key = { index -> "n-${turnNodes[index].seq}" },
             ) { index ->
-                TrajectoryRow(turnNodes[index], turnNodes, cwd, running)
+                TrajectoryRow(turnNodes[index], resultsByCallId, cwd, running)
             }
         }
         if (stats != null || usage != null) {
@@ -102,7 +109,12 @@ internal fun TrajectoryTab(
 }
 
 @Composable
-private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?, running: Boolean) {
+private fun TrajectoryRow(
+    node: ChatNode,
+    resultsByCallId: Map<String, ToolResultNode>,
+    cwd: String?,
+    running: Boolean,
+) {
     val colors = DsTheme.colors
     when (node) {
         is UserMessageNode -> {
@@ -124,10 +136,7 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
             }
         }
         is ToolCallNode -> {
-            val result = siblings
-                .filterIsInstance<ToolResultNode>()
-                .firstOrNull { it.callId == node.callId }
-            ToolLedgerRow(node, result, cwd, running)
+            ToolLedgerRow(node, resultsByCallId[node.callId], cwd, running)
         }
         else -> Unit
     }

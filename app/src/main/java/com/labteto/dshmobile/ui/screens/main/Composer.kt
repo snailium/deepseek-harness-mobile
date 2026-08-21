@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,6 +81,31 @@ internal data class PendingAttachment(
 )
 
 /**
+ * The composer's draft text, held in its own snapshot state so typing recomposes only the
+ * composer, not the whole conversation surface.
+ *
+ * The screen reads it back through [ComposerDraft.value] only inside event handlers (send,
+ * prefill) — never during composition of the screen itself — so a keystroke invalidates just the
+ * composer's subtree.
+ */
+@Stable
+internal class ComposerDraft internal constructor(initial: String) {
+    var value by mutableStateOf(initial)
+}
+
+private val ComposerDraftSaver = androidx.compose.runtime.saveable.Saver<ComposerDraft, String>(
+    save = { it.value },
+    restore = { ComposerDraft(it) },
+)
+
+/** A saveable [ComposerDraft]; keyed on the session so a switch starts from a clean draft. */
+@Composable
+internal fun rememberComposerDraft(sessionId: String?): ComposerDraft =
+    androidx.compose.runtime.saveable.rememberSaveable(sessionId, saver = ComposerDraftSaver) {
+        ComposerDraft("")
+    }
+
+/**
  * The message composer.
  *
  * One card, two rows: the input row — `+`, the growing field, send/stop — and, only when the
@@ -97,8 +123,7 @@ internal data class PendingAttachment(
  */
 @Composable
 internal fun Composer(
-    draft: String,
-    onDraftChange: (String) -> Unit,
+    composerDraft: ComposerDraft,
     attachments: List<PendingAttachment>,
     onRemoveAttachment: (Int) -> Unit,
     permissions: PermissionSelect?,
@@ -115,15 +140,15 @@ internal fun Composer(
 ) {
     val colors = DsTheme.colors
     val haptics = LocalHapticFeedback.current
+    val draft = composerDraft.value
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
     val currentDraft by rememberUpdatedState(draft)
-    val currentOnDraftChange by rememberUpdatedState(onDraftChange)
     val currentOnSend by rememberUpdatedState(onSend)
 
     fun doSend() {
         if (!canSend || running) return
         val text = currentDraft
-        currentOnDraftChange("")
+        composerDraft.value = ""
         // The long-press feedback doubles as the send tick; the heavier long-press haptic stays
         // on stop, the disruptive action.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -171,7 +196,7 @@ internal fun Composer(
                 CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
                     BasicTextField(
                         value = draft,
-                        onValueChange = onDraftChange,
+                        onValueChange = { composerDraft.value = it },
                         modifier = Modifier
                             .weight(1f)
                             .padding(vertical = DsSpacing.small),

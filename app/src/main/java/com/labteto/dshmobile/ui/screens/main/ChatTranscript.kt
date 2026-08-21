@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -103,16 +104,23 @@ internal fun ChatTranscript(
     val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
 
+    // The streaming tail re-keys/re-derives every row while a turn streams; animating each item
+    // on every tick is what made the transcript feel rubbery. Only the *settled* state earns the
+    // layout animation — the moment the turn stops, rows animate into place once.
+    val streaming = conversation?.running == true
+
     // Both keyed on the session so a freshly opened one starts from a clean assumption rather than
     // inheriting the previous transcript's position — and so the collector always writes to the
     // state the composition is currently reading.
     var wasNearBottom by remember(sessionId) { mutableStateOf(true) }
     LaunchedEffect(listState, sessionId) {
         snapshotFlow {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-            val total = info.totalItemsCount
-            total == 0 || last >= total - 2
+            derivedStateOf {
+                val info = listState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                val total = info.totalItemsCount
+                total == 0 || last >= total - 2
+            }.value
         }.collect { wasNearBottom = it }
     }
 
@@ -213,7 +221,7 @@ internal fun ChatTranscript(
             }
         } else {
             items(rows, key = { it.key }) { item ->
-                Column(Modifier.animateItem()) {
+                Column(if (streaming) Modifier else Modifier.animateItem()) {
                     when (item) {
                         is NodeItem -> ChatNodeItem(node = item.node, context = context)
                         is ProcessItem -> ProcessGroupItem(

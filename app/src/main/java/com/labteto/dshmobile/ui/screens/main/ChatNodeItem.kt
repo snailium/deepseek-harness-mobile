@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,8 +88,14 @@ import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 
-/** Everything one transcript row needs that is not on the node itself. */
-internal data class ChatNodeContext(
+/**
+ * Everything one transcript row needs that is not on the node itself.
+ *
+ * [@Stable] and rebuilt by the transcript from the *stable nodes view* the incremental fold
+ * publishes, so rows that do not change do not re-derive per stream tick.
+ */
+@Stable
+internal class ChatNodeContext(
     val nodes: List<ChatNode>,
     val toolViews: Map<Long, ToolEventView>,
     val running: Boolean,
@@ -96,7 +103,19 @@ internal data class ChatNodeContext(
     val onOpenSubagent: (String) -> Unit,
     val onBranchFrom: (Long) -> Unit,
     val onFeedback: (Long, Boolean) -> Unit,
-)
+) {
+    /**
+     * Tool result by call id, built once per snapshot instead of a `filterIsInstance` scan per
+     * tool row per composition.
+     */
+    val resultsByCallId: Map<String, ToolResultNode> by lazy {
+        val map = HashMap<String, ToolResultNode>()
+        for (node in nodes) {
+            if (node is ToolResultNode && node.callId.isNotBlank()) map[node.callId] = node
+        }
+        map
+    }
+}
 
 /**
  * One node of the conversation. The `when` is exhaustive over [ChatNode] on purpose: a harness that
@@ -457,9 +476,7 @@ private fun ActionIcon(
 @Composable
 private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
     val colors = DsTheme.colors
-    val result = context.nodes
-        .filterIsInstance<ToolResultNode>()
-        .firstOrNull { it.callId == node.callId }
+    val result = context.resultsByCallId[node.callId]
     val callView = context.toolViews[node.seq]
     val resultView = result?.let { context.toolViews[it.seq] }
     val card = buildToolCardView(

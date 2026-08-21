@@ -371,6 +371,17 @@ class SessionStore @Inject constructor(
     private var currentQueue = emptyList<QueueItem>()
     private val toolViewsBySeq = HashMap<Long, ToolEventView>()
 
+    /**
+     * The incremental fold driver for the open session. Holds the fold state (nodes, open chunk
+     * accumulators) across events so a stream of deltas stays O(delta) instead of re-folding the
+     * whole log on every rebuild — see [rebuildCurrentLocked].
+     *
+     * Reseeded whenever the session changes or a page of history replaces the event list. The
+     * [EventFold.Incremental] class itself is used for the forward stream; the backward-page path
+     * re-folds the merged list once (rare) and reseeds.
+     */
+    private var currentFold: EventFold.Incremental? = null
+
     private data class ApprovalRequest(
         val sessionId: String,
         val approvalId: String,
@@ -506,7 +517,12 @@ class SessionStore @Inject constructor(
     private fun handleMuxFrame(frame: ServerRequest) {
         val mux = parseMuxFrame(frame.payload) ?: return
         when (mux) {
-            is MuxFrame.SessionEventFrame -> handleSessionEvent(mux.sessionId, mux.event, mux.view)
+            is MuxFrame.SessionEventFrame -> handleSessionEvent(
+                mux.sessionId,
+                mux.event,
+                (frame.payload as? JsonObject)?.get("event") as? JsonObject,
+                mux.view,
+            )
             is MuxFrame.SessionSubscribed -> {
                 val sid = mux.sessionId
                 scope.launch {
@@ -558,8 +574,16 @@ class SessionStore @Inject constructor(
         }
     }
 
-    private fun handleSessionEvent(sessionId: String, event: SessionEvent, view: ToolEventView?) {
-        val envelope = sessionEventToEnvelope(event)
+    private fun handleSessionEvent(
+        sessionId: String,
+        event: SessionEvent,
+        rawEventJson: JsonObject?,
+        view: ToolEventView?,
+    ) {
+        // Fast path: the wire frame's raw `event` JSON is already at hand, so skip the
+        // decode-to-typed-then-re-encode round trip. Falls back to the typed conversion when the
+        // frame does not look like the expected shape (it still carries the typed [event]).
+        val envelope = rawEventJson?.let { rawSessionEventEnvelope(it) } ?: sessionEventToEnvelope(event)
         when (event.type) {
             "turn/start" -> {
                 setRunning(sessionId, true)
@@ -787,12 +811,17 @@ class SessionStore @Inject constructor(
      * order or repeated sequence numbers still take the slow path, which is what makes a
      * re-delivery after a reconnect land in the right place.
      *
+     * A strictly-increasing append is staged in [pendingEvents] for the incremental driver; a
+     * replacement or out-of-order insert invalidates the driver so the next rebuild reseeds from
+     * the corrected list (rare, and the same cost the old full refold paid).
+     *
      * The rebuild is requested rather than performed — see [observeRebuildTicks].
      */
     private fun appendCurrentEventLocked(envelope: SessionEventEnvelope) {
         val lastSeq = currentEvents.lastOrNull()?.seq
         if (lastSeq == null || envelope.seq > lastSeq) {
             currentEvents.add(envelope)
+            pendingEvents.add(envelope)
         } else {
             val idx = currentEvents.indexOfFirst { it.seq == envelope.seq }
             if (idx >= 0) {
@@ -801,6 +830,10 @@ class SessionStore @Inject constructor(
                 currentEvents.add(envelope)
                 currentEvents.sortBy { it.seq }
             }
+            // The driver cannot replay a mutation behind its watermark; a full reseed is the
+            // bounded, rare path.
+            currentFold = null
+            pendingEvents.clear()
         }
         rebuildTicks.trySend(Unit)
     }
@@ -812,11 +845,30 @@ class SessionStore @Inject constructor(
         }
     }
 
+    /**
+     * Republish the conversation from the incremental fold.
+     *
+     * The forward stream is drained through the carried [EventFold.Incremental] driver, so a burst
+     * of deltas only re-folds the deltas, not the whole log. When the driver was invalidated (a
+     * history page merged at the head, an out-of-order/replacement event, a session switch) the
+     * whole list is re-folded once and the driver reseeded — rare and bounded.
+     *
+     * The published snapshot's `nodes` view is the same instance until a structural change, so a
+     * tick that only merged chunk deltas into the open accumulator does not churn the transcript.
+     */
     private fun rebuildCurrentLocked() {
         val sid = currentId ?: return
-        val events = currentEvents.toList()
-        val snapshot = EventFold(sid).fold(events)
-        val blank = if (events.isEmpty()) currentBlank else snapshot.blank
+        val fold = currentFold
+        if (fold == null) {
+            seedFoldLocked(sid)
+            return
+        }
+        if (pendingEvents.isNotEmpty()) {
+            for (envelope in pendingEvents) fold.apply(envelope)
+            pendingEvents.clear()
+        }
+        val snapshot = fold.snapshot()
+        val blank = if (currentEvents.isEmpty()) currentBlank else snapshot.blank
         val running = runningBySession[sid] ?: snapshot.running
         val merged = snapshot.copy(
             blank = blank,
@@ -827,6 +879,34 @@ class SessionStore @Inject constructor(
         )
         _currentConversation.value = merged
     }
+
+    /**
+     * Rebuild the incremental driver from the full current event list (session switch / paging).
+     *
+     * The seed fold publishes immediately so the transcript lands without waiting for a tick, and
+     * the driver takes over from there with an empty pending queue.
+     */
+    private fun seedFoldLocked(sid: String) {
+        val seeded = EventFold(sid).fold(currentEvents)
+        currentFold = EventFold.Incremental(seeded, sid)
+        pendingEvents.clear()
+        val blank = if (currentEvents.isEmpty()) currentBlank else seeded.blank
+        val running = runningBySession[sid] ?: seeded.running
+        val merged = seeded.copy(
+            blank = blank,
+            running = running,
+            hasMore = currentHasMore,
+            queue = currentQueue,
+            projections = currentProjections.mapValues { it.value.value },
+        )
+        _currentConversation.value = merged
+    }
+
+    /**
+     * Events since the last incremental fold, drained into the driver on the next rebuild.
+     * Cleared whenever the driver is invalidated or reseeded (see [appendCurrentEventLocked]).
+     */
+    private val pendingEvents = ArrayList<SessionEventEnvelope>()
 
     private fun emitSessionsLocked() {
         val rows = sessionRows.values.map { row ->
@@ -939,6 +1019,9 @@ class SessionStore @Inject constructor(
             currentProjections.clear()
             currentQueue = emptyList()
             toolViewsBySeq.clear()
+            // A fresh event list invalidates the incremental driver; the next rebuild reseeds.
+            currentFold = null
+            pendingEvents.clear()
             _toolViews.value = emptyMap()
             if (!same) {
                 _currentConversation.value = null
@@ -976,6 +1059,9 @@ class SessionStore @Inject constructor(
                             currentProjections[key] = ProjectionValue(block.asOfSeq, value)
                         }
                     }
+                    // Fresh list -> the incremental driver is stale; reseed on rebuild.
+                    currentFold = null
+                    pendingEvents.clear()
                     rebuildCurrentLocked()
                 }
             }
@@ -1034,6 +1120,12 @@ class SessionStore @Inject constructor(
                         views.forEach { (seq, view) -> toolViewsBySeq[seq] = view }
                         _toolViews.value = toolViewsBySeq.toMap()
                         currentHasMore = nextHasMore(fresh.size, r.value.hasMore, overDelivered)
+                        // Prepend merged at the head invalidates the incremental driver; the
+                        // bounded reseed happens on the next rebuild.
+                        if (fresh.isNotEmpty()) {
+                            currentFold = null
+                            pendingEvents.clear()
+                        }
                         rebuildCurrentLocked()
                     }
                 }

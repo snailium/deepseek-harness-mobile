@@ -1,3 +1,48 @@
+## [0.15.0] - 2026-08-21
+
+The chat screen's hot path is reworked so streaming a turn stays smooth and
+long sessions no longer risk running out of memory.
+
+### Changed
+
+- **Transcript folding is now incremental.** A streamed turn used to re-fold the
+  whole session log on every display tick (up to 20 times a second), which made
+  the cost quadratic in the session's length and eventually exhausted the heap
+  on long sessions. The open session's events are now folded through a driver
+  that carries its state across events: a burst of chunk deltas re-folds only
+  the deltas, and the transcript republishes only when something renderable
+  actually changed. History paging, reconnect re-delivery and out-of-order
+  events still take the bounded full-refold path, exactly as before.
+- **Streaming no longer animates every row.** The transcript gated its per-row
+  layout animation behind the running flag: while a turn streams, rows land
+  without the animate-item pass (the source of the rubber-band feel); once the
+  turn settles, the animation plays once for whatever moved.
+- **Tool-result lookup is precomputed.** Chat and trajectory rows used to scan
+  the whole node list per tool card per composition to find the matching result;
+  the result map is now built once per snapshot.
+- **Typing recomposes only the composer.** The composer's draft text moved into
+  its own saveable state holder, so a keystroke no longer invalidates the whole
+  conversation surface (chrome, transcript, docks and footer).
+- **The Active tab's flows are lifecycle-aware.** `collectAsStateWithLifecycle`
+  replaces the always-on `collectAsState`, so the details screen stops doing
+  work while the app is in the background.
+- **The stream frame hot path avoids a JSON round trip.** The raw wire
+  `session/event` payload feeds the fold directly instead of being decoded to a
+  typed event and re-encoded; the typed path remains as the fallback.
+- **Release builds are R8-minified and resource-shrunk.** The release APK drops
+  from ~15 MB to ~3 MB, with the code-size and startup benefits that come with
+  dead-code elimination. Debug builds are unchanged.
+
+### Fixed
+
+- The app could run out of memory and die shortly after a long session kept
+  streaming — the quadratic re-fold described above. The incremental fold keeps
+  per-event work bounded, so a session's memory use no longer grows with every
+  tick.
+- Scrolling back through a long transcript while a turn streams no longer
+  rubber-bands: the auto-scroll follows the newest sequence number as before,
+  but the settled rows no longer re-animate on every chunk.
+
 ## [0.14.0] - 2026-08-21
 
 The app is re-architected onto Jetpack Navigation Compose and re-cut to a

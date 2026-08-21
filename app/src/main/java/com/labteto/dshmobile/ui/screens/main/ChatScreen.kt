@@ -112,7 +112,7 @@ fun ConversationScreen(
         ?: currentSession?.cwd?.let { basename(it) }
         ?: currentSessionId.orEmpty()
 
-    var draft by rememberSaveable(currentSessionId) { mutableStateOf("") }
+    val composerDraft = rememberComposerDraft(currentSessionId)
     var mode by rememberSaveable(currentSessionId) { mutableStateOf("queue") }
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
     val attachments = remember(currentSessionId) { mutableStateListOf<PendingAttachment>() }
@@ -279,20 +279,22 @@ fun ConversationScreen(
                 )
             }
 
-            val nodeContext = ChatNodeContext(
-                nodes = conversation?.nodes ?: emptyList(),
-                toolViews = toolViews,
-                running = conversation?.running == true,
-                cwd = currentSession?.cwd,
-                onOpenSubagent = { childId ->
-                    scope.launch { store.openSubagentTranscript(childId) }
-                    sheet = ChatSheet.Subagents
-                },
-                onBranchFrom = { seq -> scope.launch { currentSessionId?.let { store.forkSession(it, seq) } } },
-                onFeedback = { _, positive ->
-                    scope.launch { report(store.runCommand(if (positive) "/feedback +1" else "/feedback -1")) }
-                },
-            )
+            val nodeContext = remember(conversation?.nodes, toolViews, conversation?.running == true, currentSession?.cwd) {
+                ChatNodeContext(
+                    nodes = conversation?.nodes ?: emptyList(),
+                    toolViews = toolViews,
+                    running = conversation?.running == true,
+                    cwd = currentSession?.cwd,
+                    onOpenSubagent = { childId ->
+                        scope.launch { store.openSubagentTranscript(childId) }
+                        sheet = ChatSheet.Subagents
+                    },
+                    onBranchFrom = { seq -> scope.launch { currentSessionId?.let { store.forkSession(it, seq) } } },
+                    onFeedback = { _, positive ->
+                        scope.launch { report(store.runCommand(if (positive) "/feedback +1" else "/feedback -1")) }
+                    },
+                )
+            }
 
             AnimatedContent(
                 targetState = tab,
@@ -319,7 +321,7 @@ fun ConversationScreen(
                         onLoadOlder = { scope.launch { store.loadOlder() } },
                         // A suggestion chip composes the message; sending stays on the explicit
                         // send button, so a tap never fires a prompt by surprise.
-                        onSuggest = { suggestion -> draft = suggestion },
+                        onSuggest = { suggestion -> composerDraft.value = suggestion },
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,
@@ -394,7 +396,7 @@ fun ConversationScreen(
                         // Wanting to talk it over first is not one of the options the asker stated,
                         // so it ends the request rather than answering it with the refusal.
                         onDiscuss = {
-                            draft = ""
+                            composerDraft.value = ""
                             settle { store.dismissQuestions(questions.sessionId) }
                         },
                     )
@@ -411,8 +413,7 @@ fun ConversationScreen(
             }
 
             Composer(
-                draft = draft,
-                onDraftChange = { draft = it },
+                composerDraft = composerDraft,
                 attachments = attachments,
                 onRemoveAttachment = { index -> attachments.removeAt(index) },
                 permissions = permissions,
@@ -443,7 +444,7 @@ fun ConversationScreen(
             onModeChange = { mode = it },
             onAttach = { imagePicker.launch("image/*") },
             onRunCommand = { line -> scope.launch { report(store.runCommand(line)) } },
-            onPrefillDraft = { prefix -> draft = prefix },
+            onPrefillDraft = { prefix -> composerDraft.value = prefix },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })

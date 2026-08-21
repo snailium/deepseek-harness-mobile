@@ -31,7 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -118,20 +118,20 @@ fun ActiveScreen(
     val toast = rememberDsToast()
     val clipboard = LocalClipboardManager.current
 
-    val conversation by store.currentConversation.collectAsState()
-    val jobs by store.jobs.collectAsState()
-    val hostInfo by store.hostInfo.collectAsState()
-    val subagents by store.subagents.collectAsState()
-    val sessions by store.sessions.collectAsState()
-    val currentSessionId by store.currentSessionId.collectAsState()
-    val stats by store.sessionStats.collectAsState()
-    val usage by store.tokenUsage.collectAsState()
-    val breakdown by store.contextBreakdown.collectAsState()
-    val pressure by store.contextPressure.collectAsState()
-    val models by store.models.collectAsState()
-    val agentPresets by store.agentPresets.collectAsState()
-    val pendingApproval by store.pendingApproval.collectAsState()
-    val pendingQuestions by store.pendingQuestions.collectAsState()
+    val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    val jobs by store.jobs.collectAsStateWithLifecycle()
+    val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
+    val subagents by store.subagents.collectAsStateWithLifecycle()
+    val sessions by store.sessions.collectAsStateWithLifecycle()
+    val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    val stats by store.sessionStats.collectAsStateWithLifecycle()
+    val usage by store.tokenUsage.collectAsStateWithLifecycle()
+    val breakdown by store.contextBreakdown.collectAsStateWithLifecycle()
+    val pressure by store.contextPressure.collectAsStateWithLifecycle()
+    val models by store.models.collectAsStateWithLifecycle()
+    val agentPresets by store.agentPresets.collectAsStateWithLifecycle()
+    val pendingApproval by store.pendingApproval.collectAsStateWithLifecycle()
+    val pendingQuestions by store.pendingQuestions.collectAsStateWithLifecycle()
     val current = sessions.firstOrNull { it.sessionId == currentSessionId }
 
     // This panel owns its own sheets rather than reaching back into ChatScreen's: it is reachable
