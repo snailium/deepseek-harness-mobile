@@ -3,6 +3,38 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.9.0] - 2026-09-02
+
+A pass over the two sidebars: the chat list drawer gets the anatomy a chat list
+is expected to have, and the details panel gets chrome that stays put.
+
+### Added
+
+- **Search is always there.** The chat-list drawer keeps a permanent search
+  field under its title (with a clear button) instead of hiding one behind an
+  icon — the field a chat-list app's eye looks for first is no longer a
+  discoverability puzzle.
+- **The current session's actions are visible.** The row you are in carries a
+  quiet `⋯` that opens the rename / fork / archive sheet, so the most-acted-on
+  row no longer hides its verbs behind long-press. Long-press still works
+  everywhere, now with haptic feedback and a TalkBack label of its own.
+- **Settings moves to the drawer's footer.** The M3 convention of secondary
+  destinations at the bottom frees the header for what the drawer is actually
+  for, next to the existing "New workspace" row.
+- **Workspace headers identify themselves.** A folder glyph leads each
+  workspace header, and every drawer row — header and session alike — grows to
+  a 48dp touch target.
+
+### Changed
+
+- **The details panel's header stays pinned.** The back arrow and title no
+  longer scroll away with the cards; the panel's leading edge gains a hairline
+  so it reads as a sheet over the chat in light mode; card expansion resets
+  when you switch sessions.
+- **RTL-correct details panel.** The edge swipe, its drag direction, and the
+  slide animation now follow the reading direction instead of assuming the
+  panel lives on the right.
+
 ## [0.8.0] - 2026-08-21
 
 A UI pass over components and chrome: one icon family everywhere, strings that

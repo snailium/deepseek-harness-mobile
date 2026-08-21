@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">Все</string>
     <string name="chatlist_no_workspaces">Рабочих пространств пока нет — создайте одно ниже.</string>
     <string name="chatlist_search_hint">Поиск сеансов</string>
+    <string name="chatlist_search_clear">Очистить поиск</string>
+    <string name="chatlist_session_actions">Действия сеанса</string>
+    <string name="chatlist_workspace_actions">Действия рабочей области</string>
     <string name="chatlist_empty">Сеансов пока нет</string>
     <string name="chatlist_empty_hint">Начните новый сеанс из Harness или отсюда.</string>
     <string name="chatlist_workspaces">Рабочие пространства</string>

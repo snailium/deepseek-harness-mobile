@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">সব</string>
     <string name="chatlist_no_workspaces">এখনো কোনো ওয়ার্কস্পেস নেই — নিচে একটি তৈরি করুন।</string>
     <string name="chatlist_search_hint">সেশন খুঁজুন</string>
+    <string name="chatlist_search_clear">অনুসন্ধান মুছুন</string>
+    <string name="chatlist_session_actions">সেশন ক্রিয়া</string>
+    <string name="chatlist_workspace_actions">ওয়ার্কস্পেস ক্রিয়া</string>
     <string name="chatlist_empty">এখনো কোনো সেশন নেই</string>
     <string name="chatlist_empty_hint">Harness থেকে বা এখান থেকে একটি নতুন সেশন শুরু করুন।</string>
     <string name="chatlist_workspaces">ওয়ার্কস্পেস</string>

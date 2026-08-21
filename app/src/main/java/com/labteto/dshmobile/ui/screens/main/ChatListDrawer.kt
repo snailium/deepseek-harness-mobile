@@ -1,6 +1,5 @@
 package com.labteto.dshmobile.ui.screens.main
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -16,12 +15,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -39,8 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -53,7 +58,6 @@ import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
-import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.EmptyHero
@@ -112,7 +116,6 @@ fun ChatListDrawer(
     val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
 
     var query by remember { mutableStateOf("") }
-    var searchOpen by remember { mutableStateOf(false) }
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
     // to reset every time the drawer was closed.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
@@ -203,25 +206,57 @@ fun ChatListDrawer(
                 color = colors.labelPrimary,
                 modifier = Modifier.weight(1f),
             )
-            DsIconButton(
-                icon = FeatherIcons.Search,
-                contentDescription = stringResource(R.string.common_search),
-                // Closing the field clears the query too: a hidden field holding text left the list
-                // filtered by something no longer on screen.
-                onClick = {
-                    searchOpen = !searchOpen
-                    if (!searchOpen) query = ""
-                },
-                tint = if (searchOpen) colors.accent else colors.labelTertiary,
-            )
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
-            DsIconButton(
-                icon = FeatherIcons.Settings,
-                contentDescription = stringResource(R.string.settings_title),
-                onClick = onOpenSettings,
-                tint = colors.labelTertiary,
+        }
+
+        // Search is a fixture of the drawer, not a toggle: chat-list apps keep the field where the
+        // eye looks for it, and a field that folds away is a feature nobody finds.
+        TextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = DsSpacing.small),
+            placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
+            leadingIcon = {
+                Icon(
+                    FeatherIcons.Search,
+                    contentDescription = null,
+                    tint = colors.labelTertiary,
+                    modifier = Modifier.size(16.dp),
+                )
+            },
+            trailingIcon = if (query.isNotEmpty()) {
+                {
+                    Icon(
+                        FeatherIcons.X,
+                        contentDescription = stringResource(R.string.chatlist_search_clear),
+                        tint = colors.labelTertiary,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .clickable(role = Role.Button, onClick = { query = "" })
+                            .padding(12.dp),
+                    )
+                }
+            } else {
+                null
+            },
+            singleLine = true,
+            shape = DsShapes.row,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            colors = dialogTextFieldColors(),
+        )
+        // Stated once, quietly, and only while searching. Most harnesses ship with the content
+        // index off, so this is a normal capability note — not a failure.
+        if (!contentSearchAvailable && query.isNotBlank()) {
+            Text(
+                stringResource(R.string.chatlist_search_content_off),
+                style = DsType.caption11,
+                color = colors.labelCaption,
+                modifier = Modifier.padding(top = DsSpacing.tiny),
             )
         }
 
@@ -263,31 +298,6 @@ fun ChatListDrawer(
             variant = DsButtonVariant.Info,
             modifier = Modifier.fillMaxWidth(),
         )
-
-        // The search field folds away rather than permanently occupying a row of a phone-height
-        // drawer, which is otherwise pure overhead for the common case.
-        AnimatedVisibility(visible = searchOpen) {
-            Column(modifier = Modifier.padding(top = DsSpacing.small)) {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
-                    singleLine = true,
-                    colors = dialogTextFieldColors(),
-                )
-                // Stated once, quietly, and only while searching. Most harnesses ship with the
-                // content index off, so this is a normal capability note — not a failure.
-                if (!contentSearchAvailable && query.isNotBlank()) {
-                    Text(
-                        stringResource(R.string.chatlist_search_content_off),
-                        style = DsType.caption11,
-                        color = colors.labelCaption,
-                        modifier = Modifier.padding(top = DsSpacing.tiny),
-                    )
-                }
-            }
-        }
 
         Spacer(Modifier.height(DsSpacing.small))
 
@@ -426,25 +436,25 @@ fun ChatListDrawer(
             }
         }
 
-        Row(
-            modifier = Modifier
+        Spacer(
+            Modifier
                 .fillMaxWidth()
-                .clip(DsShapes.row)
-                .clickable { newWorkspaceOpen = true }
-                .padding(vertical = DsSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                FeatherIcons.Plus,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(16.dp),
+                .height(1.dp)
+                .background(colors.borderL1),
+        )
+        // The drawer's secondary destinations live at the bottom, where M3 puts them: what you
+        // came here to do is in the list, and Settings is one quiet row below it — not a gear
+        // competing with search and sort for header space.
+        Column(modifier = Modifier.padding(top = DsSpacing.xsmall)) {
+            DrawerFooterRow(
+                icon = FeatherIcons.Plus,
+                label = stringResource(R.string.chatlist_new_workspace),
+                onClick = { newWorkspaceOpen = true },
             )
-            Spacer(Modifier.width(DsSpacing.small))
-            Text(
-                stringResource(R.string.chatlist_new_workspace),
-                style = DsType.std14,
-                color = colors.labelSecondary,
+            DrawerFooterRow(
+                icon = FeatherIcons.Settings,
+                label = stringResource(R.string.settings_title),
+                onClick = onOpenSettings,
             )
         }
     }
@@ -552,13 +562,22 @@ private fun WorkspaceHeader(
         label = "workspaceChevron",
     )
     val label = workspace.title.ifBlank { basename(workspace.path) }
+    val haptics = LocalHapticFeedback.current
 
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 48.dp)
                 .clip(DsShapes.row)
-                .combinedClickable(onClick = onToggle, onLongClick = { menuOpen = true })
+                .combinedClickable(
+                    onClick = onToggle,
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                    onLongClickLabel = stringResource(R.string.chatlist_workspace_actions),
+                )
                 .padding(vertical = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -570,6 +589,13 @@ private fun WorkspaceHeader(
                     .size(16.dp)
                     .graphicsLayer { rotationZ = rotation }
                     .autoMirrorDirectional(),
+            )
+            Spacer(Modifier.width(DsSpacing.tiny))
+            Icon(
+                FeatherIcons.Folder,
+                contentDescription = null,
+                tint = colors.labelTertiary,
+                modifier = Modifier.size(16.dp),
             )
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
@@ -640,6 +666,62 @@ private fun WorkspaceMenu(
     }
 }
 
+/** One footer destination: icon + label on a full-width 48dp tap target. */
+@Composable
+private fun DrawerFooterRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(DsShapes.row)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = DsSpacing.xsmall, vertical = DsSpacing.xsmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            label,
+            style = DsType.std14,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * 40dp hit area around a 16dp glyph — the same affordance ChatNodeItem uses for message actions,
+ * so a row's overflow and a bubble's overflow share a size and a feel.
+ */
+@Composable
+private fun ActionIcon(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = DsTheme.colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 /**
  * One session row: status, title, relative time, and the session verbs on long-press.
  *
@@ -670,11 +752,13 @@ private fun SessionRowItem(
         animationSpec = DsAnimations.chevron,
         label = "sessionChevron",
     )
+    val haptics = LocalHapticFeedback.current
 
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 48.dp)
                 .padding(start = (depth * 16).dp)
                 .clip(DsShapes.row)
                 .background(if (isCurrent) colors.sidebarNavActive else androidx.compose.ui.graphics.Color.Transparent)
@@ -685,7 +769,11 @@ private fun SessionRowItem(
                             onClose()
                         }
                     },
-                    onLongClick = { menuOpen = true },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                    },
+                    onLongClickLabel = stringResource(R.string.chatlist_session_actions),
                 )
                 .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
@@ -786,6 +874,16 @@ private fun SessionRowItem(
                 // indent cannot say what the row is.
                 Spacer(Modifier.width(DsSpacing.xsmall))
                 DsPill(text = stringResource(R.string.chatlist_subagents))
+            }
+            // The current session's overflow is always visible: long-press is the affordance
+            // everywhere else, and the one row people act on most should not hide its verbs.
+            if (isCurrent) {
+                Spacer(Modifier.width(DsSpacing.xsmall))
+                ActionIcon(
+                    icon = FeatherIcons.MoreHorizontal,
+                    label = stringResource(R.string.chatlist_session_actions),
+                    onClick = { menuOpen = true },
+                )
             }
         }
 

@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">سب</string>
     <string name="chatlist_no_workspaces">ابھی کوئی ورک اسپیس نہیں — نیچے بنائیں۔</string>
     <string name="chatlist_search_hint">سیشن تلاش کریں</string>
+    <string name="chatlist_search_clear">تلاش صاف کریں</string>
+    <string name="chatlist_session_actions">سیشن کی کارروائیاں</string>
+    <string name="chatlist_workspace_actions">ورک اسپیس کی کارروائیاں</string>
     <string name="chatlist_empty">ابھی کوئی سیشن نہیں</string>
     <string name="chatlist_empty_hint">Harness سے یا یہاں سے نیا سیشن شروع کریں۔</string>
     <string name="chatlist_workspaces">ورک اسپیس</string>

@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">الكل</string>
     <string name="chatlist_no_workspaces">لا توجد مساحات عمل بعد — أنشئ واحدة بالأسفل.</string>
     <string name="chatlist_search_hint">البحث في الجلسات</string>
+    <string name="chatlist_search_clear">مسح البحث</string>
+    <string name="chatlist_session_actions">إجراءات الجلسة</string>
+    <string name="chatlist_workspace_actions">إجراءات مساحة العمل</string>
     <string name="chatlist_empty">لا توجد جلسات بعد</string>
     <string name="chatlist_empty_hint">ابدأ جلسة جديدة من Harness أو من هنا.</string>
     <string name="chatlist_workspaces">مساحات العمل</string>

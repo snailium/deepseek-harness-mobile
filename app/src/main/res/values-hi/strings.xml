@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">सभी</string>
     <string name="chatlist_no_workspaces">अभी कोई कार्यक्षेत्र नहीं — नीचे बनाएं।</string>
     <string name="chatlist_search_hint">सेशन खोजें</string>
+    <string name="chatlist_search_clear">खोज साफ़ करें</string>
+    <string name="chatlist_session_actions">सत्र क्रियाएँ</string>
+    <string name="chatlist_workspace_actions">कार्यक्षेत्र क्रियाएँ</string>
     <string name="chatlist_empty">अभी कोई सेशन नहीं</string>
     <string name="chatlist_empty_hint">Harness से या यहीं से नया सेशन शुरू करें।</string>
     <string name="chatlist_workspaces">कार्यक्षेत्र</string>

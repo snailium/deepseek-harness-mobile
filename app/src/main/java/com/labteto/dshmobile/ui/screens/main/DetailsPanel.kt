@@ -148,78 +148,94 @@ fun DetailsPanel(
         shadowElevation = 8.dp,
     ) {
         Box {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(DsSpacing.medium),
-                verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-            ) {
-                HeaderRow(onClose)
-
-                SessionCard(
-                    session = current,
-                    models = models,
-                    presets = agentPresets,
-                    onRename = { title ->
-                        scope.launch { currentSessionId?.let { store.renameSession(it, title) } }
-                    },
-                    onFork = { scope.launch { currentSessionId?.let { store.forkSession(it) } } },
-                    onArchive = { scope.launch { currentSessionId?.let { store.archiveSession(it) } } },
-                    onOpenModels = { sheet = DetailsSheet.Models },
-                    onOpenPresets = {
-                        scope.launch { store.refreshAgentPresets() }
-                        sheet = DetailsSheet.Presets
-                    },
+            // The panel's leading edge: bgLayer1 on bgLayer1 is white-on-white in light mode, and
+            // the hairline is what says "a sheet is sitting over the chat". Aligned to the start
+            // so it faces the transcript in both reading directions.
+            Box(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(colors.borderL1),
+            )
+            Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
+                // Pinned, not scrolled: the back arrow and title are the panel's chrome, and
+                // chrome that scrolls away leaves the reader with cards and no way to leave.
+                HeaderRow(
+                    onClose,
+                    modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
                 )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                    DsButton(
-                        text = stringResource(R.string.chat_export),
-                        icon = FeatherIcons.Download,
-                        onClick = {
-                            exportLauncher.launch("dsh-session-${currentSessionId.orEmpty()}.zip")
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = DsSpacing.medium)
+                        .padding(bottom = DsSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                ) {
+                    SessionCard(
+                        session = current,
+                        models = models,
+                        presets = agentPresets,
+                        onRename = { title ->
+                            scope.launch { currentSessionId?.let { store.renameSession(it, title) } }
                         },
-                        variant = DsButtonVariant.Outline,
-                        size = DsButtonSize.Small,
-                        enabled = currentSessionId != null,
+                        onFork = { scope.launch { currentSessionId?.let { store.forkSession(it) } } },
+                        onArchive = { scope.launch { currentSessionId?.let { store.archiveSession(it) } } },
+                        onOpenModels = { sheet = DetailsSheet.Models },
+                        onOpenPresets = {
+                            scope.launch { store.refreshAgentPresets() }
+                            sheet = DetailsSheet.Presets
+                        },
                     )
-                    DsButton(
-                        text = stringResource(R.string.common_copy),
-                        onClick = {
-                            scope.launch {
-                                store.exportSessionUrl()?.let { url ->
-                                    clipboard.setText(AnnotatedString(url))
-                                    toast.second(copiedLabel, ToastTone.Info)
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                        DsButton(
+                            text = stringResource(R.string.chat_export),
+                            icon = FeatherIcons.Download,
+                            onClick = {
+                                exportLauncher.launch("dsh-session-${currentSessionId.orEmpty()}.zip")
+                            },
+                            variant = DsButtonVariant.Outline,
+                            size = DsButtonSize.Small,
+                            enabled = currentSessionId != null,
+                        )
+                        DsButton(
+                            text = stringResource(R.string.common_copy),
+                            onClick = {
+                                scope.launch {
+                                    store.exportSessionUrl()?.let { url ->
+                                        clipboard.setText(AnnotatedString(url))
+                                        toast.second(copiedLabel, ToastTone.Info)
+                                    }
                                 }
-                            }
-                        },
-                        variant = DsButtonVariant.Ghost,
-                        size = DsButtonSize.Small,
-                    )
-                }
-
-                val conv = conversation
-                if (conv == null) {
-                    Text(
-                        stringResource(R.string.chat_details_empty),
-                        style = DsType.caption11,
-                        color = colors.labelTertiary,
-                    )
-                } else {
-                    ContextCard(breakdown, pressure, usage, stats)
-                    GoalCard(conv, store)
-                    PlanCard(conv) { next ->
-                        scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
+                            },
+                            variant = DsButtonVariant.Ghost,
+                            size = DsButtonSize.Small,
+                        )
                     }
-                    JobsCard(jobs)
-                    QueueCard(conv.queue, store)
-                    SubagentsCard(subagents) { id -> scope.launch { store.openSubagentTranscript(id) } }
-                    WorkflowCard(conv.nodes)
-                }
 
-                HostCard(hostInfo)
+                    val conv = conversation
+                    if (conv == null) {
+                        Text(
+                            stringResource(R.string.chat_details_empty),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                    } else {
+                        ContextCard(breakdown, pressure, usage, stats, currentSessionId)
+                        GoalCard(conv, store, currentSessionId)
+                        PlanCard(conv, currentSessionId) { next ->
+                            scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
+                        }
+                        JobsCard(jobs, currentSessionId)
+                        QueueCard(conv.queue, store, currentSessionId)
+                        SubagentsCard(subagents, currentSessionId) { id -> scope.launch { store.openSubagentTranscript(id) } }
+                        WorkflowCard(conv.nodes, currentSessionId)
+                    }
+
+                    HostCard(hostInfo, currentSessionId)
+                }
             }
             DsToastHost(toast, modifier = Modifier.fillMaxWidth())
         }
@@ -242,9 +258,9 @@ fun DetailsPanel(
 private enum class DetailsSheet { Models, Presets }
 
 @Composable
-private fun HeaderRow(onClose: () -> Unit) {
+private fun HeaderRow(onClose: () -> Unit, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         DsIconButton(
             icon = FeatherIcons.ArrowLeft,
             contentDescription = stringResource(R.string.common_back),
@@ -269,9 +285,11 @@ private fun Card(
     title: String,
     summary: String? = null,
     initiallyExpanded: Boolean = false,
+    /** Key expansion on the session so switching sessions resets the panel to its defaults. */
+    sessionKey: String? = null,
     content: @Composable () -> Unit,
 ) {
-    var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
+    var expanded by remember(sessionKey, title) { mutableStateOf(initiallyExpanded) }
     Column(Modifier.fillMaxWidth().animateContentSize()) {
         DisclosureRow(
             title = title,
@@ -307,6 +325,7 @@ private fun SessionCard(
         title = session.title ?: session.cwd?.let { basename(it) } ?: session.sessionId,
         summary = session.cwd?.let { basename(it) },
         initiallyExpanded = true,
+        sessionKey = session.sessionId,
     ) {
         session.cwd?.let { Text(it, style = DsType.caption11, color = colors.labelCaption) }
         // The model and the preset are the two things about a session people most often come here
@@ -373,6 +392,7 @@ private fun ContextCard(
     pressure: ContextPressureView?,
     usage: TokenUsageView?,
     stats: SessionStatsView?,
+    sessionKey: String? = null,
 ) {
     val colors = DsTheme.colors
     if (breakdown == null && pressure == null && usage == null && stats == null) return
@@ -380,6 +400,7 @@ private fun ContextCard(
         title = stringResource(R.string.chat_context_title),
         summary = pressure?.usedRatio?.let { "${(it * 100).toInt()}%" },
         initiallyExpanded = true,
+        sessionKey = sessionKey,
     ) {
         ContextMeterDetail(breakdown, pressure)
         usage?.let {
@@ -415,12 +436,17 @@ private fun ContextCard(
 }
 
 @Composable
-private fun GoalCard(conversation: ConversationSnapshot, store: com.labteto.dshmobile.data.SessionStore) {
+private fun GoalCard(
+    conversation: ConversationSnapshot,
+    store: com.labteto.dshmobile.data.SessionStore,
+    sessionKey: String? = null,
+) {
     val colors = DsTheme.colors
     val goal = parseGoal(conversation.projections["goal"])
     Card(
         title = stringResource(R.string.goal_title),
         summary = goal?.objective?.take(40),
+        sessionKey = sessionKey,
     ) {
         if (goal == null) {
             Text(stringResource(R.string.goal_none), style = DsType.caption11, color = colors.labelTertiary)
@@ -466,7 +492,11 @@ private fun GoalCard(conversation: ConversationSnapshot, store: com.labteto.dshm
  * as this did, meant the control could turn plan mode on and never off again.
  */
 @Composable
-private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: Boolean) -> Unit) {
+private fun PlanCard(
+    conversation: ConversationSnapshot,
+    sessionKey: String? = null,
+    onTogglePlan: (active: Boolean) -> Unit,
+) {
     val active = parsePlanActive(conversation) ?: return
     Card(
         title = stringResource(R.string.plan_mode_title),
@@ -474,6 +504,7 @@ private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: 
         // Open by default: unlike the other cards this one is a control, and a control you have to
         // expand before you can reach is most of the way back to not having it.
         initiallyExpanded = true,
+        sessionKey = sessionKey,
     ) {
         ToggleRow(
             label = stringResource(R.string.plan_mode_hint),
@@ -484,11 +515,12 @@ private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: 
 }
 
 @Composable
-private fun JobsCard(jobs: List<JobView>) {
+private fun JobsCard(jobs: List<JobView>, sessionKey: String? = null) {
     val colors = DsTheme.colors
     Card(
         title = stringResource(R.string.jobs_title),
         summary = jobs.size.takeIf { it > 0 }?.toString(),
+        sessionKey = sessionKey,
     ) {
         if (jobs.isEmpty()) {
             Text(stringResource(R.string.jobs_empty), style = DsType.caption11, color = colors.labelTertiary)
@@ -536,12 +568,17 @@ private fun JobsCard(jobs: List<JobView>) {
 }
 
 @Composable
-private fun QueueCard(queue: List<QueueItem>, store: com.labteto.dshmobile.data.SessionStore) {
+private fun QueueCard(
+    queue: List<QueueItem>,
+    store: com.labteto.dshmobile.data.SessionStore,
+    sessionKey: String? = null,
+) {
     val colors = DsTheme.colors
     val scope = rememberCoroutineScope()
     Card(
         title = stringResource(R.string.chat_queue_title),
         summary = queue.size.takeIf { it > 0 }?.toString(),
+        sessionKey = sessionKey,
     ) {
         if (queue.isEmpty()) {
             Text(
@@ -575,11 +612,16 @@ private fun QueueCard(queue: List<QueueItem>, store: com.labteto.dshmobile.data.
 }
 
 @Composable
-private fun SubagentsCard(subagents: List<SubagentListEntry>, onOpen: (String) -> Unit) {
+private fun SubagentsCard(
+    subagents: List<SubagentListEntry>,
+    sessionKey: String? = null,
+    onOpen: (String) -> Unit,
+) {
     val colors = DsTheme.colors
     Card(
         title = stringResource(R.string.subagents_title),
         summary = subagents.size.takeIf { it > 0 }?.toString(),
+        sessionKey = sessionKey,
     ) {
         if (subagents.isEmpty()) {
             Text(
@@ -622,11 +664,15 @@ private fun SubagentsCard(subagents: List<SubagentListEntry>, onOpen: (String) -
 }
 
 @Composable
-private fun WorkflowCard(nodes: List<ChatNode>) {
+private fun WorkflowCard(nodes: List<ChatNode>, sessionKey: String? = null) {
     val colors = DsTheme.colors
     val workflows = remember(nodes) { parseWorkflows(nodes) }
     if (workflows.isEmpty()) return
-    Card(title = stringResource(R.string.workflow_title), summary = workflows.size.toString()) {
+    Card(
+        title = stringResource(R.string.workflow_title),
+        summary = workflows.size.toString(),
+        sessionKey = sessionKey,
+    ) {
         workflows.forEach { workflow ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -660,10 +706,14 @@ private fun WorkflowCard(nodes: List<ChatNode>) {
 }
 
 @Composable
-private fun HostCard(hostInfo: HostDescription?) {
+private fun HostCard(hostInfo: HostDescription?, sessionKey: String? = null) {
     val colors = DsTheme.colors
     if (hostInfo == null) return
-    Card(title = stringResource(R.string.settings_host_info), summary = hostInfo.version) {
+    Card(
+        title = stringResource(R.string.settings_host_info),
+        summary = hostInfo.version,
+        sessionKey = sessionKey,
+    ) {
         Text(
             stringResource(R.string.connect_harness_version, hostInfo.version, hostInfo.cwd),
             style = DsType.caption11,

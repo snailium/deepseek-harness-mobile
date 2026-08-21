@@ -21,9 +21,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import kotlinx.coroutines.launch
@@ -63,6 +65,9 @@ fun MainScreen(
     val detailsWidth = remember(configuration) {
         minOf(300.dp, configuration.screenWidthDp.dp * 0.88f)
     }
+    // The panel lives on the physical side its *edge gesture* uses: Alignment.CenterEnd flips by
+    // itself, but the detector measures pixels, so it has to know which side that is.
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -78,29 +83,29 @@ fun MainScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(detailsOpen, detailsWidth) {
+                .pointerInput(detailsOpen, detailsWidth, isRtl) {
                     val width = size.width.toFloat()
                     val edgeBandPx = 28.dp.toPx()
                     val detailsAreaPx = detailsWidth.toPx() * 0.9f
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val startX = down.position.x
-                        // Claim only gestures this screen handles: leftward drags starting in
-                        // the right edge band open details; drags starting on the open details
-                        // panel close it. Everything else (notably left-to-right swipes) must
-                        // stay unconsumed for the drawer's built-in open gesture.
+                        // Claim only gestures this screen handles: drags starting in the edge band
+                        // on the panel's side open it; drags starting on the open panel close it.
+                        // Everything else (notably swipes from the opposite edge) must stay
+                        // unconsumed for the drawer's built-in open gesture.
                         val owned = if (!detailsOpen) {
-                            startX >= width - edgeBandPx
+                            if (isRtl) startX <= edgeBandPx else startX >= width - edgeBandPx
                         } else {
-                            startX <= detailsAreaPx
+                            if (isRtl) startX >= width - detailsAreaPx else startX <= detailsAreaPx
                         }
                         if (!owned) return@awaitEachGesture
 
                         var claimed = false
                         awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
-                            // While closed, only a leftward drag belongs to this screen; a
-                            // rightward drag from the edge is the drawer's to open with.
-                            claimed = detailsOpen || overSlop < 0f
+                            // While closed, only a drag toward the panel's side belongs to this
+                            // screen; a drag toward the drawer's edge is the drawer's to open with.
+                            claimed = detailsOpen || (if (isRtl) overSlop > 0f else overSlop < 0f)
                             if (claimed) change.consume()
                         } ?: return@awaitEachGesture
                         if (!claimed) return@awaitEachGesture
@@ -115,11 +120,13 @@ fun MainScreen(
                             totalX += change.positionChange().x
                             change.consume()
                             val threshold = width * 0.12f
-                            if (!detailsOpen && totalX <= -threshold) {
+                            val opened = if (isRtl) totalX >= threshold else totalX <= -threshold
+                            val closed = if (isRtl) totalX <= -threshold else totalX >= threshold
+                            if (!detailsOpen && opened) {
                                 detailsOpen = true
                                 break
                             }
-                            if (detailsOpen && totalX >= threshold) {
+                            if (detailsOpen && closed) {
                                 detailsOpen = false
                                 break
                             }
@@ -137,9 +144,10 @@ fun MainScreen(
             AnimatedVisibility(
                 visible = detailsOpen,
                 // Explicit spec: the platform default runs 300ms, which lags behind the drag the
-                // panel is usually opened with.
-                enter = slideInHorizontally(DsAnimations.panelSlide) { it },
-                exit = slideOutHorizontally(DsAnimations.panelSlide) { it },
+                // panel is usually opened with. The offset sign follows the panel's side: in RTL
+                // the sheet lands on the left and slides in from the left.
+                enter = slideInHorizontally(DsAnimations.panelSlide) { if (isRtl) -it else it },
+                exit = slideOutHorizontally(DsAnimations.panelSlide) { if (isRtl) -it else it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             ) {
                 DetailsPanel(

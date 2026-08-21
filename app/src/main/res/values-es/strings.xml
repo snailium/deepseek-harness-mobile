@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">Todo</string>
     <string name="chatlist_no_workspaces">Aún no hay espacios de trabajo: crea uno abajo.</string>
     <string name="chatlist_search_hint">Buscar sesiones</string>
+    <string name="chatlist_search_clear">Borrar búsqueda</string>
+    <string name="chatlist_session_actions">Acciones de la sesión</string>
+    <string name="chatlist_workspace_actions">Acciones del espacio de trabajo</string>
     <string name="chatlist_empty">Aún no hay sesiones</string>
     <string name="chatlist_empty_hint">Inicia una nueva sesión desde el Harness o desde aquí.</string>
     <string name="chatlist_workspaces">Espacios de trabajo</string>

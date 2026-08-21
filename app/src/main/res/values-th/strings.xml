@@ -89,6 +89,9 @@
     <string name="chatlist_filter_all">ทั้งหมด</string>
     <string name="chatlist_no_workspaces">ยังไม่มีเวิร์กสเปซ — สร้างด้านล่าง</string>
     <string name="chatlist_search_hint">ค้นหาเซสชัน</string>
+    <string name="chatlist_search_clear">ล้างการค้นหา</string>
+    <string name="chatlist_session_actions">การดำเนินการของเซสชัน</string>
+    <string name="chatlist_workspace_actions">การดำเนินการของพื้นที่ทำงาน</string>
     <string name="chatlist_empty">ยังไม่มีเซสชัน</string>
     <string name="chatlist_empty_hint">เริ่มเซสชันใหม่จาก Harness หรือจากที่นี่</string>
     <string name="chatlist_workspaces">เวิร์กสเปซ</string>
