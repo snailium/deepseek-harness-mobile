@@ -928,7 +928,15 @@ private fun SessionRowItem(
             }
         },
     ) {
-        Column {
+        // The content must be opaque: SwipeToDismissBox composes its red archive background
+        // *behind* the row at all times, and a transparent row lets it show through at rest —
+        // until this fill existed, every row on screen looked red. The red only appears now
+        // while a row is actually being swiped.
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.bgBase),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

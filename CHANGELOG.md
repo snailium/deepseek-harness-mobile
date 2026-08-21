@@ -1,3 +1,27 @@
+## [0.13.1] - 2026-08-21
+
+Hotfix for the Sessions screen: every non-selected chat row was showing a
+red background at rest.
+
+SwipeToDismissBox composes its swipe background *behind* the row content
+at all times — the red Archive fill was never meant to be visible until a
+row is actually swiped. The row content had no opaque background of its
+own, so the red showed straight through every transparent row. The current
+session only looked different because its gray selection fill happened to
+cover it.
+
+### Fixed
+
+- The row content now paints the screen background, so the red Archive
+  action appears only while a row is being swiped, the way iOS swipe
+  actions do.
+
+### Verified
+
+- 164 unit tests pass; lintDebug 0 errors; no new strings.
+- Signed release APK (CN=DSH Mobile), SHA256SUMS.txt updated; end-to-end
+  verified against the GitHub release.
+
 ## [0.13.0] - 2026-08-21
 
 The Sessions screen is rebuilt after a review round: one font scale, one
