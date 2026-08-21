@@ -2,13 +2,13 @@ package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,14 +52,17 @@ import com.labteto.dshmobile.ui.theme.DsType
 internal enum class ChatTab { Chat, Trajectory }
 
 /**
- * The session chrome: a two-row bar plus the Chat / Trajectory tabs.
+ * The session chrome: two rows — an identity row and a utility row.
  *
- * Row one carries the session's identity — title and host, which open the chat list — and the
+ * The identity row carries the session's title and host, which open the chat list, and the
  * controls that belong to the *connection*: the model selector, the live status, the details.
- * Row two carries the session's agent preset and subagent chips, and folds away once the reader
- * scrolls. Putting the title on the always-visible row means "which session am I in" never
- * scrolls off the page mid-transcript, which the old three-row stack (icon row, session row, tab
- * row) gave up: the title row was the one that disappeared.
+ * The utility row carries the Chat / Trajectory view switcher, which never folds, with the
+ * session's agent preset and subagent chips in its trailing space — those fold away once the
+ * reader scrolls. Two rows instead of three (title, chips, tabs): the chips and the tab strip
+ * shared one screen's worth of chrome for two lightweight controls, so they now share a line.
+ * Putting the title on the always-visible row means "which session am I in" never scrolls off
+ * the page mid-transcript, which the old three-row stack (icon row, session row, tab row) gave
+ * up: the title row was the one that disappeared.
  *
  * The title is a tap target: it opens the chat list, which is where "which session am I in" is
  * answered — and the hamburger alone was easy to miss for the single most frequent navigation in
@@ -154,40 +157,59 @@ internal fun ChatTopBar(
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
-        // Folds away once the reader scrolls: the chips configure the turn, which a reader mid-way
-        // through a long transcript is not doing. Returning to the top brings them back. The title
-        // stays — it moved to row one, which is the row that never folds.
-        AnimatedVisibility(
-            visible = !collapsed && hasChips,
-            enter = expandVertically(DsAnimations.expand) + fadeIn(DsAnimations.fade),
-            exit = shrinkVertically(DsAnimations.expand) + fadeOut(DsAnimations.fade),
+        // One utility row instead of two: the view switcher is always visible, and the
+        // turn-configuration chips share its trailing space. The chips fold away once the reader
+        // scrolls — they configure the turn, which a reader mid-way through a long transcript is
+        // not doing — and returning to the top brings them back. The tabs never fold: switching
+        // views is navigation, not configuration, so it has to stay reachable mid-read.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+            ChatTabRow(tab = tab, onTabChange = onTabChange)
+            AnimatedVisibility(
+                visible = !collapsed && hasChips,
+                enter = fadeIn(DsAnimations.fade),
+                exit = fadeOut(DsAnimations.fade),
+                // The slot stays reserved at its weight share, so the tabs never shift when the
+                // chips fade in or out; long chip sets scroll within their own strip.
+                modifier = Modifier.weight(1f),
             ) {
-                if (agentPresetLabel != null) {
-                    MetaChip(
-                        icon = FeatherIcons.Layout,
-                        label = agentPresetLabel,
-                        onClick = onOpenPresets,
-                    )
-                }
-                if (subagentCount > 0) {
-                    MetaChip(
-                        icon = FeatherIcons.Users,
-                        label = "$subagentCount",
-                        onClick = onOpenSubagents,
-                        semanticsLabel = stringResource(R.string.subagents_title),
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                ) {
+                    if (agentPresetLabel != null) {
+                        MetaChip(
+                            icon = FeatherIcons.Layout,
+                            label = agentPresetLabel,
+                            onClick = onOpenPresets,
+                        )
+                    }
+                    if (subagentCount > 0) {
+                        MetaChip(
+                            icon = FeatherIcons.Users,
+                            label = "$subagentCount",
+                            onClick = onOpenSubagents,
+                            semanticsLabel = stringResource(R.string.subagents_title),
+                        )
+                    }
                 }
             }
         }
 
-        ChatTabRow(tab = tab, onTabChange = onTabChange)
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.borderL1),
+        )
     }
 }
 
@@ -300,41 +322,28 @@ private fun MetaChip(
 }
 
 /**
- * The tab strip, as a compact segmented control rather than underlined tabs.
+ * The view switcher, as a compact segmented control rather than underlined tabs.
  *
  * Two short labels sitting over a full-width underline read as a page heading and cost a row of
- * their own; a 28dp track wraps to the labels and lets the chrome end there.
+ * their own; a 28dp track wraps to the labels and lets the chrome end there. The track sits
+ * inline on the utility row next to the session-meta chips, keeping the header at two rows.
  */
 @Composable
 private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Which tab is live is load-bearing, not decoration: the two views render a user message
-        // completely differently — a right-aligned bubble in Chat, a `> line` of caption text in
-        // the Trajectory ledger — so a reader who cannot tell at a glance concludes the chat itself
-        // is broken.
-        DsSegmented(
-            segments = listOf(
-                DsSegment(TAB_CHAT, stringResource(R.string.chat_tab)),
-                DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title)),
-            ),
-            selectedKey = if (tab == ChatTab.Chat) TAB_CHAT else TAB_TRAJECTORY,
-            onSelect = { key ->
-                onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
-            },
-            role = Role.Tab,
-        )
-    }
-    Spacer(
-        Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(colors.borderL1),
+    // Which tab is live is load-bearing, not decoration: the two views render a user message
+    // completely differently — a right-aligned bubble in Chat, a `> line` of caption text in
+    // the Trajectory ledger — so a reader who cannot tell at a glance concludes the chat itself
+    // is broken.
+    DsSegmented(
+        segments = listOf(
+            DsSegment(TAB_CHAT, stringResource(R.string.chat_tab)),
+            DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title)),
+        ),
+        selectedKey = if (tab == ChatTab.Chat) TAB_CHAT else TAB_TRAJECTORY,
+        onSelect = { key ->
+            onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
+        },
+        role = Role.Tab,
     )
 }
 
