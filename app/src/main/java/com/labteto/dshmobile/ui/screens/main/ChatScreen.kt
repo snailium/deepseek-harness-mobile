@@ -70,9 +70,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     hostLabel: String?,
+    onOpenSessions: () -> Unit,
     onOpenDetails: () -> Unit,
-    onOpenDrawer: () -> Unit,
-    detailsOpen: Boolean,
 ) {
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
@@ -246,10 +245,9 @@ fun ChatScreen(
                 hostLabel = hostLabel,
                 agentPresetLabel = currentSession?.agentPreset?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
-                detailsOpen = detailsOpen,
                 tab = tab,
                 collapsed = chromeCollapsed,
-                onOpenDrawer = onOpenDrawer,
+                onOpenSessions = onOpenSessions,
                 onOpenPresets = {
                     scope.launch { store.refreshAgentPresets() }
                     sheet = ChatSheet.Presets

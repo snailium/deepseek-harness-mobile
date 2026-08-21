@@ -1,18 +1,17 @@
 package com.labteto.dshmobile.ui.screens.main
 
-import androidx.compose.animation.animateContentSize
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,9 +25,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,9 +45,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,11 +64,12 @@ import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
 import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.dsSearchFieldColors
-import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
+import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.EmptyHero
@@ -89,26 +98,32 @@ private const val SORT_MANUAL = "manual"
 private const val SORT_UPDATED = "updated"
 
 /**
- * The chat history: workspaces, their sessions, and search.
+ * The Sessions screen: the full-screen chat history, pushed over the chat the way Messages pushes
+ * its conversation list.
  *
  * Two rules keep it readable. Blank sessions are hidden — the harness treats a session with no turn
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
  *
- * The header names the connected harness and offers Switch, so "which host am I on" is answered
- * where the list lives and leaving it is one tap.
+ * The chrome follows iOS: a back chevron and a large title, the host under the title (tapping it
+ * offers Switch harness and Settings — the old connected-to card and footer rows are gone), a
+ * sort menu on the trailing side, a search field with a Cancel button while it is focused, a plain
+ * hairline-separated list with swipe-to-archive, and a single compose button in the bottom
+ * toolbar that creates a session or a workspace.
  */
 @Composable
-fun ChatListDrawer(
+fun SessionsScreen(
     hostLabel: String?,
     onSwitchHost: () -> Unit,
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    BackHandler(onBack = onClose)
     val colors = DsTheme.colors
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
     val hostsStore = rememberHostsStore()
+    val focusManager = LocalFocusManager.current
 
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val workspaces by store.workspaces.collectAsStateWithLifecycle()
@@ -120,11 +135,14 @@ fun ChatListDrawer(
 
     var query by remember { mutableStateOf("") }
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
-    // to reset every time the drawer was closed.
+    // to reset every time the screen was left.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
     val sortByRecency = sessionSort == SORT_UPDATED
+    var composeOpen by remember { mutableStateOf(false) }
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     var newSessionOpen by remember { mutableStateOf(false) }
+    // The iOS Cancel button appears next to the search field while it has focus.
+    var searchFocused by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(query) {
@@ -172,7 +190,7 @@ fun ChatListDrawer(
     }
 
     // `collapsed` holds explicit choices only; the default is closed unless the subtree holds the
-    // session you are looking at, so opening the drawer mid-run shows you where you are.
+    // session you are looking at, so opening the screen mid-run shows you where you are.
     fun isExpanded(sessionId: String): Boolean = collapsed[sessionId]?.not() ?: (sessionId in openPath)
     fun toggleChildren(sessionId: String) {
         collapsed[sessionId] = isExpanded(sessionId)
@@ -195,18 +213,28 @@ fun ChatListDrawer(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.sidebar)
-            .safeDrawingPadding()
-            .padding(horizontal = DsSpacing.medium),
+            .background(colors.bgBase)
+            .safeDrawingPadding(),
     ) {
+        // ---- iOS navigation row: back · large title + host menu · sort ----
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stringResource(R.string.chatlist_title),
-                style = DsType.largeTitle,
-                color = colors.labelPrimary,
+            DsIconButton(
+                icon = FeatherIcons.ArrowLeft,
+                contentDescription = stringResource(R.string.common_back),
+                onClick = onClose,
+                mirrorForRtl = true,
+            )
+            // The host lives under the title and is itself the anchor for its verbs: switching
+            // harnesses or opening Settings is one tap, no card or footer row needed.
+            HostMenu(
+                hostLabel = hostLabel,
+                onSwitchHost = onSwitchHost,
+                onOpenSettings = onOpenSettings,
                 modifier = Modifier.weight(1f),
             )
             SortChip(sortByRecency) { next ->
@@ -214,45 +242,65 @@ fun ChatListDrawer(
             }
         }
 
-        // Search is a fixture of the drawer, not a toggle: chat-list apps keep the field where the
-        // eye looks for it, and a field that folds away is a feature nobody finds.
-        TextField(
-            value = query,
-            onValueChange = { query = it },
+        // ---- Search: capsule field, Cancel while focused (iOS behaviour) ----
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
-                .padding(top = DsSpacing.small),
-            placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
-            leadingIcon = {
-                Icon(
-                    FeatherIcons.Search,
-                    contentDescription = null,
-                    tint = colors.labelTertiary,
-                    modifier = Modifier.size(16.dp),
-                )
-            },
-            trailingIcon = if (query.isNotEmpty()) {
-                {
+                .padding(horizontal = DsSpacing.medium),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .onFocusChanged { searchFocused = it.isFocused },
+                placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
+                leadingIcon = {
                     Icon(
-                        FeatherIcons.X,
-                        contentDescription = stringResource(R.string.chatlist_search_clear),
+                        FeatherIcons.Search,
+                        contentDescription = null,
                         tint = colors.labelTertiary,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .clickable(role = Role.Button, onClick = { query = "" })
-                            .padding(12.dp),
+                        modifier = Modifier.size(16.dp),
                     )
-                }
-            } else {
-                null
-            },
-            singleLine = true,
-            shape = DsShapes.pillFull,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            colors = dsSearchFieldColors(),
-        )
+                },
+                trailingIcon = if (query.isNotEmpty()) {
+                    {
+                        Icon(
+                            FeatherIcons.X,
+                            contentDescription = stringResource(R.string.chatlist_search_clear),
+                            tint = colors.labelTertiary,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .clickable(role = Role.Button, onClick = { query = "" })
+                                .padding(12.dp),
+                        )
+                    }
+                } else {
+                    null
+                },
+                singleLine = true,
+                shape = DsShapes.pillFull,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                colors = dsSearchFieldColors(),
+            )
+            if (searchFocused) {
+                Text(
+                    stringResource(R.string.common_cancel),
+                    style = DsType.body17.copy(fontWeight = FontWeight.Medium),
+                    color = colors.accent,
+                    modifier = Modifier
+                        .clip(DsShapes.row)
+                        .clickable(role = Role.Button, onClick = {
+                            query = ""
+                            focusManager.clearFocus()
+                        })
+                        .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                )
+            }
+        }
         // Stated once, quietly, and only while searching. Most harnesses ship with the content
         // index off, so this is a normal capability note — not a failure.
         if (!contentSearchAvailable && query.isNotBlank()) {
@@ -260,59 +308,22 @@ fun ChatListDrawer(
                 stringResource(R.string.chatlist_search_content_off),
                 style = DsType.caption11,
                 color = colors.labelCaption,
-                modifier = Modifier.padding(top = DsSpacing.tiny),
+                modifier = Modifier.padding(start = DsSpacing.medium, top = DsSpacing.tiny),
             )
         }
 
-        // Where this phone is connected, and the one-tap way to leave: the Settings detour used to
-        // be the only route to another harness.
-        hostLabel?.let { label ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(DsShapes.block)
-                    .background(colors.bgLayer1)
-                    .border(1.dp, colors.borderL2, DsShapes.block)
-                    .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                StateDot(StateDotState.Done, size = 6.dp)
-                Spacer(Modifier.width(DsSpacing.small))
-                Text(
-                    stringResource(R.string.chatlist_connected_to, label),
-                    style = DsType.footnote,
-                    color = colors.labelSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                DsButton(
-                    text = stringResource(R.string.chatlist_switch_host),
-                    onClick = onSwitchHost,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
-            }
-            Spacer(Modifier.height(DsSpacing.small))
-        }
-
-        DsButton(
-            text = stringResource(R.string.chatlist_new_session),
-            icon = FeatherIcons.Plus,
-            onClick = { newSessionOpen = true },
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(Modifier.height(DsSpacing.small))
-
+        // ---- The list: full-bleed, plain iOS style ----
         LazyColumn(
             modifier = Modifier.weight(1f),
-            // Grouped cards breathe: 6dp between rows and between a header and its card stack.
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+            contentPadding = PaddingValues(vertical = DsSpacing.xsmall),
         ) {
             if (query.isNotBlank()) {
-                item(key = "search-header") { SectionHeader(stringResource(R.string.common_search)) }
+                item(key = "search-header") {
+                    SectionHeader(
+                        stringResource(R.string.common_search),
+                        modifier = Modifier.padding(horizontal = DsSpacing.medium),
+                    )
+                }
                 if (searchHits.items.isEmpty()) {
                     item(key = "search-empty") {
                         Text(
@@ -397,7 +408,12 @@ fun ChatListDrawer(
             }
             if (ungrouped.isNotEmpty()) {
                 anyShown = true
-                item(key = "sessions-header") { SectionHeader(stringResource(R.string.chatlist_sessions)) }
+                item(key = "sessions-header") {
+                    SectionHeader(
+                        stringResource(R.string.chatlist_sessions),
+                        modifier = Modifier.padding(horizontal = DsSpacing.medium),
+                    )
+                }
                 val flat = ungrouped
                     .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
                     .flatMap { subtree(it) }
@@ -427,6 +443,7 @@ fun ChatListDrawer(
                         summary = archivedSessions.size.toString(),
                         expanded = archivedExpanded,
                         onToggle = { archivedExpanded = !archivedExpanded },
+                        modifier = Modifier.padding(horizontal = DsSpacing.medium),
                     ) {
                         archivedSessions.forEach { session ->
                             SessionRowItem(session, false, store, scope, onClose)
@@ -445,25 +462,65 @@ fun ChatListDrawer(
             }
         }
 
-        Spacer(
-            Modifier
+        // ---- Bottom toolbar: one compose action, iOS style ----
+        HorizontalDivider(thickness = 1.dp, color = colors.borderL1)
+        Row(
+            modifier = Modifier
                 .fillMaxWidth()
-                .height(1.dp)
-                .background(colors.borderL1),
-        )
-        // The drawer's secondary destinations live at the bottom, where M3 puts them: what you
-        // came here to do is in the list, and Settings is one quiet row below it — not a gear
-        // competing with search and sort for header space.
-        Column(modifier = Modifier.padding(top = DsSpacing.xsmall)) {
-            DrawerFooterRow(
-                icon = FeatherIcons.Plus,
-                label = stringResource(R.string.chatlist_new_workspace),
-                onClick = { newWorkspaceOpen = true },
+                .padding(vertical = DsSpacing.small),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Surface(
+                onClick = { composeOpen = true },
+                shape = CircleShape,
+                color = colors.buttonInfoFill,
+                modifier = Modifier.size(44.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Icon(
+                        FeatherIcons.Plus,
+                        contentDescription = stringResource(R.string.chatlist_new_session),
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+        }
+    }
+
+    // The compose button opens an action sheet: creating a session and creating a workspace are
+    // the two things "make something new" can mean here.
+    if (composeOpen) {
+        DsBottomSheet(title = null, onDismiss = { composeOpen = false }) {
+            SheetRow(
+                title = stringResource(R.string.chatlist_new_session),
+                leading = {
+                    Icon(
+                        FeatherIcons.MessageSquare,
+                        contentDescription = null,
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+                onClick = {
+                    composeOpen = false
+                    newSessionOpen = true
+                },
             )
-            DrawerFooterRow(
-                icon = FeatherIcons.Settings,
-                label = stringResource(R.string.settings_title),
-                onClick = onOpenSettings,
+            SheetRow(
+                title = stringResource(R.string.chatlist_new_workspace),
+                leading = {
+                    Icon(
+                        FeatherIcons.Folder,
+                        contentDescription = null,
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                },
+                onClick = {
+                    composeOpen = false
+                    newWorkspaceOpen = true
+                },
             )
         }
     }
@@ -493,6 +550,59 @@ fun ChatListDrawer(
                 }
             },
         )
+    }
+}
+
+/**
+ * The host identity under the large title, itself the anchor for its verbs.
+ *
+ * Tapping the host (or the chevron) offers the two things you can do to the connection: switch to
+ * another harness, or open Settings. This replaces the old connected-to card and footer rows —
+ * one menu instead of three chrome elements.
+ */
+@Composable
+private fun HostMenu(
+    hostLabel: String?,
+    onSwitchHost: () -> Unit,
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = DsTheme.colors
+    Column(modifier.padding(horizontal = DsSpacing.small)) {
+        Text(
+            text = stringResource(R.string.chatlist_title),
+            style = DsType.largeTitle,
+            color = colors.labelPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (hostLabel != null) {
+            DsMenu(
+                anchor = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StateDot(StateDotState.Done, size = 6.dp)
+                        Spacer(Modifier.width(DsSpacing.xsmall))
+                        Text(
+                            hostLabel,
+                            style = DsType.footnote,
+                            color = colors.labelTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Icon(
+                            FeatherIcons.ChevronDown,
+                            contentDescription = null,
+                            tint = colors.labelTertiary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                },
+                items = listOf(
+                    MenuItem(text = stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
+                    MenuItem(text = stringResource(R.string.settings_title)) { onOpenSettings() },
+                ),
+            )
+        }
     }
 }
 
@@ -587,7 +697,7 @@ private fun WorkspaceHeader(
                     },
                     onLongClickLabel = stringResource(R.string.chatlist_workspace_actions),
                 )
-                .padding(vertical = DsSpacing.xsmall),
+                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -669,36 +779,6 @@ private fun WorkspaceMenu(
     }
 }
 
-/** One footer destination: icon + label on a full-width 48dp tap target. */
-@Composable
-private fun DrawerFooterRow(icon: ImageVector, label: String, onClick: () -> Unit) {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 48.dp)
-            .clip(DsShapes.row)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = DsSpacing.xsmall, vertical = DsSpacing.xsmall),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = colors.labelTertiary,
-            modifier = Modifier.size(16.dp),
-        )
-        Spacer(Modifier.width(DsSpacing.small))
-        Text(
-            label,
-            style = DsType.std14,
-            color = colors.labelSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
 /**
  * 40dp hit area around a 16dp glyph — the same affordance ChatNodeItem uses for message actions,
  * so a row's overflow and a bubble's overflow share a size and a feel.
@@ -733,7 +813,7 @@ private fun ActionIcon(
  * "Subagents" heading per workspace, which said nothing about which run produced which — with a
  * dozen of them from three sessions it was a wall of near-identical rows.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun SessionRowItem(
     session: SessionRow,
@@ -757,39 +837,84 @@ private fun SessionRowItem(
     )
     val haptics = LocalHapticFeedback.current
 
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .padding(start = (depth * 16).dp)
-                .clip(DsShapes.block)
-                .background(if (isCurrent) colors.sidebarNavActive else colors.bgLayer1)
-                .border(1.dp, colors.borderL2, DsShapes.block)
-                .combinedClickable(
-                    onClick = {
-                        scope.launch {
-                            store.openSession(session.sessionId)
-                            onClose()
-                        }
-                    },
-                    onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        menuOpen = true
-                    },
-                    onLongClickLabel = stringResource(R.string.chatlist_session_actions),
-                )
-                .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+    // iOS swipe-to-archive: a trailing swipe reveals the red Archive action. Archiving is
+    // irreversible in this UI (there is no restore path), so the swipe hands over to the same
+    // confirmation the context menu uses, and the row always snaps back here — it only leaves
+    // the list when the harness confirms the archive.
+    val dismissState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                archiveConfirmOpen = true
+            }
+            false
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f },
+    )
+
+    SwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = false,
+        enableDismissFromEndToStart = true,
+        backgroundContent = {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(DsShapes.row)
+                    .background(colors.errorFill),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                    modifier = Modifier.padding(end = DsSpacing.large),
+                ) {
+                    Icon(
+                        FeatherIcons.Archive,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        stringResource(R.string.common_archive),
+                        style = DsType.small13Strong,
+                        color = Color.White,
+                    )
+                }
+            }
+        },
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .padding(start = (depth * 16).dp)
+                    .background(if (isCurrent) colors.sidebarNavActive else Color.Transparent)
+                    .combinedClickable(
+                        onClick = {
+                            scope.launch {
+                                store.openSession(session.sessionId)
+                                onClose()
+                            }
+                        },
+                        onLongClick = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menuOpen = true
+                        },
+                        onLongClickLabel = stringResource(R.string.chatlist_session_actions),
+                    )
+                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             // A current-session accent rail reads faster than a background tint alone on a
-            // low-contrast sidebar.
+            // plain list.
             Box(
                 Modifier
                     .width(2.dp)
                     .height(24.dp)
                     .clip(RoundedCornerShape(1.dp))
-                    .background(if (isCurrent) colors.accent else androidx.compose.ui.graphics.Color.Transparent),
+                    .background(if (isCurrent) colors.accent else Color.Transparent),
             )
             Spacer(Modifier.width(DsSpacing.small))
             // The chevron is its own tap target: opening a session and looking at what it spawned
@@ -881,13 +1006,21 @@ private fun SessionRowItem(
             }
             // The current session's overflow is always visible: long-press is the affordance
             // everywhere else, and the one row people act on most should not hide its verbs.
-            if (isCurrent) {
-                Spacer(Modifier.width(DsSpacing.xsmall))
-                ActionIcon(
-                    icon = FeatherIcons.MoreHorizontal,
-                    label = stringResource(R.string.chatlist_session_actions),
-                    onClick = { menuOpen = true },
-                )
+                if (isCurrent) {
+                    Spacer(Modifier.width(DsSpacing.xsmall))
+                    ActionIcon(
+                        icon = FeatherIcons.MoreHorizontal,
+                        label = stringResource(R.string.chatlist_session_actions),
+                        onClick = { menuOpen = true },
+                    )
+                }
+            }
+            // iOS plain-list separator, inset from the leading edge.
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = colors.borderL1,
+                modifier = Modifier.padding(start = DsSpacing.comfortable),
+            )
             }
         }
 
@@ -907,9 +1040,8 @@ private fun SessionRowItem(
                 }
             }
         }
-    }
 
-    if (renameOpen) {
+        if (renameOpen) {
         RenameDialog(
             initial = session.title.orEmpty(),
             title = stringResource(R.string.chatlist_session_rename),
@@ -954,16 +1086,13 @@ private fun SearchResultRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(DsShapes.block)
-            .background(colors.bgLayer1)
-            .border(1.dp, colors.borderL2, DsShapes.block)
             .clickable {
                 scope.launch {
                     store.openSession(hit.session.sessionId)
                     onClose()
                 }
             }
-            .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -1091,7 +1220,7 @@ internal fun indexSubagents(
      * Usually the immediate parent. The walk exists for the case that used to lose rows entirely:
      * archiving a session, or the harness reusing a blank one, removes it from the list while its
      * subagents remain — those attach to the next ancestor up rather than vanishing with it. The
-     * visited set guards against a lineage cycle, which would otherwise hang the drawer.
+     * visited set guards against a lineage cycle, which would otherwise hang the walk.
      */
     fun attachPoint(child: SessionRow): String? {
         // Seeded with the child so a lineage cycle cannot walk back around and make the row its own

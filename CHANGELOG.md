@@ -1,3 +1,47 @@
+## [0.12.0] - 2026-08-21
+
+The two "sidebars" are gone. Apple's HIG is explicit that sidebars don't
+belong on an iPhone, so the modal drawer and the edge-swipe details panel
+become full-screen pushed screens, the way Messages and Settings navigate:
+a Sessions screen over the chat, and a Details screen over the chat.
+
+### Added
+
+- **Sessions screen (was the drawer).** Pushed full-screen from the
+  hamburger or the title: back chevron, large title with the host beneath
+  it, and a plain hairline-separated list — the iOS list style instead of
+  standalone cards.
+- **Swipe-to-archive.** A trailing swipe on any session row reveals the
+  red Archive action; archiving is irreversible in this UI, so the swipe
+  hands over to the same confirmation the context menu uses.
+- **Compose toolbar.** A single + button in a bottom toolbar opens the
+  action sheet for New Session and New Workspace.
+- **Host menu.** The host name under the title is the anchor for Switch
+  harness and Settings — the connected-to card and the footer rows are
+  gone, replaced by one menu.
+- **Search Cancel.** The iOS Cancel button appears beside the search field
+  while it is focused and clears the search.
+- **Details screen (was the edge-swipe panel).** Pushed full-screen with a
+  back chevron; same collapsible cards, export and copy.
+
+### Changed
+
+- The custom right-edge swipe gesture, the drawer scrim and its width
+  math are deleted — MainScreen is now a small push stack with
+  system-back popping and slide transitions (RTL-mirrored).
+- Session rows read as an iOS plain list: full-width hairlines inset from
+  the leading edge, the current session tinted with its accent rail.
+- The chat keeps every state (scroll, draft, composer) when covered,
+  because it stays composed underneath the pushed screens.
+
+### Verified
+
+- 164 unit tests pass (incl. the subagent-tree and session-search suites);
+  lintDebug 0 errors; LocalizedStringsTest green — no new strings were
+  needed.
+- Signed release APK (CN=DSH Mobile), SHA256SUMS.txt updated; end-to-end
+  verified against the GitHub release.
+
 ## [0.11.0] - 2026-08-21
 
 The whole interface is re-cut to an Apple-grade visual language. The app

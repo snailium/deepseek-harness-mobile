@@ -53,8 +53,8 @@ internal enum class ChatTab { Chat, Trajectory }
  *
  * The identity row follows the large-title pattern: at the top of the transcript the session's
  * title renders at 28sp with the host as a 13sp secondary line beneath it (the title row is a tap
- * target that opens the chat list, and the hamburger alone was easy to miss for the app's most
- * frequent navigation). Once the reader scrolls, the title collapses to the 17sp navigation size
+ * target that pushes the Sessions screen, and the hamburger alone was easy to miss for the
+ * app's most frequent navigation). Once the reader scrolls, the title collapses to the 17sp navigation size
  * and the host line fades — "which session am I in" stays on screen at every scroll position,
  * which the old three-row stack (icon row, session row, tab row) gave up. The status dot and the
  * details button, which belong to the *connection*, ride the same row. (The model selector used
@@ -72,11 +72,11 @@ internal fun ChatTopBar(
     hostLabel: String?,
     agentPresetLabel: String?,
     subagentCount: Int,
-    detailsOpen: Boolean,
     tab: ChatTab,
     /** True once the reader scrolls the transcript: the session-meta row folds away. */
     collapsed: Boolean,
-    onOpenDrawer: () -> Unit,
+    /** Pushes the Sessions screen over the chat. */
+    onOpenSessions: () -> Unit,
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
@@ -96,7 +96,7 @@ internal fun ChatTopBar(
             DsIconButton(
                 icon = FeatherIcons.Menu,
                 contentDescription = stringResource(R.string.chatlist_open),
-                onClick = onOpenDrawer,
+                onClick = onOpenSessions,
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
@@ -106,7 +106,7 @@ internal fun ChatTopBar(
                     .clip(DsShapes.row)
                     .clickable(
                         role = Role.Button,
-                        onClick = onOpenDrawer,
+                        onClick = onOpenSessions,
                     )
                     .padding(vertical = DsSpacing.tiny),
             ) {
@@ -146,15 +146,13 @@ internal fun ChatTopBar(
                     if (running) R.string.status_running else R.string.status_idle,
                 ),
             )
-            if (!detailsOpen) {
-                DsIconButton(
-                    icon = FeatherIcons.Info,
-                    contentDescription = stringResource(R.string.chat_details_title),
-                    onClick = onOpenDetails,
-                    tint = colors.labelTertiary,
-                    iconSize = 18.dp,
-                )
-            }
+            DsIconButton(
+                icon = FeatherIcons.Info,
+                contentDescription = stringResource(R.string.chat_details_title),
+                onClick = onOpenDetails,
+                tint = colors.labelTertiary,
+                iconSize = 18.dp,
+            )
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0

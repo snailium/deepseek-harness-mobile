@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -90,14 +89,15 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The session details panel: everything about the open session that is not the conversation.
+ * The session details screen: everything about the open session that is not the conversation,
+ * pushed full-screen over the chat (the old edge-swipe panel was not an iPhone pattern).
  *
  * Organised as collapsible cards rather than one flat wall of headings, because on a phone-width
- * panel a flat list means the section you want is always three screens down. The trajectory ledger
- * that used to be squeezed in here now has its own tab — one home per fact.
+ * screen a flat list means the section you want is always three screens down. The trajectory
+ * ledger that used to be squeezed in here now has its own tab — one home per fact.
  */
 @Composable
-fun DetailsPanel(
+fun DetailsScreen(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -146,23 +146,12 @@ fun DetailsPanel(
     }
 
     Surface(
-        modifier = modifier.fillMaxHeight(),
-        // The panel sits on the grouped gray like every support surface; its cards are the white
-        // plates, so the panel reads as a stack of groups rather than a white slab.
+        modifier = modifier.fillMaxSize(),
+        // The screen sits on the grouped gray like every support surface; its cards are the
+        // white plates, so it reads as a stack of groups rather than a white slab.
         color = colors.bgBase,
-        shadowElevation = 8.dp,
     ) {
         Box {
-            // The panel's leading edge: bgLayer1 on bgLayer1 is white-on-white in light mode, and
-            // the hairline is what says "a sheet is sitting over the chat". Aligned to the start
-            // so it faces the transcript in both reading directions.
-            Box(
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .width(1.dp)
-                    .fillMaxHeight()
-                    .background(colors.borderL1),
-            )
             Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                 // Pinned, not scrolled: the back arrow and title are the panel's chrome, and
                 // chrome that scrolls away leaves the reader with cards and no way to leave.
