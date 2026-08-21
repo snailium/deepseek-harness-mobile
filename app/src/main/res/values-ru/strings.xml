@@ -119,6 +119,13 @@
     <string name="chat_loading_older">Загрузка более ранних сообщений…</string>
     <string name="chat_load_older_retry">Не удалось загрузить более ранние сообщения — нажмите, чтобы повторить</string>
     <string name="chat_thinking">Размышляет</string>
+    <string name="chat_process_thought">Размышление</string>
+    <plurals name="tool_calls_count">
+        <item quantity="one">%1$d вызов инструмента</item>
+        <item quantity="few">%1$d вызова инструмента</item>
+        <item quantity="many">%1$d вызовов инструмента</item>
+        <item quantity="other">%1$d вызовов инструмента</item>
+    </plurals>
     <string name="chat_stopped">Остановлено</string>
     <string name="chat_stopped_aborted">Ход прерван</string>
     <string name="chat_error_turn">Ход не удался</string>

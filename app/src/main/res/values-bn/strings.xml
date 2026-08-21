@@ -119,6 +119,11 @@
     <string name="chat_loading_older">পুরোনো বার্তা লোড হচ্ছে…</string>
     <string name="chat_load_older_retry">পুরোনো বার্তা লোড করা যায়নি — আবার চেষ্টা করতে ট্যাপ করুন</string>
     <string name="chat_thinking">ভাবছে</string>
+    <string name="chat_process_thought">ভাবনা</string>
+    <plurals name="tool_calls_count">
+        <item quantity="one">%1$d টি টুল কল</item>
+        <item quantity="other">%1$d টি টুল কল</item>
+    </plurals>
     <string name="chat_stopped">থামানো হয়েছে</string>
     <string name="chat_stopped_aborted">টার্ন বাতিল হয়েছে</string>
     <string name="chat_error_turn">টার্ন ব্যর্থ হয়েছে</string>

@@ -119,6 +119,10 @@
     <string name="chat_loading_older">กำลังโหลดข้อความเก่า…</string>
     <string name="chat_load_older_retry">โหลดข้อความเก่าไม่สำเร็จ — แตะเพื่อลองใหม่</string>
     <string name="chat_thinking">กำลังคิด</string>
+    <string name="chat_process_thought">คิด</string>
+    <plurals name="tool_calls_count">
+        <item quantity="other">การเรียกใช้เครื่องมือ %1$d ครั้ง</item>
+    </plurals>
     <string name="chat_stopped">หยุดแล้ว</string>
     <string name="chat_stopped_aborted">ยกเลิกเทิร์นแล้ว</string>
     <string name="chat_error_turn">เทิร์นล้มเหลว</string>

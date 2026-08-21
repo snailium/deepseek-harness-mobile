@@ -78,7 +78,7 @@ fun DisclosureRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 24.dp)
+                .heightIn(min = 32.dp)
                 .then(
                     if (onToggle != null) {
                         Modifier
@@ -93,7 +93,7 @@ fun DisclosureRow(
                         Modifier
                     },
                 )
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The chevron is always visible when the row can expand. It used to be revealed by

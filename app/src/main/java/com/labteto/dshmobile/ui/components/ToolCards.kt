@@ -143,7 +143,7 @@ private fun ToolCardBody(view: ToolCardView) {
             .fillMaxWidth()
             .clip(DsShapes.block)
             .background(colors.codeBlockBg)
-            .border(1.dp, colors.borderL1, DsShapes.block)
+            .border(1.dp, colors.borderL2, DsShapes.block)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {

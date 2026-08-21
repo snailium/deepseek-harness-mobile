@@ -119,6 +119,15 @@
     <string name="chat_loading_older">جارٍ تحميل الرسائل الأقدم…</string>
     <string name="chat_load_older_retry">تعذّر تحميل الرسائل الأقدم — اضغط لإعادة المحاولة</string>
     <string name="chat_thinking">جارٍ التفكير</string>
+    <string name="chat_process_thought">فكّر</string>
+    <plurals name="tool_calls_count">
+        <item quantity="zero">%1$d استدعاء أداة</item>
+        <item quantity="one">%1$d استدعاء أداة</item>
+        <item quantity="two">%1$d استدعاءا أداة</item>
+        <item quantity="few">%1$d استدعاءات أدوات</item>
+        <item quantity="many">%1$d استدعاء أداة</item>
+        <item quantity="other">%1$d استدعاء أداة</item>
+    </plurals>
     <string name="chat_stopped">متوقف</string>
     <string name="chat_stopped_aborted">تم إلغاء الجولة</string>
     <string name="chat_error_turn">فشلت الجولة</string>

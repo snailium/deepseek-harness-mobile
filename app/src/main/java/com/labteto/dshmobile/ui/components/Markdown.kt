@@ -388,7 +388,7 @@ private fun CodeBlock(lang: String?, code: String, modifier: Modifier = Modifier
             .fillMaxWidth()
             .clip(DsShapes.block)
             .background(colors.codeBlockBg)
-            .border(1.dp, colors.borderL1, DsShapes.block),
+            .border(1.dp, colors.borderL2, DsShapes.block),
     ) {
         Row(
             modifier = Modifier

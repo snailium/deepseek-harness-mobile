@@ -19,18 +19,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,11 +44,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
@@ -73,12 +77,19 @@ internal data class PendingAttachment(
 )
 
 /**
- * The message composer, laid out like the harness's own: the `+` and the permission chip on the
- * left, the send affordance on the right.
+ * The message composer.
  *
- * The model selector is deliberately *not* here — it moved to the top bar, which leaves this row
- * for the two controls you change mid-conversation and keeps the composer from wrapping on a
- * narrow phone.
+ * One card, two rows: the input row — `+`, the growing field, send/stop — and, only when the
+ * harness offers them, a slim second row with the permission chip and the context meter. The
+ * field is a [BasicTextField] rather than Material's `TextField`, because M3 enforces a 56dp
+ * minimum height inside its decoration box: a single-line field over a 44dp action row is what
+ * made the composer read as a slab. The send affordance pins to the field's last line as it
+ * grows (the ChatGPT/WhatsApp arrangement), so the card stays ~66dp at rest and only earns
+ * height for what is actually typed.
+ *
+ * The model selector is deliberately *not* here — it lives in the top bar, which leaves this
+ * card for the two controls you change mid-conversation and keeps the composer from wrapping on
+ * a narrow phone.
  */
 @Composable
 internal fun Composer(
@@ -105,10 +116,20 @@ internal fun Composer(
     val currentOnDraftChange by rememberUpdatedState(onDraftChange)
     val currentOnSend by rememberUpdatedState(onSend)
 
+    fun doSend() {
+        if (!canSend || running) return
+        val text = currentDraft
+        currentOnDraftChange("")
+        // The long-press feedback doubles as the send tick; the heavier long-press haptic stays
+        // on stop, the disruptive action.
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        currentOnSend(text)
+    }
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small)
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall)
             .shadow(DsSpacing.small, DsShapes.composer)
             .animateContentSize(),
         shape = DsShapes.composer,
@@ -116,66 +137,60 @@ internal fun Composer(
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
         Column(
-            Modifier.padding(DsSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
-            TextField(
-                value = draft,
-                onValueChange = onDraftChange,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = enabled,
-                placeholder = {
-                    Text(
-                        stringResource(R.string.chat_composer_hint),
-                        style = DsType.std14,
-                        color = colors.labelTertiary,
-                    )
-                },
-                minLines = 1,
-                maxLines = 8,
-                textStyle = DsType.std14,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = colors.accent,
-                    focusedTextColor = colors.labelPrimary,
-                    unfocusedTextColor = colors.labelPrimary,
-                ),
-            )
-
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
                 AttachmentStrip(attachments, onRemoveAttachment)
             }
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
             ) {
                 CircleAction(
                     icon = FeatherIcons.Plus,
                     contentDescription = stringResource(R.string.chat_composer_commands),
-                    size = 40,
+                    size = 36,
                     background = colors.hoverSolid,
                     tint = colors.labelPrimary,
                     enabled = enabled,
                     onClick = onOpenSheet,
                 )
 
-                PermissionChip(
-                    select = permissions,
-                    pending = pendingPermission,
-                    enabled = enabled,
-                    onPick = onPermissionPick,
+                val selectionColors = TextSelectionColors(
+                    handleColor = colors.accent,
+                    backgroundColor = colors.accent.copy(alpha = 0.4f),
                 )
-
-                Spacer(Modifier.weight(1f))
-
-                ContextMeter(contextBreakdown, contextPressure)
+                CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = onDraftChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = DsSpacing.small),
+                        enabled = enabled,
+                        textStyle = DsType.std14.copy(color = colors.labelPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        minLines = 1,
+                        maxLines = 5,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { doSend() }),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (draft.isEmpty() && attachments.isEmpty()) {
+                                    Text(
+                                        stringResource(R.string.chat_composer_hint),
+                                        style = DsType.std14,
+                                        color = colors.labelTertiary,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                }
 
                 // Send and stop occupy the same slot: the affordance changes meaning during a turn
                 // rather than the row re-flowing around a second button appearing.
@@ -191,7 +206,7 @@ internal fun Composer(
                         CircleAction(
                             icon = null,
                             contentDescription = stringResource(R.string.chat_composer_stop),
-                            size = 44,
+                            size = 40,
                             background = colors.error,
                             tint = Color.White,
                             enabled = true,
@@ -211,20 +226,34 @@ internal fun Composer(
                         CircleAction(
                             icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
-                            size = 44,
+                            size = 40,
                             background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
                             tint = if (canSend) Color.White else colors.labelTertiary,
                             enabled = canSend,
-                            onClick = {
-                                val text = currentDraft
-                                currentOnDraftChange("")
-                                // The long-press feedback doubles as the send tick; the heavier
-                                // long-press haptic stays on stop, the disruptive action.
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentOnSend(text)
-                            },
+                            onClick = { doSend() },
                         )
                     }
+                }
+            }
+
+            // The second row exists only when the harness offers either control: a dead row of
+            // padding would be the slab the first row just stopped being.
+            if (permissions != null || contextPressure?.usedRatio != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
+                ) {
+                    PermissionChip(
+                        select = permissions,
+                        pending = pendingPermission,
+                        enabled = enabled,
+                        onPick = onPermissionPick,
+                    )
+
+                    Spacer(Modifier.weight(1f))
+
+                    ContextMeter(contextBreakdown, contextPressure)
                 }
             }
         }

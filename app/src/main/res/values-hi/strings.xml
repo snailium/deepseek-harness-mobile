@@ -119,6 +119,11 @@
     <string name="chat_loading_older">पुराने संदेश लोड हो रहे हैं…</string>
     <string name="chat_load_older_retry">पुराने संदेश लोड नहीं हो सके — पुनः प्रयास के लिए टैप करें</string>
     <string name="chat_thinking">सोच रहा है</string>
+    <string name="chat_process_thought">विचार</string>
+    <plurals name="tool_calls_count">
+        <item quantity="one">%1$d टूल कॉल</item>
+        <item quantity="other">%1$d टूल कॉल</item>
+    </plurals>
     <string name="chat_stopped">रोका गया</string>
     <string name="chat_stopped_aborted">टर्न रद्द हो गया</string>
     <string name="chat_error_turn">टर्न विफल</string>

@@ -149,15 +149,15 @@ object DsLight {
      * so the mobile app diverges the same way it already does for `userBubble`: a soft card that
      * mirrors the bubble on the other side of the conversation.
      */
-    val assistantBubble = Ds.Bluish60
+    val assistantBubble = Ds.Bluish75
     val composerCard = Color(0xFFFFFFFF)
     val sidebar = Ds.Bluish50
     val sidebarNavActive = Ds.Bluish100
     val sidebarNavAccent = Ds.Deepseek100
     val sidebarNavHover = Ds.Bluish75
     val tipSurface = Ds.Bluish60
-    val codeBlockBg = Ds.Bluish50
-    val codeBlockBanner = Ds.Bluish50
+    val codeBlockBg = Ds.Bluish75
+    val codeBlockBanner = Ds.Bluish75
     val inlineCode = Ds.Bluish100
     val citation = Ds.Bluish100
     val markdownTag = Ds.Bluish75
@@ -210,7 +210,7 @@ object DsDark {
     val userBubble = Ds.Bluish850
     val userBubbleHighlight = Ds.Bluish750
     /** One step off the transcript background, so the card edge reads without a bright border. */
-    val assistantBubble = Ds.Bluish875
+    val assistantBubble = Ds.Bluish850
     val composerCard = Ds.Bluish850
     val sidebar = Ds.Bluish900
     val sidebarNavActive = Ds.Bluish750

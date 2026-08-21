@@ -96,8 +96,11 @@ internal fun ChatTranscript(
     val nodes = remember(conversation?.nodes) {
         conversation?.nodes.orEmpty().filter { it.rendersContent() }
     }
+    // Then fold consecutive reasoning messages and tool calls into process rows, so one disclosure
+    // covers a whole stretch of agentic work instead of a chevron per block (see ChatTurnGrouping).
+    val rows = remember(nodes) { groupTranscriptItems(nodes) }
     val hasMore = conversation?.hasMore == true
-    val itemCount = nodes.size + if (hasMore) 1 else 0
+    val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
 
     // Both keyed on the session so a freshly opened one starts from a clean assumption rather than
@@ -209,9 +212,21 @@ internal fun ChatTranscript(
                 )
             }
         } else {
-            items(nodes, key = { it.seq }) { node ->
+            items(rows, key = { it.key }) { item ->
                 Column(Modifier.animateItem()) {
-                    ChatNodeItem(node = node, context = context)
+                    when (item) {
+                        is NodeItem -> ChatNodeItem(node = item.node, context = context)
+                        is ProcessItem -> ProcessGroupItem(
+                            item = item,
+                            context = context,
+                            // The group is live while it is the tail of a running turn: reasoning
+                            // and calls stream in, results are folded into their cards, and the
+                            // moment the tail moves past the group (final text, a new turn) it
+                            // collapses to its summary unless the reader opened it by hand.
+                            live = conversation?.running == true &&
+                                item.lastSeq == nodes.lastOrNull()?.seq,
+                        )
+                    }
                 }
             }
         }

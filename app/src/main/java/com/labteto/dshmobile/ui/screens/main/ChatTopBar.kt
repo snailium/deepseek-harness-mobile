@@ -54,14 +54,12 @@ internal enum class ChatTab { Chat, Trajectory }
 /**
  * The session chrome: a two-row bar plus the Chat / Trajectory tabs.
  *
- * Row one carries the controls that belong to the *connection* — the drawer, the model, the live
- * status. Row two carries the ones that belong to the *session* — its title, its agent preset, its
- * subagents. Splitting them is what makes room for the model selector on the left without eliding
- * the session title down to nothing on a phone.
- *
- * The title and the chips share row two rather than stacking, and the row disappears entirely when
- * it would be empty: four stacked rows of chrome over a white page ate a third of a phone screen
- * before the first message, and the chip row kept its padding even with no chips to pad.
+ * Row one carries the session's identity — title and host, which open the chat list — and the
+ * controls that belong to the *connection*: the model selector, the live status, the details.
+ * Row two carries the session's agent preset and subagent chips, and folds away once the reader
+ * scrolls. Putting the title on the always-visible row means "which session am I in" never
+ * scrolls off the page mid-transcript, which the old three-row stack (icon row, session row, tab
+ * row) gave up: the title row was the one that disappeared.
  *
  * The title is a tap target: it opens the chat list, which is where "which session am I in" is
  * answered — and the hamburger alone was easy to miss for the single most frequent navigation in
@@ -104,8 +102,40 @@ internal fun ChatTopBar(
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
-            ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f))
-            Spacer(Modifier.weight(1f))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(DsShapes.row)
+                    .clickable(
+                        role = Role.Button,
+                        onClick = onOpenDrawer,
+                    )
+                    .padding(vertical = DsSpacing.tiny),
+            ) {
+                Text(
+                    title,
+                    style = DsType.std14Strong,
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                hostLabel?.let {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StateDot(StateDotState.Done, size = 6.dp)
+                        Spacer(Modifier.width(DsSpacing.xsmall))
+                        Text(
+                            it,
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(DsSpacing.tiny))
+            ModelChip(models = models, onClick = onOpenModels)
+            Spacer(Modifier.width(DsSpacing.tiny))
             StateDot(
                 if (running) StateDotState.Running else StateDotState.Idle,
                 contentDescription = stringResource(
@@ -124,10 +154,11 @@ internal fun ChatTopBar(
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
-        // Folds away once the reader scrolls: the row names the session, which a reader mid-way
-        // through a long transcript is not looking for. Returning to the top brings it back.
+        // Folds away once the reader scrolls: the chips configure the turn, which a reader mid-way
+        // through a long transcript is not doing. Returning to the top brings them back. The title
+        // stays — it moved to row one, which is the row that never folds.
         AnimatedVisibility(
-            visible = !collapsed && (title.isNotBlank() || hasChips),
+            visible = !collapsed && hasChips,
             enter = expandVertically(DsAnimations.expand) + fadeIn(DsAnimations.fade),
             exit = shrinkVertically(DsAnimations.expand) + fadeOut(DsAnimations.fade),
         ) {
@@ -138,37 +169,6 @@ internal fun ChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
             ) {
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(DsShapes.row)
-                        .clickable(
-                            role = Role.Button,
-                            onClick = onOpenDrawer,
-                        )
-                        .padding(vertical = DsSpacing.tiny),
-                ) {
-                    Text(
-                        title,
-                        style = DsType.std14Strong,
-                        color = colors.labelPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    hostLabel?.let {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            StateDot(StateDotState.Done, size = 6.dp)
-                            Spacer(Modifier.width(DsSpacing.xsmall))
-                            Text(
-                                it,
-                                style = DsType.caption11,
-                                color = colors.labelTertiary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
                 if (agentPresetLabel != null) {
                     MetaChip(
                         icon = FeatherIcons.Layout,
@@ -200,6 +200,10 @@ internal fun ChatTopBar(
  * Drawn as a filled pill rather than the harness's transparent trigger. That is not a style
  * preference: on the web the affordance is the hover state, and a touch screen has no hover, so
  * bare text over the transcript gave no sign the model was switchable at all.
+ *
+ * Compact on purpose: it shares row one with the session title, so it carries the model name and
+ * nothing else. The reasoning effort used to sit inline; it still lives one tap away inside the
+ * model sheet, where it is actually changed.
  */
 @Composable
 private fun ModelChip(
@@ -221,12 +225,11 @@ private fun ModelChip(
     val current = models.current
     val group = models.groups.firstOrNull { it.id == current.provider }
     val model = group?.models?.firstOrNull { it.id == current.model }
-    val effort = model?.reasoning?.efforts?.firstOrNull { it.id == current.reasoningEffort }
     val modelLabel = model?.name ?: current.model
 
     Row(
         modifier = modifier
-            .widthIn(max = 240.dp)
+            .widthIn(max = 150.dp)
             .heightIn(min = 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -251,9 +254,6 @@ private fun ModelChip(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
-        effort?.let {
-            Text(it.name, style = DsType.small13, color = colors.labelTertiary, maxLines = 1)
-        }
         Icon(
             FeatherIcons.ChevronDown,
             contentDescription = null,

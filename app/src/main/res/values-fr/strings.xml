@@ -119,6 +119,12 @@
     <string name="chat_loading_older">Chargement des messages précédents…</string>
     <string name="chat_load_older_retry">Impossible de charger les messages précédents — appuyez pour réessayer</string>
     <string name="chat_thinking">Réflexion</string>
+    <string name="chat_process_thought">Réflexion</string>
+    <plurals name="tool_calls_count">
+        <item quantity="one">%1$d appel d’outil</item>
+        <item quantity="many">%1$d appels d’outils</item>
+        <item quantity="other">%1$d appels d’outils</item>
+    </plurals>
     <string name="chat_stopped">Arrêté</string>
     <string name="chat_stopped_aborted">Tour interrompu</string>
     <string name="chat_error_turn">Le tour a échoué</string>

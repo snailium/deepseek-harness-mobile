@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,11 +25,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -248,14 +252,17 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
         verticalAlignment = Alignment.Top,
     ) {
         AssistantAvatar()
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .background(colors.assistantBubble, AssistantBubbleShape)
-                .border(1.dp, colors.borderL1, AssistantBubbleShape)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        // Capped like the user bubble: an uncapped card stretches line length across the whole
+        // screen on a wide device, which reads as a wall of text past ~75 characters a line.
+        BoxWithConstraints(Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = minOf(560.dp, maxWidth * 0.92f))
+                    .background(colors.assistantBubble, AssistantBubbleShape)
+                    .border(1.dp, colors.borderL2, AssistantBubbleShape)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
             node.blocks.forEachIndexed { index, block ->
                 when (block.kind) {
                     "text" -> MarkdownText(block.text.orEmpty())
@@ -321,6 +328,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                         modifier = Modifier.size(14.dp),
                     )
                 }
+            }
             }
         }
     }
@@ -493,6 +501,66 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
             color = colors.error,
             modifier = Modifier.padding(start = 26.dp),
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Process groups
+// ---------------------------------------------------------------------------
+
+/**
+ * One disclosure for a whole stretch of agentic work: the reasoning-bearing assistant message(s)
+ * and the tool calls that follow them (see [groupTranscriptItems]).
+ *
+ * The header is the process's summary — "Thinking" with a shimmer while the turn streams, a plain
+ * "Thought · N tool calls" once it settles — and the body is everything the model did: the
+ * thinking bubble(s), then the tool cards, each still individually expandable. Auto-collapse is
+ * the point (Wroblewski's agentic-UI rule: once the work is done, the process folds back to a
+ * summary): the group opens while it is the live tail of a running turn, and folds itself back
+ * up when the turn moves on — unless the reader opened it by hand, in which case that choice wins.
+ */
+@Composable
+internal fun ProcessGroupItem(
+    item: ProcessItem,
+    context: ChatNodeContext,
+    /**
+     * Whether this process is the live tail of a running turn. Computed by the transcript against
+     * its *renderable* tail: tool results are consumed inside their call's card, so a group whose
+     * calls are still streaming results stays "live" (and open) even though the raw node stream's
+     * last event is a result this transcript does not draw.
+     */
+    live: Boolean,
+) {
+    var touched by remember(item.key) { mutableStateOf(false) }
+    var expanded by remember(item.key) { mutableStateOf(live) }
+    LaunchedEffect(live) {
+        if (!live && !touched) expanded = false
+    }
+    val toolLabel = pluralStringResource(R.plurals.tool_calls_count, item.tools.size, item.tools.size)
+    val title = when {
+        live -> stringResource(R.string.chat_thinking)
+        item.messages.isNotEmpty() -> stringResource(R.string.chat_process_thought)
+        else -> toolLabel
+    }
+    DisclosureRow(
+        title = title,
+        summary = if (item.tools.isNotEmpty()) toolLabel else null,
+        icon = FeatherIcons.Loader,
+        state = if (live) DisclosureState.Running else DisclosureState.Idle,
+        expanded = expanded,
+        onToggle = {
+            touched = true
+            expanded = !expanded
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            item.messages.forEach { message ->
+                AssistantMessage(message, context)
+            }
+            item.tools.forEach { call ->
+                ToolCallRow(call, context)
+            }
+        }
     }
 }
 

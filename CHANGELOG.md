@@ -3,7 +3,45 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.10.0] - 2026-09-02
+
+A pass over the chat surface itself: the composer stops being the biggest
+thing on screen, a turn's thinking and tool calls fold into one disclosure
+that collapses when the work is done, and the transcript and header earn
+better reading contrast and a tighter chrome.
+
+### Added
+
+- **Process rows.** Consecutive reasoning blocks and their tool calls now
+  render as a single disclosure — "Thinking" with a shimmer while the turn
+  streams, "Thought · N tool calls" once it settles. One tap reveals the
+  whole stretch of work, and the group folds itself back to the summary when
+  the turn moves on, unless you opened it by hand. (The old layout gave the
+  thinking and every tool its own disconnected chevron, so expanding the
+  thinking never showed the tools that followed it.)
+- **Send on the keyboard.** The composer's IME action is Send, so the
+  keyboard's send key fires the same path as the button.
+
+### Changed
+
+- **The composer is a field, not a slab.** The message input drops Material's
+  56dp minimum-height field for a compact one (single line ≈ 38dp), caps
+  growth at five lines, and pins the send button to the field's last line;
+  the permission chip and context meter move to a slim second row that only
+  appears when the harness offers them. The card sits ~66dp at rest instead
+  of ~148dp.
+- **The header is two rows, not three.** Title and host move up to the
+  always-visible row next to the model chip (which drops its inline reasoning
+  effort — it lives in the model sheet), and only the preset / subagent chips
+  fold away on scroll.
+- **Readability.** The assistant bubble steps one rung off the page
+  background in both themes with a stronger hairline, code and tool panels
+  get the same treatment, and assistant bubbles are width-capped like user
+  bubbles so lines stay in the comfortable band on wide screens. Disclosure
+  rows grow to ~44dp tap targets.
+
 ## [0.9.0] - 2026-09-02
+
 
 A pass over the two sidebars: the chat list drawer gets the anatomy a chat list
 is expected to have, and the details panel gets chrome that stays put.
