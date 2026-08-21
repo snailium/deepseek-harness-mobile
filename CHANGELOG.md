@@ -3,6 +3,21 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.10.1] - 2026-08-21
+
+The header's third row disappears: the session-meta chips and the Chat /
+Trajectory switcher now share one utility line, so the chrome stops at two
+rows and the transcript starts ~40dp higher.
+
+### Changed
+
+- **One utility row.** The agent preset and subagent chips ride the trailing
+  space of the tab row instead of owning a row of their own. The Chat /
+  Trajectory switcher never folds — switching views is navigation, not
+  configuration — while the chips still fold away once the reader scrolls.
+- **Chips scroll instead of wrapping.** A long preset label can no longer
+  push the chips onto a second line; the strip scrolls within its own row.
+
 ## [0.10.0] - 2026-09-02
 
 A pass over the chat surface itself: the composer stops being the biggest
