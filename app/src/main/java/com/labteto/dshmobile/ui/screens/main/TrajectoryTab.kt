@@ -108,7 +108,7 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
         is UserMessageNode -> {
             val preview = node.previewText.trim()
             if (preview.isNotEmpty()) {
-                Text("> $preview", style = DsType.caption11, color = colors.labelSecondary)
+                Text("> $preview", style = DsType.footnote, color = colors.labelSecondary)
             }
         }
         is AssistantMessageNode -> {
@@ -116,7 +116,7 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
             if (snippet.isNotEmpty()) {
                 Text(
                     snippet,
-                    style = DsType.caption11,
+                    style = DsType.footnote,
                     color = colors.labelTertiary,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -186,7 +186,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
         stats?.let {
             Text(
                 stringResource(R.string.chat_stats_turns, it.turns, it.steps),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
             Text(
@@ -195,7 +195,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatDurationMs(it.llmMs),
                     formatDurationMs(it.toolMs),
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
             Text(
@@ -204,7 +204,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatDurationMs(it.meanTtftMs),
                     it.tokensPerSecond?.let { rate -> String.format(java.util.Locale.US, "%.0f", rate) } ?: "—",
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
         }
@@ -217,7 +217,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatTokens(it.cacheReadTokens),
                     formatTokens(it.cacheWriteTokens),
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
         }

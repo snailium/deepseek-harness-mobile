@@ -4,6 +4,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -45,6 +46,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,7 @@ import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.dsSearchFieldColors
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
@@ -202,7 +205,7 @@ fun ChatListDrawer(
         ) {
             Text(
                 text = stringResource(R.string.chatlist_title),
-                style = DsType.large20,
+                style = DsType.largeTitle,
                 color = colors.labelPrimary,
                 modifier = Modifier.weight(1f),
             )
@@ -218,6 +221,7 @@ fun ChatListDrawer(
             onValueChange = { query = it },
             modifier = Modifier
                 .fillMaxWidth()
+                .height(44.dp)
                 .padding(top = DsSpacing.small),
             placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
             leadingIcon = {
@@ -245,9 +249,9 @@ fun ChatListDrawer(
                 null
             },
             singleLine = true,
-            shape = DsShapes.row,
+            shape = DsShapes.pillFull,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            colors = dialogTextFieldColors(),
+            colors = dsSearchFieldColors(),
         )
         // Stated once, quietly, and only while searching. Most harnesses ship with the content
         // index off, so this is a normal capability note — not a failure.
@@ -266,8 +270,9 @@ fun ChatListDrawer(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(DsShapes.row)
-                    .background(colors.sidebarNavActive)
+                    .clip(DsShapes.block)
+                    .background(colors.bgLayer1)
+                    .border(1.dp, colors.borderL2, DsShapes.block)
                     .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -275,7 +280,7 @@ fun ChatListDrawer(
                 Spacer(Modifier.width(DsSpacing.small))
                 Text(
                     stringResource(R.string.chatlist_connected_to, label),
-                    style = DsType.small13,
+                    style = DsType.footnote,
                     color = colors.labelSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -301,7 +306,11 @@ fun ChatListDrawer(
 
         Spacer(Modifier.height(DsSpacing.small))
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            // Grouped cards breathe: 6dp between rows and between a header and its card stack.
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+        ) {
             if (query.isNotBlank()) {
                 item(key = "search-header") { SectionHeader(stringResource(R.string.common_search)) }
                 if (searchHits.items.isEmpty()) {
@@ -568,7 +577,7 @@ private fun WorkspaceHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
+                .heightIn(min = 40.dp)
                 .clip(DsShapes.row)
                 .combinedClickable(
                     onClick = onToggle,
@@ -586,27 +595,21 @@ private fun WorkspaceHeader(
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier
-                    .size(16.dp)
+                    .size(14.dp)
                     .graphicsLayer { rotationZ = rotation }
                     .autoMirrorDirectional(),
             )
             Spacer(Modifier.width(DsSpacing.tiny))
-            Icon(
-                FeatherIcons.Folder,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(DsSpacing.tiny))
+            // Group headers read as iOS section titles: name in 13 semibold, count beside it.
             Text(
                 label,
-                style = DsType.std14Strong,
+                style = DsType.footnote.copy(fontWeight = FontWeight.SemiBold),
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(sessionCount.toString(), style = DsType.caption11, color = colors.labelCaption)
+            Text(sessionCount.toString(), style = DsType.footnote, color = colors.labelCaption)
         }
         if (menuOpen) {
             WorkspaceMenu(
@@ -758,10 +761,11 @@ private fun SessionRowItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
+                .heightIn(min = 52.dp)
                 .padding(start = (depth * 16).dp)
-                .clip(DsShapes.row)
-                .background(if (isCurrent) colors.sidebarNavActive else androidx.compose.ui.graphics.Color.Transparent)
+                .clip(DsShapes.block)
+                .background(if (isCurrent) colors.sidebarNavActive else colors.bgLayer1)
+                .border(1.dp, colors.borderL2, DsShapes.block)
                 .combinedClickable(
                     onClick = {
                         scope.launch {
@@ -836,7 +840,7 @@ private fun SessionRowItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = sessionTitle(session),
-                    style = DsType.std14,
+                    style = DsType.rowTitle,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -845,17 +849,17 @@ private fun SessionRowItem(
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             basename(it),
-                            style = DsType.caption11,
+                            style = DsType.footnote,
                             color = colors.labelCaption,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text(" · ", style = DsType.caption11, color = colors.labelCaption)
+                        Text(" · ", style = DsType.footnote, color = colors.labelCaption)
                     }
                     Text(
                         relativeTime(session.updatedAt),
-                        style = DsType.caption11,
+                        style = DsType.footnote,
                         color = colors.labelCaption,
                     )
                 }
@@ -950,19 +954,21 @@ private fun SearchResultRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(DsShapes.row)
+            .clip(DsShapes.block)
+            .background(colors.bgLayer1)
+            .border(1.dp, colors.borderL2, DsShapes.block)
             .clickable {
                 scope.launch {
                     store.openSession(hit.session.sessionId)
                     onClose()
                 }
             }
-            .padding(horizontal = DsSpacing.tiny, vertical = DsSpacing.xsmall),
+            .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = sessionTitle(hit.session),
-                style = DsType.rowText,
+                style = DsType.rowTitle,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -976,7 +982,7 @@ private fun SearchResultRow(
         hit.workspaceLabel.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelCaption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -985,7 +991,7 @@ private fun SearchResultRow(
         hit.snippet?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

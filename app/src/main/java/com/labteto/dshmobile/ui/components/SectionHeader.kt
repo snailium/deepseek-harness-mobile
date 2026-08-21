@@ -22,20 +22,21 @@ import com.labteto.dshmobile.ui.theme.DshTheme
 fun SectionHeader(
     title: String,
     action: String? = null,
+    modifier: Modifier = Modifier,
     onAction: (() -> Unit)? = null,
 ) {
     val colors = DsTheme.colors
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             title,
-            style = DsType.std14Strong,
+            style = DsType.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
             color = colors.labelSecondary,
             modifier = Modifier.weight(1f),
         )
         if (action != null) {
             Text(
                 action,
-                style = DsType.caption11Strong,
+                style = DsType.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
                 color = colors.accent,
                 modifier = if (onAction != null) {
                     // An 11sp word with 4dp of padding is a 19dp tap target; grow it toward a

@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -48,24 +49,21 @@ import com.labteto.dshmobile.ui.theme.DsType
 internal enum class ChatTab { Chat, Trajectory }
 
 /**
- * The session chrome: two rows — an identity row and a utility row.
+ * The session chrome: an iOS-style large-title navigation row over a utility row.
  *
- * The identity row carries the session's title and host, which open the chat list, and the
- * controls that belong to the *connection*: the live status and the details. (The model selector
- * used to sit here too; it now lives above the composer, where the model it switches configures
- * the next turn.)
+ * The identity row follows the large-title pattern: at the top of the transcript the session's
+ * title renders at 28sp with the host as a 13sp secondary line beneath it (the title row is a tap
+ * target that opens the chat list, and the hamburger alone was easy to miss for the app's most
+ * frequent navigation). Once the reader scrolls, the title collapses to the 17sp navigation size
+ * and the host line fades — "which session am I in" stays on screen at every scroll position,
+ * which the old three-row stack (icon row, session row, tab row) gave up. The status dot and the
+ * details button, which belong to the *connection*, ride the same row. (The model selector used
+ * to sit here too; it now lives above the composer, where the model it switches configures the
+ * next turn.)
  * The utility row carries the Chat / Trajectory view switcher, which never folds, with the
  * session's agent preset and subagent chips in its trailing space — those fold away once the
- * reader scrolls. Two rows instead of three (title, chips, tabs): the chips and the tab strip
- * shared one screen's worth of chrome for two lightweight controls, so they now share a line.
- * Putting the title on the always-visible row means "which session am I in" never scrolls off
- * the page mid-transcript, which the old three-row stack (icon row, session row, tab row) gave
- * up: the title row was the one that disappeared.
- *
- * The title is a tap target: it opens the chat list, which is where "which session am I in" is
- * answered — and the hamburger alone was easy to miss for the single most frequent navigation in
- * the app. [hostLabel] names the connected harness under the title, so "where am I connected" is
- * answered in the chrome instead of behind Settings.
+ * reader scrolls, like the host line. [hostLabel] names the connected harness under the title,
+ * so "where am I connected" is answered in the chrome instead of behind Settings.
  */
 @Composable
 internal fun ChatTopBar(
@@ -86,12 +84,13 @@ internal fun ChatTopBar(
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    Column(modifier.fillMaxWidth().background(colors.bgBase)) {
+    Column(modifier.fillMaxWidth().background(colors.bgChat)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
-                .padding(horizontal = DsSpacing.tiny),
+                .padding(horizontal = DsSpacing.tiny)
+                .animateContentSize(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DsIconButton(
@@ -113,22 +112,30 @@ internal fun ChatTopBar(
             ) {
                 Text(
                     title,
-                    style = DsType.std14Strong,
+                    style = if (collapsed) DsType.navTitle else DsType.largeTitle,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                hostLabel?.let {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        StateDot(StateDotState.Done, size = 6.dp)
-                        Spacer(Modifier.width(DsSpacing.xsmall))
-                        Text(
-                            it,
-                            style = DsType.caption11,
-                            color = colors.labelTertiary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                // The host line belongs to the expanded state: once the reader is deep in the
+                // transcript the navigation title takes over, like iOS collapsing a large title.
+                AnimatedVisibility(
+                    visible = !collapsed && hostLabel != null,
+                    enter = fadeIn(DsAnimations.fade),
+                    exit = fadeOut(DsAnimations.fade),
+                ) {
+                    hostLabel?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            StateDot(StateDotState.Done, size = 6.dp)
+                            Spacer(Modifier.width(DsSpacing.xsmall))
+                            Text(
+                                it,
+                                style = DsType.footnote,
+                                color = colors.labelTertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }

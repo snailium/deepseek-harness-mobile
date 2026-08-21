@@ -233,7 +233,9 @@ fun ChatScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
+    // The chat keeps its own calm canvas (white / black) while the rest of the app sits on
+    // the iOS grouped gray — this is the surface the reader stares at for the longest.
+    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgChat) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.

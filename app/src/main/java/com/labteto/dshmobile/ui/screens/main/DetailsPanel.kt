@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -75,6 +77,7 @@ import com.labteto.dshmobile.ui.components.formatDurationMs
 import com.labteto.dshmobile.ui.components.formatTokens
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -144,7 +147,9 @@ fun DetailsPanel(
 
     Surface(
         modifier = modifier.fillMaxHeight(),
-        color = colors.bgLayer1,
+        // The panel sits on the grouped gray like every support surface; its cards are the white
+        // plates, so the panel reads as a stack of groups rather than a white slab.
+        color = colors.bgBase,
         shadowElevation = 8.dp,
     ) {
         Box {
@@ -269,7 +274,7 @@ private fun HeaderRow(onClose: () -> Unit, modifier: Modifier = Modifier) {
         )
         Text(
             stringResource(R.string.chat_details_title),
-            style = DsType.large20,
+            style = DsType.navTitle,
             color = colors.labelPrimary,
         )
     }
@@ -290,12 +295,21 @@ private fun Card(
     content: @Composable () -> Unit,
 ) {
     var expanded by remember(sessionKey, title) { mutableStateOf(initiallyExpanded) }
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
+    val colors = DsTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.groupCard)
+            .background(colors.bgLayer1)
+            .border(1.dp, colors.borderL2, DsShapes.groupCard)
+            .animateContentSize(),
+    ) {
         DisclosureRow(
             title = title,
             summary = summary,
             expanded = expanded,
             onToggle = { expanded = !expanded },
+            modifier = Modifier.padding(horizontal = DsSpacing.small),
         ) {
             Column(
                 Modifier.padding(start = 24.dp, top = 4.dp, bottom = 4.dp),

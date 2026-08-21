@@ -137,7 +137,7 @@ fun DisclosureRow(
             val titleModifier = if (running) Modifier.shimmer(runningBrush(colors)) else Modifier
             Text(
                 title,
-                style = DsType.std14,
+                style = DsType.base16Strong,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -149,7 +149,7 @@ fun DisclosureRow(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     summary,
-                    style = DsType.std14,
+                    style = DsType.footnote,
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

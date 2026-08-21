@@ -136,7 +136,8 @@ internal fun Composer(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall)
-            .shadow(DsSpacing.small, DsShapes.composer)
+            // A quiet 4dp ambient shadow: the card floats without the old 8dp slab look.
+            .shadow(4.dp, DsShapes.composer)
             .animateContentSize(),
         shape = DsShapes.composer,
         color = colors.composerCard,
@@ -181,7 +182,7 @@ internal fun Composer(
                             .weight(1f)
                             .padding(vertical = DsSpacing.small),
                         enabled = enabled,
-                        textStyle = DsType.std14.copy(color = colors.labelPrimary),
+                        textStyle = DsType.body17.copy(color = colors.labelPrimary),
                         cursorBrush = SolidColor(colors.accent),
                         minLines = 1,
                         maxLines = 5,
@@ -192,7 +193,7 @@ internal fun Composer(
                                 if (draft.isEmpty() && attachments.isEmpty()) {
                                     Text(
                                         stringResource(R.string.chat_composer_hint),
-                                        style = DsType.std14,
+                                        style = DsType.body17,
                                         color = colors.labelTertiary,
                                     )
                                 }
@@ -216,7 +217,7 @@ internal fun Composer(
                         CircleAction(
                             icon = null,
                             contentDescription = stringResource(R.string.chat_composer_stop),
-                            size = 40,
+                            size = 36,
                             background = colors.error,
                             tint = Color.White,
                             enabled = true,
@@ -236,7 +237,7 @@ internal fun Composer(
                         CircleAction(
                             icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
-                            size = 40,
+                            size = 36,
                             background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
                             tint = if (canSend) Color.White else colors.labelTertiary,
                             enabled = canSend,

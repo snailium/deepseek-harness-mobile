@@ -37,8 +37,20 @@ object DsType {
     val caption11 = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 14.sp)
     val caption11Strong = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 14.sp)
 
+    // iOS-aligned UI roles (2024–26 HIG scale)
+    /** Large-title navigation: 28/34 Bold, the same voice as iOS large titles. */
+    val largeTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.3).sp)
+    /** Navigation-bar title: 17 SemiBold — what a large title collapses to. */
+    val navTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 24.sp, letterSpacing = (-0.2).sp)
+    /** Primary list-row title. */
+    val rowTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 24.sp)
+    /** Body copy at iOS size. */
+    val body17 = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 25.sp)
+    /** Footnote: secondary text on rows and captions. */
+    val footnote = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = (-0.1).sp)
+
     // Composer / rows / bubbles
-    val bubbleText = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp)
+    val bubbleText = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 25.sp)
     val rowText = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
     val tabText = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 16.sp)
     val dockTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 24.sp)
@@ -48,7 +60,7 @@ object DsType {
 /** Material 3 mapping: sizes follow DsType, colors come from DsColors. */
 val DsTypography = Typography(
     displayLarge = DsType.display24,
-    headlineMedium = DsType.large20,
+    headlineMedium = DsType.navTitle,
     titleMedium = DsType.std14Strong,
     bodyLarge = DsType.base16,
     bodyMedium = DsType.std14,

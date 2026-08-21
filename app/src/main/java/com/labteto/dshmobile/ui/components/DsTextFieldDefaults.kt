@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.ui.components
 
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -23,3 +24,16 @@ fun dsTextFieldColors() = TextFieldDefaults.colors(
 
 /** Keyboard options shared by single-line fields: Done on the IME. */
 fun dsDoneKeyboard(): KeyboardOptions = KeyboardOptions.Default
+
+/**
+ * The iOS search-bar field style: a gray capsule with no resting/focus line — the fill says
+ * "field", so the chrome stays quiet.
+ */
+@Composable
+fun dsSearchFieldColors() = TextFieldDefaults.colors(
+    focusedContainerColor = DsTheme.colors.hoverSolid,
+    unfocusedContainerColor = DsTheme.colors.hoverSolid,
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+    cursorColor = DsTheme.colors.accent,
+)

@@ -79,12 +79,18 @@ object Ds {
 
 /** Semantic alias tokens for the light theme. */
 object DsLight {
-    val bgBase = Ds.Bluish00
+    /**
+     * iOS grouped background (systemGroupedBackground): the canvas for support surfaces —
+     * connect, drawer, settings — so cards read as white plates on gray. The chat keeps its own
+     * white canvas via `bgChat`.
+     */
+    val bgBase = Color(0xFFF2F2F7)
+    val bgChat = Color(0xFFFFFFFF)
     val bgLayer1 = Color(0xFFFFFFFF)
     val bgLayer2 = Color(0xFFFFFFFF)
     val bgLayer3 = Color(0xFFFFFFFF)
     val bgModulePlatform = Ds.Bluish60
-    val borderL1 = Color(0x0A000000) // rgba(0,0,0,.04)
+    val borderL1 = Color(0x0F000000) // rgba(0,0,0,.06) — reads on the gray canvas
     val borderL2 = Color(0x1A000000) // rgba(0,0,0,.10)
     val borderL3 = Color(0x1F000000) // rgba(0,0,0,.12)
     val brandPrimary = Ds.Bluish1000 // ink button fill
@@ -140,8 +146,9 @@ object DsLight {
      * shape stopped reading, and a message you cannot tell apart from the assistant's is a worse
      * failure than a fill that is a shade off the reference.
      */
-    val userBubble = Ds.Deepseek100
-    val userBubbleHighlight = Ds.Deepseek200
+    /** Solid brand blue, iMessage-style: the user's side is a filled bubble with white text. */
+    val userBubble = Ds.Deepseek500
+    val userBubbleHighlight = Ds.Deepseek400
     /**
      * The assistant's card fill. The harness web UI renders assistant turns container-less, and this
      * app used to copy that — which left the transcript as plain text on white and the user bubble
@@ -151,7 +158,7 @@ object DsLight {
      */
     val assistantBubble = Ds.Bluish75
     val composerCard = Color(0xFFFFFFFF)
-    val sidebar = Ds.Bluish50
+    val sidebar = Color(0xFFF2F2F7)
     val sidebarNavActive = Ds.Bluish100
     val sidebarNavAccent = Ds.Deepseek100
     val sidebarNavHover = Ds.Bluish75
@@ -166,8 +173,10 @@ object DsLight {
 
 /** Semantic alias tokens for the dark theme. */
 object DsDark {
-    val bgBase = Ds.Bluish950
-    val bgLayer1 = Ds.Bluish875
+    /** iOS grouped background: near-black, with #1C1C1E plates on top. */
+    val bgBase = Color(0xFF000000)
+    val bgChat = Color(0xFF000000)
+    val bgLayer1 = Color(0xFF1C1C1E)
     val bgLayer2 = Ds.Bluish850
     val bgLayer3 = Ds.Bluish800
     val bgModulePlatform = Ds.Bluish800
@@ -207,12 +216,12 @@ object DsDark {
     val warnTertiary = Ds.Amber900
     val toastBg = Ds.Bluish750
     val tooltipBg = Ds.Bluish750
-    val userBubble = Ds.Bluish850
-    val userBubbleHighlight = Ds.Bluish750
+    val userBubble = Ds.Deepseek500
+    val userBubbleHighlight = Ds.Deepseek450
     /** One step off the transcript background, so the card edge reads without a bright border. */
-    val assistantBubble = Ds.Bluish850
-    val composerCard = Ds.Bluish850
-    val sidebar = Ds.Bluish900
+    val assistantBubble = Color(0xFF1C1C1E)
+    val composerCard = Color(0xFF1C1C1E)
+    val sidebar = Color(0xFF000000)
     val sidebarNavActive = Ds.Bluish750
     val sidebarNavAccent = Ds.Bluish800
     val sidebarNavHover = Ds.Bluish850

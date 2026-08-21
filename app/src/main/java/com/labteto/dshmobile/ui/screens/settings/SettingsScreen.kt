@@ -54,10 +54,10 @@ import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.DsAlert
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
-import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsGroupCard
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
@@ -124,7 +124,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     )
                     Text(
                         stringResource(R.string.settings_title),
-                        style = DsType.large20,
+                        style = DsType.navTitle,
                         color = colors.labelPrimary,
                     )
                 }
@@ -253,33 +253,18 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     }
 
     if (showDisconnectDialog) {
-        DsDialog(
+        DsAlert(
             title = stringResource(R.string.settings_connection_disconnect_confirm),
+            message = stringResource(R.string.settings_connection_disconnect_message),
+            confirmLabel = stringResource(R.string.settings_connection_disconnect),
+            destructive = true,
+            onConfirm = {
+                viewModel.disconnect()
+                showDisconnectDialog = false
+                onClose()
+            },
             onDismiss = { showDisconnectDialog = false },
-        ) {
-            Text(
-                stringResource(R.string.settings_connection_disconnect_message),
-                style = DsType.std14,
-                color = colors.labelSecondary,
-                modifier = Modifier.padding(bottom = DsSpacing.medium),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                DsButton(
-                    text = stringResource(R.string.settings_connection_disconnect),
-                    onClick = {
-                        viewModel.disconnect()
-                        showDisconnectDialog = false
-                        onClose()
-                    },
-                    variant = DsButtonVariant.Danger,
-                )
-                DsButton(
-                    text = stringResource(R.string.common_cancel),
-                    onClick = { showDisconnectDialog = false },
-                    variant = DsButtonVariant.Ghost,
-                )
-            }
-        }
+        )
     }
 }
 

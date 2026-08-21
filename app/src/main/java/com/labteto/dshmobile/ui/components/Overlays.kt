@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
@@ -13,9 +14,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +29,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,13 +42,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.labteto.dshmobile.R
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -83,6 +92,98 @@ fun DsDialog(
                     Text(it, style = DsType.large20, color = colors.labelPrimary)
                 }
                 content()
+            }
+        }
+    }
+}
+
+/**
+ * iOS-style alert: a small centered plate — bold title, secondary message, hairline-separated
+ * text-button row — for confirmations. The cancel/confirm pair reads like an iOS alert; text
+ * entry stays on [DsDialog]'s form plate.
+ */
+@Composable
+fun DsAlert(
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    message: String? = null,
+    destructive: Boolean = false,
+) {
+    val colors = DsTheme.colors
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = modifier.widthIn(min = 270.dp, max = 300.dp),
+            shape = DsShapes.alert,
+            color = colors.bgLayer2,
+            border = BorderStroke(1.dp, colors.borderL1),
+            shadowElevation = 4.dp,
+        ) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    title,
+                    style = DsType.navTitle,
+                    color = colors.labelPrimary,
+                    textAlign = TextAlign.Center,
+                )
+                message?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        style = DsType.footnote,
+                        color = colors.labelSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                // iOS hairline separating the message from the button row.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(colors.borderL1),
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.common_cancel),
+                            style = DsType.body17,
+                            color = colors.labelSecondary,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(24.dp)
+                            .background(colors.borderL1),
+                    )
+                    TextButton(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                    ) {
+                        Text(
+                            confirmLabel,
+                            style = DsType.body17.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = if (destructive) colors.error else colors.accent,
+                        )
+                    }
+                }
             }
         }
     }

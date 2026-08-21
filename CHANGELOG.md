@@ -1,3 +1,49 @@
+## [0.11.0] - 2026-08-21
+
+The whole interface is re-cut to an Apple-grade visual language. The app
+keeps every function, gesture and navigation it had, but the surfaces,
+type, chrome and controls are rebuilt on iOS design principles: a grouped
+gray canvas for support screens with white plates on top, a calm white
+chat canvas with filled user bubbles, a large-title navigation row, and an
+iOS type scale throughout.
+
+### Added
+
+- **Large-title chat chrome.** The session header renders its title at 28sp
+  with the host beneath it, collapsing to the 17sp navigation size on
+  scroll — the iOS large-title pattern, reusing the existing fold state.
+- **iOS alerts for confirmations.** Destructive and cancel/confirm pairs
+  now present as small centered plates with a hairline-separated button
+  row; text entry keeps the form dialog.
+- **iOS sheets.** Bottom sheets round only the top corners, carry the
+  36x5dp grey grabber, and title themselves at 17sp semibold.
+- **iOS type scale.** New roles — large title, nav title, row title, body
+  17, footnote 13 — with the app's densest captions stepped up to it.
+
+### Changed
+
+- **Two-canvas surfaces.** The chat keeps its white (light) / black (dark)
+  canvas via a new `bgChat` token; connect, drawer, settings and the
+  details panel sit on the iOS grouped gray with white cards on top.
+- **Filled user bubbles.** The user's messages are now solid brand-blue
+  bubbles with white text — the iOS 18 Messages arrangement — replacing the
+  tinted fill; the assistant keeps its grey card, so the two sides of the
+  conversation read instantly.
+- **Inset-grouped lists.** The chat drawer, settings groups, connect
+  sections and the details panel become grouped white plates with hairline
+  borders on gray; session rows step up to 17sp titles with 13sp
+  subtitles.
+- **Quieter composer.** Softer shadow, 36dp send/stop circles and 17sp
+  input text on the same floating card.
+- **iOS search field** in the drawer: a compact grey capsule with no
+  underline, the placeholder doing the labelling.
+
+### Verified
+
+- 164 unit tests pass; lintDebug 0 errors; LocalizedStringsTest green.
+- Signed release APK (CN=DSH Mobile), SHA256SUMS.txt updated; end-to-end
+  verified against the GitHub release.
+
 # Changelog
 
 All notable changes to DSH Mobile are documented here. Format based on

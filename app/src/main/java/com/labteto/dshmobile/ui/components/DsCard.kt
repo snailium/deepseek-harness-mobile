@@ -19,9 +19,9 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 /**
  * A grouped surface: rounded, filled, hairline-bordered.
  *
- * The border is not decoration. In the light theme `bgBase` and `bgLayer1` are both pure white, so
- * a card drawn with fill alone is invisible — the only thing separating it from the page is its
- * edge.
+ * The border is not decoration. In the light theme `bgBase` is the iOS grouped gray and
+ * `bgLayer1` is white, so the fill does most of the separation — but on surfaces that share the
+ * white layer a card drawn with fill alone would still be invisible, so the hairline stays.
  */
 @Composable
 fun DsCard(
@@ -34,9 +34,9 @@ fun DsCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(DsShapes.block)
+            .clip(DsShapes.groupCard)
             .background(colors.bgLayer1)
-            .border(1.dp, colors.borderL2, DsShapes.block)
+            .border(1.dp, colors.borderL2, DsShapes.groupCard)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
         verticalArrangement = verticalArrangement,

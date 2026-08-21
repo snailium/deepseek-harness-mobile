@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -19,7 +21,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -67,6 +69,7 @@ import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.relativeTime
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -177,7 +180,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             // reminder of where the protection lives, not an alarm about a fault.
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
+                shape = DsShapes.alert,
                 color = colors.accentTertiary,
             ) {
                 Text(
@@ -248,6 +251,17 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                 verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
             ) {
                 SectionHeader(stringResource(R.string.connect_manual_title))
+                // The form is one grouped plate: field, endpoint reading, and the disclosures
+                // live inside it, iOS Settings-style.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(DsShapes.groupCard)
+                        .background(colors.bgLayer1)
+                        .border(1.dp, colors.borderL2, DsShapes.groupCard)
+                        .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                ) {
                 TextField(
                     value = address,
                     onValueChange = { address = it },
@@ -354,6 +368,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                         )
                     }
                 }
+                } // end of the grouped form plate
                 DsButton(
                     text = stringResource(R.string.connect_button),
                     onClick = { connect() },
@@ -752,7 +767,7 @@ private fun ConnectFailureBlock(
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = DsShapes.alert,
         color = colors.warnTertiary,
     ) {
         Column(

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -48,7 +49,8 @@ fun DsBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
         modifier = modifier,
-        shape = DsShapes.dialog,
+        // iOS sheets round the top corners only — the plate sits on the screen edge.
+        shape = DsShapes.sheetTop,
         containerColor = colors.bgLayer2,
         scrimColor = colors.overlayMask,
         dragHandle = null,
@@ -60,15 +62,15 @@ fun DsBottomSheet(
                 .padding(horizontal = DsSpacing.large, vertical = DsSpacing.comfortable),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            // A short grabber stands in for the platform drag handle so the sheet still reads as
-            // draggable without the default's heavy vertical padding.
+            // The iOS grabber: a 36x5dp grey bar that says "draggable" without the platform
+            // handle's heavy padding.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 Spacer(
                     Modifier
-                        .fillMaxWidth(0.12f)
-                        .height(4.dp)
+                        .width(36.dp)
+                        .height(5.dp)
                         .clip(DsShapes.pillFull)
-                        .background(colors.borderL3),
+                        .background(colors.labelCaption),
                 )
             }
             if (title != null) {
@@ -77,7 +79,7 @@ fun DsBottomSheet(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = DsType.large20, color = colors.labelPrimary)
+                        Text(title, style = DsType.navTitle, color = colors.labelPrimary)
                         if (subtitle != null) {
                             Text(subtitle, style = DsType.caption11, color = colors.labelTertiary)
                         }

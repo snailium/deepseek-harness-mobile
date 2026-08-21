@@ -15,6 +15,8 @@ enum class ThemePreference { LIGHT, DARK, SYSTEM }
 /** Full DeepSeek Harness semantic palette for one scheme. */
 data class DsColors(
     val bgBase: Color,
+    /** The chat canvas: white in light, black in dark — the one surface that stays calm. */
+    val bgChat: Color,
     val bgLayer1: Color,
     val bgLayer2: Color,
     val bgLayer3: Color,
@@ -74,7 +76,7 @@ data class DsColors(
 
 object DsThemeTokens {
     val light = DsColors(
-        bgBase = DsLight.bgBase, bgLayer1 = DsLight.bgLayer1, bgLayer2 = DsLight.bgLayer2,
+        bgBase = DsLight.bgBase, bgChat = DsLight.bgChat, bgLayer1 = DsLight.bgLayer1, bgLayer2 = DsLight.bgLayer2,
         bgLayer3 = DsLight.bgLayer3, bgModulePlatform = DsLight.bgModulePlatform,
         borderL1 = DsLight.borderL1, borderL2 = DsLight.borderL2, borderL3 = DsLight.borderL3,
         brandPrimary = DsLight.brandPrimary, onBrandPrimary = DsLight.onBrandPrimary,
@@ -106,7 +108,7 @@ object DsThemeTokens {
     )
 
     val dark = DsColors(
-        bgBase = DsDark.bgBase, bgLayer1 = DsDark.bgLayer1, bgLayer2 = DsDark.bgLayer2,
+        bgBase = DsDark.bgBase, bgChat = DsDark.bgChat, bgLayer1 = DsDark.bgLayer1, bgLayer2 = DsDark.bgLayer2,
         bgLayer3 = DsDark.bgLayer3, bgModulePlatform = DsDark.bgModulePlatform,
         borderL1 = DsDark.borderL1, borderL2 = DsDark.borderL2, borderL3 = DsDark.borderL3,
         brandPrimary = DsDark.brandPrimary, onBrandPrimary = DsDark.onBrandPrimary,

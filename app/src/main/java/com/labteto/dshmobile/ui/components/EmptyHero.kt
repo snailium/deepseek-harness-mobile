@@ -45,14 +45,14 @@ fun EmptyHero(
         WhaleMark(Modifier.size(64.dp))
         Text(
             headline,
-            style = DsType.hero26,
+            style = DsType.largeTitle,
             color = colors.labelPrimary,
             textAlign = TextAlign.Center,
         )
         subtitle?.let {
             Text(
                 it,
-                style = DsType.base16,
+                style = DsType.body17,
                 color = colors.labelSecondary,
                 textAlign = TextAlign.Center,
             )
