@@ -1,3 +1,48 @@
+## [0.13.0] - 2026-08-21
+
+The Sessions screen is rebuilt after a review round: one font scale, one
+header line, one search field that is not cut off, and one compose button
+floating the way Messages floats it. The five complaints — font chaos,
+clipped search, the host switcher overlapping the sort chip, oversized
+row titles, and a heavy layout — each get a specific fix, all cited
+against the Apple HIG.
+
+### Changed
+
+- **One-line navigation bar.** The 28sp large title and the two-line
+  header stack (title, host line, sort chip floating between them) are
+  gone. The chrome is now a single iOS bar: back chevron, centered
+  "Chats" in the 17sp navigation size, and on the trailing side a compact
+  host chip (dot · hostname · chevron — tap for Switch harness /
+  Settings) and an icon-only sort button (⇅ — Manual order / Sort by last
+  update). Everything shares one baseline, so nothing overlaps or floats
+  unaligned.
+- **Search capsule rebuilt.** The field was a Material TextField forced to
+  44dp while Material's own minimum is 56dp — the text was being clipped.
+  It is now a hand-built 40dp iOS capsule (magnifier, clear button, accent
+  cursor) with the Cancel button animating in beside it while focused.
+- **One list size.** Session titles drop from 17 to 16sp Medium; workspace
+  headers stay as proper 13sp semibold iOS section headers. The three-way
+  font fight (28 / 17 / 13) is over.
+- **iOS selection, not a tint.** The current session row keeps a
+  persistent highlight — as a navigation list should — but it is now the
+  neutral system-gray selection fill. The accent rail and tinted
+  background are gone, and the redundant amber "Needs you" pill is removed
+  (the row's status dot already turns amber).
+- **Floating compose button.** The full-width bottom toolbar and its
+  hairline are deleted; the + button now floats at the trailing bottom
+  corner over the list, Messages-style, with the list padded so no row
+  hides behind it.
+- Dividers are inset to the title's leading edge so they never run under
+  the icons.
+
+### Verified
+
+- 164 unit tests pass; lintDebug 0 errors; LocalizedStringsTest green —
+  every string already existed in all eleven locales.
+- Signed release APK (CN=DSH Mobile), SHA256SUMS.txt updated; end-to-end
+  verified against the GitHub release.
+
 ## [0.12.0] - 2026-08-21
 
 The two "sidebars" are gone. Apple's HIG is explicit that sidebars don't

@@ -42,8 +42,11 @@ object DsType {
     val largeTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.3).sp)
     /** Navigation-bar title: 17 SemiBold — what a large title collapses to. */
     val navTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 24.sp, letterSpacing = (-0.2).sp)
-    /** Primary list-row title. */
-    val rowTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 24.sp)
+    /**
+     * Sessions-list row title: 16 Medium, one notch below the chat's 17 body — list rows sit
+     * quietly under the 13pt section headers instead of shouting over them.
+     */
+    val rowTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 22.sp)
     /** Body copy at iOS size. */
     val body17 = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 25.sp)
     /** Footnote: secondary text on rows and captions. */

@@ -1,7 +1,12 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,11 +25,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -47,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -66,7 +73,6 @@ import com.labteto.dshmobile.data.WorkspaceRow
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
-import com.labteto.dshmobile.ui.components.dsSearchFieldColors
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsIconButton
@@ -105,11 +111,10 @@ private const val SORT_UPDATED = "updated"
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
  *
- * The chrome follows iOS: a back chevron and a large title, the host under the title (tapping it
- * offers Switch harness and Settings — the old connected-to card and footer rows are gone), a
- * sort menu on the trailing side, a search field with a Cancel button while it is focused, a plain
- * hairline-separated list with swipe-to-archive, and a single compose button in the bottom
- * toolbar that creates a session or a workspace.
+ * The chrome follows iOS: a compact navigation bar — back chevron, centered title, host switcher
+ * and sort on the trailing side, all on one baseline — a 40dp search capsule with a Cancel button
+ * while it is focused, a plain hairline-separated list with swipe-to-archive, and a floating
+ * compose button (the Messages pattern) that creates a session or a workspace.
  */
 @Composable
 fun SessionsScreen(
@@ -216,11 +221,14 @@ fun SessionsScreen(
             .background(colors.bgBase)
             .safeDrawingPadding(),
     ) {
-        // ---- iOS navigation row: back · large title + host menu · sort ----
+        // ---- iOS navigation bar: back · centered title · host switcher + sort ----
+        // One line, one baseline. The 28sp large title and the two-line header stack are gone,
+        // and with them the sort chip that used to float unaligned beside the host's second line.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                .heightIn(min = 48.dp)
+                .padding(horizontal = DsSpacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DsIconButton(
@@ -229,64 +237,48 @@ fun SessionsScreen(
                 onClick = onClose,
                 mirrorForRtl = true,
             )
-            // The host lives under the title and is itself the anchor for its verbs: switching
-            // harnesses or opening Settings is one tap, no card or footer row needed.
-            HostMenu(
+            // Centered in the space between the back button and the trailing controls, so a long
+            // host name can never push it under either one.
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    text = stringResource(R.string.chatlist_title),
+                    style = DsType.navTitle,
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            // The host is a compact chip on the title's row, itself the anchor for its verbs:
+            // switching harnesses or opening Settings is one tap, no card or footer row needed.
+            HostChip(
                 hostLabel = hostLabel,
                 onSwitchHost = onSwitchHost,
                 onOpenSettings = onOpenSettings,
-                modifier = Modifier.weight(1f),
             )
-            SortChip(sortByRecency) { next ->
+            Spacer(Modifier.width(DsSpacing.xsmall))
+            SortButton { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
         }
 
-        // ---- Search: capsule field, Cancel while focused (iOS behaviour) ----
+        // ---- Search: 40dp iOS capsule; Cancel fades in beside it while focused ----
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = DsSpacing.medium),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .onFocusChanged { searchFocused = it.isFocused },
-                placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
-                leadingIcon = {
-                    Icon(
-                        FeatherIcons.Search,
-                        contentDescription = null,
-                        tint = colors.labelTertiary,
-                        modifier = Modifier.size(16.dp),
-                    )
-                },
-                trailingIcon = if (query.isNotEmpty()) {
-                    {
-                        Icon(
-                            FeatherIcons.X,
-                            contentDescription = stringResource(R.string.chatlist_search_clear),
-                            tint = colors.labelTertiary,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .clickable(role = Role.Button, onClick = { query = "" })
-                                .padding(12.dp),
-                        )
-                    }
-                } else {
-                    null
-                },
-                singleLine = true,
-                shape = DsShapes.pillFull,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                colors = dsSearchFieldColors(),
+            SearchCapsule(
+                modifier = Modifier.weight(1f),
+                query = query,
+                onQueryChange = { query = it },
+                onFocusChange = { searchFocused = it },
             )
-            if (searchFocused) {
+            AnimatedVisibility(
+                visible = searchFocused,
+                enter = fadeIn(DsAnimations.fade) + slideInHorizontally(initialOffsetX = { it / 3 }),
+                exit = fadeOut(DsAnimations.fade) + slideOutHorizontally(targetOffsetX = { it / 3 }),
+            ) {
                 Text(
                     stringResource(R.string.common_cancel),
                     style = DsType.body17.copy(fontWeight = FontWeight.Medium),
@@ -312,10 +304,12 @@ fun SessionsScreen(
             )
         }
 
-        // ---- The list: full-bleed, plain iOS style ----
+        // ---- The list, with the compose action floating over it (Messages pattern) ----
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(vertical = DsSpacing.xsmall),
+            modifier = Modifier.fillMaxSize(),
+            // Room for the floating compose button at the trailing bottom corner.
+            contentPadding = PaddingValues(top = DsSpacing.xsmall, bottom = 96.dp),
         ) {
             if (query.isNotBlank()) {
                 item(key = "search-header") {
@@ -462,19 +456,15 @@ fun SessionsScreen(
             }
         }
 
-        // ---- Bottom toolbar: one compose action, iOS style ----
-        HorizontalDivider(thickness = 1.dp, color = colors.borderL1)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = DsSpacing.small),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Surface(
+        Surface(
                 onClick = { composeOpen = true },
                 shape = CircleShape,
                 color = colors.buttonInfoFill,
-                modifier = Modifier.size(44.dp),
+                shadowElevation = 6.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = DsSpacing.large, bottom = DsSpacing.large)
+                    .size(48.dp),
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                     Icon(
@@ -554,100 +544,154 @@ fun SessionsScreen(
 }
 
 /**
- * The host identity under the large title, itself the anchor for its verbs.
+ * The host identity as a compact chip on the navigation bar's trailing side, itself the anchor
+ * for its verbs.
  *
  * Tapping the host (or the chevron) offers the two things you can do to the connection: switch to
- * another harness, or open Settings. This replaces the old connected-to card and footer rows —
- * one menu instead of three chrome elements.
+ * another harness, or open Settings. The old connected-to card, footer rows and the two-line
+ * header stack are all gone — the chip is one tappable pill on the title's row.
  */
 @Composable
-private fun HostMenu(
+private fun HostChip(
     hostLabel: String?,
     onSwitchHost: () -> Unit,
     onOpenSettings: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    Column(modifier.padding(horizontal = DsSpacing.small)) {
-        Text(
-            text = stringResource(R.string.chatlist_title),
-            style = DsType.largeTitle,
-            color = colors.labelPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        if (hostLabel != null) {
-            DsMenu(
-                anchor = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        StateDot(StateDotState.Done, size = 6.dp)
-                        Spacer(Modifier.width(DsSpacing.xsmall))
-                        Text(
-                            hostLabel,
-                            style = DsType.footnote,
-                            color = colors.labelTertiary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Icon(
-                            FeatherIcons.ChevronDown,
-                            contentDescription = null,
-                            tint = colors.labelTertiary,
-                            modifier = Modifier.size(12.dp),
-                        )
-                    }
-                },
-                items = listOf(
-                    MenuItem(text = stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
-                    MenuItem(text = stringResource(R.string.settings_title)) { onOpenSettings() },
-                ),
-            )
-        }
-    }
+    if (hostLabel == null) return
+    DsMenu(
+        anchor = {
+            Row(
+                modifier = Modifier
+                    .heightIn(min = 30.dp)
+                    .clip(DsShapes.pillFull)
+                    .background(colors.hoverSolid)
+                    .padding(horizontal = DsSpacing.compact),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+            ) {
+                StateDot(StateDotState.Done, size = 6.dp)
+                Text(
+                    hostLabel,
+                    style = DsType.footnote,
+                    color = colors.labelSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 132.dp),
+                )
+                Icon(
+                    FeatherIcons.ChevronDown,
+                    contentDescription = null,
+                    tint = colors.labelTertiary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        },
+        items = listOf(
+            MenuItem(text = stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
+            MenuItem(text = stringResource(R.string.settings_title)) { onOpenSettings() },
+        ),
+    )
 }
 
 /**
- * The session-order control.
+ * The session-order control: an icon-only navigation-bar button whose menu names both orders.
  *
- * It used to be a bare ⇅ icon whose only label was a content description, which told a sighted user
- * nothing: two arrows over a chat list could as easily mean sync, move, or reorder. Naming the
- * current order and offering the other one is the whole fix — and the strings for both modes were
- * already translated in all eleven locales, waiting for a control to use them.
+ * The chrome is one line now, so the text chip has to go; the menu's labels — already translated
+ * in all eleven locales — carry the meaning the icon alone cannot, and the content description
+ * says what the button does for assistive tech.
  */
 @Composable
-private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
+private fun SortButton(onPick: (byRecency: Boolean) -> Unit) {
     val colors = DsTheme.colors
     val updated = stringResource(R.string.chatlist_sort_updated)
     val manual = stringResource(R.string.chatlist_sort_manual)
     DsMenu(
         anchor = {
-            Row(
-                modifier = Modifier
-                    .clip(DsShapes.cube)
-                    .padding(horizontal = DsSpacing.xsmall, vertical = DsSpacing.tiny),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-            ) {
-                Icon(
-                    FeatherIcons.ChevronsUpDown,
-                    contentDescription = stringResource(R.string.chatlist_sort_title),
-                    tint = colors.labelTertiary,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    if (byRecency) updated else manual,
-                    style = DsType.small13,
-                    color = colors.labelSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+            Icon(
+                FeatherIcons.ChevronsUpDown,
+                contentDescription = stringResource(R.string.chatlist_sort_title),
+                tint = colors.labelSecondary,
+                modifier = Modifier.size(18.dp),
+            )
         },
         items = listOf(
             MenuItem(text = manual) { onPick(false) },
             MenuItem(text = updated) { onPick(true) },
         ),
     )
+}
+
+/**
+ * The iOS search capsule, built by hand because Material3's TextField enforces a 56dp minimum
+ * height that clips the field when it is forced shorter — which is exactly what the old field did
+ * at 44dp, cutting the placeholder and the typed text off at top and bottom.
+ *
+ * Fixed 40dp tall (the iOS search-field height), gray fill, magnifier, clear button and accent
+ * cursor; the Cancel button that appears beside it lives in the caller, so the capsule only has
+ * to be a field.
+ */
+@Composable
+private fun SearchCapsule(
+    modifier: Modifier,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onFocusChange: (Boolean) -> Unit,
+) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .clip(DsShapes.pillFull)
+            .background(colors.hoverSolid)
+            .padding(horizontal = DsSpacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            FeatherIcons.Search,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { onFocusChange(it.isFocused) },
+            textStyle = DsType.base16.copy(color = colors.labelPrimary),
+            cursorBrush = SolidColor(colors.accent),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            decorationBox = { innerTextField ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (query.isEmpty()) {
+                        Text(
+                            stringResource(R.string.chatlist_search_hint),
+                            style = DsType.base16,
+                            color = colors.labelTertiary,
+                            maxLines = 1,
+                        )
+                    }
+                    innerTextField()
+                }
+            },
+        )
+        if (query.isNotEmpty()) {
+            Spacer(Modifier.width(DsSpacing.xsmall))
+            Icon(
+                FeatherIcons.X,
+                contentDescription = stringResource(R.string.chatlist_search_clear),
+                tint = colors.labelTertiary,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClick = { onQueryChange("") })
+                    .padding(8.dp),
+            )
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -705,7 +749,7 @@ private fun WorkspaceHeader(
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier
-                    .size(14.dp)
+                    .size(12.dp)
                     .graphicsLayer { rotationZ = rotation }
                     .autoMirrorDirectional(),
             )
@@ -890,7 +934,7 @@ private fun SessionRowItem(
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
                     .padding(start = (depth * 16).dp)
-                    .background(if (isCurrent) colors.sidebarNavActive else Color.Transparent)
+                    .background(if (isCurrent) colors.selection else Color.Transparent)
                     .combinedClickable(
                         onClick = {
                             scope.launch {
@@ -907,16 +951,9 @@ private fun SessionRowItem(
                     .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-            // A current-session accent rail reads faster than a background tint alone on a
-            // plain list.
-            Box(
-                Modifier
-                    .width(2.dp)
-                    .height(24.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(if (isCurrent) colors.accent else Color.Transparent),
-            )
-            Spacer(Modifier.width(DsSpacing.small))
+            // The current session carries iOS's plain-list selection — a neutral gray fill,
+            // nothing else. No rail, no tint: the gray says "selected" without competing with
+            // the status dot.
             // The chevron is its own tap target: opening a session and looking at what it spawned
             // are different intentions, and conflating them means you cannot do one without the
             // other. Both branches occupy the same 36dp slot (32dp target + 4dp gap) so titles
@@ -989,10 +1026,8 @@ private fun SessionRowItem(
                     )
                 }
             }
-            if (session.pendingInteraction != null) {
-                Spacer(Modifier.width(DsSpacing.xsmall))
-                DsPill(text = stringResource(R.string.chatlist_needs_action), warn = true)
-            }
+            // No "Needs you" pill: the row's state dot already turns amber for a pending
+            // interaction — one signal, not two.
             // The count replaces the old "Subagents" pill on parents: with the children indented
             // underneath, what is worth saying is how many are down there when the row is closed.
             if (childCount > 0) {
@@ -1015,11 +1050,12 @@ private fun SessionRowItem(
                     )
                 }
             }
-            // iOS plain-list separator, inset from the leading edge.
+            // iOS plain-list separator, aligned to the title's leading edge (12dp row inset +
+            // 32dp chevron slot + 4dp + 8dp dot + 8dp gap) so it never runs under the icons.
             HorizontalDivider(
                 thickness = 1.dp,
                 color = colors.borderL1,
-                modifier = Modifier.padding(start = DsSpacing.comfortable),
+                modifier = Modifier.padding(start = (64 + depth * 16).dp),
             )
             }
         }
