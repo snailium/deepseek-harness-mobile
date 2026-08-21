@@ -3,6 +3,21 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.10.2] - 2026-08-21
+
+The model picker leaves the top bar for the composer. A model choice
+configures the next turn, so the trigger now sits above the input where the
+choice takes effect — the same pattern Gemini's 2025 prompt-bar redesign and
+ChatGPT's composer use — and the header's identity row is left with identity
+only.
+
+### Changed
+
+- **Model selector above the input.** A text-style trigger with a chevron
+  sits at the top of the composer card and opens the model sheet; the
+  non-routable warning dot carried over. The header no longer carries the
+  model pill, and the session title regains the space it used.
+
 ## [0.10.1] - 2026-08-21
 
 The header's third row disappears: the session-meta chips and the Chat /
