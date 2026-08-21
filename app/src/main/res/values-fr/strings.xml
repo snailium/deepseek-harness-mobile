@@ -461,4 +461,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · copier</string>
     <string name="chat_message_actions">Actions du message</string>
+    <string name="nav_active">Actif</string>
+    <string name="settings_dynamic_color">Couleur dynamique</string>
+    <string name="settings_dynamic_color_hint">Utilise les couleurs du fond d\'écran sur Android 12+.</string>
 </resources>

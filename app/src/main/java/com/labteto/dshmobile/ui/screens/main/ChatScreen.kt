@@ -68,14 +68,17 @@ import kotlinx.coroutines.launch
  * animates out from under the cursor.
  */
 @Composable
-fun ChatScreen(
+fun ConversationScreen(
+    sessionId: String,
     hostLabel: String?,
-    onOpenSessions: () -> Unit,
-    onOpenDetails: () -> Unit,
+    onBack: () -> Unit,
+    onSwitchHost: () -> Unit,
 ) {
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
     val colors = DsTheme.colors
+    // The route names the session to show; open it once on entry (idempotent if already current).
+    LaunchedEffect(sessionId) { store.openSession(sessionId) }
     val context = LocalContext.current
     val toast = rememberDsToast()
 
@@ -247,13 +250,16 @@ fun ChatScreen(
                 subagentCount = subagents.size,
                 tab = tab,
                 collapsed = chromeCollapsed,
-                onOpenSessions = onOpenSessions,
+                modelLabel = currentModelLabel(models),
+                modelsRoutable = models?.routable != false,
+                onBack = onBack,
+                onOpenModels = { sheet = ChatSheet.Models },
                 onOpenPresets = {
                     scope.launch { store.refreshAgentPresets() }
                     sheet = ChatSheet.Presets
                 },
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
-                onOpenDetails = onOpenDetails,
+                onSwitchHost = onSwitchHost,
                 onTabChange = { tab = it },
             )
 
@@ -416,9 +422,7 @@ fun ChatScreen(
                 contextPressure = contextPressure,
                 running = conversation?.running == true,
                 enabled = currentSessionId != null,
-                models = models,
                 onOpenSheet = { sheet = ChatSheet.Commands },
-                onOpenModels = { sheet = ChatSheet.Models },
                 onSend = ::send,
                 onStop = { scope.launch { store.cancelTurn() } },
             )

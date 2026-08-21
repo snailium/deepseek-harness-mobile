@@ -471,4 +471,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · копировать</string>
     <string name="chat_message_actions">Действия с сообщением</string>
+    <string name="nav_active">Активность</string>
+    <string name="settings_dynamic_color">Динамический цвет</string>
+    <string name="settings_dynamic_color_hint">Использует цвета обоев на Android 12+.</string>
 </resources>

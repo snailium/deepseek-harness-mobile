@@ -660,6 +660,13 @@ internal object FeatherIcons {
         }
     }
 
+    /** `activity` — the live-session control center (Active tab). */
+    val Activity: ImageVector by lazy {
+        feather("Activity") {
+            moveTo(22f, 12f); lineTo(18f, 12f); lineTo(15f, 21f); lineTo(9f, 3f); lineTo(6f, 12f); lineTo(2f, 12f)
+        }
+    }
+
     /** `layout` — agent presets. */
     val Layout: ImageVector by lazy {
         feather("Layout") {

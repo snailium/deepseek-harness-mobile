@@ -17,17 +17,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,8 +90,9 @@ import java.util.Locale
  * blanket-labelling the whole screen read-only, as it used to, tells users their own preferences
  * cannot be changed when they plainly can.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel = hiltViewModel()) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val store = rememberSessionStore()
@@ -96,7 +101,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     val toast = rememberDsToast()
     var showDisconnectDialog by remember { mutableStateOf(false) }
     var pluginsOpen by remember { mutableStateOf(false) }
-    BackHandler(onBack = onClose)
+    if (onClose != null) BackHandler(onBack = onClose)
 
     val hostsCleared = stringResource(R.string.settings_forget_hosts_done)
     val sessionsCleared = stringResource(R.string.settings_clear_last_sessions_done)
@@ -110,28 +115,40 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .safeDrawingPadding()
+                    .then(if (onClose == null) Modifier else Modifier.safeDrawingPadding())
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DsIconButton(
-                        icon = FeatherIcons.ArrowLeft,
-                        contentDescription = stringResource(R.string.common_back),
-                        onClick = onClose,
-                        mirrorForRtl = true,
-                    )
-                    Text(
-                        stringResource(R.string.settings_title),
-                        style = DsType.navTitle,
-                        color = colors.labelPrimary,
-                    )
-                }
+                TopAppBar(
+                    title = {
+                        Text(
+                            stringResource(R.string.settings_title),
+                            style = DsType.navTitle,
+                        )
+                    },
+                    navigationIcon = {
+                        if (onClose != null) {
+                            DsIconButton(
+                                icon = FeatherIcons.ArrowLeft,
+                                contentDescription = stringResource(R.string.common_back),
+                                onClick = onClose,
+                                mirrorForRtl = true,
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
+                    windowInsets = WindowInsets(0, 0, 0, 0),
+                )
 
                 SettingsCard(stringResource(R.string.settings_general)) {
                     LanguageRow(settings) { tag -> viewModel.set { it.copy(localeOverride = tag) } }
                     AppearanceRow(settings) { mode -> viewModel.set { it.copy(themePreference = mode) } }
+                    ToggleRow(
+                        stringResource(R.string.settings_dynamic_color),
+                        settings.dynamicColor,
+                        stringResource(R.string.settings_dynamic_color_hint),
+                    ) { viewModel.set { it.copy(dynamicColor = !it.dynamicColor) } }
                 }
 
                 SettingsCard(stringResource(R.string.settings_connection)) {
@@ -261,7 +278,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
             onConfirm = {
                 viewModel.disconnect()
                 showDisconnectDialog = false
-                onClose()
+                onClose?.invoke()
             },
             onDismiss = { showDisconnectDialog = false },
         )

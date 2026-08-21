@@ -108,9 +108,7 @@ internal fun Composer(
     contextPressure: ContextPressureView?,
     running: Boolean,
     enabled: Boolean,
-    models: SessionModelsValue?,
     onOpenSheet: () -> Unit,
-    onOpenModels: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -147,10 +145,6 @@ internal fun Composer(
             Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
-            models?.let { m ->
-                ModelStrip(models = m, enabled = enabled, onClick = onOpenModels)
-            }
-
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
                 AttachmentStrip(attachments, onRemoveAttachment)
             }
@@ -362,61 +356,6 @@ private fun PermissionChip(
                 confirming = null
                 onPick(target)
             },
-        )
-    }
-}
-
-/**
- * The model selector trigger, above the input.
- *
- * A text-style trigger rather than the filled pill the header used to carry. The pill existed to
- * fake a hover affordance over the transcript, where nothing else looked tappable; here the
- * chevron sits next to the very action the choice configures, so the plainest reading is a
- * control. The name comes from the wire catalog, not the wire ids, and the non-routable warning
- * dot survives from the old placement — it is the one thing the model chip said that this strip
- * must keep saying.
- */
-@Composable
-private fun ModelStrip(
-    models: SessionModelsValue,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = DsTheme.colors
-    val current = models.current
-    val group = models.groups.firstOrNull { it.id == current.provider }
-    val model = group?.models?.firstOrNull { it.id == current.model }
-    val modelLabel = model?.name ?: current.model
-
-    Row(
-        modifier = modifier
-            .clip(DsShapes.pillFull)
-            .clickable(
-                enabled = enabled,
-                role = Role.Button,
-                onClickLabel = stringResource(R.string.models_title),
-                onClick = onClick,
-            )
-            .padding(horizontal = DsSpacing.xsmall, vertical = DsSpacing.tiny),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-    ) {
-        if (!models.routable) {
-            StateDot(StateDotState.Warning, size = 6.dp)
-        }
-        Text(
-            modelLabel,
-            style = DsType.small13Strong,
-            color = colors.labelSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Icon(
-            FeatherIcons.ChevronDown,
-            contentDescription = null,
-            tint = colors.labelTertiary,
-            modifier = Modifier.size(13.dp),
         )
     }
 }

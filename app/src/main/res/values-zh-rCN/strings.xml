@@ -441,4 +441,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · 复制</string>
     <string name="chat_message_actions">消息操作</string>
+    <string name="nav_active">当前</string>
+    <string name="settings_dynamic_color">动态颜色</string>
+    <string name="settings_dynamic_color_hint">在 Android 12 及以上版本使用壁纸颜色。</string>
 </resources>

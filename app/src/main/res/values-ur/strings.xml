@@ -451,4 +451,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · کاپی</string>
     <string name="chat_message_actions">پیغام کی کارروائیاں</string>
+    <string name="nav_active">فعال</string>
+    <string name="settings_dynamic_color">متحرک رنگ</string>
+    <string name="settings_dynamic_color_hint">Android 12+ پر وال پیپر کے رنگ استعمال کرتا ہے۔</string>
 </resources>

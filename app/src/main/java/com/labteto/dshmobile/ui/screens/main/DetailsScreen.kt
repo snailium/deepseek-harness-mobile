@@ -19,12 +19,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -65,6 +69,14 @@ import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsToastHost
+import com.labteto.dshmobile.ui.components.ApprovalPanel
+import com.labteto.dshmobile.ui.components.PlanReviewPanel
+import com.labteto.dshmobile.ui.components.QuestionsPanel
+import com.labteto.dshmobile.ui.components.planReviewOf
+import com.labteto.dshmobile.data.QuestionOutcome
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswerItem
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
@@ -89,19 +101,16 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The session details screen: everything about the open session that is not the conversation,
- * pushed full-screen over the chat (the old edge-swipe panel was not an iPhone pattern).
- *
- * Organised as collapsible cards rather than one flat wall of headings, because on a phone-width
- * screen a flat list means the section you want is always three screens down. The trajectory
- * ledger that used to be squeezed in here now has its own tab — one home per fact.
+ * The Active tab: everything about the open session that is not the conversation — the
+ * mission-control surface for the live goal, plan, approvals, questions, queue, jobs, subagents,
+ * context and host. Collapsible cards rather than one flat wall of headings, because on a
+ * phone-width screen a flat list means the section you want is always three screens down.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsScreen(
-    onClose: () -> Unit,
+fun ActiveScreen(
     modifier: Modifier = Modifier,
 ) {
-    BackHandler(onBack = onClose)
     val store = rememberSessionStore()
     val colors = DsTheme.colors
     val scope = rememberCoroutineScope()
@@ -121,6 +130,8 @@ fun DetailsScreen(
     val pressure by store.contextPressure.collectAsState()
     val models by store.models.collectAsState()
     val agentPresets by store.agentPresets.collectAsState()
+    val pendingApproval by store.pendingApproval.collectAsState()
+    val pendingQuestions by store.pendingQuestions.collectAsState()
     val current = sessions.firstOrNull { it.sessionId == currentSessionId }
 
     // This panel owns its own sheets rather than reaching back into ChatScreen's: it is reachable
@@ -130,6 +141,14 @@ fun DetailsScreen(
     val savedLabel = stringResource(R.string.chat_export_saved)
     val failedLabel = stringResource(R.string.chat_export_failed)
     val copiedLabel = stringResource(R.string.common_copied)
+
+    val answerRefused = stringResource(R.string.questions_answer_refused)
+    val answerUnsent = stringResource(R.string.questions_answer_unsent)
+    fun refusalOf(outcome: QuestionOutcome): String? = when (outcome) {
+        is QuestionOutcome.Accepted -> null
+        is QuestionOutcome.Refused -> answerRefused.format(outcome.reason)
+        is QuestionOutcome.Unsent -> answerUnsent
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
@@ -152,12 +171,18 @@ fun DetailsScreen(
         color = colors.bgBase,
     ) {
         Box {
-            Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
-                // Pinned, not scrolled: the back arrow and title are the panel's chrome, and
-                // chrome that scrolls away leaves the reader with cards and no way to leave.
-                HeaderRow(
-                    onClose,
-                    modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+            Column(modifier = Modifier.fillMaxSize()) {
+                // M3 top app bar; WindowInsets(0) because the home Scaffold supplies the status
+                // bar inset. The cards scroll beneath it.
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.nav_active),
+                            style = DsType.navTitle,
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
+                    windowInsets = WindowInsets(0, 0, 0, 0),
                 )
                 Column(
                     modifier = Modifier
@@ -167,6 +192,51 @@ fun DetailsScreen(
                         .padding(bottom = DsSpacing.medium),
                     verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
                 ) {
+                    // Server-initiated requests that block the turn — surfaced here so a pending
+                    // approval or question is never missed while the conversation is scrolled away.
+                    pendingApproval?.takeIf { it.sessionId == currentSessionId }?.let { approval ->
+                        ApprovalPanel(
+                            toolName = approval.toolName,
+                            reason = approval.reason,
+                            onAllow = { scope.launch { store.respondApproval(approval.sessionId, approval.approvalId, true) } },
+                            onReject = { scope.launch { store.respondApproval(approval.sessionId, approval.approvalId, false) } },
+                        )
+                    }
+                    pendingQuestions?.takeIf { it.sessionId == currentSessionId }?.let { questions ->
+                        var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
+                        val review = remember(questions.rpcId) { planReviewOf(questions.items) }
+                        fun settle(block: suspend () -> QuestionOutcome) {
+                            planBusy = true
+                            scope.launch {
+                                refusalOf(block())?.let {
+                                    planBusy = false
+                                    toast.second(it, ToastTone.Error)
+                                }
+                            }
+                        }
+                        if (review != null) {
+                            fun decide(option: AskUserQuestionOption) = settle {
+                                store.answerQuestions(
+                                    questions.sessionId,
+                                    AskUserQuestionAnswer(listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label)))),
+                                )
+                            }
+                            PlanReviewPanel(
+                                review = review,
+                                busy = planBusy,
+                                onApprove = { decide(review.approve) },
+                                onDecline = { review.decline?.let { decide(it) } },
+                                onDiscuss = { settle { store.dismissQuestions(questions.sessionId) } },
+                            )
+                        } else {
+                            QuestionsPanel(
+                                requestKey = questions.rpcId,
+                                questions = questions.items,
+                                onSubmit = { answer -> refusalOf(store.answerQuestions(questions.sessionId, answer)) },
+                                onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
+                            )
+                        }
+                    }
                     SessionCard(
                         session = current,
                         models = models,
@@ -250,24 +320,6 @@ fun DetailsScreen(
 
 /** Which picker, if any, is open over the details panel. */
 private enum class DetailsSheet { Models, Presets }
-
-@Composable
-private fun HeaderRow(onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = DsTheme.colors
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        DsIconButton(
-            icon = FeatherIcons.ArrowLeft,
-            contentDescription = stringResource(R.string.common_back),
-            onClick = onClose,
-            mirrorForRtl = true,
-        )
-        Text(
-            stringResource(R.string.chat_details_title),
-            style = DsType.navTitle,
-            color = colors.labelPrimary,
-        )
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Cards

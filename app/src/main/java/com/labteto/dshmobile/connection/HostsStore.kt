@@ -36,6 +36,7 @@ class HostsStore @Inject constructor(
         val NOTIFY_GOAL = booleanPreferencesKey("notify_goal")
         val NOTIFY_ACTION = booleanPreferencesKey("notify_action")
         val THEME = stringPreferencesKey("theme")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val LOCALE = stringPreferencesKey("locale")
         val PORTS = stringPreferencesKey("ports_json")
         val LAST_SESSIONS = stringPreferencesKey("last_sessions_json")
@@ -69,6 +70,7 @@ class HostsStore @Inject constructor(
             notifyGoal = prefs[Keys.NOTIFY_GOAL] ?: true,
             notifyNeedsAction = prefs[Keys.NOTIFY_ACTION] ?: true,
             themePreference = prefs[Keys.THEME] ?: "system",
+            dynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
             localeOverride = prefs[Keys.LOCALE],
             knownPorts = ports,
             updateCheckEnabled = prefs[Keys.UPDATE_CHECK] ?: true,
@@ -223,6 +225,7 @@ class HostsStore @Inject constructor(
             prefs[Keys.NOTIFY_GOAL] = next.notifyGoal
             prefs[Keys.NOTIFY_ACTION] = next.notifyNeedsAction
             prefs[Keys.THEME] = next.themePreference
+            prefs[Keys.DYNAMIC_COLOR] = next.dynamicColor
             prefs[Keys.UPDATE_CHECK] = next.updateCheckEnabled
             next.localeOverride?.let { prefs[Keys.LOCALE] = it } ?: prefs.remove(Keys.LOCALE)
         }

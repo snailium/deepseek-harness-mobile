@@ -1,27 +1,27 @@
 package com.labteto.dshmobile.ui.components
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 
 /**
- * A grouped surface: rounded, filled, hairline-bordered.
+ * A grouped surface: rounded, filled, hairline-bordered, flat.
  *
- * The border is not decoration. In the light theme `bgBase` is the iOS grouped gray and
- * `bgLayer1` is white, so the fill does most of the separation — but on surfaces that share the
- * white layer a card drawn with fill alone would still be invisible, so the hairline stays.
+ * Now a Material 3 [Card] pinned to the brand's flat elevation (no shadow) and hairline border —
+ * the fill does most of the separation on the grouped gray canvas, and the border keeps the plate
+ * visible on any surface that shares the white layer.
  */
 @Composable
 fun DsCard(
@@ -31,15 +31,19 @@ fun DsCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = DsTheme.colors
-    Column(
+    Card(
         modifier = modifier
             .fillMaxWidth()
-            .clip(DsShapes.groupCard)
-            .background(colors.bgLayer1)
-            .border(1.dp, colors.borderL2, DsShapes.groupCard)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-        verticalArrangement = verticalArrangement,
-        content = content,
-    )
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        shape = DsShapes.groupCard,
+        colors = CardDefaults.cardColors(containerColor = colors.bgLayer1),
+        border = BorderStroke(1.dp, colors.borderL2),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(
+            Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+            verticalArrangement = verticalArrangement,
+            content = content,
+        )
+    }
 }

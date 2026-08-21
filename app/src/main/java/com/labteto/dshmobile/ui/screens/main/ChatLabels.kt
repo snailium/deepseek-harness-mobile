@@ -9,6 +9,7 @@ import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
 import com.labteto.dshmobile.core.wire.dto.AgentPresetTrust
 import com.labteto.dshmobile.core.wire.dto.GoalPhase
 import com.labteto.dshmobile.core.wire.dto.JobStatus
+import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.dsTextFieldColors
@@ -130,6 +131,20 @@ internal fun AgentPresetEntry.displayName(): String =
 internal fun AgentPresetEntry.displayDescription(): String? =
     builtInPresetStrings(this)?.let { stringResource(it.second) }
         ?: description?.takeIf { it.isNotBlank() }
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/**
+ * The current model's display name, from the wire catalog rather than the wire id; null when the
+ * harness exposes no model list at all.
+ */
+internal fun currentModelLabel(models: SessionModelsValue?): String? {
+    if (models == null) return null
+    val group = models.groups.firstOrNull { it.id == models.current.provider }
+    return group?.models?.firstOrNull { it.id == models.current.model }?.name ?: models.current.model
+}
 
 // ---------------------------------------------------------------------------
 // Shared field styling

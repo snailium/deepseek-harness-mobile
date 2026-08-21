@@ -441,4 +441,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · คัดลอก</string>
     <string name="chat_message_actions">การกระทำของข้อความ</string>
+    <string name="nav_active">ใช้งานอยู่</string>
+    <string name="settings_dynamic_color">สีแบบไดนามิก</string>
+    <string name="settings_dynamic_color_hint">ใช้สีจากวอลเปเปอร์บน Android 12 ขึ้นไป</string>
 </resources>

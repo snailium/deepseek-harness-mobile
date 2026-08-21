@@ -1,13 +1,17 @@
 package com.labteto.dshmobile.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 /** Theme preference, mirroring the harness Appearance row (light|dark|system). */
 enum class ThemePreference { LIGHT, DARK, SYSTEM }
@@ -185,12 +189,16 @@ private fun materialDarkScheme(c: DsColors) = darkColorScheme(
 )
 
 /**
- * The DeepSeek Harness theme. Honors the app's theme preference
- * (light | dark | system) and always uses the DSH token palette.
+ * The DeepSeek Harness theme. Honors the app's theme preference (light | dark | system) and, when
+ * [dynamicColor] is on and the device supports it (Android 12+), hands the Material color scheme to
+ * Material You's wallpaper-derived palette. The custom DSH token palette ([LocalDsColors]) stays
+ * brand-seeded either way, so content components (bubbles, tool cards, markdown) keep their color;
+ * dynamic color re-skins the Material chrome (bottom bar, scaffolds, system components).
  */
 @Composable
 fun DshTheme(
     preference: ThemePreference = ThemePreference.SYSTEM,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val dark = when (preference) {
@@ -198,8 +206,15 @@ fun DshTheme(
         ThemePreference.DARK -> true
         ThemePreference.SYSTEM -> isSystemInDarkTheme()
     }
+    val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val context = LocalContext.current
     val ds = if (dark) DsThemeTokens.dark else DsThemeTokens.light
-    val scheme = if (dark) materialDarkScheme(ds) else materialLightScheme(ds)
+    val scheme = when {
+        useDynamic && dark -> dynamicDarkColorScheme(context)
+        useDynamic -> dynamicLightColorScheme(context)
+        dark -> materialDarkScheme(ds)
+        else -> materialLightScheme(ds)
+    }
     CompositionLocalProvider(LocalDsColors provides ds) {
         MaterialTheme(
             colorScheme = scheme,

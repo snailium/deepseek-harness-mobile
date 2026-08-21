@@ -34,9 +34,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.ui.components.DsIconButton
+import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.MenuItem
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -49,21 +51,16 @@ import com.labteto.dshmobile.ui.theme.DsType
 internal enum class ChatTab { Chat, Trajectory }
 
 /**
- * The session chrome: an iOS-style large-title navigation row over a utility row.
+ * The conversation chrome: a large-title navigation row over a utility row.
  *
- * The identity row follows the large-title pattern: at the top of the transcript the session's
- * title renders at 28sp with the host as a 13sp secondary line beneath it (the title row is a tap
- * target that pushes the Sessions screen, and the hamburger alone was easy to miss for the
- * app's most frequent navigation). Once the reader scrolls, the title collapses to the 17sp navigation size
- * and the host line fades — "which session am I in" stays on screen at every scroll position,
- * which the old three-row stack (icon row, session row, tab row) gave up. The status dot and the
- * details button, which belong to the *connection*, ride the same row. (The model selector used
- * to sit here too; it now lives above the composer, where the model it switches configures the
- * next turn.)
+ * The back arrow pops to the home shell (Chats · Active · Settings). The title collapses from 28sp
+ * to the 17sp navigation size once the reader scrolls, and the host line fades — "which session am
+ * I in" stays on screen at every scroll position. The status dot rides the same row, and a trailing
+ * overflow carries Presets, Subagents and Switch harness. The model selector lives above the
+ * composer, where the model it switches configures the next turn.
  * The utility row carries the Chat / Trajectory view switcher, which never folds, with the
  * session's agent preset and subagent chips in its trailing space — those fold away once the
- * reader scrolls, like the host line. [hostLabel] names the connected harness under the title,
- * so "where am I connected" is answered in the chrome instead of behind Settings.
+ * reader scrolls, like the host line.
  */
 @Composable
 internal fun ChatTopBar(
@@ -75,11 +72,15 @@ internal fun ChatTopBar(
     tab: ChatTab,
     /** True once the reader scrolls the transcript: the session-meta row folds away. */
     collapsed: Boolean,
-    /** Pushes the Sessions screen over the chat. */
-    onOpenSessions: () -> Unit,
+    modelLabel: String?,
+    modelsRoutable: Boolean,
+    /** Opens the model picker; the choice configures the next turn. */
+    onOpenModels: () -> Unit,
+    /** Pops back to the home shell (Chats · Active · Settings). */
+    onBack: () -> Unit,
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
-    onOpenDetails: () -> Unit,
+    onSwitchHost: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -94,20 +95,16 @@ internal fun ChatTopBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DsIconButton(
-                icon = FeatherIcons.Menu,
-                contentDescription = stringResource(R.string.chatlist_open),
-                onClick = onOpenSessions,
+                icon = FeatherIcons.ArrowLeft,
+                contentDescription = stringResource(R.string.common_back),
+                onClick = onBack,
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
+                mirrorForRtl = true,
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(DsShapes.row)
-                    .clickable(
-                        role = Role.Button,
-                        onClick = onOpenSessions,
-                    )
                     .padding(vertical = DsSpacing.tiny),
             ) {
                 Text(
@@ -139,6 +136,13 @@ internal fun ChatTopBar(
                     }
                 }
             }
+            if (modelLabel != null) {
+                ModelChip(
+                    label = modelLabel,
+                    routable = modelsRoutable,
+                    onClick = onOpenModels,
+                )
+            }
             Spacer(Modifier.width(DsSpacing.tiny))
             StateDot(
                 if (running) StateDotState.Running else StateDotState.Idle,
@@ -146,12 +150,20 @@ internal fun ChatTopBar(
                     if (running) R.string.status_running else R.string.status_idle,
                 ),
             )
-            DsIconButton(
-                icon = FeatherIcons.Info,
-                contentDescription = stringResource(R.string.chat_details_title),
-                onClick = onOpenDetails,
-                tint = colors.labelTertiary,
-                iconSize = 18.dp,
+            DsMenu(
+                anchor = {
+                    Icon(
+                        FeatherIcons.MoreVertical,
+                        contentDescription = stringResource(R.string.chatlist_session_actions),
+                        tint = colors.labelTertiary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+                items = listOf(
+                    MenuItem(stringResource(R.string.presets_title)) { onOpenPresets() },
+                    MenuItem(stringResource(R.string.subagents_title)) { onOpenSubagents() },
+                    MenuItem(stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
+                ),
             )
         }
 
@@ -239,6 +251,47 @@ private fun MetaChip(
     ) {
         Icon(icon, contentDescription = null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
         Text(label, style = DsType.small13, color = colors.labelSecondary, maxLines = 1)
+        Icon(
+            FeatherIcons.ChevronDown,
+            contentDescription = null,
+            tint = colors.labelSecondary,
+            modifier = Modifier.size(12.dp),
+        )
+    }
+}
+
+/**
+ * The model selector, as a prominent chip on the identity row.
+ *
+ * The model choice configures the next turn, so it earns a first-class place in the chrome instead
+ * of hiding above the composer. The non-routable warning dot carries over from the old placement.
+ */
+@Composable
+private fun ModelChip(
+    label: String,
+    routable: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .clip(DsShapes.pillFull)
+            .background(colors.hoverSolid)
+            .border(1.dp, colors.borderL2, DsShapes.pillFull)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.models_title),
+                onClick = onClick,
+            )
+            .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+    ) {
+        if (!routable) {
+            StateDot(StateDotState.Warning, size = 6.dp)
+        }
+        Text(label, style = DsType.small13Strong, color = colors.labelPrimary, maxLines = 1)
         Icon(
             FeatherIcons.ChevronDown,
             contentDescription = null,

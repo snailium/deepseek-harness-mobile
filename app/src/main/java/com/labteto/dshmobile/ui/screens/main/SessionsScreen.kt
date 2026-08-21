@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,6 +33,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -116,14 +119,13 @@ private const val SORT_UPDATED = "updated"
  * while it is focused, a plain hairline-separated list with swipe-to-archive, and a floating
  * compose button (the Messages pattern) that creates a session or a workspace.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SessionsScreen(
+fun ChatsScreen(
     hostLabel: String?,
     onSwitchHost: () -> Unit,
-    onClose: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenSession: (String) -> Unit,
 ) {
-    BackHandler(onBack = onClose)
     val colors = DsTheme.colors
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
@@ -218,48 +220,33 @@ fun SessionsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(colors.bgBase)
-            .safeDrawingPadding(),
+            .background(colors.bgBase),
     ) {
-        // ---- iOS navigation bar: back · centered title · host switcher + sort ----
-        // One line, one baseline. The 28sp large title and the two-line header stack are gone,
-        // and with them the sort chip that used to float unaligned beside the host's second line.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = DsSpacing.medium),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DsIconButton(
-                icon = FeatherIcons.ArrowLeft,
-                contentDescription = stringResource(R.string.common_back),
-                onClick = onClose,
-                mirrorForRtl = true,
-            )
-            // Centered in the space between the back button and the trailing controls, so a long
-            // host name can never push it under either one.
-            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+        // ---- M3 top app bar: title · host switcher · sort ----
+        // WindowInsets(0) because the home Scaffold already supplies the status-bar inset to the
+        // content; a second status-bar inset here would double the top padding.
+        TopAppBar(
+            title = {
                 Text(
                     text = stringResource(R.string.chatlist_title),
                     style = DsType.navTitle,
-                    color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-            // The host is a compact chip on the title's row, itself the anchor for its verbs:
-            // switching harnesses or opening Settings is one tap, no card or footer row needed.
-            HostChip(
-                hostLabel = hostLabel,
-                onSwitchHost = onSwitchHost,
-                onOpenSettings = onOpenSettings,
-            )
-            Spacer(Modifier.width(DsSpacing.xsmall))
-            SortButton { next ->
-                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
-            }
-        }
+            },
+            actions = {
+                HostChip(
+                    hostLabel = hostLabel,
+                    onSwitchHost = onSwitchHost,
+                )
+                Spacer(Modifier.width(DsSpacing.xsmall))
+                SortButton { next ->
+                    scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
+            windowInsets = WindowInsets(0, 0, 0, 0),
+        )
 
         // ---- Search: 40dp iOS capsule; Cancel fades in beside it while focused ----
         Row(
@@ -329,7 +316,7 @@ fun SessionsScreen(
                     }
                 }
                 items(searchHits.items, key = { it.session.sessionId }) { hit ->
-                    SearchResultRow(hit, store, scope, onClose)
+                    SearchResultRow(hit, store, scope, onOpenSession)
                 }
                 if (searchHits.hasMore) {
                     item(key = "search-more") {
@@ -370,7 +357,7 @@ fun SessionsScreen(
                         onNewSession = {
                             scope.launch {
                                 store.createSession(workspaceId = workspace.workspaceId)
-                                onClose()
+                                store.currentSessionId.value?.let(onOpenSession)
                             }
                         },
                     )
@@ -384,7 +371,7 @@ fun SessionsScreen(
                                 isCurrent = session.sessionId == currentSessionId,
                                 store = store,
                                 scope = scope,
-                                onClose = onClose,
+                                onOpenSession = onOpenSession,
                                 depth = depth,
                                 childCount = childrenByParent[session.sessionId].orEmpty().size,
                                 childrenExpanded = isExpanded(session.sessionId),
@@ -418,7 +405,7 @@ fun SessionsScreen(
                             isCurrent = session.sessionId == currentSessionId,
                             store = store,
                             scope = scope,
-                            onClose = onClose,
+                            onOpenSession = onOpenSession,
                             depth = depth,
                             childCount = childrenByParent[session.sessionId].orEmpty().size,
                             childrenExpanded = isExpanded(session.sessionId),
@@ -440,7 +427,7 @@ fun SessionsScreen(
                         modifier = Modifier.padding(horizontal = DsSpacing.medium),
                     ) {
                         archivedSessions.forEach { session ->
-                            SessionRowItem(session, false, store, scope, onClose)
+                            SessionRowItem(session, false, store, scope, onOpenSession)
                         }
                     }
                 }
@@ -523,7 +510,7 @@ fun SessionsScreen(
                 newSessionOpen = false
                 scope.launch {
                     store.createSession(workspaceId = workspaceId)
-                    onClose()
+                    store.currentSessionId.value?.let(onOpenSession)
                 }
             },
             onDismiss = { newSessionOpen = false },
@@ -555,7 +542,6 @@ fun SessionsScreen(
 private fun HostChip(
     hostLabel: String?,
     onSwitchHost: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     val colors = DsTheme.colors
     if (hostLabel == null) return
@@ -589,7 +575,6 @@ private fun HostChip(
         },
         items = listOf(
             MenuItem(text = stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
-            MenuItem(text = stringResource(R.string.settings_title)) { onOpenSettings() },
         ),
     )
 }
@@ -864,7 +849,7 @@ private fun SessionRowItem(
     isCurrent: Boolean,
     store: SessionStore,
     scope: CoroutineScope,
-    onClose: () -> Unit,
+    onOpenSession: (String) -> Unit,
     depth: Int = 0,
     childCount: Int = 0,
     childrenExpanded: Boolean = false,
@@ -945,10 +930,8 @@ private fun SessionRowItem(
                     .background(if (isCurrent) colors.selection else Color.Transparent)
                     .combinedClickable(
                         onClick = {
-                            scope.launch {
-                                store.openSession(session.sessionId)
-                                onClose()
-                            }
+                            scope.launch { store.openSession(session.sessionId) }
+                            onOpenSession(session.sessionId)
                         },
                         onLongClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1124,17 +1107,15 @@ private fun SearchResultRow(
     hit: SearchHit,
     store: SessionStore,
     scope: CoroutineScope,
-    onClose: () -> Unit,
+    onOpenSession: (String) -> Unit,
 ) {
     val colors = DsTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                scope.launch {
-                    store.openSession(hit.session.sessionId)
-                    onClose()
-                }
+                scope.launch { store.openSession(hit.session.sessionId) }
+                onOpenSession(hit.session.sessionId)
             }
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
     ) {

@@ -6,6 +6,7 @@ import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.ui.navigation.SessionDeepLink
 import com.labteto.dshmobile.update.AvailableUpdate
 import com.labteto.dshmobile.update.UpdateChecker
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,6 +21,7 @@ class AppViewModel @Inject constructor(
     hostsStore: HostsStore,
     private val connectionManager: ConnectionManager,
     private val updateChecker: UpdateChecker,
+    private val sessionDeepLink: SessionDeepLink,
 ) : ViewModel() {
 
     val settings: StateFlow<AppSettings> = hostsStore.settings.stateIn(
@@ -32,6 +34,12 @@ class AppViewModel @Inject constructor(
 
     /** A newer release to offer, or null. See [UpdateChecker]. */
     val availableUpdate: StateFlow<AvailableUpdate?> = updateChecker.available
+
+    /** A session the user asked to open from a notification, awaiting consumption by the shell. */
+    val pendingSession: StateFlow<String?> = sessionDeepLink.pending
+
+    /** The shell consumed the pending deep link; clear it so it does not fire again. */
+    fun consumePendingSession() = sessionDeepLink.consume()
 
     /** Leave the current harness, returning the app to the connect screen. */
     fun disconnect() {

@@ -48,8 +48,9 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
   readiness handshake), remembers hosts and probes them for liveness on the way in, supports
   manual `host:port` entry, loopback for same-device setups, and auto-connect toggles
   (last used / LAN / same device).
-- **Discord-style navigation** — swipe right from the left edge to open the workspace-grouped
-  chat list, swipe left to close it, swipe left from the right edge for the session details panel.
+- **Bottom-navigation shell** — a Material 3 bottom bar (Chats · Active · Settings) with the
+  chat list as the landing screen; tap a session to push its conversation, and find the live
+  goal, plan, queue, jobs and subagents under Active.
 - **Full chat experience** — streamed turns with reasoning disclosure, markdown,
   terminal/diff/read/search/web tool cards, queue dock (edit / remove / steer), history paging,
   image attachments.

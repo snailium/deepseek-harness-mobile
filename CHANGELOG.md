@@ -1,3 +1,52 @@
+## [0.14.0] - 2026-08-21
+
+The app is re-architected onto Jetpack Navigation Compose and re-cut to a
+Material 3 information architecture: a bottom navigation bar (Chats · Active ·
+Settings) with the chat list as the landing screen, the conversation as a
+pushed destination, and the session-details surface consolidated into the
+Active tab. Material You dynamic color is now available behind a setting.
+
+### Changed
+
+- **Bottom navigation.** The hand-rolled push stack (MainScreen's
+  PushDestination enum and AppRoot's showConnect/showSettings booleans) is
+  replaced by one type-safe NavHost: Chats · Active · Settings on a Material 3
+  NavigationBar, with Connect and the conversation pushed above it. Back is
+  handled by the NavHost, and predictive back is enabled in the manifest.
+- **M3 top app bars.** The Chats, Active and Settings tab headers become
+  Material 3 TopAppBar surfaces (WindowInsets(0) so the home scaffold's inset is
+  not applied twice), replacing the hand-built iOS-style header rows.
+- **M3 component migration.** Cards and icon buttons move onto Material 3
+  primitives — DsCard/DsGroupCard become a flat Material Card (hairline border,
+  zero elevation) and DsIconButton a Material IconButton — alongside the
+  existing ModalBottomSheet/DropdownMenu/Switch wrappers. Compact brand-styled
+  components (ink buttons, pills, the segmented toggle) stay custom, because
+  Material's 40dp minimums would bloat the dense phone layout.
+- **Chats is the landing screen.** The session/workspace/subagent list (formerly
+  the pushed Sessions screen) is now the home tab; tapping a row pushes the
+  conversation (SessionRoute) rather than closing a drawer.
+- **Active tab.** The session-details screen becomes the Active tab — the
+  mission-control surface for goal, plan, queue, jobs, subagents, context and
+  host, and now also for pending approvals and questions, which are never
+  missed while the conversation is scrolled away. Reachable from the bottom
+  bar instead of a push from the chat.
+- **Conversation top bar.** The hamburger becomes a back arrow; the details
+  button becomes an overflow (Presets · Subagents · Switch harness).
+- **Model picker prominence.** The model selector moves from a small strip
+  above the composer to a first-class chip on the conversation top bar, with
+  the non-routable warning dot carried over.
+- **Notification deep links.** Tapping a notification now opens the exact
+  session it was about, on both cold start and warm start (onNewIntent), via
+  the session id carried in the intent.
+- **Dynamic color.** Settings → Appearance gains "Dynamic color", enabling
+  Material You's wallpaper palette on Android 12+; the DeepSeek brand-seeded
+  palette remains the baseline (and the fallback below Android 12).
+
+### Verified
+
+- 164 unit tests pass; lintDebug 0 errors; all eleven locales updated with the
+  new strings; debug APK assembles.
+
 ## [0.13.1] - 2026-08-21
 
 Hotfix for the Sessions screen: every non-selected chat row was showing a

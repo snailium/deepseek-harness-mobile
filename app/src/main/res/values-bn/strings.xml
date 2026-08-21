@@ -451,4 +451,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · কপি</string>
     <string name="chat_message_actions">বার্তা অ্যাকশন</string>
+    <string name="nav_active">সক্রিয়</string>
+    <string name="settings_dynamic_color">ডাইনামিক রঙ</string>
+    <string name="settings_dynamic_color_hint">Android 12+ এ ওয়ালপেপারের রঙ ব্যবহার করে।</string>
 </resources>

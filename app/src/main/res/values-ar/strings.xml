@@ -491,4 +491,7 @@
     </plurals>
     <string name="tool_copy_code_lang">%1$s · نسخ</string>
     <string name="chat_message_actions">إجراءات الرسالة</string>
+    <string name="nav_active">نشط</string>
+    <string name="settings_dynamic_color">لون ديناميكي</string>
+    <string name="settings_dynamic_color_hint">استخدام ألوان الخلفية على نظام أندرويد 12 والإصدارات الأحدث.</string>
 </resources>

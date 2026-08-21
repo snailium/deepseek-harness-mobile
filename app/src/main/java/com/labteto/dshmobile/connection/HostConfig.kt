@@ -98,6 +98,8 @@ data class AppSettings(
     val notifyGoal: Boolean = true,
     val notifyNeedsAction: Boolean = true,
     val themePreference: String = "system", // light | dark | system
+    /** Android 12+ dynamic color (Material You). Below API 31 this is a no-op. */
+    val dynamicColor: Boolean = false,
     val localeOverride: String? = null, // null = system
     val knownPorts: List<Int> = listOf(3080),
     /**
