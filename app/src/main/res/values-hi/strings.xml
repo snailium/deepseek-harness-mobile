@@ -394,4 +394,53 @@
     <string name="status_online">ऑनलाइन</string>
     <string name="status_offline">ऑफ़लाइन</string>
     <string name="chat_typing">सहायक टाइप कर रहा है…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">इनपुट</string>
+    <string name="tool_output">आउटपुट</string>
+    <string name="tool_locations">स्थान</string>
+    <string name="tool_running">चल रहा है</string>
+    <string name="tool_killed_by">%1$s द्वारा समाप्त</string>
+    <string name="tool_exit_code">निकास कोड %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">%2$d में से %1$d दिखा रहा है</string>
+    <string name="tool_copy_code">कोड कॉपी करें</string>
+    <string name="tool_copy">कॉपी</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d ब्लॉक</item>
+        <item quantity="other">%1$d ब्लॉक</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d स्थान</item>
+        <item quantity="other">%1$d स्थान</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d परिणाम</item>
+        <item quantity="other">%1$d परिणाम</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d पंक्ति</item>
+        <item quantity="other">%1$d पंक्तियाँ</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d स्रोत</item>
+        <item quantity="other">%1$d स्रोत</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d फ़ाइल</item>
+        <item quantity="other">%1$d फ़ाइलें</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d और</item>
+        <item quantity="other">+%1$d और</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d पंक्ति)</item>
+        <item quantity="other">(%1$d पंक्तियाँ)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d फ़ाइल</item>
+        <item quantity="other">+%1$d -%2$d · %3$d फ़ाइलें</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · कॉपी</string>
+    <string name="chat_message_actions">संदेश क्रियाएँ</string>
 </resources>

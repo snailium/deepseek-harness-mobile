@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -139,7 +137,7 @@ internal fun GoalBar(goal: GoalSnapshot, store: SessionStore, modifier: Modifier
         DsMenu(
             anchor = {
                 Icon(
-                    Icons.Filled.MoreVert,
+                    FeatherIcons.MoreVertical,
                     contentDescription = stringResource(R.string.goal_edit),
                     tint = colors.labelTertiary,
                     modifier = Modifier.size(20.dp),
@@ -233,7 +231,7 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
                 DsMenu(
                     anchor = {
                         Icon(
-                            Icons.Filled.MoreVert,
+                            FeatherIcons.MoreVertical,
                             contentDescription = stringResource(R.string.chat_queue_edit),
                             tint = colors.labelTertiary,
                             modifier = Modifier.size(18.dp),

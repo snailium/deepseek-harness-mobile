@@ -3,6 +3,64 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.8.0] - 2026-08-21
+
+A UI pass over components and chrome: one icon family everywhere, strings that
+actually translate, thumb-sized touch targets, and a transcript that gives its
+chrome back to the reader.
+
+### Added
+
+- **Markdown links open.** A `[link](https://…)` in an assistant message is now
+  tappable (accent + underline) and opens in the browser — http(s) only, so a
+  harness reply cannot smuggle another scheme out. The URL gate is unit-tested.
+- **Scroll-aware chrome.** Scrolling the transcript folds the session-meta row
+  of the top bar away (title, preset and subagent chips); returning to the top
+  brings it back. Programmatic scrolling — session open, paging, tail-follow —
+  never counts, so the bar only folds when a reader actually scrolls.
+- **Message actions are findable.** The newest assistant message carries a quiet
+  `⋯` affordance for the copy / branch / feedback row, and long-pressing any
+  bubble opens the row directly.
+- **Toned toasts.** Toasts carry an icon and a tone (info / success / error),
+  slide in and out, and errors hold a moment longer than the rest.
+- **Icon unification on Feather.** All 37 previously Material glyphs (settings,
+  arrows, chevrons, thumbs, copy, shield, users, …) are now Feather, ported onto
+  the same 24-unit grid as the rest of the set. Directional glyphs mirror under
+  RTL. `material-icons-extended` is dropped from the dependency graph.
+- **Localization guard test.** UI sources are scanned for sentence-like string
+  literals, so the review gap that let tool-card copy ship untranslated cannot
+  reopen silently.
+
+### Changed
+
+- Tool card summaries and section labels (`IN`/`OUT`/`LOCATIONS`, block and
+  file counts, `killed by`, `exit`, `HTTP`, `showing N of M`, `+N more`) now
+  resolve through string resources in all 11 locales, with proper plurals.
+- Touch targets: menu anchors, message actions, attachment remove, the composer's
+  `+` / send / stop, the session-tree chevron, section-header actions, and
+  tappable pills all grew toward thumb-sized hit areas.
+- Selection and button semantics: model / preset / permission / plugin chips and
+  question options announce as buttons or radio/checkbox choices to TalkBack.
+- `labelCaption` steps one rung darker in the light theme (~2.4:1 → ~3.0:1) and
+  danger surfaces (Danger buttons, the error banner) use a darker fill, both
+  documented divergences for phone readability.
+- `ConnectionBanner` swaps its warning triangle for a refresh glyph on the
+  reconnecting tone, and its action is a compact text target instead of a
+  40dp-tall button.
+- Settings groups render on the same hairline-bordered card as the rest of the
+  app — in the light theme the old fill-only card was invisible against the page.
+- The trajectory ledger no longer shows a call as `running` once its turn has
+  ended; only a live turn earns the chasing dot.
+- The details panel caps at 88% of a narrow screen instead of a fixed 300dp; the
+  model chip in the top bar ellipsizes instead of overflowing; dialogs cap at
+  560dp on tablets.
+- Text-field styling is one shared helper instead of three copies.
+
+### Removed
+
+- `StatsLine` and its helpers (dead code).
+- The stale `screen.png` at the repo root.
+
 ## [0.7.0] - 2026-08-21
 
 The transcript stops looking like a console log and starts looking like a chat.

@@ -25,12 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -52,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
@@ -67,6 +62,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /** A picked image waiting to be sent, held with its decoded preview. */
 internal data class PendingAttachment(
@@ -161,9 +157,9 @@ internal fun Composer(
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
             ) {
                 CircleAction(
-                    icon = Icons.Filled.Add,
+                    icon = FeatherIcons.Plus,
                     contentDescription = stringResource(R.string.chat_composer_commands),
-                    size = 30,
+                    size = 40,
                     background = colors.hoverSolid,
                     tint = colors.labelPrimary,
                     enabled = enabled,
@@ -195,7 +191,7 @@ internal fun Composer(
                         CircleAction(
                             icon = null,
                             contentDescription = stringResource(R.string.chat_composer_stop),
-                            size = 36,
+                            size = 44,
                             background = colors.error,
                             tint = Color.White,
                             enabled = true,
@@ -213,9 +209,9 @@ internal fun Composer(
                         }
                     } else {
                         CircleAction(
-                            icon = Icons.Filled.ArrowUpward,
+                            icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
-                            size = 36,
+                            size = 44,
                             background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
                             tint = if (canSend) Color.White else colors.labelTertiary,
                             enabled = canSend,
@@ -266,8 +262,13 @@ private fun PermissionChip(
         Row(
             modifier = Modifier
                 .clip(DsShapes.cube)
-                .clickable(enabled = enabled && pending == null) { menuOpen = true }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .clickable(
+                    enabled = enabled && pending == null,
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.permission_preset),
+                    onClick = { menuOpen = true },
+                )
+                .padding(horizontal = 8.dp, vertical = 6.dp)
                 .then(
                     if (pending != null) {
                         Modifier.skeleton(colors.bgLayer2, colors.hover, DsShapes.cube)
@@ -279,7 +280,7 @@ private fun PermissionChip(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
-                Icons.Outlined.Shield,
+                FeatherIcons.Shield,
                 contentDescription = stringResource(R.string.permission_preset),
                 tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
                 modifier = Modifier.size(14.dp),
@@ -292,7 +293,7 @@ private fun PermissionChip(
                 overflow = TextOverflow.Ellipsis,
             )
             Icon(
-                Icons.Filled.KeyboardArrowDown,
+                FeatherIcons.ChevronDown,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(12.dp),
@@ -353,18 +354,29 @@ private fun AttachmentStrip(attachments: List<PendingAttachment>, onRemove: (Int
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .size(18.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(colors.toastBg)
-                        .clickable { onRemove(index) },
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.chat_composer_remove_image),
+                            onClick = { onRemove(index) },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.chat_composer_remove_image),
-                        tint = Color.White,
-                        modifier = Modifier.size(12.dp),
-                    )
+                    Box(
+                        Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(colors.toastBg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            FeatherIcons.X,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
                 }
             }
         }

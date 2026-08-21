@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -42,11 +44,14 @@ fun DsIconButton(
     enabled: Boolean = true,
     tint: Color = DsTheme.colors.labelSecondary,
     iconSize: Dp = 20.dp,
+    /** True for back/forward glyphs, which must flip with the reading direction (RTL). */
+    mirrorForRtl: Boolean = false,
 ) {
     val colors = DsTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val isHovered by interactionSource.collectIsHoveredAsState()
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     
     val scale by animateFloatAsState(
         targetValue = if (isPressed && enabled) DsAnimations.Scale.pressed else DsAnimations.Scale.normal,
@@ -77,7 +82,7 @@ fun DsIconButton(
                 modifier = Modifier
                     .requiredSize(iconSize)
                     .graphicsLayer {
-                        scaleX = scale
+                        scaleX = scale * (if (mirrorForRtl && rtl) -1f else 1f)
                         scaleY = scale
                     }
             )

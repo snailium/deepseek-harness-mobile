@@ -9,9 +9,11 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,11 +26,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.CallSplit
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ThumbDown
-import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -222,6 +220,7 @@ internal val STRUCTURAL_EVENT_TYPES = setOf(
 // ---------------------------------------------------------------------------
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContext) {
     val colors = DsTheme.colors
     val isLast = context.nodes.lastOrNull()?.seq == node.seq
@@ -238,7 +237,13 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(enabled = !streaming) { actionsVisible = !actionsVisible },
+            // Tap toggles the actions row; long-press opens it directly. Both gestures are
+            // discoverable in reverse: once the row has been seen once, the bubble carries it.
+            .combinedClickable(
+                enabled = !streaming,
+                onClick = { actionsVisible = !actionsVisible },
+                onLongClick = { actionsVisible = true },
+            ),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -289,12 +294,33 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
             if (streaming) {
                 TypingIndicator()
             }
+            // The only affordance a touchscreen has for a hidden action row: a quiet
+            // ellipsis on the newest message. It stays put while the row is open, so the tap
+            // that closes the row lands on the same control that opened it.
             AnimatedVisibility(
                 visible = actionsVisible && !streaming,
                 enter = fadeIn(DsAnimations.fade),
                 exit = fadeOut(DsAnimations.fade),
             ) {
                 MessageActionsRow(node, context)
+            }
+            if (isLast && !actionsVisible && !streaming) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.chat_message_actions)) {
+                            actionsVisible = true
+                        }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        FeatherIcons.MoreHorizontal,
+                        contentDescription = null,
+                        tint = colors.labelCaption,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
             }
         }
     }
@@ -377,16 +403,16 @@ private fun MessageActionsRow(node: AssistantMessageNode, context: ChatNodeConte
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ActionIcon(Icons.Filled.ContentCopy, stringResource(R.string.chat_copy_message)) {
+        ActionIcon(FeatherIcons.Copy, stringResource(R.string.chat_copy_message)) {
             clipboard.setText(AnnotatedString(node.plainText))
         }
-        ActionIcon(Icons.AutoMirrored.Outlined.CallSplit, stringResource(R.string.chat_branch_message)) {
+        ActionIcon(FeatherIcons.GitBranch, stringResource(R.string.chat_branch_message)) {
             context.onBranchFrom(node.seq)
         }
-        ActionIcon(Icons.Filled.ThumbUp, stringResource(R.string.chat_feedback_up)) {
+        ActionIcon(FeatherIcons.ThumbsUp, stringResource(R.string.chat_feedback_up)) {
             context.onFeedback(node.seq, true)
         }
-        ActionIcon(Icons.Filled.ThumbDown, stringResource(R.string.chat_feedback_down)) {
+        ActionIcon(FeatherIcons.ThumbsDown, stringResource(R.string.chat_feedback_down)) {
             context.onFeedback(node.seq, false)
         }
     }
@@ -398,15 +424,22 @@ private fun ActionIcon(
     label: String,
     onClick: () -> Unit,
 ) {
-    Icon(
-        icon,
-        contentDescription = label,
-        tint = DsTheme.colors.labelTertiary,
+    // 40dp hit area around a 16dp glyph: a row of four at 48dp each crowds the bubble, and the
+    // glyph stays the quiet accent it was while the tap area grows to a thumb-sized target.
+    Box(
         modifier = Modifier
-            .size(28.dp)
-            .clickable(onClick = onClick)
-            .padding(6.dp),
-    )
+            .size(40.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = DsTheme.colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+    }
 }
 
 // ---------------------------------------------------------------------------

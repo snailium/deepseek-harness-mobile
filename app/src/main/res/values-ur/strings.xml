@@ -394,4 +394,53 @@
     <string name="status_online">آن لائن</string>
     <string name="status_offline">آف لائن</string>
     <string name="chat_typing">معاون ٹائپ کر رہا ہے…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">ان پٹ</string>
+    <string name="tool_output">آؤٹ پٹ</string>
+    <string name="tool_locations">مقامات</string>
+    <string name="tool_running">چل رہا ہے</string>
+    <string name="tool_killed_by">%1$s کے ذریعے ختم</string>
+    <string name="tool_exit_code">ایگزٹ کوڈ %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">%2$d میں سے %1$d دکھا رہا ہے</string>
+    <string name="tool_copy_code">کوڈ کاپی کریں</string>
+    <string name="tool_copy">کاپی</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d بلاک</item>
+        <item quantity="other">%1$d بلاکس</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d مقام</item>
+        <item quantity="other">%1$d مقامات</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d نتیجہ</item>
+        <item quantity="other">%1$d نتائج</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d سطر</item>
+        <item quantity="other">%1$d سطریں</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d ذریعہ</item>
+        <item quantity="other">%1$d ذرائع</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d فائل</item>
+        <item quantity="other">%1$d فائلیں</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d مزید</item>
+        <item quantity="other">+%1$d مزید</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d سطر)</item>
+        <item quantity="other">(%1$d سطریں)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d فائل</item>
+        <item quantity="other">+%1$d -%2$d · %3$d فائلیں</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · کاپی</string>
+    <string name="chat_message_actions">پیغام کی کارروائیاں</string>
 </resources>

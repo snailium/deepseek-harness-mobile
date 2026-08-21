@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
@@ -35,7 +38,12 @@ fun SectionHeader(
                 style = DsType.caption11Strong,
                 color = colors.accent,
                 modifier = if (onAction != null) {
-                    Modifier.clickable(onClick = onAction).padding(4.dp)
+                    // An 11sp word with 4dp of padding is a 19dp tap target; grow it toward a
+                    // text-button height without changing how the section row lays out.
+                    Modifier
+                        .clip(DsShapes.row)
+                        .clickable(role = Role.Button, onClick = onAction)
+                        .padding(horizontal = 6.dp, vertical = 8.dp)
                 } else {
                     Modifier.padding(4.dp)
                 },

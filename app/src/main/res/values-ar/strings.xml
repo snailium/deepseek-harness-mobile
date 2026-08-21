@@ -394,4 +394,89 @@
     <string name="status_online">متصل</string>
     <string name="status_offline">غير متصل</string>
     <string name="chat_typing">المساعد يكتب…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">الإدخال</string>
+    <string name="tool_output">الإخراج</string>
+    <string name="tool_locations">المواقع</string>
+    <string name="tool_running">قيد التشغيل</string>
+    <string name="tool_killed_by">تم الإنهاء بواسطة %1$s</string>
+    <string name="tool_exit_code">رمز الخروج %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">عرض %1$d من %2$d</string>
+    <string name="tool_copy_code">نسخ الكود</string>
+    <string name="tool_copy">نسخ</string>
+    <plurals name="tool_blocks">
+        <item quantity="zero">%1$d كتلة</item>
+        <item quantity="one">%1$d كتلة</item>
+        <item quantity="two">%1$d كتلتان</item>
+        <item quantity="few">%1$d كتل</item>
+        <item quantity="many">%1$d كتلة</item>
+        <item quantity="other">%1$d كتلة</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="zero">%1$d موقع</item>
+        <item quantity="one">%1$d موقع</item>
+        <item quantity="two">%1$d موقعان</item>
+        <item quantity="few">%1$d مواقع</item>
+        <item quantity="many">%1$d موقعًا</item>
+        <item quantity="other">%1$d موقع</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="zero">%1$d نتيجة</item>
+        <item quantity="one">%1$d نتيجة</item>
+        <item quantity="two">%1$d نتيجتان</item>
+        <item quantity="few">%1$d نتائج</item>
+        <item quantity="many">%1$d نتيجة</item>
+        <item quantity="other">%1$d نتيجة</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="zero">%1$d سطر</item>
+        <item quantity="one">%1$d سطر</item>
+        <item quantity="two">%1$d سطران</item>
+        <item quantity="few">%1$d أسطر</item>
+        <item quantity="many">%1$d سطرًا</item>
+        <item quantity="other">%1$d سطر</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="zero">%1$d مصدر</item>
+        <item quantity="one">%1$d مصدر</item>
+        <item quantity="two">%1$d مصدران</item>
+        <item quantity="few">%1$d مصادر</item>
+        <item quantity="many">%1$d مصدرًا</item>
+        <item quantity="other">%1$d مصدر</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="zero">%1$d ملف</item>
+        <item quantity="one">%1$d ملف</item>
+        <item quantity="two">%1$d ملفان</item>
+        <item quantity="few">%1$d ملفات</item>
+        <item quantity="many">%1$d ملفًا</item>
+        <item quantity="other">%1$d ملف</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="zero">+%1$d إضافي</item>
+        <item quantity="one">+%1$d إضافي</item>
+        <item quantity="two">+%1$d إضافيان</item>
+        <item quantity="few">+%1$d إضافية</item>
+        <item quantity="many">+%1$d إضافيًا</item>
+        <item quantity="other">+%1$d إضافي</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="zero">(%1$d سطر)</item>
+        <item quantity="one">(%1$d سطر)</item>
+        <item quantity="two">(%1$d سطران)</item>
+        <item quantity="few">(%1$d أسطر)</item>
+        <item quantity="many">(%1$d سطرًا)</item>
+        <item quantity="other">(%1$d سطر)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="zero">+%1$d -%2$d · %3$d ملف</item>
+        <item quantity="one">+%1$d -%2$d · %3$d ملف</item>
+        <item quantity="two">+%1$d -%2$d · %3$d ملفان</item>
+        <item quantity="few">+%1$d -%2$d · %3$d ملفات</item>
+        <item quantity="many">+%1$d -%2$d · %3$d ملفًا</item>
+        <item quantity="other">+%1$d -%2$d · %3$d ملف</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · نسخ</string>
+    <string name="chat_message_actions">إجراءات الرسالة</string>
 </resources>

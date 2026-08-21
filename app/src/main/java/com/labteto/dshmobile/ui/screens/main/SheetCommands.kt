@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -39,6 +37,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /**
  * The `+` sheet: everything you can add to a message that is not the message.
@@ -73,7 +72,7 @@ internal fun CommandSheet(
         SheetRow(
             leading = {
                 Icon(
-                    Icons.Filled.Image,
+                    FeatherIcons.Image,
                     contentDescription = null,
                     tint = colors.labelSecondary,
                     modifier = Modifier.size(20.dp),

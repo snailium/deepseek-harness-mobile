@@ -1,1 +1,1 @@
-d8b703664a7c47a1617666986abbd741e00a11ddc4bf7e3c2d0ea3476cba315a  app/build/outputs/apk/release/app-release.apk
+90fac94b094b07b45afe81d6124543c5f50eab817447274a2cc1a1af6e08854d  app/build/outputs/apk/release/app-release.apk

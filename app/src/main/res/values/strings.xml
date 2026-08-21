@@ -392,4 +392,53 @@
     <string name="update_later">Later</string>
     <string name="settings_update_check">Check for updates</string>
     <string name="settings_update_check_hint">Asks GitHub for the latest release when the app starts.</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">Input</string>
+    <string name="tool_output">Output</string>
+    <string name="tool_locations">Locations</string>
+    <string name="tool_running">running</string>
+    <string name="tool_killed_by">killed by %1$s</string>
+    <string name="tool_exit_code">exit %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">showing %1$d of %2$d</string>
+    <string name="tool_copy_code">Copy code</string>
+    <string name="tool_copy">copy</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d block</item>
+        <item quantity="other">%1$d blocks</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d location</item>
+        <item quantity="other">%1$d locations</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d source</item>
+        <item quantity="other">%1$d sources</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d more</item>
+        <item quantity="other">+%1$d more</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d line)</item>
+        <item quantity="other">(%1$d lines)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d file</item>
+        <item quantity="other">+%1$d -%2$d · %3$d files</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · copy</string>
+    <string name="chat_message_actions">Message actions</string>
 </resources>

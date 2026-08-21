@@ -20,6 +20,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -55,7 +56,13 @@ fun MainScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var detailsOpen by remember { mutableStateOf(false) }
-    val detailsWidth = 300.dp
+    // 300dp is most of a narrow phone and none of a tablet; cap to 88% of the screen so a
+    // small device still keeps the chat surface visible behind the panel. The edge-swipe
+    // detector below shares this value, so both stay in sync by construction.
+    val configuration = LocalConfiguration.current
+    val detailsWidth = remember(configuration) {
+        minOf(300.dp, configuration.screenWidthDp.dp * 0.88f)
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -71,7 +78,7 @@ fun MainScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(detailsOpen) {
+                .pointerInput(detailsOpen, detailsWidth) {
                     val width = size.width.toFloat()
                     val edgeBandPx = 28.dp.toPx()
                     val detailsAreaPx = detailsWidth.toPx() * 0.9f

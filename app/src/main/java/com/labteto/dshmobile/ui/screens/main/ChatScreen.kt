@@ -19,15 +19,21 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -45,6 +51,7 @@ import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.PlanReviewPanel
 import com.labteto.dshmobile.ui.components.planReviewOf
 import com.labteto.dshmobile.ui.components.QuestionsPanel
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -114,17 +121,42 @@ fun ChatScreen(
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
+    // The chrome folds its session-meta row once the reader scrolls the transcript, and only
+    // then: a programmatic scroll (session open, auto-paging, tail-follow) never counts, so the
+    // bar stays expanded when the view moves on its own.
+    var userScrolled by remember { mutableStateOf(false) }
+    var chromeCollapsed by remember { mutableStateOf(false) }
+    val scrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    userScrolled = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(tab) {
+        if (tab != ChatTab.Chat) {
+            chromeCollapsed = false
+            return@LaunchedEffect
+        }
+        snapshotFlow {
+            userScrolled && chatListState.firstVisibleItemIndex > 1
+        }.collect { chromeCollapsed = it }
+    }
+
     val commandFailed = stringResource(R.string.err_command_failed)
     val unknownCommand = stringResource(R.string.err_command_unknown)
 
     fun report(outcome: com.labteto.dshmobile.data.CommandOutcome) {
         when (outcome) {
             is com.labteto.dshmobile.data.CommandOutcome.Ok ->
-                outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it) }
+                outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it, ToastTone.Info) }
             is com.labteto.dshmobile.data.CommandOutcome.Unknown ->
-                toast.second(unknownCommand.format(outcome.line))
+                toast.second(unknownCommand.format(outcome.line), ToastTone.Error)
             is com.labteto.dshmobile.data.CommandOutcome.Failed ->
-                toast.second(commandFailed.format(outcome.message))
+                toast.second(commandFailed.format(outcome.message), ToastTone.Error)
         }
     }
 
@@ -157,7 +189,7 @@ fun ChatScreen(
                 (limits != null && !limits.accepts(mediaType, bytes.size)) ||
                 (limits == null && bytes.size > 5_242_880)
             ) {
-                toast.second(context.getString(R.string.err_attachment_failed))
+                toast.second(context.getString(R.string.err_attachment_failed), ToastTone.Error)
                 return@launch
             }
             attachments.add(
@@ -215,6 +247,7 @@ fun ChatScreen(
                 subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
+                collapsed = chromeCollapsed,
                 onOpenDrawer = onOpenDrawer,
                 onOpenModels = { sheet = ChatSheet.Models },
                 onOpenPresets = {
@@ -278,6 +311,7 @@ fun ChatScreen(
                         loadOlderFailed = loadOlderFailed,
                         context = nodeContext,
                         listState = chatListState,
+                        scrollConnection = scrollConnection,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
                         // A suggestion chip composes the message; sending stays on the explicit
                         // send button, so a tap never fires a prompt by surprise.
@@ -289,6 +323,7 @@ fun ChatScreen(
                         usage = tokenUsage,
                         cwd = currentSession?.cwd,
                         listState = trajectoryListState,
+                        running = conversation?.running == true,
                     )
                 }
             }
@@ -335,7 +370,7 @@ fun ChatScreen(
                         scope.launch {
                             refusalOf(block())?.let {
                                 planBusy = false
-                                toast.second(it)
+                                toast.second(it, ToastTone.Error)
                             }
                         }
                     }

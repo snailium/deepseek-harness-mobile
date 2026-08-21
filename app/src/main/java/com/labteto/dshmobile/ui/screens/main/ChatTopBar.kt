@@ -1,6 +1,11 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,10 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -77,6 +78,8 @@ internal fun ChatTopBar(
     subagentCount: Int,
     detailsOpen: Boolean,
     tab: ChatTab,
+    /** True once the reader scrolls the transcript: the session-meta row folds away. */
+    collapsed: Boolean,
     onOpenDrawer: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenPresets: () -> Unit,
@@ -101,7 +104,7 @@ internal fun ChatTopBar(
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
-            ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f, fill = false))
+            ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f))
             Spacer(Modifier.weight(1f))
             StateDot(
                 if (running) StateDotState.Running else StateDotState.Idle,
@@ -121,7 +124,13 @@ internal fun ChatTopBar(
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
-        if (title.isNotBlank() || hasChips) {
+        // Folds away once the reader scrolls: the row names the session, which a reader mid-way
+        // through a long transcript is not looking for. Returning to the top brings it back.
+        AnimatedVisibility(
+            visible = !collapsed && (title.isNotBlank() || hasChips),
+            enter = expandVertically(DsAnimations.expand) + fadeIn(DsAnimations.fade),
+            exit = shrinkVertically(DsAnimations.expand) + fadeOut(DsAnimations.fade),
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -162,16 +171,17 @@ internal fun ChatTopBar(
                 }
                 if (agentPresetLabel != null) {
                     MetaChip(
-                        icon = Icons.Outlined.Dashboard,
+                        icon = FeatherIcons.Layout,
                         label = agentPresetLabel,
                         onClick = onOpenPresets,
                     )
                 }
                 if (subagentCount > 0) {
                     MetaChip(
-                        icon = Icons.Outlined.Groups,
+                        icon = FeatherIcons.Users,
                         label = "$subagentCount",
                         onClick = onOpenSubagents,
+                        semanticsLabel = stringResource(R.string.subagents_title),
                     )
                 }
             }
@@ -221,7 +231,11 @@ private fun ModelChip(
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
             .border(1.dp, colors.borderL2, DsShapes.pillFull)
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.models_title),
+                onClick = onClick,
+            )
             .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
@@ -241,7 +255,7 @@ private fun ModelChip(
             Text(it.name, style = DsType.small13, color = colors.labelTertiary, maxLines = 1)
         }
         Icon(
-            Icons.Filled.KeyboardArrowDown,
+            FeatherIcons.ChevronDown,
             contentDescription = null,
             tint = colors.labelSecondary,
             modifier = Modifier.size(14.dp),
@@ -255,6 +269,8 @@ private fun MetaChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
+    /** What the chip does, for assistive tech; the [label] may be a bare count. */
+    semanticsLabel: String = label,
 ) {
     val colors = DsTheme.colors
     Row(
@@ -263,7 +279,11 @@ private fun MetaChip(
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
             .border(1.dp, colors.borderL2, DsShapes.pillFull)
-            .clickable(onClick = onClick)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = semanticsLabel,
+                onClick = onClick,
+            )
             .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
@@ -271,7 +291,7 @@ private fun MetaChip(
         Icon(icon, contentDescription = null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
         Text(label, style = DsType.small13, color = colors.labelSecondary, maxLines = 1)
         Icon(
-            Icons.Filled.KeyboardArrowDown,
+            FeatherIcons.ChevronDown,
             contentDescription = null,
             tint = colors.labelSecondary,
             modifier = Modifier.size(12.dp),

@@ -394,4 +394,71 @@
     <string name="status_online">Онлайн</string>
     <string name="status_offline">Офлайн</string>
     <string name="chat_typing">Ассистент печатает…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">Ввод</string>
+    <string name="tool_output">Вывод</string>
+    <string name="tool_locations">Расположения</string>
+    <string name="tool_running">выполняется</string>
+    <string name="tool_killed_by">остановлен по сигналу %1$s</string>
+    <string name="tool_exit_code">код выхода %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">показано %1$d из %2$d</string>
+    <string name="tool_copy_code">Скопировать код</string>
+    <string name="tool_copy">копировать</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d блок</item>
+        <item quantity="few">%1$d блока</item>
+        <item quantity="many">%1$d блоков</item>
+        <item quantity="other">%1$d блоков</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d расположение</item>
+        <item quantity="few">%1$d расположения</item>
+        <item quantity="many">%1$d расположений</item>
+        <item quantity="other">%1$d расположений</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d результат</item>
+        <item quantity="few">%1$d результата</item>
+        <item quantity="many">%1$d результатов</item>
+        <item quantity="other">%1$d результатов</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d строка</item>
+        <item quantity="few">%1$d строки</item>
+        <item quantity="many">%1$d строк</item>
+        <item quantity="other">%1$d строк</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d источник</item>
+        <item quantity="few">%1$d источника</item>
+        <item quantity="many">%1$d источников</item>
+        <item quantity="other">%1$d источников</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d файл</item>
+        <item quantity="few">%1$d файла</item>
+        <item quantity="many">%1$d файлов</item>
+        <item quantity="other">%1$d файлов</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d ещё</item>
+        <item quantity="few">+%1$d ещё</item>
+        <item quantity="many">+%1$d ещё</item>
+        <item quantity="other">+%1$d ещё</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d строка)</item>
+        <item quantity="few">(%1$d строки)</item>
+        <item quantity="many">(%1$d строк)</item>
+        <item quantity="other">(%1$d строк)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d файл</item>
+        <item quantity="few">+%1$d -%2$d · %3$d файла</item>
+        <item quantity="many">+%1$d -%2$d · %3$d файлов</item>
+        <item quantity="other">+%1$d -%2$d · %3$d файлов</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · копировать</string>
+    <string name="chat_message_actions">Действия с сообщением</string>
 </resources>

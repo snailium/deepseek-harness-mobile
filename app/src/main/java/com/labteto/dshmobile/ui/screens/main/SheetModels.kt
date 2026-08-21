@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +35,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import kotlinx.coroutines.launch
 
 /**
@@ -173,7 +172,7 @@ private fun ModelRow(
                 if (selected) {
                     Spacer(Modifier.width(DsSpacing.small))
                     Icon(
-                        Icons.Filled.Check,
+                        FeatherIcons.Check,
                         contentDescription = stringResource(R.string.models_current),
                         tint = colors.accent,
                         modifier = Modifier.size(16.dp),

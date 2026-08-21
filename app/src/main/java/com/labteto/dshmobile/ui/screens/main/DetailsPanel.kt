@@ -22,9 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -73,6 +70,7 @@ import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.formatDurationMs
 import com.labteto.dshmobile.ui.components.formatTokens
 import com.labteto.dshmobile.ui.components.rememberDsToast
@@ -80,6 +78,7 @@ import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -139,7 +138,7 @@ fun DetailsPanel(
                     store.exportSessionTo(sink, includeDescendants = true)
                 } ?: false
             }.getOrDefault(false)
-            toast.second(if (ok) savedLabel else failedLabel)
+            toast.second(if (ok) savedLabel else failedLabel, if (ok) ToastTone.Success else ToastTone.Error)
         }
     }
 
@@ -178,7 +177,7 @@ fun DetailsPanel(
                 Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
                     DsButton(
                         text = stringResource(R.string.chat_export),
-                        icon = Icons.Filled.Download,
+                        icon = FeatherIcons.Download,
                         onClick = {
                             exportLauncher.launch("dsh-session-${currentSessionId.orEmpty()}.zip")
                         },
@@ -192,7 +191,7 @@ fun DetailsPanel(
                             scope.launch {
                                 store.exportSessionUrl()?.let { url ->
                                     clipboard.setText(AnnotatedString(url))
-                                    toast.second(copiedLabel)
+                                    toast.second(copiedLabel, ToastTone.Info)
                                 }
                             }
                         },
@@ -247,9 +246,10 @@ private fun HeaderRow(onClose: () -> Unit) {
     val colors = DsTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
         DsIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
+            icon = FeatherIcons.ArrowLeft,
             contentDescription = stringResource(R.string.common_back),
             onClick = onClose,
+            mirrorForRtl = true,
         )
         Text(
             stringResource(R.string.chat_details_title),

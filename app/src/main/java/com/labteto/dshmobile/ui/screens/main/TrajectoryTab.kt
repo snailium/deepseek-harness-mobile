@@ -55,6 +55,8 @@ internal fun TrajectoryTab(
     usage: TokenUsageView?,
     cwd: String?,
     listState: LazyListState,
+    /** Whether a turn is live right now; drives the running dot on in-flight calls. */
+    running: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -87,7 +89,7 @@ internal fun TrajectoryTab(
                 count = turnNodes.size,
                 key = { index -> "n-${turnNodes[index].seq}" },
             ) { index ->
-                TrajectoryRow(turnNodes[index], turnNodes, cwd)
+                TrajectoryRow(turnNodes[index], turnNodes, cwd, running)
             }
         }
         if (stats != null || usage != null) {
@@ -100,7 +102,7 @@ internal fun TrajectoryTab(
 }
 
 @Composable
-private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?) {
+private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?, running: Boolean) {
     val colors = DsTheme.colors
     when (node) {
         is UserMessageNode -> {
@@ -125,22 +127,26 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
             val result = siblings
                 .filterIsInstance<ToolResultNode>()
                 .firstOrNull { it.callId == node.callId }
-            ToolLedgerRow(node, result, cwd)
+            ToolLedgerRow(node, result, cwd, running)
         }
         else -> Unit
     }
 }
 
 @Composable
-private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: String?) {
+private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: String?, running: Boolean) {
     val colors = DsTheme.colors
     val row = remember(call.callId, cwd) { toolRowModel(call.name, call.arguments, cwd) }
     var expanded by remember(call.callId) { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         StateDot(
             when {
-                result == null -> StateDotState.Running
-                result.isError -> StateDotState.Error
+                // Without a result the call is either still running or — after the turn ended,
+                // or across a paging boundary — simply has no result row attached. Only the
+                // live-turn case earns the chasing dot; a stale "running" on a finished turn
+                // reads as the ledger never having settled.
+                result == null && running -> StateDotState.Running
+                result?.isError == true -> StateDotState.Error
                 else -> StateDotState.Done
             },
             size = 8.dp,

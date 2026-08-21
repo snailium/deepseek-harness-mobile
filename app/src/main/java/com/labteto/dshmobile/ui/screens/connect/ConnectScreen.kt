@@ -15,10 +15,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,7 +24,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +52,7 @@ import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.dsTextFieldColors
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
@@ -163,7 +159,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                 horizontalArrangement = Arrangement.End,
             ) {
                 DsIconButton(
-                    icon = FeatherIcons.Tool,
+                    icon = FeatherIcons.Settings,
                     contentDescription = stringResource(R.string.settings_title),
                     onClick = onOpenSettings,
                     tint = colors.labelTertiary,
@@ -497,7 +493,7 @@ private fun SecretField(
                 if (toggleable) {
                     IconButton(onClick = { onToggleVisibility(!visible) }) {
                         Icon(
-                            if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            if (visible) FeatherIcons.EyeOff else FeatherIcons.Eye,
                             contentDescription = stringResource(R.string.connect_token_show_hide),
                             tint = DsTheme.colors.labelTertiary,
                         )
@@ -510,13 +506,7 @@ private fun SecretField(
 }
 
 @Composable
-private fun connectFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = DsTheme.colors.bgLayer1,
-    unfocusedContainerColor = DsTheme.colors.bgLayer1,
-    focusedIndicatorColor = DsTheme.colors.accent,
-    unfocusedIndicatorColor = DsTheme.colors.borderL2,
-    cursorColor = DsTheme.colors.accent,
-)
+private fun connectFieldColors() = dsTextFieldColors()
 
 /**
  * One remembered harness.
@@ -599,7 +589,7 @@ private fun RecentHarnessCard(
             // credential short of deleting the host and typing everything again.
             DsButton(
                 text = stringResource(R.string.common_edit),
-                icon = Icons.Filled.Edit,
+                icon = FeatherIcons.Pencil,
                 onClick = onEdit,
                 variant = DsButtonVariant.Ghost,
                 size = DsButtonSize.Small,

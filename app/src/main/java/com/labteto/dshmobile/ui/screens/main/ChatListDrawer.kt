@@ -22,13 +22,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -45,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,6 +69,8 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.autoMirrorDirectional
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -206,7 +204,7 @@ fun ChatListDrawer(
                 modifier = Modifier.weight(1f),
             )
             DsIconButton(
-                icon = Icons.Filled.Search,
+                icon = FeatherIcons.Search,
                 contentDescription = stringResource(R.string.common_search),
                 // Closing the field clears the query too: a hidden field holding text left the list
                 // filtered by something no longer on screen.
@@ -220,7 +218,7 @@ fun ChatListDrawer(
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
             DsIconButton(
-                icon = Icons.Filled.Settings,
+                icon = FeatherIcons.Settings,
                 contentDescription = stringResource(R.string.settings_title),
                 onClick = onOpenSettings,
                 tint = colors.labelTertiary,
@@ -260,7 +258,7 @@ fun ChatListDrawer(
 
         DsButton(
             text = stringResource(R.string.chatlist_new_session),
-            icon = Icons.Filled.Add,
+            icon = FeatherIcons.Plus,
             onClick = { newSessionOpen = true },
             variant = DsButtonVariant.Info,
             modifier = Modifier.fillMaxWidth(),
@@ -437,7 +435,7 @@ fun ChatListDrawer(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Filled.Add,
+                FeatherIcons.Plus,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(16.dp),
@@ -502,7 +500,7 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
             ) {
                 Icon(
-                    Icons.Filled.SwapVert,
+                    FeatherIcons.ChevronsUpDown,
                     contentDescription = stringResource(R.string.chatlist_sort_title),
                     tint = colors.labelTertiary,
                     modifier = Modifier.size(16.dp),
@@ -565,12 +563,13 @@ private fun WorkspaceHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                FeatherIcons.ChevronRight,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier
                     .size(16.dp)
-                    .graphicsLayer { rotationZ = rotation },
+                    .graphicsLayer { rotationZ = rotation }
+                    .autoMirrorDirectional(),
             )
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
@@ -703,19 +702,32 @@ private fun SessionRowItem(
             Spacer(Modifier.width(DsSpacing.small))
             // The chevron is its own tap target: opening a session and looking at what it spawned
             // are different intentions, and conflating them means you cannot do one without the
-            // other. The spacer keeps titles aligned down a column of mixed rows.
+            // other. Both branches occupy the same 36dp slot (32dp target + 4dp gap) so titles
+            // stay aligned down a column of mixed rows.
             if (childCount > 0) {
-                Icon(
-                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = stringResource(R.string.chatlist_subagents),
-                    tint = colors.labelTertiary,
+                Box(
                     modifier = Modifier
-                        .size(16.dp)
-                        .graphicsLayer { rotationZ = chevronRotation }
-                        .clickable(onClick = onToggleChildren),
-                )
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.chatlist_subagents),
+                            onClick = onToggleChildren,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        FeatherIcons.ChevronRight,
+                        contentDescription = null,
+                        tint = colors.labelTertiary,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .graphicsLayer { rotationZ = chevronRotation }
+                            .autoMirrorDirectional(),
+                    )
+                }
             } else {
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(32.dp))
             }
             Spacer(Modifier.width(DsSpacing.tiny))
             StateDot(

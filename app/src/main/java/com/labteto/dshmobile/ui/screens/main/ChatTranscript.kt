@@ -27,6 +27,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -86,6 +88,8 @@ internal fun ChatTranscript(
     onLoadOlder: () -> Unit,
     onSuggest: (String) -> Unit = {},
     modifier: Modifier = Modifier,
+    /** Observes user scrolls (e.g. to fold the chrome); null keeps the list plain. */
+    scrollConnection: NestedScrollConnection? = null,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
     // worth of structural events stacks those gaps into a blank band under the chrome.
@@ -162,7 +166,15 @@ internal fun ChatTranscript(
 
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .then(
+                if (scrollConnection != null) {
+                    Modifier.nestedScroll(scrollConnection)
+                } else {
+                    Modifier
+                },
+            ),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         // Bottom-anchored: a transcript shorter than the viewport belongs above the composer, not
         // pinned under the tab strip with the empty half below it. 10dp between rows gives the

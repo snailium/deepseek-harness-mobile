@@ -2,7 +2,6 @@ package com.labteto.dshmobile.ui.screens.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,11 +22,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -45,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -63,6 +58,7 @@ import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
+import com.labteto.dshmobile.ui.components.DsGroupCard
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsToastHost
@@ -71,12 +67,15 @@ import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.autoMirrorDirectional
 import java.util.Locale
 
 /**
@@ -118,9 +117,10 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     DsIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        icon = FeatherIcons.ArrowLeft,
                         contentDescription = stringResource(R.string.common_back),
                         onClick = onClose,
+                        mirrorForRtl = true,
                     )
                     Text(
                         stringResource(R.string.settings_title),
@@ -199,13 +199,13 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                 SettingsCard(stringResource(R.string.settings_data)) {
                     DsButton(
                         text = stringResource(R.string.settings_forget_hosts),
-                        onClick = { viewModel.forgetHosts { toast.second(hostsCleared) } },
+                        onClick = { viewModel.forgetHosts { toast.second(hostsCleared, ToastTone.Success) } },
                         variant = DsButtonVariant.Outline,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     DsButton(
                         text = stringResource(R.string.settings_clear_last_sessions),
-                        onClick = { viewModel.clearLastSessions { toast.second(sessionsCleared) } },
+                        onClick = { viewModel.clearLastSessions { toast.second(sessionsCleared, ToastTone.Success) } },
                         variant = DsButtonVariant.Ghost,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -286,20 +286,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 /** One settings group as a raised card, so groups read as blocks rather than a running list. */
 @Composable
 private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    val colors = DsTheme.colors
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
-        SectionHeader(title)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.block)
-                .background(colors.bgLayer1)
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-        ) {
-            content()
-        }
-    }
+    DsGroupCard(title) { content() }
 }
 
 /**
@@ -330,7 +317,11 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(DsShapes.row)
-                .clickable(onClick = onOpen)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.settings_plugins),
+                    onClick = onOpen,
+                )
                 .padding(vertical = DsSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -347,7 +338,7 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
             )
             Spacer(Modifier.width(DsSpacing.xsmall))
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                FeatherIcons.ChevronRight,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(16.dp),
@@ -561,10 +552,10 @@ private fun HelpRow(title: String, onClick: () -> Unit) {
             modifier = Modifier.weight(1f),
         )
         Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            FeatherIcons.ChevronRight,
             contentDescription = null,
             tint = colors.labelTertiary,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(16.dp).autoMirrorDirectional(),
         )
     }
 }
@@ -609,7 +600,7 @@ private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
                         maxLines = 1,
                     )
                     Icon(
-                        Icons.Filled.KeyboardArrowDown,
+                        FeatherIcons.ChevronDown,
                         contentDescription = null,
                         tint = colors.labelSecondary,
                         modifier = Modifier.size(14.dp),
@@ -619,7 +610,7 @@ private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
             items = LanguageOptions.map { option ->
                 MenuItem(
                     text = labels[option].orEmpty(),
-                    icon = Icons.Filled.Check.takeIf { option.tag == settings.localeOverride },
+                    icon = FeatherIcons.Check.takeIf { option.tag == settings.localeOverride },
                 ) { onSelect(option.tag) }
             },
         )

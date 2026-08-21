@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -29,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,7 +37,6 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
-import java.util.Locale
 
 /**
  * Right-aligned user message bubble: r22, `userBubble` fill, hairline edge, 16/24 text.
@@ -94,7 +91,7 @@ fun ThinkingRow(
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            summary ?: "Thinking…",
+            summary ?: stringResource(R.string.chat_thinking),
             style = DsType.mdSmall.copy(color = colors.labelTertiary),
             color = colors.labelTertiary,
             maxLines = 1,
@@ -107,7 +104,7 @@ fun ThinkingRow(
             label = "thinkingChevron",
         )
         Icon(
-            Icons.Filled.KeyboardArrowDown,
+            FeatherIcons.ChevronDown,
             contentDescription = stringResource(R.string.chat_thinking),
             tint = colors.labelTertiary,
             modifier = Modifier
@@ -135,17 +132,20 @@ fun ConnectionBanner(
     onAction: (() -> Unit)? = null,
 ) {
     val colors = DsTheme.colors
-    val background = if (tone == BannerTone.Error) colors.error else colors.accentTertiary
+    val background = if (tone == BannerTone.Error) colors.errorFill else colors.accentTertiary
     val foreground = if (tone == BannerTone.Error) Color.White else colors.labelSecondary
+    // A warning triangle on the calm "reconnecting" notice was the wrong glyph for the wrong
+    // message; the error strip keeps the warning, the recovery notice gets a refresh.
+    val glyph = if (tone == BannerTone.Error) FeatherIcons.AlertTriangle else FeatherIcons.RefreshCw
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(background)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Filled.Warning,
+            glyph,
             contentDescription = null,
             tint = foreground,
             modifier = Modifier.size(16.dp),
@@ -159,47 +159,18 @@ fun ConnectionBanner(
         )
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.width(8.dp))
-            TextButton(onClick = onAction) {
-                Text(actionLabel, style = DsType.small13Strong, color = foreground)
-            }
+            Text(
+                actionLabel,
+                style = DsType.small13Strong,
+                color = foreground,
+                modifier = Modifier
+                    .clip(DsShapes.row)
+                    .clickable(role = Role.Button, onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            )
         }
     }
 }
-
-/** Centered run statistics with tabular numerals. */
-@Composable
-fun StatsLine(
-    turns: Int,
-    steps: Int,
-    llmMs: Long? = null,
-    ttftMs: Long? = null,
-    tokPerSec: Double? = null,
-) {
-    val colors = DsTheme.colors
-    val text = buildString {
-        append("Turns $turns")
-        append(" · Steps $steps")
-        append(" · LLM ${formatDuration(llmMs)}")
-        append(" · TTFT ${formatDuration(ttftMs)}")
-        append(" · ${formatRate(tokPerSec)} tok/s")
-    }
-    Text(
-        text,
-        style = DsType.statsText.copy(color = colors.labelCaption, fontFeatureSettings = "tnum"),
-        color = colors.labelCaption,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-private fun formatDuration(ms: Long?): String = when {
-    ms == null -> "—"
-    ms >= 1000 -> "%.1fs".format(Locale.US, ms / 1000.0)
-    else -> "${ms}ms"
-}
-
-private fun formatRate(perSec: Double?): String =
-    perSec?.let { "%.1f".format(Locale.US, it) } ?: "—"
 
 @Preview(showBackground = true, widthDp = 360)
 @Composable
@@ -212,7 +183,6 @@ private fun ChatComponentsPreview() {
             UserBubble("Build the shared component library.")
             ThinkingRow("Working through the diff…", expanded = false, onToggle = {}, streaming = true)
             ConnectionBanner("Connection lost — retrying…")
-            StatsLine(turns = 3, steps = 12, llmMs = 2100, ttftMs = 420, tokPerSec = 18.4)
         }
     }
 }

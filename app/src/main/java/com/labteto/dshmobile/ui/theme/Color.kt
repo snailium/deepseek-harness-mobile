@@ -92,7 +92,14 @@ object DsLight {
     val labelPrimary = Ds.Bluish1000
     val labelSecondary = Ds.Bluish700
     val labelTertiary = Ds.Bluish600
-    val labelCaption = Ds.Bluish400
+    /**
+     * One step darker than the harness's own `--dsw-label-caption` (`Bluish400`).
+     *
+     * The web value sits at ~2.4:1 against white — legible on a desk monitor at a full 748px
+     * column, invisible in an 11sp caption on a phone held at arm's length. Same reasoning as
+     * `userBubble`: the mobile app steps one rung down the scale for phone readability.
+     */
+    val labelCaption = Ds.Bluish500
     val labelDimmed = Ds.Bluish200
     val accent = Ds.Deepseek500
     val onAccent = Color(0xFFFFFFFF)
@@ -108,6 +115,11 @@ object DsLight {
     val buttonInfoFill = Ds.Deepseek500
     val buttonInfoHover = Ds.Deepseek400
     val error = Ds.Red600
+    /**
+     * Fill for danger surfaces (Danger buttons, the error banner). `error` at `#EC1313` with
+     * white 14sp text measures ~3.9:1 — below WCAG AA — so the fill steps darker than the label.
+     */
+    val errorFill = Color(0xFFC81010)
     val errorSecondary = Ds.Red400
     val errorTertiary = Ds.Red50
     val success = Ds.Green500
@@ -183,6 +195,7 @@ object DsDark {
     val buttonInfoFill = Ds.Deepseek400
     val buttonInfoHover = Ds.Deepseek500
     val error = Ds.Red400
+    val errorFill = Ds.Red400
     val errorSecondary = Ds.Red400
     val errorTertiary = Ds.Red900
     val success = Ds.Green500

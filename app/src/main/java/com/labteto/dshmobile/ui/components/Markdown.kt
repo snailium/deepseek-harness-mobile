@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicText
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,8 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import com.labteto.dshmobile.R
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +43,15 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
+
+/** A URL worth opening: http(s) only, so a harness reply cannot smuggle another scheme out. */
+internal fun safeHttpUrl(raw: String): String? {
+    val url = raw.trim()
+    if (url.isEmpty()) return null
+    val lower = url.lowercase()
+    if (!lower.startsWith("http://") && !lower.startsWith("https://")) return null
+    return url
+}
 
 /**
  * Block-level Markdown renderer: fenced code blocks, #-#### headings, bullet and
@@ -267,22 +278,37 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         fontFamily = DsType.codeFont,
         color = colors.labelPrimary,
     )
-    val result = remember(text, style, codeStyle, colors) {
+    val uriHandler = LocalUriHandler.current
+    val (result, links) = remember(text, style, codeStyle, colors) {
         buildInlineContent(text, codeStyle, colors)
     }
-    BasicText(
-        result,
+    // ClickableText rather than BasicText: links need a tap target. The offsets map back to the
+    // URL via [links]; anything outside a link range is inert (ClickableText's onClick only fires
+    // on characters, but a tap between spans still lands on the nearest one — the range check
+    // keeps an accidental tap next to a link from opening it).
+    ClickableText(
+        text = result,
         modifier = modifier,
         style = style,
+        onClick = { offset ->
+            links.firstOrNull { (range, _) -> offset in range }?.second?.let { target ->
+                uriHandler.openUri(target)
+            }
+        },
     )
 }
 
+/**
+ * The rendered line plus the link ranges within it, so [InlineMarkdown] can turn a tap into an
+ * open. Links are accent + underline, and only http(s) URLs become tappable.
+ */
 private fun buildInlineContent(
     text: String,
     codeStyle: TextStyle,
     colors: DsColors,
-): AnnotatedString {
+): Pair<AnnotatedString, List<Pair<IntRange, String>>> {
     val builder = AnnotatedString.Builder()
+    val links = mutableListOf<Pair<IntRange, String>>()
     parseInlineSegments(text).forEach { segment ->
         when (segment) {
             is InlineSegment.Plain -> builder.append(segment.text)
@@ -292,12 +318,23 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                // v1 renders links as accent-colored text (no click-through).
-                builder.withStyle(SpanStyle(color = colors.accent)) { append(segment.text) }
+                val target = safeHttpUrl(segment.url)
+                if (target != null) {
+                    val start = builder.length
+                    builder.withStyle(
+                        SpanStyle(
+                            color = colors.accent,
+                            textDecoration = TextDecoration.Underline,
+                        ),
+                    ) { append(segment.text) }
+                    links.add((start until builder.length) to target)
+                } else {
+                    builder.append(segment.text)
+                }
             }
         }
     }
-    return builder.toAnnotatedString()
+    return builder.toAnnotatedString() to links
 }
 
 // ---- Block renderers --------------------------------------------------------
@@ -361,14 +398,14 @@ private fun CodeBlock(lang: String?, code: String, modifier: Modifier = Modifier
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                lang?.let { "$it · copy" } ?: "copy",
+                lang?.let { stringResource(R.string.tool_copy_code_lang, it) } ?: stringResource(R.string.tool_copy),
                 style = DsType.caption11Strong.copy(fontFamily = DsType.codeFont, color = colors.labelCaption),
                 color = colors.labelCaption,
                 modifier = Modifier.weight(1f),
             )
             Icon(
-                Icons.Filled.ContentCopy,
-                contentDescription = "Copy code",
+                FeatherIcons.Copy,
+                contentDescription = stringResource(R.string.tool_copy_code),
                 tint = colors.labelTertiary,
                 modifier = Modifier
                     .size(16.dp)

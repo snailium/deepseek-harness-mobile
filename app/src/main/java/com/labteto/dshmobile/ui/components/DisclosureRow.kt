@@ -110,7 +110,8 @@ fun DisclosureRow(
                     tint = if (hovered) colors.labelSecondary else colors.labelTertiary,
                     modifier = Modifier
                         .size(14.dp)
-                        .graphicsLayer { rotationZ = rotation },
+                        .graphicsLayer { rotationZ = rotation }
+                        .autoMirrorDirectional(),
                 )
                 Spacer(Modifier.width(4.dp))
             }

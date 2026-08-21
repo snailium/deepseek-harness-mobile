@@ -394,4 +394,53 @@
     <string name="status_online">অনলাইন</string>
     <string name="status_offline">অফলাইন</string>
     <string name="chat_typing">সহকারী টাইপ করছে…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">ইনপুট</string>
+    <string name="tool_output">আউটপুট</string>
+    <string name="tool_locations">অবস্থান</string>
+    <string name="tool_running">চলছে</string>
+    <string name="tool_killed_by">%1$s দ্বারা বন্ধ হয়েছে</string>
+    <string name="tool_exit_code">এক্সিট কোড %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">%2$d এর মধ্যে %1$d দেখানো হচ্ছে</string>
+    <string name="tool_copy_code">কোড কপি করুন</string>
+    <string name="tool_copy">কপি</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$dটি ব্লক</item>
+        <item quantity="other">%1$dটি ব্লক</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$dটি অবস্থান</item>
+        <item quantity="other">%1$dটি অবস্থান</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$dটি ফলাফল</item>
+        <item quantity="other">%1$dটি ফলাফল</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$dটি লাইন</item>
+        <item quantity="other">%1$dটি লাইন</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$dটি উৎস</item>
+        <item quantity="other">%1$dটি উৎস</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$dটি ফাইল</item>
+        <item quantity="other">%1$dটি ফাইল</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d আরও</item>
+        <item quantity="other">+%1$d আরও</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$dটি লাইন)</item>
+        <item quantity="other">(%1$dটি লাইন)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$dটি ফাইল</item>
+        <item quantity="other">+%1$d -%2$d · %3$dটি ফাইল</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · কপি</string>
+    <string name="chat_message_actions">বার্তা অ্যাকশন</string>
 </resources>

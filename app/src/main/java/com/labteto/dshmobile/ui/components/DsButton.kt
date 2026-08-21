@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -36,6 +34,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /** Button variants mirroring the harness primary/info/ghost/outline/danger palette. */
 enum class DsButtonVariant { Primary, Info, Ghost, Outline, Danger }
@@ -71,7 +70,7 @@ fun DsButton(
         DsButtonVariant.Info -> colors.buttonInfoFill to colors.onAccent
         DsButtonVariant.Ghost -> Color.Transparent to colors.labelPrimary
         DsButtonVariant.Outline -> Color.Transparent to colors.labelPrimary
-        DsButtonVariant.Danger -> colors.error to Color.White
+        DsButtonVariant.Danger -> colors.errorFill to Color.White
     }
     val background = when {
         !enabled -> when (variant) {
@@ -138,7 +137,7 @@ fun DsButton(
 private fun DsButtonPreview() {
     DshTheme {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            DsButton("Primary", {}, icon = Icons.Filled.Add)
+            DsButton("Primary", {}, icon = FeatherIcons.Plus)
             DsButton("Info", {}, variant = DsButtonVariant.Info)
             DsButton("Ghost", {}, variant = DsButtonVariant.Ghost)
             DsButton("Outline", {}, variant = DsButtonVariant.Outline)

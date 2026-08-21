@@ -394,4 +394,62 @@
     <string name="status_online">En línea</string>
     <string name="status_offline">Sin conexión</string>
     <string name="chat_typing">El asistente está escribiendo…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">Entrada</string>
+    <string name="tool_output">Salida</string>
+    <string name="tool_locations">Ubicaciones</string>
+    <string name="tool_running">ejecutándose</string>
+    <string name="tool_killed_by">terminado por %1$s</string>
+    <string name="tool_exit_code">código de salida %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">mostrando %1$d de %2$d</string>
+    <string name="tool_copy_code">Copiar código</string>
+    <string name="tool_copy">copiar</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d bloque</item>
+        <item quantity="many">%1$d bloques</item>
+        <item quantity="other">%1$d bloques</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d ubicación</item>
+        <item quantity="many">%1$d ubicaciones</item>
+        <item quantity="other">%1$d ubicaciones</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d resultado</item>
+        <item quantity="many">%1$d resultados</item>
+        <item quantity="other">%1$d resultados</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d línea</item>
+        <item quantity="many">%1$d líneas</item>
+        <item quantity="other">%1$d líneas</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d fuente</item>
+        <item quantity="many">%1$d fuentes</item>
+        <item quantity="other">%1$d fuentes</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d archivo</item>
+        <item quantity="many">%1$d archivos</item>
+        <item quantity="other">%1$d archivos</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d más</item>
+        <item quantity="many">+%1$d más</item>
+        <item quantity="other">+%1$d más</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d línea)</item>
+        <item quantity="many">(%1$d líneas)</item>
+        <item quantity="other">(%1$d líneas)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d archivo</item>
+        <item quantity="many">+%1$d -%2$d · %3$d archivos</item>
+        <item quantity="other">+%1$d -%2$d · %3$d archivos</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · copiar</string>
+    <string name="chat_message_actions">Acciones del mensaje</string>
 </resources>

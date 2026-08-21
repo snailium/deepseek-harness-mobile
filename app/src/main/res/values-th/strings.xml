@@ -394,4 +394,44 @@
     <string name="status_online">অনলাইন</string>
     <string name="status_offline">ออฟไลน์</string>
     <string name="chat_typing">ผู้ช่วยกำลังพิมพ์…</string>
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">อินพุต</string>
+    <string name="tool_output">เอาต์พุต</string>
+    <string name="tool_locations">ตำแหน่ง</string>
+    <string name="tool_running">กำลังทำงาน</string>
+    <string name="tool_killed_by">ยุติโดย %1$s</string>
+    <string name="tool_exit_code">รหัสออก %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">แสดง %1$d จาก %2$d</string>
+    <string name="tool_copy_code">คัดลอกโค้ด</string>
+    <string name="tool_copy">คัดลอก</string>
+    <plurals name="tool_blocks">
+        <item quantity="other">%1$d บล็อก</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="other">%1$d ตำแหน่ง</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="other">%1$d ผลลัพธ์</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="other">%1$d บรรทัด</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="other">%1$d แหล่งที่มา</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="other">%1$d ไฟล์</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="other">+%1$d เพิ่มเติม</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="other">(%1$d บรรทัด)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="other">+%1$d -%2$d · %3$d ไฟล์</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · คัดลอก</string>
+    <string name="chat_message_actions">การกระทำของข้อความ</string>
 </resources>
