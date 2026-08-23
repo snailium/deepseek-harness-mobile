@@ -178,9 +178,9 @@ object DsLight {
     val tipSurface = Ds.Bluish60
     val codeBlockBg = Ds.Bluish75
     val codeBlockBanner = Ds.Bluish75
-    val inlineCode = Ds.Bluish100
+    val inlineCode = Ds.Deepseek50
     val citation = Ds.Bluish100
-    val markdownTag = Ds.Bluish75
+    val markdownTag = Ds.Deepseek50
     val overlayMask = Color(0x3D000000) // rgba(0,0,0,.24)
 
     // ---- Redesign tokens (light) ----
@@ -255,9 +255,9 @@ object DsDark {
     val tipSurface = Ds.Bluish800
     val codeBlockBg = Ds.Bluish900
     val codeBlockBanner = Ds.Bluish875
-    val inlineCode = Ds.Bluish850
+    val inlineCode = Ds.Deepseek800
     val citation = Ds.Bluish800
-    val markdownTag = Ds.Bluish850
+    val markdownTag = Ds.Deepseek800
     val overlayMask = Color(0x80000000) // rgba(0,0,0,.5)
 
     // ---- Redesign tokens (dark) ----
