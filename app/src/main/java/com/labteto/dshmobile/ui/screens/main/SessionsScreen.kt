@@ -1030,7 +1030,7 @@ private fun SessionRowItem(
                     text = sessionTitle(session),
                     style = DsType.rowTitle,
                     color = colors.labelPrimary,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1159,7 +1159,7 @@ private fun SearchResultRow(
                 text = sessionTitle(hit.session),
                 style = DsType.rowTitle,
                 color = colors.labelPrimary,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
