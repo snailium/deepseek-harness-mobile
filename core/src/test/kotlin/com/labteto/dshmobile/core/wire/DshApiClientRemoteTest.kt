@@ -88,7 +88,7 @@ class DshApiClientRemoteTest {
 
         val args = Json.parseToJsonElement(transport.lastBody!!)
             .jsonObject["payload"]!!.jsonObject["args"]!!.jsonObject
-        assertEquals(setOf("agentId", "line"), args.keys)
+        assertEquals(setOf("agentId", "line", "images"), args.keys)
         assertEquals("session-2", args["agentId"]!!.jsonPrimitive.content)
         assertEquals("/permission workspace-write", args["line"]!!.jsonPrimitive.content)
     }

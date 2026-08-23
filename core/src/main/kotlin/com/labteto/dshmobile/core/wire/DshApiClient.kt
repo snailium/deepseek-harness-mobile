@@ -109,6 +109,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.serializer
@@ -495,6 +496,10 @@ class DshApiClient(
             buildJsonObject {
                 put("agentId", JsonPrimitive(sessionId))
                 put("line", JsonPrimitive(line))
+                // The command gateway's args descriptor validates every slot. A command line carries
+                // no images, but the images key must still be present (empty) or the harness rejects
+                // the call with a args-fields-do-not-match-the-descriptor error.
+                put("images", buildJsonArray { })
             },
         )
 
