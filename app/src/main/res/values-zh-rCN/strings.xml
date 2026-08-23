@@ -26,6 +26,16 @@
     <string name="common_none">无</string>
     <string name="connect_title">连接到 Harness</string>
     <string name="connect_subtitle">DSH Mobile 会镜像运行在你电脑上的 DeepSeek Harness。</string>
+    <string name="onboarding_intro_title">欢迎使用 DSH Mobile</string>
+    <string name="onboarding_intro_body">DSH Mobile 是运行在你电脑上的 DeepSeek Harness 的伴侣应用。通过 Wi-Fi 连接一次，即可随身控制它。</string>
+    <string name="onboarding_step1_title">在你的电脑上启动 harness</string>
+    <string name="onboarding_step1_body">在你的电脑上运行 DeepSeek Harness（例如使用 <![CDATA[<b>dsh web</b>]]>）。两台设备需要在同一个 Wi-Fi 网络中。</string>
+    <string name="onboarding_step1_learn_more">如何连接？</string>
+    <string name="onboarding_step2_title">从手机连接</string>
+    <string name="onboarding_step2_body">扫描你网络中的 harness，或手动输入其地址。harness 运行时，它会自动出现在这里。</string>
+    <string name="onboarding_scan">扫描我的网络</string>
+    <string name="onboarding_manual">手动输入地址</string>
+    <string name="onboarding_back_to_connect">返回连接</string>
     <string name="connect_manual_title">手动连接</string>
 
 

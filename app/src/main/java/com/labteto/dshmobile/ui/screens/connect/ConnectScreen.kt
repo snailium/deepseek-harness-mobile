@@ -169,26 +169,63 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                 )
             }
 
-            EmptyHero(
-                headline = stringResource(R.string.app_long_name),
-                subtitle = stringResource(R.string.connect_subtitle),
-                chips = emptyList(),
-                onChipClick = {},
-            )
-
-            // Security banner (always on the connect screen). Info-toned: the point is a calm
-            // reminder of where the protection lives, not an alarm about a fault.
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = DsShapes.alert,
-                color = colors.accentTertiary,
-            ) {
-                Text(
-                    stringResource(R.string.connect_security_banner),
-                    style = DsType.small13,
-                    color = colors.labelSecondary,
-                    modifier = Modifier.padding(DsSpacing.medium),
+            // First-run vs returning: a fresh install gets a short explainer of what DSH Mobile
+            // is and the three options below; a returning user just wants the compact hero and the
+            // Resume card underneath.
+            if (state.remembered.isEmpty()) {
+                EmptyHero(
+                    headline = stringResource(R.string.onboarding_intro_title),
+                    subtitle = stringResource(R.string.onboarding_intro_body),
+                    chips = emptyList(),
+                    onChipClick = {},
                 )
+                // A big, unmissable primary path for someone who has never connected: the scan is
+                // the hands-free way to find the harness, and it is what the guide leads with. The
+                // manual form below still covers the edge cases.
+                DsButton(
+                    text = stringResource(R.string.onboarding_scan),
+                    icon = FeatherIcons.Search,
+                    onClick = { viewModel.scan() },
+                    variant = DsButtonVariant.Info,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                EmptyHero(
+                    headline = stringResource(R.string.app_long_name),
+                    subtitle = stringResource(R.string.connect_subtitle),
+                    chips = emptyList(),
+                    onChipClick = {},
+                )
+            }
+
+            // Security banner. Info-toned: the point is a calm reminder of where the protection
+            // lives, not an alarm about a fault — and once read, it stays dismissed until the
+            // next launch (rememberSaveable scopes it to the process lifetime).
+            var securityDismissed by rememberSaveable { mutableStateOf(false) }
+            if (!securityDismissed) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DsShapes.alert,
+                    color = colors.accentTertiary,
+                ) {
+                    Row(
+                        modifier = Modifier.padding(start = DsSpacing.medium, top = DsSpacing.small, bottom = DsSpacing.small, end = DsSpacing.xsmall),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.connect_security_banner),
+                            style = DsType.small13,
+                            color = colors.labelSecondary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        DsIconButton(
+                            icon = FeatherIcons.X,
+                            contentDescription = stringResource(R.string.common_close),
+                            onClick = { securityDismissed = true },
+                            iconSize = 16.dp,
+                        )
+                    }
+                }
             }
 
             // ---- Resume -----------------------------------------------------

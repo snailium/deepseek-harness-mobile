@@ -26,6 +26,16 @@
     <string name="common_none">ไม่มี</string>
     <string name="connect_title">เชื่อมต่อกับ Harness</string>
     <string name="connect_subtitle">DSH Mobile สะท้อน DeepSeek Harness ที่ทำงานบนคอมพิวเตอร์ของคุณ</string>
+    <string name="onboarding_intro_title">ยินดีต้อนรับสู่ DSH Mobile</string>
+    <string name="onboarding_intro_body">DSH Mobile เป็นแอปคู่หูของ DeepSeek Harness ที่ทำงานบนคอมพิวเตอร์ของคุณ เชื่อมต่อผ่าน Wi-Fi เพียงครั้งเดียวแล้วควบคุมได้จากกระเป๋าของคุณ</string>
+    <string name="onboarding_step1_title">เริ่มต้น harness บนคอมพิวเตอร์ของคุณ</string>
+    <string name="onboarding_step1_body">เรียกใช้ DeepSeek Harness บนคอมพิวเตอร์ของคุณ (เช่น ด้วย <![CDATA[<b>dsh web</b>]]>) อุปกรณ์ทั้งสองต้องอยู่ในเครือข่าย Wi-Fi เดียวกัน</string>
+    <string name="onboarding_step1_learn_more">เชื่อมต่ออย่างไร?</string>
+    <string name="onboarding_step2_title">เชื่อมต่อจากโทรศัพท์ของคุณ</string>
+    <string name="onboarding_step2_body">สแกนหา harness ในเครือข่ายของคุณ หรือป้อนที่อยู่ด้วยตนเอง เมื่อ harness ทำงานอยู่ จะปรากฏที่นี่โดยอัตโนมัติ</string>
+    <string name="onboarding_scan">สแกนเครือข่ายของฉัน</string>
+    <string name="onboarding_manual">ป้อนที่อยู่ด้วยตนเอง</string>
+    <string name="onboarding_back_to_connect">กลับไปที่การเชื่อมต่อ</string>
     <string name="connect_manual_title">เชื่อมต่อด้วยตนเอง</string>
 
 

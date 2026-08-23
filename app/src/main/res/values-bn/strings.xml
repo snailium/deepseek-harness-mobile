@@ -26,6 +26,16 @@
     <string name="common_none">কিছুই নয়</string>
     <string name="connect_title">Harness-এ সংযুক্ত হোন</string>
     <string name="connect_subtitle">DSH Mobile আপনার কম্পিউটারে চলমান DeepSeek Harness-কে মিরর করে।</string>
+    <string name="onboarding_intro_title">DSH Mobile-এ স্বাগতম</string>
+    <string name="onboarding_intro_body">DSH Mobile আপনার কম্পিউটারে চলমান DeepSeek Harness-এর একটি সঙ্গী অ্যাপ। একবার আপনার Wi-Fi-তে সংযুক্ত হন এবং এটি আপনার পকেট থেকে চালান।</string>
+    <string name="onboarding_step1_title">আপনার কম্পিউটারে harness চালু করুন</string>
+    <string name="onboarding_step1_body">আপনার কম্পিউটারে DeepSeek Harness চালান (উদাহরণস্বরূপ <![CDATA[<b>dsh web</b>]]> দিয়ে)। দুটি ডিভাইসই একই Wi-Fi নেটওয়ার্কে থাকতে হবে।</string>
+    <string name="onboarding_step1_learn_more">কীভাবে সংযুক্ত হবেন?</string>
+    <string name="onboarding_step2_title">আপনার ফোন থেকে সংযুক্ত হন</string>
+    <string name="onboarding_step2_body">আপনার নেটওয়ার্কে একটি harness খুঁজুন, বা এর ঠিকানা ম্যানুয়ালি লিখুন। harness চলমান থাকলে এটি এখানে স্বয়ংক্রিয়ভাবে দেখা যায়।</string>
+    <string name="onboarding_scan">আমার নেটওয়ার্ক স্ক্যান করুন</string>
+    <string name="onboarding_manual">ঠিকানা ম্যানুয়ালি লিখুন</string>
+    <string name="onboarding_back_to_connect">সংযোগে ফিরে যান</string>
     <string name="connect_manual_title">ম্যানুয়ালি সংযুক্ত হোন</string>
 
 

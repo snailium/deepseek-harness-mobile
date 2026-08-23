@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,8 +32,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -81,6 +78,7 @@ import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
+import com.labteto.dshmobile.ui.components.DsTopAppBar
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.MenuItem
 import com.labteto.dshmobile.ui.components.SectionHeader
@@ -225,15 +223,8 @@ fun ChatsScreen(
         // ---- M3 top app bar: title · host switcher · sort ----
         // WindowInsets(0) because the home Scaffold already supplies the status-bar inset to the
         // content; a second status-bar inset here would double the top padding.
-        TopAppBar(
-            title = {
-                Text(
-                    text = stringResource(R.string.chatlist_title),
-                    style = DsType.navTitle,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
+        DsTopAppBar(
+            title = stringResource(R.string.chatlist_title),
             actions = {
                 HostChip(
                     hostLabel = hostLabel,
@@ -244,8 +235,6 @@ fun ChatsScreen(
                     scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
-            windowInsets = WindowInsets(0, 0, 0, 0),
         )
 
         // ---- Search: 40dp iOS capsule; Cancel fades in beside it while focused ----
@@ -435,9 +424,14 @@ fun ChatsScreen(
 
             if (!anyShown) {
                 item(key = "empty") {
+                    // The FAB is at the bottom corner; a first-time user staring at an empty list
+                    // should not have to discover it to start. The same action sheet the FAB opens
+                    // is one tap away from the empty state itself.
                     EmptyHero(
                         headline = stringResource(R.string.chatlist_empty),
                         subtitle = stringResource(R.string.chatlist_empty_hint),
+                        chips = listOf(stringResource(R.string.chatlist_new_session)),
+                        onChipClick = { composeOpen = true },
                     )
                 }
             }

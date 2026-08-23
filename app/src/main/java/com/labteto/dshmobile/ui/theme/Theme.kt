@@ -155,45 +155,93 @@ object DsTheme {
 private fun materialLightScheme(c: DsColors) = lightColorScheme(
     primary = c.accent,
     onPrimary = c.onAccent,
+    primaryContainer = c.accentTertiary,
+    onPrimaryContainer = c.accent,
+    inversePrimary = c.accentHover,
     secondary = c.labelSecondary,
     onSecondary = c.bgBase,
+    secondaryContainer = c.bgModulePlatform,
+    onSecondaryContainer = c.labelSecondary,
     tertiary = c.warn,
+    onTertiary = Color.White,
+    tertiaryContainer = c.warnTertiary,
+    onTertiaryContainer = c.warnLabel,
     background = c.bgBase,
     onBackground = c.labelPrimary,
     surface = c.bgLayer1,
     onSurface = c.labelPrimary,
     surfaceVariant = c.bgModulePlatform,
     onSurfaceVariant = c.labelSecondary,
-    outline = c.borderL2,
-    outlineVariant = c.borderL1,
+    surfaceTint = c.accent,
+    inverseSurface = c.toastBg,
+    inverseOnSurface = Color.White,
     error = c.error,
     onError = Color.White,
+    errorContainer = c.errorTertiary,
+    onErrorContainer = c.error,
+    outline = c.borderL2,
+    outlineVariant = c.borderL1,
+    scrim = c.overlayMask,
+    surfaceBright = c.bgLayer1,
+    surfaceDim = c.bgModulePlatform,
+    surfaceContainer = c.bgLayer1,
+    surfaceContainerHigh = c.bgLayer2,
+    surfaceContainerHighest = c.bgLayer3,
+    surfaceContainerLow = c.bgBase,
+    surfaceContainerLowest = c.bgChat,
 )
 
 private fun materialDarkScheme(c: DsColors) = darkColorScheme(
     primary = c.accent,
     onPrimary = c.onAccent,
+    primaryContainer = c.accentTertiary,
+    onPrimaryContainer = c.labelPrimary,
+    inversePrimary = c.accentHover,
     secondary = c.labelSecondary,
     onSecondary = c.bgBase,
+    secondaryContainer = c.bgModulePlatform,
+    onSecondaryContainer = c.labelSecondary,
     tertiary = c.warn,
+    onTertiary = Color.White,
+    tertiaryContainer = c.warnTertiary,
+    onTertiaryContainer = c.warnLabel,
     background = c.bgBase,
     onBackground = c.labelPrimary,
     surface = c.bgLayer1,
     onSurface = c.labelPrimary,
     surfaceVariant = c.bgModulePlatform,
     onSurfaceVariant = c.labelSecondary,
-    outline = c.borderL2,
-    outlineVariant = c.borderL1,
+    surfaceTint = c.accent,
+    inverseSurface = c.toastBg,
+    inverseOnSurface = Color.White,
     error = c.error,
     onError = Color.White,
+    errorContainer = c.errorTertiary,
+    onErrorContainer = c.error,
+    outline = c.borderL2,
+    outlineVariant = c.borderL1,
+    scrim = c.overlayMask,
+    surfaceBright = c.bgLayer1,
+    surfaceDim = c.bgModulePlatform,
+    surfaceContainer = c.bgLayer1,
+    surfaceContainerHigh = c.bgLayer2,
+    surfaceContainerHighest = c.bgLayer3,
+    surfaceContainerLow = c.bgBase,
+    surfaceContainerLowest = c.bgChat,
 )
 
 /**
  * The DeepSeek Harness theme. Honors the app's theme preference (light | dark | system) and, when
  * [dynamicColor] is on and the device supports it (Android 12+), hands the Material color scheme to
  * Material You's wallpaper-derived palette. The custom DSH token palette ([LocalDsColors]) stays
- * brand-seeded either way, so content components (bubbles, tool cards, markdown) keep their color;
- * dynamic color re-skins the Material chrome (bottom bar, scaffolds, system components).
+ * brand-seeded either way, so content components (bubbles, tool cards, markdown) keep their color.
+ *
+ * Without dynamic color the *stock* M3 palette is fully re-mapped onto the Ds tokens (see
+ * [materialLightScheme]/[materialDarkScheme]) so every Material component — app bars, sheets,
+ * dialogs, switches, tabs, chips, the bottom navigation bar — inherits the DeepSeek look instead
+ * of the default purple-scaled palette. This is what lets the app standardize on Material 3
+ * chrome without drifting off-brand; dynamic color continues to override only the Material
+ * chrome, never the content tokens.
  */
 @Composable
 fun DshTheme(

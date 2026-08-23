@@ -26,6 +26,16 @@
     <string name="common_none">Nenhum</string>
     <string name="connect_title">Conectar ao Harness</string>
     <string name="connect_subtitle">O DSH Mobile espelha o DeepSeek Harness em execução no seu computador.</string>
+    <string name="onboarding_intro_title">Bem-vindo ao DSH Mobile</string>
+    <string name="onboarding_intro_body">O DSH Mobile é um companheiro do DeepSeek Harness em execução no seu computador. Conecte-se uma vez pelo Wi-Fi e controle-o do seu bolso.</string>
+    <string name="onboarding_step1_title">Inicie o harness no seu computador</string>
+    <string name="onboarding_step1_body">Execute o DeepSeek Harness no seu computador (por exemplo, com <![CDATA[<b>dsh web</b>]]>). Ambos os dispositivos precisam estar na mesma rede Wi-Fi.</string>
+    <string name="onboarding_step1_learn_more">Como conectar?</string>
+    <string name="onboarding_step2_title">Conecte-se pelo seu telefone</string>
+    <string name="onboarding_step2_body">Procure um harness na sua rede ou insira o endereço manualmente. Quando o harness estiver em execução, ele aparecerá aqui automaticamente.</string>
+    <string name="onboarding_scan">Escanear minha rede</string>
+    <string name="onboarding_manual">Inserir endereço manualmente</string>
+    <string name="onboarding_back_to_connect">Voltar à conexão</string>
     <string name="connect_manual_title">Conectar manualmente</string>
 
 

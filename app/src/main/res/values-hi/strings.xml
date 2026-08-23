@@ -26,6 +26,16 @@
     <string name="common_none">कोई नहीं</string>
     <string name="connect_title">Harness से कनेक्ट करें</string>
     <string name="connect_subtitle">DSH Mobile आपके कंप्यूटर पर चल रहे DeepSeek Harness को मिरर करता है।</string>
+    <string name="onboarding_intro_title">DSH Mobile में आपका स्वागत है</string>
+    <string name="onboarding_intro_body">DSH Mobile आपके कंप्यूटर पर चल रहे DeepSeek Harness का साथी ऐप है। एक बार अपने Wi-Fi से कनेक्ट करें और इसे अपनी जेब से चलाएँ।</string>
+    <string name="onboarding_step1_title">अपने कंप्यूटर पर harness शुरू करें</string>
+    <string name="onboarding_step1_body">अपने कंप्यूटर पर DeepSeek Harness चलाएँ (उदाहरण के लिए <![CDATA[<b>dsh web</b>]]> से)। दोनों डिवाइस एक ही Wi-Fi नेटवर्क पर होने चाहिए।</string>
+    <string name="onboarding_step1_learn_more">कैसे कनेक्ट करें?</string>
+    <string name="onboarding_step2_title">अपने फ़ोन से कनेक्ट करें</string>
+    <string name="onboarding_step2_body">अपने नेटवर्क पर harness खोजें, या उसका पता मैन्युअल रूप से दर्ज करें। जब harness चल रहा होता है, तो वह यहाँ स्वतः दिखाई देता है।</string>
+    <string name="onboarding_scan">मेरा नेटवर्क स्कैन करें</string>
+    <string name="onboarding_manual">पता मैन्युअल रूप से दर्ज करें</string>
+    <string name="onboarding_back_to_connect">कनेक्ट पर वापस जाएँ</string>
     <string name="connect_manual_title">मैन्युअल रूप से कनेक्ट करें</string>
 
 

@@ -1,3 +1,40 @@
+## [0.16.0] - unreleased
+
+The Material 3 standardization continues: the app's chrome now inherits the
+DeepSeek palette end-to-end, and the first-run experience and information
+architecture get the polish that direction called for.
+
+### Changed
+
+- **Full Material 3 palette mapping.** Every M3 colour role — primary, secondary,
+  tertiary, error, surface, surfaceContainer and the inverse/scrim roles — is now
+  mapped onto the Ds tokens, so stock M3 chrome (app bars, sheets, dialogs,
+  switches, tabs, chips, the bottom navigation bar) inherits the DeepSeek look
+  instead of the default purple-scaled palette. Dynamic color continues to
+  override only the Material chrome, never the content tokens.
+- **One app-bar voice.** New `DsTopAppBar` wraps Material 3's `TopAppBar` with the
+  Ds title style, container colour and pinned inset policy; Chats, Active and
+  Settings all route through it. Settings' bar no longer scrolls away — it pins
+  like the others.
+- **Guided first-run connect.** A fresh install (no remembered harnesses) now gets
+  an explainer of what DSH Mobile is and a prominent Scan-my-network CTA before
+  the manual form, instead of a wall of sections with no orientation.
+- **Dismissible security banner.** The connect screen's security reminder can be
+  dismissed once read, instead of occupying a permanent strip.
+- **Active tab de-duplicated.** The goal and queue cards are gone from Active:
+  goal and queue live in the chat dock strip where the turn runs, and Active is
+  the session's facts and controls (context, plan mode, jobs, subagents,
+  workflows, export, host info).
+- **Empty chat list offers a start.** The Chats empty state now carries a New
+  session action instead of pointing at the FAB.
+- **`DsTextField` primitive.** A shared M3 text-field wrapper with the Ds field
+  colours and a configurable min-height, so the compact field policy is one place
+  instead of per-call workarounds.
+
+### Fixed
+
+- Settings pushed from Connect (no home shell yet) keeps the status-bar inset,
+  so the pinned bar does not draw under the system chrome.
 ## [0.15.0] - 2026-08-21
 
 The chat screen's hot path is reworked so streaming a turn stays smooth and

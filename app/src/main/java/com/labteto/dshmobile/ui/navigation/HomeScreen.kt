@@ -51,7 +51,9 @@ fun HomeScreen(
     Scaffold(
         containerColor = colors.bgBase,
         bottomBar = {
-            NavigationBar(containerColor = colors.bgLayer1) {
+            // The bar inherits `surfaceContainer` from the Ds-mapped M3 scheme
+            // (bgLayer1), so there is no hardcoded colour here to drift out of sync.
+            NavigationBar {
                 HomeTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = selected == tab,

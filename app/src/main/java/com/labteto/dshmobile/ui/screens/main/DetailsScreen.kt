@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -27,8 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +47,6 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.ConversationSnapshot
-import com.labteto.dshmobile.core.session.QueueItem
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.WorkflowNode
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
@@ -64,6 +60,7 @@ import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.ui.components.ContextMeterDetail
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsTopAppBar
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsIconButton
@@ -174,15 +171,8 @@ fun ActiveScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 // M3 top app bar; WindowInsets(0) because the home Scaffold supplies the status
                 // bar inset. The cards scroll beneath it.
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = stringResource(R.string.nav_active),
-                            style = DsType.navTitle,
-                        )
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
-                    windowInsets = WindowInsets(0, 0, 0, 0),
+                DsTopAppBar(
+                    title = stringResource(R.string.nav_active),
                 )
                 Column(
                     modifier = Modifier
@@ -288,12 +278,10 @@ fun ActiveScreen(
                         )
                     } else {
                         ContextCard(breakdown, pressure, usage, stats, currentSessionId)
-                        GoalCard(conv, store, currentSessionId)
                         PlanCard(conv, currentSessionId) { next ->
                             scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
                         }
                         JobsCard(jobs, currentSessionId)
-                        QueueCard(conv.queue, store, currentSessionId)
                         SubagentsCard(subagents, currentSessionId) { id -> scope.launch { store.openSubagentTranscript(id) } }
                         WorkflowCard(conv.nodes, currentSessionId)
                     }
@@ -490,51 +478,6 @@ private fun ContextCard(
     }
 }
 
-@Composable
-private fun GoalCard(
-    conversation: ConversationSnapshot,
-    store: com.labteto.dshmobile.data.SessionStore,
-    sessionKey: String? = null,
-) {
-    val colors = DsTheme.colors
-    val goal = parseGoal(conversation.projections["goal"])
-    Card(
-        title = stringResource(R.string.goal_title),
-        summary = goal?.objective?.take(40),
-        sessionKey = sessionKey,
-    ) {
-        if (goal == null) {
-            Text(stringResource(R.string.goal_none), style = DsType.caption11, color = colors.labelTertiary)
-            return@Card
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                goal.objective,
-                style = DsType.small13,
-                color = colors.labelPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(DsSpacing.small))
-            DsPill(text = stringResource(goalPhaseLabelRes(goal.phase)))
-        }
-        goal.blockedReason?.let {
-            Text(
-                stringResource(R.string.goal_blocked_reason, it.message),
-                style = DsType.caption11,
-                color = colors.warnLabel,
-            )
-        }
-        if (goal.maxGoalRounds > 0) {
-            Text(
-                stringResource(R.string.goal_max_rounds, goal.maxGoalRounds.toString()),
-                style = DsType.caption11,
-                color = colors.labelCaption,
-            )
-        }
-        GoalBar(goal, store)
-    }
-}
-
 /**
  * Plan mode, as a switch.
  *
@@ -616,50 +559,6 @@ private fun JobsCard(jobs: List<JobView>, sessionKey: String? = null) {
                     formatDurationMs((job.finishedAt ?: now) - job.startedAt),
                     style = DsType.caption11,
                     color = colors.labelCaption,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun QueueCard(
-    queue: List<QueueItem>,
-    store: com.labteto.dshmobile.data.SessionStore,
-    sessionKey: String? = null,
-) {
-    val colors = DsTheme.colors
-    val scope = rememberCoroutineScope()
-    Card(
-        title = stringResource(R.string.chat_queue_title),
-        summary = queue.size.takeIf { it > 0 }?.toString(),
-        sessionKey = sessionKey,
-    ) {
-        if (queue.isEmpty()) {
-            Text(
-                stringResource(R.string.chat_queue_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            return@Card
-        }
-        queue.forEach { item ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        item.previewText,
-                        style = DsType.small13,
-                        color = colors.labelPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(item.placement, style = DsType.caption11, color = colors.labelCaption)
-                }
-                DsButton(
-                    text = stringResource(R.string.common_remove),
-                    onClick = { scope.launch { store.updateQueue(item.id, "remove") } },
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
                 )
             }
         }

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,8 +29,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,6 +55,7 @@ import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.DsTopAppBar
 import com.labteto.dshmobile.ui.components.DsAlert
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
@@ -115,18 +113,13 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (onClose == null) Modifier else Modifier.safeDrawingPadding())
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
-                verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
+                    // Pushed from Connect (no home shell yet) there is no Scaffold to own the
+                    // status-bar inset, so the screen supplies it itself; as a tab the Home
+                    // Scaffold already did.
+                    .then(if (onClose == null) Modifier else Modifier.safeDrawingPadding()),
             ) {
-                TopAppBar(
-                    title = {
-                        Text(
-                            stringResource(R.string.settings_title),
-                            style = DsType.navTitle,
-                        )
-                    },
+                DsTopAppBar(
+                    title = stringResource(R.string.settings_title),
                     navigationIcon = {
                         if (onClose != null) {
                             DsIconButton(
@@ -137,10 +130,15 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                             )
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.bgBase),
-                    windowInsets = WindowInsets(0, 0, 0, 0),
                 )
 
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
+                ) {
                 SettingsCard(stringResource(R.string.settings_general)) {
                     LanguageRow(settings) { tag -> viewModel.set { it.copy(localeOverride = tag) } }
                     AppearanceRow(settings) { mode -> viewModel.set { it.copy(themePreference = mode) } }
@@ -259,7 +257,8 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                     )
                 }
 
-                Spacer(Modifier.height(DsSpacing.xlarge))
+                    Spacer(Modifier.height(DsSpacing.xlarge))
+                }
             }
             DsToastHost(toast, modifier = Modifier.fillMaxWidth())
         }
