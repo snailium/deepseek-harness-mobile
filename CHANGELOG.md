@@ -1,3 +1,51 @@
+## [0.17.0] - unreleased
+
+A full visual redesign: the app stops looking like flat iOS Settings and earns a
+deliberate DeepSeek identity, the message transcript renders agent markdown
+properly, and the home page gets the information architecture it deserves.
+
+### Added
+
+- **Brand-forward theme.** DeepSeek blue as a real identity: gradient primitives
+  (heros, buttons, bubbles), elevated `surfaceRaised` cards with soft shadows,
+  and new tokens (`assistantCard`, `chipSurface`, `noteSurface`, strong/soft
+  dividers) wired through the Ds palette and both Material 3 schemes.
+- **Bundled Inter display font** (OFL) for heros, nav titles, section headings
+  and markdown headings; the system font stays on body copy for platform
+  legibility and RTL coverage. Rebuilt type scale with `brandDisplay` (34sp),
+  `title2`/`title3`, and a phone-tuned markdown scale.
+- **Real markdown tables.** Agent replies that include tables now render as
+  aligned tables with a header band and cell separators (previously raw pipe
+  text). Wide tables scroll horizontally.
+- **Syntax-highlighted code blocks.** Fenced code is colorised by language
+  (kotlin/java, python, typescript/js, json, yaml, bash, sql, xml) using the
+  Ds `Syntax*` palette, with horizontal scrolling for long lines.
+- **Homepage host status strip.** Connection health (host, connected/reconnecting/
+  offline, tap to switch) is always visible on the home page.
+- **'Needs your attention' section.** Live sessions awaiting approval, a
+  question, or a finished goal are pinned above the chat list with one-tap
+  jump-in.
+
+### Changed
+
+- **Home page is now two tabs: Chats + Settings.** The 'Active' tab is removed.
+  Per-session live state (approvals, questions, goal, queue, context) lives in
+  the chat itself; the session's facts and controls (model, preset, export,
+  copy, context, host) moved into a **Session details** screen pushed from the
+  chat overflow, with back navigation.
+- **Elevated surfaces.** `DsCard`/`DsGroupCard` now float on `surfaceRaised`
+  with a soft shadow instead of flat hairline borders; the settings groups and
+  details cards inherit it.
+- **Gradient actions.** Primary buttons use a brand gradient (new `Large` hero
+  size), the segmented control's selected thumb is gradient, the composer's
+  send and `+` buttons are gradient, and the user bubble gets a gradient fill.
+- **Elevated chat.** Assistant responses render on raised cards; inline `code`
+  is a tinted chip; headings use the display voice with proper spacing.
+
+### Fixed
+
+- Markdown robustness: anything the parser cannot handle degrades to plain
+  text instead of showing raw markers.
 ## [0.16.0] - unreleased
 
 The Material 3 standardization continues: the app's chrome now inherits the
