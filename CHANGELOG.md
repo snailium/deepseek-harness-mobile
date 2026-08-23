@@ -1,3 +1,16 @@
+## [0.17.1] - unreleased
+
+Readability polish from a review of v0.17.0: the message transcript's body text and
+inline-code chips now read correctly.
+
+### Fixed
+
+- **Markdown body line-height.** The transcript body was the one 16sp role using an airy 1.63
+  line ratio, which made every assistant reply bloat against the rest of the app. It now uses
+  16/24 like the standard body role.
+- **Inline-code chip contrast.** Inline code (and markdown tags) used grays that were the same
+  shade as the assistant card in both themes, so `code` spans read as plain mono text. They now
+  use a brand-tinted surface so they render as a distinct chip in light and dark.
 ## [0.17.0] - unreleased
 
 A full visual redesign: the app stops looking like flat iOS Settings and earns a
