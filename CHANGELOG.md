@@ -1,3 +1,13 @@
+## [0.17.3] - unreleased
+
+Fixed a functional bug that prevented starting a plan from the mobile app.
+
+### Fixed
+
+- **commands/execute missing images field.** The command gateway's args descriptor validates
+  every slot; the app sent only agentId+line, so a deployment whose gateway requires images
+  rejected commands like /plan with "args fields do not match the descriptor: missing images".
+  The call now sends an empty images array so it matches the descriptor and /plan starts.
 ## [0.17.2] - unreleased
 
 Session-list typography: titles no longer truncate, and they sit on a consistent line rhythm.
