@@ -41,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.pluralStringResource
@@ -82,6 +83,7 @@ import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ThinkingRow
 import com.labteto.dshmobile.ui.components.ToolCard
 import com.labteto.dshmobile.ui.components.UserBubble
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -277,8 +279,8 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
             Column(
                 modifier = Modifier
                     .widthIn(max = minOf(560.dp, maxWidth * 0.92f))
-                    .background(colors.assistantBubble, AssistantBubbleShape)
-                    .border(1.dp, colors.borderL2, AssistantBubbleShape)
+                    .shadow(DsSpacing.elevationQuiet, AssistantBubbleShape)
+                    .background(colors.assistantCard, AssistantBubbleShape)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {

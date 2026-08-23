@@ -16,32 +16,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.ui.components.FeatherIcons
-import com.labteto.dshmobile.ui.screens.main.ActiveScreen
 import com.labteto.dshmobile.ui.screens.main.ChatsScreen
 import com.labteto.dshmobile.ui.screens.settings.SettingsScreen
 import com.labteto.dshmobile.ui.theme.DsTheme
 
-/** The three top-level destinations carried by the bottom navigation bar. */
+/**
+ * The home destinations. Active is gone: the per-session live state (approvals, questions,
+ * goal, queue, context) lives in the chat itself, and session metadata (model, preset, export,
+ * host) moved into a details sheet reachable from a session row - so the home page is the two
+ * things a companion app actually needs: the work (Chats) and the app (Settings).
+ */
 internal enum class HomeTab(val labelRes: Int, val icon: ImageVector) {
     Chats(R.string.chatlist_title, FeatherIcons.MessageSquare),
-    Active(R.string.nav_active, FeatherIcons.Activity),
     Settings(R.string.settings_title, FeatherIcons.Settings),
 }
 
 /**
- * The connected shell: a Material 3 [Scaffold] with a bottom navigation bar over the three
- * top-level tabs — Chats (the landing list), Active (the live-session control center) and
- * Settings. The conversation itself is a pushed destination ([SessionRoute]) reached from Chats,
- * so the bottom bar belongs to the home level only, exactly like ChatGPT/Claude/Gemini.
- *
- * Tab selection is [rememberSaveable] rather than a nested NavHost: the three tabs are siblings
- * with no in-tab back stacks, and the pushed destinations sit above this whole scaffold at the
- * top-level graph anyway.
+ * The connected shell: a Material 3 [Scaffold] with a bottom navigation bar over the two
+ * top-level tabs - Chats (the landing list) and Settings. The conversation itself is a pushed
+ * destination ([SessionRoute]) reached from Chats, so the bottom bar belongs to the home level
+ * only, exactly like ChatGPT/Claude/Gemini.
  */
 @Composable
 fun HomeScreen(
     hostLabel: String?,
+    connectionState: ConnectionUiState? = null,
     onSwitchHost: () -> Unit,
     onOpenSession: (String) -> Unit,
 ) {
@@ -51,8 +52,6 @@ fun HomeScreen(
     Scaffold(
         containerColor = colors.bgBase,
         bottomBar = {
-            // The bar inherits `surfaceContainer` from the Ds-mapped M3 scheme
-            // (bgLayer1), so there is no hardcoded colour here to drift out of sync.
             NavigationBar {
                 HomeTab.entries.forEach { tab ->
                     NavigationBarItem(
@@ -69,10 +68,10 @@ fun HomeScreen(
             when (selected) {
                 HomeTab.Chats -> ChatsScreen(
                     hostLabel = hostLabel,
+                    connectionState = connectionState,
                     onSwitchHost = onSwitchHost,
                     onOpenSession = onOpenSession,
                 )
-                HomeTab.Active -> ActiveScreen()
                 HomeTab.Settings -> SettingsScreen(onClose = null)
             }
         }

@@ -15,6 +15,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -92,12 +94,24 @@ private fun DsSegment(
         animationSpec = DsAnimations.tabSwap,
         label = "segment",
     )
+    val thumbFill: Brush = if (selected) {
+        Brush.linearGradient(listOf(colors.gradientStart, colors.gradientEnd))
+    } else {
+        // The track tint fades in/out via the alpha; a single-stop gradient lets us animate it.
+        Brush.linearGradient(
+            listOf(
+                colors.accentTertiary.copy(alpha = 0.08f + emphasis * 0.5f),
+                colors.accentTertiary.copy(alpha = 0.08f + emphasis * 0.5f),
+            ),
+        )
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .heightIn(min = 24.dp)
             .clip(DsShapes.pillFull)
-            .background(colors.accentTertiary.copy(alpha = emphasis))
+            .background(thumbFill)
+            .shadow(if (selected) DsSpacing.elevationQuiet else 0.dp, DsShapes.pillFull)
             .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
     ) {
@@ -106,7 +120,7 @@ private fun DsSegment(
             style = DsType.tabText,
             color = when {
                 !enabled -> colors.labelDimmed
-                selected -> colors.accent
+                selected -> colors.onAccent
                 else -> colors.labelTertiary
             },
             maxLines = 1,

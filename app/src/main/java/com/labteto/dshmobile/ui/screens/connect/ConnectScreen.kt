@@ -186,7 +186,8 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     text = stringResource(R.string.onboarding_scan),
                     icon = FeatherIcons.Search,
                     onClick = { viewModel.scan() },
-                    variant = DsButtonVariant.Info,
+                    variant = DsButtonVariant.Primary,
+                    size = DsButtonSize.Large,
                     modifier = Modifier.fillMaxWidth(),
                 )
             } else {

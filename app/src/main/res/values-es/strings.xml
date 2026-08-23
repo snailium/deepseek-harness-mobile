@@ -14,6 +14,9 @@
     <string name="common_connected">Conectado</string>
     <string name="common_reconnecting">Reconectando…</string>
     <string name="common_offline">Sin conexión</string>
+    <string name="chatlist_needs_attention">Necesita tu atención</string>
+    <string name="session_details_title">Detalles de la sesión</string>
+    <string name="common_switch_host">Cambiar servidor</string>
     <string name="common_error">Algo salió mal</string>
     <string name="common_close">Cerrar</string>
     <string name="common_back">Atrás</string>

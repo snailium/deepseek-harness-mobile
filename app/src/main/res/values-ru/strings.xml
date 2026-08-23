@@ -14,6 +14,9 @@
     <string name="common_connected">Подключено</string>
     <string name="common_reconnecting">Переподключение…</string>
     <string name="common_offline">Офлайн</string>
+    <string name="chatlist_needs_attention">Требует вашего внимания</string>
+    <string name="session_details_title">Детали сеанса</string>
+    <string name="common_switch_host">Сменить сервер</string>
     <string name="common_error">Что-то пошло не так</string>
     <string name="common_close">Закрыть</string>
     <string name="common_back">Назад</string>

@@ -14,6 +14,9 @@
     <string name="common_connected">متصل</string>
     <string name="common_reconnecting">جارٍ إعادة الاتصال…</string>
     <string name="common_offline">غير متصل</string>
+    <string name="chatlist_needs_attention">يحتاج إلى انتباهك</string>
+    <string name="session_details_title">تفاصيل الجلسة</string>
+    <string name="common_switch_host">تبديل الخادم</string>
     <string name="common_error">حدث خطأ ما</string>
     <string name="common_close">إغلاق</string>
     <string name="common_back">رجوع</string>

@@ -67,6 +67,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.connection.ConnectionPhase
+import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
@@ -121,6 +123,7 @@ private const val SORT_UPDATED = "updated"
 @Composable
 fun ChatsScreen(
     hostLabel: String?,
+    connectionState: ConnectionUiState? = null,
     onSwitchHost: () -> Unit,
     onOpenSession: (String) -> Unit,
 ) {
@@ -237,6 +240,16 @@ fun ChatsScreen(
             },
         )
 
+        // ---- Host status strip: connection health at a glance on the home page ----
+        if (connectionState != null) {
+            HostStatusStrip(
+                connectionState = connectionState,
+                hostLabel = hostLabel,
+                onSwitchHost = onSwitchHost,
+                modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
+            )
+        }
+
         // ---- Search: 40dp iOS capsule; Cancel fades in beside it while focused ----
         Row(
             modifier = Modifier
@@ -318,6 +331,34 @@ fun ChatsScreen(
                     }
                 }
                 return@LazyColumn
+            }
+
+            // ---- Needs your attention: live sessions pinned above the list ----
+            val needsAttention = listable
+                .filter { it.pendingInteraction != null || it.running }
+                .sortedByDescending { it.updatedAt }
+            if (needsAttention.isNotEmpty()) {
+                item(key = "attention") {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
+                    ) {
+                        SectionHeader(
+                            stringResource(R.string.chatlist_needs_attention),
+                            modifier = Modifier.padding(bottom = DsSpacing.xsmall),
+                        )
+                        needsAttention.forEach { session ->
+                            AttentionRow(
+                                session = session,
+                                onOpen = {
+                                    scope.launch { store.openSession(session.sessionId) }
+                                    onOpenSession(session.sessionId)
+                                },
+                            )
+                        }
+                    }
+                }
             }
 
             var anyShown = false
@@ -1264,4 +1305,119 @@ internal fun sessionTitle(session: SessionRow): String {
     val title = session.title?.takeIf { it.isNotBlank() }
     val folder = session.cwd?.takeIf { it.isNotBlank() }?.let { basename(it) }?.takeIf { it.isNotBlank() }
     return title ?: folder ?: session.sessionId
+}
+
+// ---------------------------------------------------------------------------
+// Host status strip + needs-attention rows (homepage redesign)
+// ---------------------------------------------------------------------------
+
+/**
+ * The always-visible connection health strip on the home page: host address, live/idle/
+ * reconnecting state, and a tap to switch host. Nothing is worse than a companion app silently
+ * talking to nothing, so the strip reads at a glance on every open.
+ */
+@Composable
+private fun HostStatusStrip(
+    connectionState: ConnectionUiState,
+    hostLabel: String?,
+    onSwitchHost: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = DsTheme.colors
+    val dot = when (connectionState.phase) {
+        ConnectionPhase.CONNECTED -> StateDotState.Done
+        ConnectionPhase.CONNECTING, ConnectionPhase.RECONNECTING -> StateDotState.Running
+        else -> StateDotState.Idle
+    }
+    val label = when (connectionState.phase) {
+        ConnectionPhase.CONNECTED -> stringResource(R.string.common_connected)
+        ConnectionPhase.CONNECTING -> stringResource(R.string.common_loading)
+        ConnectionPhase.RECONNECTING -> stringResource(R.string.common_reconnecting)
+        else -> stringResource(R.string.common_offline)
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(DsShapes.pillFull)
+            .background(colors.noteSurface)
+            .clickable(role = Role.Button, onClick = onSwitchHost)
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StateDot(dot, size = 8.dp)
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            hostLabel ?: stringResource(R.string.settings_connection_host),
+            style = DsType.small13Strong,
+            color = colors.labelPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            label,
+            style = DsType.caption11,
+            color = colors.labelCaption,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(DsSpacing.xsmall))
+        Icon(
+            FeatherIcons.ChevronRight,
+            contentDescription = stringResource(R.string.common_switch_host),
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(14.dp).autoMirrorDirectional(),
+        )
+    }
+}
+
+/**
+ * One live/needs-action session in the pinned strip: title, state dot, relative time.
+ * Tap opens the conversation; the list row below already carries the full verbs.
+ */
+@Composable
+private fun AttentionRow(
+    session: SessionRow,
+    onOpen: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = DsSpacing.small, vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StateDot(
+            when {
+                session.running -> StateDotState.Running
+                session.pendingInteraction != null -> StateDotState.Warning
+                else -> StateDotState.Idle
+            },
+            size = 8.dp,
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            sessionTitle(session),
+            style = DsType.std14Strong,
+            color = colors.labelPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            relativeTime(session.updatedAt),
+            style = DsType.caption11,
+            color = colors.labelCaption,
+        )
+        Spacer(Modifier.width(DsSpacing.xsmall))
+        Icon(
+            FeatherIcons.ChevronRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(14.dp).autoMirrorDirectional(),
+        )
+    }
 }

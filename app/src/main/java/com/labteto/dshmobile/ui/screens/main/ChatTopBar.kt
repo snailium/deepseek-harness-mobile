@@ -81,6 +81,7 @@ internal fun ChatTopBar(
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
     onSwitchHost: () -> Unit,
+    onOpenDetails: (() -> Unit)? = null,
     onTabChange: (ChatTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -159,11 +160,14 @@ internal fun ChatTopBar(
                         modifier = Modifier.size(18.dp),
                     )
                 },
-                items = listOf(
-                    MenuItem(stringResource(R.string.presets_title)) { onOpenPresets() },
-                    MenuItem(stringResource(R.string.subagents_title)) { onOpenSubagents() },
-                    MenuItem(stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
-                ),
+                items = buildList {
+                    add(MenuItem(stringResource(R.string.presets_title)) { onOpenPresets() })
+                    add(MenuItem(stringResource(R.string.subagents_title)) { onOpenSubagents() })
+                    if (onOpenDetails != null) {
+                        add(MenuItem(stringResource(R.string.session_details_title)) { onOpenDetails() })
+                    }
+                    add(MenuItem(stringResource(R.string.chatlist_switch_host)) { onSwitchHost() })
+                },
             )
         }
 

@@ -15,6 +15,9 @@
     <string name="common_connected">Connected</string>
     <string name="common_reconnecting">Reconnecting…</string>
     <string name="common_offline">Offline</string>
+    <string name="common_switch_host">Switch harness</string>
+    <string name="chatlist_needs_attention">Needs your attention</string>
+    <string name="session_details_title">Session details</string>
     <string name="common_error">Something went wrong</string>
     <string name="common_close">Close</string>
     <string name="common_back">Back</string>

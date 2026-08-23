@@ -22,6 +22,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
@@ -33,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
@@ -60,7 +63,11 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
             color = colors.onAccent,
             modifier = Modifier
                 .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                .background(colors.userBubble, DsShapes.bubble)
+                .shadow(DsSpacing.elevationQuiet, DsShapes.bubble)
+                .background(
+                    Brush.linearGradient(listOf(colors.userBubble, colors.userBubbleHighlight)),
+                    DsShapes.bubble,
+                )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }

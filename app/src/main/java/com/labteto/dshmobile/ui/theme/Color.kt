@@ -44,6 +44,14 @@ object Ds {
     val Deepseek800 = Color(0xFF34415B)
     val Deepseek900 = Color(0xFF283142)
 
+    // Brand gradient stops (light): a slightly brighter top-left to the core blue.
+    val GradientStart = Color(0xFF7CA8FF)
+    val GradientEnd = Color(0xFF4176E6)
+
+    // Brand gradient stops (dark): deeper, lower-chroma so the hero does not glare at night.
+    val GradientStartDark = Color(0xFF6A9BF5)
+    val GradientEndDark = Color(0xFF3159C4)
+
     // Semantic
     val Green100 = Color(0xFFE6FAED)
     val Green400 = Color(0xFF4ED17E)
@@ -174,6 +182,19 @@ object DsLight {
     val citation = Ds.Bluish100
     val markdownTag = Ds.Bluish75
     val overlayMask = Color(0x3D000000) // rgba(0,0,0,.24)
+
+    // ---- Redesign tokens (light) ----
+    val gradientStart = Ds.GradientStart
+    val gradientEnd = Ds.GradientEnd
+    val surfaceRaised = Color(0xFFFFFFFF)
+    val surfaceSunken = Ds.Bluish60
+    val primaryButtonGradientStart = Ds.Deepseek500
+    val primaryButtonGradientEnd = Ds.Deepseek600
+    val assistantCard = Ds.Bluish75
+    val noteSurface = Ds.Bluish60
+    val chipSurface = Color(0xFFFFFFFF)
+    val dividerStrong = Color(0x1F000000) // rgba(0,0,0,.12)
+    val dividerSoft = Ds.Bluish200
 }
 
 /** Semantic alias tokens for the dark theme. */
@@ -238,4 +259,17 @@ object DsDark {
     val citation = Ds.Bluish800
     val markdownTag = Ds.Bluish850
     val overlayMask = Color(0x80000000) // rgba(0,0,0,.5)
+
+    // ---- Redesign tokens (dark) ----
+    val gradientStart = Ds.GradientStartDark
+    val gradientEnd = Ds.GradientEndDark
+    val surfaceRaised = Color(0xFF1C1C1E)
+    val surfaceSunken = Ds.Bluish900
+    val primaryButtonGradientStart = Ds.Deepseek400
+    val primaryButtonGradientEnd = Ds.Deepseek500
+    val assistantCard = Ds.Bluish850
+    val noteSurface = Ds.Bluish800
+    val chipSurface = Ds.Bluish850
+    val dividerStrong = Color(0x29FFFFFF) // rgba(255,255,255,.16)
+    val dividerSoft = Ds.Bluish750
 }

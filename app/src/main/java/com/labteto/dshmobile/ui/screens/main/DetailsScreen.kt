@@ -98,15 +98,17 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The Active tab: everything about the open session that is not the conversation — the
- * mission-control surface for the live goal, plan, approvals, questions, queue, jobs, subagents,
- * context and host. Collapsible cards rather than one flat wall of headings, because on a
- * phone-width screen a flat list means the section you want is always three screens down.
+ * The per-session details screen: everything about the open session that is not the conversation —
+ * model, preset, approvals, questions, context, host, export/copy. Formerly the "Active" home tab;
+ * it is now a pushed destination (session details) so the home page stays two clean tabs.
+ * Collapsible cards rather than one flat wall of headings, because on a phone-width screen a flat
+ * list means the section you want is always three screens down.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveScreen(
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     val store = rememberSessionStore()
     val colors = DsTheme.colors
@@ -169,10 +171,20 @@ fun ActiveScreen(
     ) {
         Box {
             Column(modifier = Modifier.fillMaxSize()) {
-                // M3 top app bar; WindowInsets(0) because the home Scaffold supplies the status
+                // M3 top app bar; WindowInsets(0) because the owning Scaffold supplies the status
                 // bar inset. The cards scroll beneath it.
                 DsTopAppBar(
-                    title = stringResource(R.string.nav_active),
+                    title = stringResource(R.string.session_details_title),
+                    navigationIcon = {
+                        if (onBack != null) {
+                            DsIconButton(
+                                icon = FeatherIcons.ArrowLeft,
+                                contentDescription = stringResource(R.string.common_back),
+                                onClick = onBack,
+                                mirrorForRtl = true,
+                            )
+                        }
+                    },
                 )
                 Column(
                     modifier = Modifier

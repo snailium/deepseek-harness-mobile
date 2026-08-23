@@ -76,6 +76,25 @@ data class DsColors(
     val citation: Color,
     val markdownTag: Color,
     val overlayMask: Color,
+    /** Gradient hero fill (empty states, onboarding, connect). */
+    val gradientStart: Color,
+    val gradientEnd: Color,
+    /** The elevated-card canvas / fill: cards that float with a real shadow. */
+    val surfaceRaised: Color,
+    /** One step down from surfaceRaised: the sunken well inside an elevated card. */
+    val surfaceSunken: Color,
+    /** Gradient fill for primary CTA buttons. */
+    val primaryButtonGradientStart: Color,
+    val primaryButtonGradientEnd: Color,
+    /** Soft tint behind assistant message cards. */
+    val assistantCard: Color,
+    /** Note/hint surface (replaces unused tipSurface). */
+    val noteSurface: Color,
+    /** Compact chip fill used across the app. */
+    val chipSurface: Color,
+    /** Explicit hairline hierarchy. */
+    val dividerStrong: Color,
+    val dividerSoft: Color,
 )
 
 object DsThemeTokens {
@@ -109,6 +128,13 @@ object DsThemeTokens {
         codeBlockBg = DsLight.codeBlockBg, codeBlockBanner = DsLight.codeBlockBanner,
         inlineCode = DsLight.inlineCode, citation = DsLight.citation,
         markdownTag = DsLight.markdownTag, overlayMask = DsLight.overlayMask,
+        gradientStart = DsLight.gradientStart, gradientEnd = DsLight.gradientEnd,
+        surfaceRaised = DsLight.surfaceRaised, surfaceSunken = DsLight.surfaceSunken,
+        primaryButtonGradientStart = DsLight.primaryButtonGradientStart,
+        primaryButtonGradientEnd = DsLight.primaryButtonGradientEnd,
+        assistantCard = DsLight.assistantCard, noteSurface = DsLight.noteSurface,
+        chipSurface = DsLight.chipSurface,
+        dividerStrong = DsLight.dividerStrong, dividerSoft = DsLight.dividerSoft,
     )
 
     val dark = DsColors(
@@ -141,6 +167,13 @@ object DsThemeTokens {
         codeBlockBg = DsDark.codeBlockBg, codeBlockBanner = DsDark.codeBlockBanner,
         inlineCode = DsDark.inlineCode, citation = DsDark.citation,
         markdownTag = DsDark.markdownTag, overlayMask = DsDark.overlayMask,
+        gradientStart = DsDark.gradientStart, gradientEnd = DsDark.gradientEnd,
+        surfaceRaised = DsDark.surfaceRaised, surfaceSunken = DsDark.surfaceSunken,
+        primaryButtonGradientStart = DsDark.primaryButtonGradientStart,
+        primaryButtonGradientEnd = DsDark.primaryButtonGradientEnd,
+        assistantCard = DsDark.assistantCard, noteSurface = DsDark.noteSurface,
+        chipSurface = DsDark.chipSurface,
+        dividerStrong = DsDark.dividerStrong, dividerSoft = DsDark.dividerSoft,
     )
 }
 
@@ -184,7 +217,7 @@ private fun materialLightScheme(c: DsColors) = lightColorScheme(
     scrim = c.overlayMask,
     surfaceBright = c.bgLayer1,
     surfaceDim = c.bgModulePlatform,
-    surfaceContainer = c.bgLayer1,
+    surfaceContainer = c.surfaceRaised,
     surfaceContainerHigh = c.bgLayer2,
     surfaceContainerHighest = c.bgLayer3,
     surfaceContainerLow = c.bgBase,
@@ -223,7 +256,7 @@ private fun materialDarkScheme(c: DsColors) = darkColorScheme(
     scrim = c.overlayMask,
     surfaceBright = c.bgLayer1,
     surfaceDim = c.bgModulePlatform,
-    surfaceContainer = c.bgLayer1,
+    surfaceContainer = c.surfaceRaised,
     surfaceContainerHigh = c.bgLayer2,
     surfaceContainerHighest = c.bgLayer3,
     surfaceContainerLow = c.bgBase,

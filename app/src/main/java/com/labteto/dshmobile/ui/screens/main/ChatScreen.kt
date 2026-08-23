@@ -73,6 +73,7 @@ fun ConversationScreen(
     hostLabel: String?,
     onBack: () -> Unit,
     onSwitchHost: () -> Unit,
+    onOpenDetails: (() -> Unit)? = null,
 ) {
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
@@ -260,6 +261,7 @@ fun ConversationScreen(
                 },
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onSwitchHost = onSwitchHost,
+                onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
             )
 

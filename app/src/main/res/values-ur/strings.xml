@@ -14,6 +14,9 @@
     <string name="common_connected">منسلک</string>
     <string name="common_reconnecting">دوبارہ منسلک ہو رہا ہے…</string>
     <string name="common_offline">آف لائن</string>
+    <string name="chatlist_needs_attention">آپ کی توجہ درکار ہے</string>
+    <string name="session_details_title">سیشن کی تفصیلات</string>
+    <string name="common_switch_host">ہوسٹ تبدیل کریں</string>
     <string name="common_error">کچھ غلط ہو گیا</string>
     <string name="common_close">بند کریں</string>
     <string name="common_back">واپس</string>

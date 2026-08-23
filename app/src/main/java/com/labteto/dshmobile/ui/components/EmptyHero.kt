@@ -16,11 +16,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
@@ -42,10 +45,10 @@ fun EmptyHero(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        WhaleMark(Modifier.size(64.dp))
+        WhaleMark(Modifier.size(72.dp))
         Text(
             headline,
-            style = DsType.largeTitle,
+            style = DsType.brandDisplay,
             color = colors.labelPrimary,
             textAlign = TextAlign.Center,
         )
@@ -71,11 +74,19 @@ fun EmptyHero(
     }
 }
 
-/** 64dp accentTertiary disc with the DeepSeek Mobile logo mark. */
+/** 72dp brand-gradient disc with the DeepSeek Mobile logo mark. */
 @Composable
 private fun WhaleMark(modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
-    Box(modifier.clip(CircleShape).background(colors.accentTertiary), contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier
+            .shadow(DsSpacing.elevationCard, CircleShape)
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(listOf(colors.gradientStart, colors.gradientEnd)),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
         // The launcher vector keeps the mark inside the adaptive-icon safe zone
         // (~46% of the 108dp canvas), so oversize the image to fill the disc.
         Image(

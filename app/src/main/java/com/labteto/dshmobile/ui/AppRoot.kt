@@ -27,11 +27,13 @@ import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.navigation.ConnectRoute
+import com.labteto.dshmobile.ui.navigation.DetailsRoute
 import com.labteto.dshmobile.ui.navigation.HomeRoute
 import com.labteto.dshmobile.ui.navigation.HomeScreen
 import com.labteto.dshmobile.ui.navigation.SessionRoute
 import com.labteto.dshmobile.ui.navigation.SettingsRoute
 import com.labteto.dshmobile.ui.screens.connect.ConnectScreen
+import com.labteto.dshmobile.ui.screens.main.ActiveScreen
 import com.labteto.dshmobile.ui.screens.main.ConversationScreen
 import com.labteto.dshmobile.ui.screens.settings.SettingsScreen
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -116,6 +118,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
             composable<HomeRoute> {
                 HomeScreen(
                     hostLabel = connection.host?.displayAddress,
+                    connectionState = connection,
                     onSwitchHost = ::switchHost,
                     onOpenSession = { sessionId -> navController.navigate(SessionRoute(sessionId)) },
                 )
@@ -130,7 +133,11 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
                     hostLabel = connection.host?.displayAddress,
                     onBack = { navController.popBackStack() },
                     onSwitchHost = ::switchHost,
+                    onOpenDetails = { navController.navigate(DetailsRoute) },
                 )
+            }
+            composable<DetailsRoute> {
+                ActiveScreen(onBack = { navController.popBackStack() })
             }
             composable<SettingsRoute> {
                 SettingsScreen(onClose = { navController.popBackStack() })

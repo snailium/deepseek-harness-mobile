@@ -39,4 +39,18 @@ object DsSpacing {
     
     /** 48dp - Minimum touch target size per Material Design guidelines */
     val touchTarget = 48.dp
+
+    /** 20dp - Standard screen-edge padding (was 16; the redesign breathes more). */
+    val screen = 20.dp
+
+    /** 32dp - section gap between major blocks on a screen. */
+    val section = 32.dp
+
+    // Elevation / shadow tokens (dp)
+    /** 2dp - quiet shadow for chips, pills, small controls. */
+    val elevationQuiet = 2.dp
+    /** 4dp - resting shadow for elevated cards and the composer. */
+    val elevationCard = 4.dp
+    /** 8dp - pressed / floating elevation (FAB, focused composer). */
+    val elevationFloat = 8.dp
 }

@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -187,6 +188,9 @@ internal fun Composer(
                     tint = colors.labelPrimary,
                     enabled = enabled,
                     onClick = onOpenSheet,
+                    backgroundBrush = Brush.linearGradient(
+                        listOf(colors.accentTertiary, colors.accentTertiary),
+                    ),
                 )
 
                 val selectionColors = TextSelectionColors(
@@ -257,10 +261,15 @@ internal fun Composer(
                             icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
                             size = 36,
-                            background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
+                            background = if (canSend) colors.primaryButtonGradientStart else colors.buttonPrimaryDimmed,
                             tint = if (canSend) Color.White else colors.labelTertiary,
                             enabled = canSend,
                             onClick = { doSend() },
+                            backgroundBrush = if (canSend) {
+                                Brush.linearGradient(
+                                    listOf(colors.primaryButtonGradientStart, colors.primaryButtonGradientEnd),
+                                )
+                            } else null,
                         )
                     }
                 }
@@ -455,25 +464,25 @@ private fun CircleAction(
     tint: Color,
     enabled: Boolean,
     onClick: () -> Unit,
+    backgroundBrush: Brush? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.size(size.dp),
-        enabled = enabled,
-        shape = CircleShape,
-        color = background,
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(if (backgroundBrush != null) backgroundBrush else Brush.linearGradient(listOf(background, background)))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            when {
-                content != null -> content()
-                icon != null -> Icon(
-                    icon,
-                    contentDescription = contentDescription,
-                    tint = tint,
-                    modifier = Modifier.size((size * 0.46f).dp),
-                )
-            }
+        when {
+            content != null -> content()
+            icon != null -> Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size((size * 0.46f).dp),
+            )
         }
     }
 }

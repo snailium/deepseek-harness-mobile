@@ -21,3 +21,10 @@ data object SettingsRoute
 
 @Serializable
 data class SessionRoute(val sessionId: String)
+
+/**
+ * The per-session details screen (model, preset, export/copy, context, host). Formerly the
+ * "Active" home tab; it is now a pushed destination so the home page stays two clean tabs.
+ */
+@Serializable
+data object DetailsRoute
