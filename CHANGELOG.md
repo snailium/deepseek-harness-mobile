@@ -1,3 +1,15 @@
+## [0.17.2] - unreleased
+
+Session-list typography: titles no longer truncate, and they sit on a consistent line rhythm.
+
+### Fixed
+
+- **Session titles wrap to two lines.** List and search-result titles used a single-line
+  ellipsis, so long titles chopped mid-word ('Verify CommandCode Goat API access'). They now
+  wrap to two lines and only then ellipsize.
+- **Row title line-height.** The session-row title used a 16/22 ratio that sat tight against the
+  meta line; it now uses the app's standard 16/24 body rhythm so titles and meta sit on the
+  same vertical grid.
 ## [0.17.1] - unreleased
 
 Readability polish from a review of v0.17.0: the message transcript's body text and
