@@ -85,7 +85,7 @@ internal fun PresetsSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 entry.displayName(),
-                                style = DsType.std14Strong,
+                                style = DsType.m3TitleMedium,
                                 color = when {
                                     selected -> colors.accent
                                     selectable -> colors.labelPrimary
@@ -107,12 +107,12 @@ internal fun PresetsSheet(
                             }
                         }
                         entry.displayDescription()?.let {
-                            Text(it, style = DsType.caption11, color = colors.labelTertiary)
+                            Text(it, style = DsType.m3LabelSmall, color = colors.labelTertiary)
                         }
                         entry.broken?.let {
                             Text(
                                 stringResource(R.string.presets_broken, it),
-                                style = DsType.caption11,
+                                style = DsType.m3LabelSmall,
                                 color = colors.warnLabel,
                             )
                         }

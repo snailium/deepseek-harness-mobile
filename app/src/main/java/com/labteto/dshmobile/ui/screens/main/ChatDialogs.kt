@@ -58,7 +58,7 @@ internal fun RenameDialog(
     }
 }
 
-/** A destructive confirmation with an explanatory body, as an iOS-style alert. */
+/** A destructive confirmation with an explanatory body, as an M3 alert. */
 @Composable
 internal fun ConfirmDialog(
     title: String,

@@ -179,7 +179,7 @@ private fun SubagentRow(entry: SubagentListEntry, selected: Boolean, onClick: ()
         Spacer(Modifier.width(DsSpacing.small))
         Text(
             subagentLabel(entry) ?: subagentId(entry).orEmpty(),
-            style = DsType.small13,
+            style = DsType.m3BodyMedium,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

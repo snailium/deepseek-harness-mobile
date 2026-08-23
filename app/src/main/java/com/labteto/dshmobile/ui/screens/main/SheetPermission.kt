@@ -59,7 +59,7 @@ internal fun PermissionMenu(
                 Column(Modifier.weight(1f)) {
                     Text(
                         displayPermissionPreset(option.value, option.name),
-                        style = DsType.std14Strong,
+                        style = DsType.m3TitleMedium,
                         color = if (selected) colors.accent else colors.labelPrimary,
                     )
                     val description = option.description
@@ -69,7 +69,7 @@ internal fun PermissionMenu(
                             null
                         }
                     if (description != null) {
-                        Text(description, style = DsType.caption11, color = colors.labelTertiary)
+                        Text(description, style = DsType.m3LabelSmall, color = colors.labelTertiary)
                     }
                 }
                 if (selected) {

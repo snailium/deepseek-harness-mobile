@@ -46,6 +46,25 @@ object DsType {
     // UI roles
     /** Hero / empty-state / onboarding headline: the biggest display voice in the app. */
     val brandDisplay = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Bold, fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.5).sp)
+
+    // ---- Material 3 roles (Android-native voice; the app bars, rows and section
+    // labels below pick from this scale so every surface shares one hierarchy) ----
+    /** M3 headlineMedium: the largest in-app screen title (28/34 Bold). */
+    val m3HeadlineMedium = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.3).sp)
+    /** M3 titleLarge: top-app-bar titles (22/28 Medium). */
+    val m3TitleLarge = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Medium, fontSize = 22.sp, lineHeight = 28.sp)
+    /** M3 titleMedium: list-row headlines (16/24 Medium). */
+    val m3TitleMedium = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp)
+    /** M3 bodyLarge: standard body copy (16/24). */
+    val m3BodyLarge = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp)
+    /** M3 bodyMedium: supporting text under a headline (14/20). */
+    val m3BodyMedium = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
+    /** M3 labelLarge: section and group labels (14/20 SemiBold). */
+    val m3LabelLarge = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 20.sp)
+    /** M3 labelMedium: captions and chip text (12/16). */
+    val m3LabelMedium = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 16.sp)
+    /** M3 labelSmall: micro captions and meta (11/16). */
+    val m3LabelSmall = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 16.sp)
     val display24 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.SemiBold, fontSize = 24.sp, lineHeight = 32.sp)
     val hero26 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Medium, fontSize = 26.sp, lineHeight = 32.sp)
     val large20 = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Medium, fontSize = 20.sp, lineHeight = 28.sp)
@@ -63,17 +82,15 @@ object DsType {
     val caption11 = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 11.sp, lineHeight = 14.sp)
     val caption11Strong = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 14.sp)
 
-    // iOS-aligned UI roles (2024–26 HIG scale)
-    /** Large-title navigation: 28/34 Bold, the same voice as iOS large titles. */
+    // UI roles kept for compatibility with existing call sites (superseded by the M3 roles
+    // above for new work; the app bars, rows and section labels now pick from m3*).
+    /** Large-title navigation: 28/34 Bold. */
     val largeTitle = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.3).sp)
-    /** Navigation-bar title: 17 SemiBold — what a large title collapses to. */
+    /** Navigation-bar title: 17 SemiBold. */
     val navTitle = TextStyle(fontFamily = displayFont, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 24.sp, letterSpacing = (-0.2).sp)
-    /**
-     * Sessions-list row title: 16 Medium, one notch below the chat's 17 body — list rows sit
-     * quietly under the 13pt section headers instead of shouting over them.
-     */
+    /** List-row title: 16 Medium. */
     val rowTitle = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp)
-    /** Body copy at iOS size. */
+    /** Body copy: 17. */
     val body17 = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 17.sp, lineHeight = 25.sp)
     /** Footnote: secondary text on rows and captions. */
     val footnote = TextStyle(fontFamily = uiFont, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 18.sp, letterSpacing = (-0.1).sp)
@@ -92,13 +109,13 @@ val DsTypography = Typography(
     displayMedium = DsType.display24,
     displaySmall = DsType.title2,
     headlineLarge = DsType.largeTitle,
-    headlineMedium = DsType.navTitle,
-    titleLarge = DsType.title3,
-    titleMedium = DsType.std14Strong,
-    bodyLarge = DsType.base16,
-    bodyMedium = DsType.std14,
+    headlineMedium = DsType.m3HeadlineMedium,
+    titleLarge = DsType.m3TitleLarge,
+    titleMedium = DsType.m3TitleMedium,
+    bodyLarge = DsType.m3BodyLarge,
+    bodyMedium = DsType.m3BodyMedium,
     bodySmall = DsType.small13,
-    labelLarge = DsType.std14Strong,
-    labelMedium = DsType.small13Strong,
-    labelSmall = DsType.caption11,
+    labelLarge = DsType.m3LabelLarge,
+    labelMedium = DsType.m3LabelMedium,
+    labelSmall = DsType.m3LabelSmall,
 )

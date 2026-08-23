@@ -290,7 +290,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             ) {
                 SectionHeader(stringResource(R.string.connect_manual_title))
                 // The form is one grouped plate: field, endpoint reading, and the disclosures
-                // live inside it, iOS Settings-style.
+                // live inside it, M3 settings-group style.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

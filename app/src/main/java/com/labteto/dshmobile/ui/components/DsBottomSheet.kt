@@ -27,7 +27,7 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
- * The app's sheet surface, themed to the harness tokens.
+ * The app's sheet surface, themed to the harness tokens — a Material 3 modal bottom sheet.
  *
  * Sheets rather than dialogs for pickers: they arrive from the thumb's end of the screen, size
  * themselves to their content, and let a long list scroll without fighting a fixed-height plate.
@@ -49,11 +49,12 @@ fun DsBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
         modifier = modifier,
-        // iOS sheets round the top corners only — the plate sits on the screen edge.
+        // M3 sheets round the top corners only — the plate sits on the screen edge.
         shape = DsShapes.sheetTop,
         containerColor = colors.bgLayer2,
         scrimColor = colors.overlayMask,
-        dragHandle = null,
+        // The M3 platform drag handle: standard Android sheet affordance.
+        dragHandle = {},
         contentWindowInsets = { WindowInsets.navigationBars },
     ) {
         Column(
@@ -62,26 +63,15 @@ fun DsBottomSheet(
                 .padding(horizontal = DsSpacing.large, vertical = DsSpacing.comfortable),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            // The iOS grabber: a 36x5dp grey bar that says "draggable" without the platform
-            // handle's heavy padding.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                Spacer(
-                    Modifier
-                        .width(36.dp)
-                        .height(5.dp)
-                        .clip(DsShapes.pillFull)
-                        .background(colors.labelCaption),
-                )
-            }
             if (title != null) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = DsSpacing.small),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = DsType.navTitle, color = colors.labelPrimary)
+                        Text(title, style = DsType.m3TitleLarge, color = colors.labelPrimary)
                         if (subtitle != null) {
-                            Text(subtitle, style = DsType.caption11, color = colors.labelTertiary)
+                            Text(subtitle, style = DsType.m3LabelSmall, color = colors.labelTertiary)
                         }
                     }
                     trailing?.invoke()

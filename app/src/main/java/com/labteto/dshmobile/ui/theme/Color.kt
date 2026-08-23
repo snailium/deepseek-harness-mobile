@@ -88,9 +88,8 @@ object Ds {
 /** Semantic alias tokens for the light theme. */
 object DsLight {
     /**
-     * iOS grouped background (systemGroupedBackground): the canvas for support surfaces —
-     * connect, drawer, settings — so cards read as white plates on gray. The chat keeps its own
-     * white canvas via `bgChat`.
+     * The M3 surface-variant canvas for support surfaces — connect, drawer, settings — so cards
+     * read as white plates on gray. The chat keeps its own white canvas via bgChat.
      */
     val bgBase = Color(0xFFF2F2F7)
     val bgChat = Color(0xFFFFFFFF)
@@ -168,11 +167,12 @@ object DsLight {
     val composerCard = Color(0xFFFFFFFF)
     val sidebar = Color(0xFFF2F2F7)
     /**
-     * iOS plain-list selection: the persistent highlight for the current session row. A neutral
-     * gray (systemGray5-family) — never tinted, so the current row reads as "selected", not as
-     * wearing a color.
+     * Legacy list-selection gray, superseded by selectionTonal (the M3 tonal wash). Kept for
+     * any remaining call site that expects a neutral selected-row fill.
      */
     val selection = Color(0xFFE5E5EA)
+    /** M3 selected-row wash: Deepseek50 on the white row — the accent tint that says "current". */
+    val selectionTonal = Ds.Deepseek50
     val sidebarNavAccent = Ds.Deepseek100
     val sidebarNavHover = Ds.Bluish75
     val tipSurface = Ds.Bluish60
@@ -199,7 +199,7 @@ object DsLight {
 
 /** Semantic alias tokens for the dark theme. */
 object DsDark {
-    /** iOS grouped background: near-black, with #1C1C1E plates on top. */
+    /** M3 surface-variant canvas: near-black, with #1C1C1E plates on top. */
     val bgBase = Color(0xFF000000)
     val bgChat = Color(0xFF000000)
     val bgLayer1 = Color(0xFF1C1C1E)
@@ -248,8 +248,10 @@ object DsDark {
     val assistantBubble = Color(0xFF1C1C1E)
     val composerCard = Color(0xFF1C1C1E)
     val sidebar = Color(0xFF000000)
-    /** iOS dark-mode selection gray, one step off the black canvas. */
+    /** Legacy selection gray, superseded by selectionTonal in dark mode. */
     val selection = Color(0xFF2C2C2E)
+    /** M3 selected-row wash: Deepseek800 on the black row. */
+    val selectionTonal = Ds.Deepseek800
     val sidebarNavAccent = Ds.Bluish800
     val sidebarNavHover = Ds.Bluish850
     val tipSurface = Ds.Bluish800

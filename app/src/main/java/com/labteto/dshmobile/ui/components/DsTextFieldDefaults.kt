@@ -26,7 +26,7 @@ fun dsTextFieldColors() = TextFieldDefaults.colors(
 fun dsDoneKeyboard(): KeyboardOptions = KeyboardOptions.Default
 
 /**
- * The iOS search-bar field style: a gray capsule with no resting/focus line — the fill says
+ * The compact search-field style: a gray capsule with no resting/focus line — the fill says
  * "field", so the chrome stays quiet.
  */
 @Composable

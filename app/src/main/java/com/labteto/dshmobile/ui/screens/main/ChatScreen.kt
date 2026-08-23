@@ -237,7 +237,7 @@ fun ConversationScreen(
     }
 
     // The chat keeps its own calm canvas (white / black) while the rest of the app sits on
-    // the iOS grouped gray — this is the surface the reader stares at for the longest.
+    // the M3 surface-variant canvas — this is the surface the reader stares at for the longest.
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgChat) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
@@ -251,7 +251,7 @@ fun ConversationScreen(
                 subagentCount = subagents.size,
                 tab = tab,
                 collapsed = chromeCollapsed,
-                modelLabel = currentModelLabel(models),
+                modelLabel = null,
                 modelsRoutable = models?.routable != false,
                 onBack = onBack,
                 onOpenModels = { sheet = ChatSheet.Models },
@@ -343,7 +343,8 @@ fun ConversationScreen(
                         .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    parseTodos(conv.projections["todos"])?.let { TodoDock(it) }
+                    // To-dos render in-transcript from their TodoNode events; the goal and the
+                    // queue are the live run status that belongs pinned above the composer.
                     parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
                     QueueDock(conv.queue, store)
                 }
@@ -423,6 +424,9 @@ fun ConversationScreen(
                 onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
                 contextBreakdown = contextBreakdown,
                 contextPressure = contextPressure,
+                modelLabel = currentModelLabel(models),
+                modelsRoutable = models?.routable != false,
+                onOpenModels = { sheet = ChatSheet.Models },
                 running = conversation?.running == true,
                 enabled = currentSessionId != null,
                 onOpenSheet = { sheet = ChatSheet.Commands },
@@ -430,7 +434,6 @@ fun ConversationScreen(
                 onStop = { scope.launch { store.cancelTurn() } },
             )
 
-            StatsFooter(stats = sessionStats, usage = tokenUsage)
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
     }

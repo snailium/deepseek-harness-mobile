@@ -688,6 +688,26 @@ internal object FeatherIcons {
             close()
         }
     }
+
+    /** `book-open` — skills. */
+    val BookOpen: ImageVector by lazy {
+        feather("BookOpen") {
+            moveTo(2f, 3f)
+            lineTo(6f, 3f)
+            arcTo(4f, 4f, 0f, isMoreThanHalf = false, isPositiveArc = true, 10f, 7f)
+            lineTo(10f, 21f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = false, 8f, 19f)
+            lineTo(2f, 19f)
+            close()
+            moveTo(22f, 3f)
+            lineTo(18f, 3f)
+            arcTo(4f, 4f, 0f, isMoreThanHalf = false, isPositiveArc = false, 14f, 7f)
+            lineTo(14f, 21f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 16f, 19f)
+            lineTo(22f, 19f)
+            close()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -38,7 +38,7 @@ fun DsTopAppBar(
         title = {
             Text(
                 title,
-                style = DsType.navTitle,
+                style = DsType.m3TitleLarge,
                 overflow = TextOverflow.Ellipsis,
                 maxLines = 1,
             )

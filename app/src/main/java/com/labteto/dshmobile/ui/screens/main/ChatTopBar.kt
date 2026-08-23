@@ -51,16 +51,16 @@ import com.labteto.dshmobile.ui.theme.DsType
 internal enum class ChatTab { Chat, Trajectory }
 
 /**
- * The conversation chrome: a large-title navigation row over a utility row.
+ * The conversation chrome: a single identity row over a utility row.
  *
- * The back arrow pops to the home shell (Chats · Active · Settings). The title collapses from 28sp
- * to the 17sp navigation size once the reader scrolls, and the host line fades — "which session am
- * I in" stays on screen at every scroll position. The status dot rides the same row, and a trailing
- * overflow carries Presets, Subagents and Switch harness. The model selector lives above the
- * composer, where the model it switches configures the next turn.
- * The utility row carries the Chat / Trajectory view switcher, which never folds, with the
- * session's agent preset and subagent chips in its trailing space — those fold away once the
- * reader scrolls, like the host line.
+ * Row 1 keeps the identity: back arrow, the session title with the full remaining width
+ * (a control never sits beside it — the model picker lives in the composer config strip,
+ * where it configures the next turn), the run-status dot, and the overflow menu carrying
+ * Presets, Subagents, Details and Switch harness.
+ *
+ * Row 2 is navigation: the Chat / Trajectory view switcher (never folds) with the session's
+ * agent preset and subagent chips in its trailing space — those fold away once the reader
+ * scrolls, because they configure the next turn rather than navigate.
  */
 @Composable
 internal fun ChatTopBar(
@@ -70,13 +70,13 @@ internal fun ChatTopBar(
     agentPresetLabel: String?,
     subagentCount: Int,
     tab: ChatTab,
-    /** True once the reader scrolls the transcript: the session-meta row folds away. */
+    /** True once the reader scrolls the transcript: the session-meta chips fold away. */
     collapsed: Boolean,
     modelLabel: String?,
     modelsRoutable: Boolean,
     /** Opens the model picker; the choice configures the next turn. */
     onOpenModels: () -> Unit,
-    /** Pops back to the home shell (Chats · Active · Settings). */
+    /** Pops back to the home shell (Chats · Settings). */
     onBack: () -> Unit,
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
@@ -90,9 +90,8 @@ internal fun ChatTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .padding(horizontal = DsSpacing.tiny)
-                .animateContentSize(),
+                .heightIn(min = 52.dp)
+                .padding(horizontal = DsSpacing.tiny),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             DsIconButton(
@@ -103,48 +102,15 @@ internal fun ChatTopBar(
                 iconSize = 18.dp,
                 mirrorForRtl = true,
             )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(vertical = DsSpacing.tiny),
-            ) {
-                Text(
-                    title,
-                    style = if (collapsed) DsType.navTitle else DsType.largeTitle,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                // The host line belongs to the expanded state: once the reader is deep in the
-                // transcript the navigation title takes over, like iOS collapsing a large title.
-                AnimatedVisibility(
-                    visible = !collapsed && hostLabel != null,
-                    enter = fadeIn(DsAnimations.fade),
-                    exit = fadeOut(DsAnimations.fade),
-                ) {
-                    hostLabel?.let {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            StateDot(StateDotState.Done, size = 6.dp)
-                            Spacer(Modifier.width(DsSpacing.xsmall))
-                            Text(
-                                it,
-                                style = DsType.footnote,
-                                color = colors.labelTertiary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-            if (modelLabel != null) {
-                ModelChip(
-                    label = modelLabel,
-                    routable = modelsRoutable,
-                    onClick = onOpenModels,
-                )
-            }
-            Spacer(Modifier.width(DsSpacing.tiny))
+            // The title owns the full remaining width: one line, ellipsized, never crowded.
+            Text(
+                title,
+                style = DsType.m3TitleLarge,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(horizontal = DsSpacing.medium),
+            )
             StateDot(
                 if (running) StateDotState.Running else StateDotState.Idle,
                 contentDescription = stringResource(
@@ -254,7 +220,7 @@ private fun MetaChip(
         horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
     ) {
         Icon(icon, contentDescription = null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
-        Text(label, style = DsType.small13, color = colors.labelSecondary, maxLines = 1)
+        Text(label, style = DsType.m3LabelMedium, color = colors.labelSecondary, maxLines = 1)
         Icon(
             FeatherIcons.ChevronDown,
             contentDescription = null,
@@ -265,13 +231,12 @@ private fun MetaChip(
 }
 
 /**
- * The model selector, as a prominent chip on the identity row.
- *
- * The model choice configures the next turn, so it earns a first-class place in the chrome instead
- * of hiding above the composer. The non-routable warning dot carries over from the old placement.
+ * The model selector chip. Lives in the composer config strip (never beside a title): the model
+ * choice configures the next turn, so it belongs at the point of action — the same reasoning that
+ * puts Gemini's picker inside its prompt bar and ChatGPT's inside its composer.
  */
 @Composable
-private fun ModelChip(
+internal fun ModelChip(
     label: String,
     routable: Boolean,
     onClick: () -> Unit,
@@ -295,7 +260,7 @@ private fun ModelChip(
         if (!routable) {
             StateDot(StateDotState.Warning, size = 6.dp)
         }
-        Text(label, style = DsType.small13Strong, color = colors.labelPrimary, maxLines = 1)
+        Text(label, style = DsType.m3LabelMedium, color = colors.labelPrimary, maxLines = 1)
         Icon(
             FeatherIcons.ChevronDown,
             contentDescription = null,

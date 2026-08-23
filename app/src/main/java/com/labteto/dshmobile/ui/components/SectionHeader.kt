@@ -29,14 +29,14 @@ fun SectionHeader(
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             title,
-            style = DsType.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+            style = DsType.m3LabelLarge,
             color = colors.labelSecondary,
             modifier = Modifier.weight(1f),
         )
         if (action != null) {
             Text(
                 action,
-                style = DsType.footnote.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                style = DsType.m3LabelLarge,
                 color = colors.accent,
                 modifier = if (onAction != null) {
                     // An 11sp word with 4dp of padding is a 19dp tap target; grow it toward a

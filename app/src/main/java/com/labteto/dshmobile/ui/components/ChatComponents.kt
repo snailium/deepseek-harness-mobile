@@ -43,12 +43,11 @@ import com.labteto.dshmobile.ui.theme.DshTheme
 /**
  * Right-aligned user message bubble: solid `userBubble` fill with white text, r22, 17/25 text.
  *
- * This is the iOS 18 Messages arrangement — the user's side is a filled blue bubble, white text,
- * no border — and it is the one thing that tells the two sides of the conversation apart at a
- * glance (the assistant renders container-less in the harness web UI, so this bubble used to be
- * the *only* visual distinction and still had to carry it with a tinted fill and a hairline).
- * With a solid fill the border is unnecessary; the width cap keeps a short message a narrow pill
- * hugging the right margin rather than a full-width band that looks like more prose.
+ * A filled user bubble with white text and no border — the standard chat-app arrangement
+ * (WhatsApp/Telegram style) and the one thing that tells the two sides of the conversation apart
+ * at a glance. With a solid fill the border is unnecessary; the width cap keeps a short message
+ * a narrow pill hugging the right margin rather than a full-width band that looks like more
+ * prose.
  *
  * The cap mirrors the harness's `max-width: min(525px, 82%)`, which is why this measures its parent
  * rather than hardcoding a dp: a flat 320dp was most of a phone's width and none of a tablet's.

@@ -1,3 +1,40 @@
+## [0.18.0] - unreleased
+
+Material 3 / Android-native redesign: the UI stops borrowing iOS patterns and speaks native
+Android — a cleaner session list, a decluttered chat header, and a tabbed commands sheet.
+
+### Added
+
+- **Composer config strip.** The model picker (and the permission preset and context meter)
+  moved out of the chat title row into a slim strip above the composer — the Gemini/ChatGPT
+  arrangement where what configures the next turn lives where the next turn is written. The
+  chat title now owns the full width of its row.
+- **Commands | Skills tabs.** The + sheet is now a tabbed catalog: one scrolling, searchable
+  list per tab with leading icons, instead of two fixed-height lists pasted together.
+- **M3 type scale.** New roles (headlineMedium, titleLarge, titleMedium, bodyLarge, bodyMedium,
+  labelLarge, labelMedium, labelSmall) mapped through the Material theme, so app bars, rows
+  and section labels share one hierarchy.
+- **M3 selected-row wash.** The current session row uses a brand-tinted tonal overlay
+  (selectionTonal) instead of a flat gray.
+- **M3 drag handle** on bottom sheets (replacing the custom grabber bar).
+
+### Changed
+
+- **Session list header.** The iOS large-title/capsule stack is replaced by a Material 3 top
+  app bar: title, connection-state dot + host, a search toggle that expands an M3 search
+  field, and the sort control. The standalone host-status strip is gone (state rides the bar).
+- **Session rows.** One anatomy everywhere — status dot, 16sp title, 14sp meta, one trailing
+  badge — and workspace groups read as quiet M3 section labels instead of interactive rows.
+- **Compose action** is now an M3 extended FAB with a label (the Google Messages pattern)
+  instead of a bare blue circle.
+- **Chat header** is two rows: identity (back · full-width title · status · overflow) and
+  navigation (Chat | Trajectory + preset/subagent chips), with no model chip crowding the title.
+- **Transcript cleanup.** The duplicate to-dos dock above the composer is gone (to-dos already
+  render in the transcript), and the run-stats line at the chat bottom is gone (stats live in
+  the Trajectory tab and session details).
+- Every remaining "iOS-style" doc comment and naming reference was removed; the app now speaks
+  Material 3 throughout.
+
 ## [0.17.3] - unreleased
 
 Fixed a functional bug that prevented starting a plan from the mobile app.

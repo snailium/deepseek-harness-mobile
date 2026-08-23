@@ -98,8 +98,8 @@ fun DsDialog(
 }
 
 /**
- * iOS-style alert: a small centered plate — bold title, secondary message, hairline-separated
- * text-button row — for confirmations. The cancel/confirm pair reads like an iOS alert; text
+ * M3-style alert: a small centered plate — bold title, secondary message, hairline-separated
+ * text-button row — for confirmations. The cancel/confirm pair reads like an M3 alert; text
  * entry stays on [DsDialog]'s form plate.
  */
 @Composable
@@ -144,7 +144,7 @@ fun DsAlert(
                     )
                 }
                 Spacer(Modifier.height(14.dp))
-                // iOS hairline separating the message from the button row.
+                // Hairline separating the message from the button row.
                 Box(
                     Modifier
                         .fillMaxWidth()

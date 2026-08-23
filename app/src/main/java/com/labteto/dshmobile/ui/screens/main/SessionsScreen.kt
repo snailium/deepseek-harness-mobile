@@ -3,8 +3,10 @@ package com.labteto.dshmobile.ui.screens.main
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -32,8 +34,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -114,10 +119,10 @@ private const val SORT_UPDATED = "updated"
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
  *
- * The chrome follows iOS: a compact navigation bar — back chevron, centered title, host switcher
- * and sort on the trailing side, all on one baseline — a 40dp search capsule with a Cancel button
- * while it is focused, a plain hairline-separated list with swipe-to-archive, and a floating
- * compose button (the Messages pattern) that creates a session or a workspace.
+ * The chrome is Material 3: a top app bar with the title, connection state, search toggle and
+ * sort on the actions side, an expanding M3 search field, a hairline-separated list with
+ * swipe-to-archive and subagent nesting, and an extended FAB that creates a session or a
+ * workspace.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,7 +154,8 @@ fun ChatsScreen(
     var composeOpen by remember { mutableStateOf(false) }
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     var newSessionOpen by remember { mutableStateOf(false) }
-    // The iOS Cancel button appears next to the search field while it has focus.
+    // Search is an expanding bar (Android pattern): the magnifier in the app bar toggles it.
+    var searchVisible by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -223,74 +229,78 @@ fun ChatsScreen(
             .fillMaxSize()
             .background(colors.bgBase),
     ) {
-        // ---- M3 top app bar: title · host switcher · sort ----
+        // ---- M3 top app bar: title · search toggle · host · sort ----
         // WindowInsets(0) because the home Scaffold already supplies the status-bar inset to the
         // content; a second status-bar inset here would double the top padding.
         DsTopAppBar(
             title = stringResource(R.string.chatlist_title),
             actions = {
-                HostChip(
-                    hostLabel = hostLabel,
-                    onSwitchHost = onSwitchHost,
-                )
-                Spacer(Modifier.width(DsSpacing.xsmall))
+                // Connection state rides the bar as a quiet dot beside the host label.
+                if (connectionState != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(DsShapes.pillFull)
+                            .clickable(role = Role.Button, onClick = onSwitchHost)
+                            .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
+                    ) {
+                        ConnectionDot(connectionState)
+                        Spacer(Modifier.width(DsSpacing.tiny))
+                        Text(
+                            hostLabel ?: stringResource(R.string.settings_connection_host),
+                            style = DsType.m3LabelMedium,
+                            color = colors.labelSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 132.dp),
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = { searchVisible = !searchVisible },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        FeatherIcons.Search,
+                        contentDescription = stringResource(R.string.common_search),
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
                 SortButton { next ->
                     scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
                 }
             },
         )
 
-        // ---- Host status strip: connection health at a glance on the home page ----
-        if (connectionState != null) {
-            HostStatusStrip(
-                connectionState = connectionState,
-                hostLabel = hostLabel,
-                onSwitchHost = onSwitchHost,
-                modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
-            )
-        }
-
-        // ---- Search: 40dp iOS capsule; Cancel fades in beside it while focused ----
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = DsSpacing.medium),
-            verticalAlignment = Alignment.CenterVertically,
+        // ---- Search: expands below the bar as an M3 search field; Cancel clears and closes ----
+        AnimatedVisibility(
+            visible = searchVisible,
+            enter = fadeIn(DsAnimations.fade) + expandVertically(),
+            exit = fadeOut(DsAnimations.fade) + shrinkVertically(),
         ) {
-            SearchCapsule(
-                modifier = Modifier.weight(1f),
-                query = query,
-                onQueryChange = { query = it },
-                onFocusChange = { searchFocused = it },
-            )
-            AnimatedVisibility(
-                visible = searchFocused,
-                enter = fadeIn(DsAnimations.fade) + slideInHorizontally(initialOffsetX = { it / 3 }),
-                exit = fadeOut(DsAnimations.fade) + slideOutHorizontally(targetOffsetX = { it / 3 }),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
             ) {
-                Text(
-                    stringResource(R.string.common_cancel),
-                    style = DsType.body17.copy(fontWeight = FontWeight.Medium),
-                    color = colors.accent,
-                    modifier = Modifier
-                        .clip(DsShapes.row)
-                        .clickable(role = Role.Button, onClick = {
-                            query = ""
-                            focusManager.clearFocus()
-                        })
-                        .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                SearchCapsule(
+                    modifier = Modifier.fillMaxWidth(),
+                    query = query,
+                    onQueryChange = { query = it },
+                    onFocusChange = { searchFocused = it },
                 )
+                // Stated once, quietly, and only while searching. Most harnesses ship with the
+                // content index off, so this is a normal capability note — not a failure.
+                if (!contentSearchAvailable && query.isNotBlank()) {
+                    Text(
+                        stringResource(R.string.chatlist_search_content_off),
+                        style = DsType.m3LabelSmall,
+                        color = colors.labelCaption,
+                        modifier = Modifier.padding(start = DsSpacing.small, top = DsSpacing.tiny),
+                    )
+                }
             }
-        }
-        // Stated once, quietly, and only while searching. Most harnesses ship with the content
-        // index off, so this is a normal capability note — not a failure.
-        if (!contentSearchAvailable && query.isNotBlank()) {
-            Text(
-                stringResource(R.string.chatlist_search_content_off),
-                style = DsType.caption11,
-                color = colors.labelCaption,
-                modifier = Modifier.padding(start = DsSpacing.medium, top = DsSpacing.tiny),
-            )
         }
 
         // ---- The list, with the compose action floating over it (Messages pattern) ----
@@ -478,25 +488,25 @@ fun ChatsScreen(
             }
         }
 
-        Surface(
-                onClick = { composeOpen = true },
-                shape = CircleShape,
-                color = colors.buttonInfoFill,
-                shadowElevation = 6.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = DsSpacing.large, bottom = DsSpacing.large)
-                    .size(48.dp),
-            ) {
-                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                    Icon(
-                        FeatherIcons.Plus,
-                        contentDescription = stringResource(R.string.chatlist_new_session),
-                        tint = Color.White,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
+        // M3 extended FAB (Google Messages pattern): the one primary compose action on the list.
+        ExtendedFloatingActionButton(
+            onClick = { composeOpen = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = DsSpacing.large, bottom = DsSpacing.large),
+            containerColor = colors.primaryButtonGradientStart,
+            contentColor = Color.White,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+            shape = DsShapes.pillFull,
+        ) {
+            Icon(
+                FeatherIcons.Plus,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.width(DsSpacing.small))
+            Text(stringResource(R.string.chatlist_new_session), style = DsType.std14Strong)
+        }
         }
     }
 
@@ -565,6 +575,17 @@ fun ChatsScreen(
     }
 }
 
+/** A small connection-state dot: green when connected, amber reconnecting, gray idle. */
+@Composable
+private fun ConnectionDot(connectionState: ConnectionUiState) {
+    val state = when (connectionState.phase) {
+        ConnectionPhase.CONNECTED -> StateDotState.Done
+        ConnectionPhase.CONNECTING, ConnectionPhase.RECONNECTING -> StateDotState.Running
+        else -> StateDotState.Idle
+    }
+    StateDot(state, size = 7.dp)
+}
+
 /**
  * The host identity as a compact chip on the navigation bar's trailing side, itself the anchor
  * for its verbs.
@@ -594,7 +615,7 @@ private fun HostChip(
                 StateDot(StateDotState.Done, size = 6.dp)
                 Text(
                     hostLabel,
-                    style = DsType.footnote,
+                    style = DsType.m3LabelMedium,
                     color = colors.labelSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -643,13 +664,12 @@ private fun SortButton(onPick: (byRecency: Boolean) -> Unit) {
 }
 
 /**
- * The iOS search capsule, built by hand because Material3's TextField enforces a 56dp minimum
+ * The compact search field, built by hand because Material3's TextField enforces a 56dp minimum
  * height that clips the field when it is forced shorter — which is exactly what the old field did
  * at 44dp, cutting the placeholder and the typed text off at top and bottom.
  *
- * Fixed 40dp tall (the iOS search-field height), gray fill, magnifier, clear button and accent
- * cursor; the Cancel button that appears beside it lives in the caller, so the capsule only has
- * to be a field.
+ * Fixed 40dp tall, gray fill, magnifier, clear button and accent cursor. It lives under the top
+ * app bar in an expanding block; clearing the query collapses it.
  */
 @Composable
 private fun SearchCapsule(
@@ -680,7 +700,7 @@ private fun SearchCapsule(
             modifier = Modifier
                 .weight(1f)
                 .onFocusChanged { onFocusChange(it.isFocused) },
-            textStyle = DsType.base16.copy(color = colors.labelPrimary),
+            textStyle = DsType.m3BodyLarge.copy(color = colors.labelPrimary),
             cursorBrush = SolidColor(colors.accent),
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
@@ -689,7 +709,7 @@ private fun SearchCapsule(
                     if (query.isEmpty()) {
                         Text(
                             stringResource(R.string.chatlist_search_hint),
-                            style = DsType.base16,
+                            style = DsType.m3BodyLarge,
                             color = colors.labelTertiary,
                             maxLines = 1,
                         )
@@ -748,6 +768,8 @@ private fun WorkspaceHeader(
     val haptics = LocalHapticFeedback.current
 
     Box {
+        // A quiet M3 section label — a step *above* rows, not another row type. Tap collapses the
+        // group; long-press opens the workspace verbs (rename / delete / new session).
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -767,23 +789,23 @@ private fun WorkspaceHeader(
             Icon(
                 FeatherIcons.ChevronRight,
                 contentDescription = null,
-                tint = colors.labelTertiary,
+                tint = colors.labelCaption,
                 modifier = Modifier
                     .size(12.dp)
                     .graphicsLayer { rotationZ = rotation }
                     .autoMirrorDirectional(),
             )
             Spacer(Modifier.width(DsSpacing.tiny))
-            // Group headers read as iOS section titles: name in 13 semibold, count beside it.
+            // Section-label voice: 13 semibold secondary — the same voice as SectionHeader.
             Text(
                 label,
-                style = DsType.footnote.copy(fontWeight = FontWeight.SemiBold),
+                style = DsType.m3LabelLarge,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(sessionCount.toString(), style = DsType.footnote, color = colors.labelCaption)
+            Text(sessionCount.toString(), style = DsType.m3LabelSmall, color = colors.labelCaption)
         }
         if (menuOpen) {
             WorkspaceMenu(
@@ -901,7 +923,7 @@ private fun SessionRowItem(
     )
     val haptics = LocalHapticFeedback.current
 
-    // iOS swipe-to-archive: a trailing swipe reveals the red Archive action. Archiving is
+    // M3 swipe-to-dismiss: a trailing swipe reveals the red Archive action. Archiving is
     // irreversible in this UI (there is no restore path), so the swipe hands over to the same
     // confirmation the context menu uses, and the row always snaps back here — it only leaves
     // the list when the harness confirms the archive.
@@ -962,7 +984,8 @@ private fun SessionRowItem(
                     .fillMaxWidth()
                     .heightIn(min = 56.dp)
                     .padding(start = (depth * 16).dp)
-                    .background(if (isCurrent) colors.selection else Color.Transparent)
+                    // M3 selected state: a tonal brand-tinted wash.
+                    .background(if (isCurrent) colors.selectionTonal else Color.Transparent)
                     .combinedClickable(
                         onClick = {
                             scope.launch { store.openSession(session.sessionId) }
@@ -977,13 +1000,9 @@ private fun SessionRowItem(
                     .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-            // The current session carries iOS's plain-list selection — a neutral gray fill,
-            // nothing else. No rail, no tint: the gray says "selected" without competing with
-            // the status dot.
             // The chevron is its own tap target: opening a session and looking at what it spawned
-            // are different intentions, and conflating them means you cannot do one without the
-            // other. Both branches occupy the same 36dp slot (32dp target + 4dp gap) so titles
-            // stay aligned down a column of mixed rows.
+            // are different intentions. Both branches occupy the same 32dp slot so titles stay
+            // aligned down a column of mixed rows.
             if (childCount > 0) {
                 Box(
                     modifier = Modifier
@@ -1025,10 +1044,11 @@ private fun SessionRowItem(
                 ),
             )
             Spacer(Modifier.width(DsSpacing.small))
+            // M3 ListItem anatomy: headline (16 Medium) over a supporting meta line (14).
             Column(Modifier.weight(1f)) {
                 Text(
                     text = sessionTitle(session),
-                    style = DsType.rowTitle,
+                    style = DsType.m3TitleMedium,
                     color = colors.labelPrimary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -1037,25 +1057,23 @@ private fun SessionRowItem(
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             basename(it),
-                            style = DsType.footnote,
+                            style = DsType.m3BodyMedium,
                             color = colors.labelCaption,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text(" · ", style = DsType.footnote, color = colors.labelCaption)
+                        Text(" · ", style = DsType.m3BodyMedium, color = colors.labelCaption)
                     }
                     Text(
                         relativeTime(session.updatedAt),
-                        style = DsType.footnote,
+                        style = DsType.m3BodyMedium,
                         color = colors.labelCaption,
                     )
                 }
             }
-            // No "Needs you" pill: the row's state dot already turns amber for a pending
-            // interaction — one signal, not two.
-            // The count replaces the old "Subagents" pill on parents: with the children indented
-            // underneath, what is worth saying is how many are down there when the row is closed.
+            // One quiet trailing badge: the subagent count on parents, the overflow on the
+            // current row — never both crowding the same line.
             if (childCount > 0) {
                 Spacer(Modifier.width(DsSpacing.xsmall))
                 DsPill(text = childCount.toString())
@@ -1065,19 +1083,17 @@ private fun SessionRowItem(
                 Spacer(Modifier.width(DsSpacing.xsmall))
                 DsPill(text = stringResource(R.string.chatlist_subagents))
             }
-            // The current session's overflow is always visible: long-press is the affordance
-            // everywhere else, and the one row people act on most should not hide its verbs.
-                if (isCurrent) {
-                    Spacer(Modifier.width(DsSpacing.xsmall))
-                    ActionIcon(
-                        icon = FeatherIcons.MoreHorizontal,
-                        label = stringResource(R.string.chatlist_session_actions),
-                        onClick = { menuOpen = true },
-                    )
-                }
+            if (isCurrent) {
+                Spacer(Modifier.width(DsSpacing.xsmall))
+                ActionIcon(
+                    icon = FeatherIcons.MoreHorizontal,
+                    label = stringResource(R.string.chatlist_session_actions),
+                    onClick = { menuOpen = true },
+                )
             }
-            // iOS plain-list separator, aligned to the title's leading edge (12dp row inset +
-            // 32dp chevron slot + 4dp + 8dp dot + 8dp gap) so it never runs under the icons.
+            }
+            // Plain hairline separator, aligned to the title's leading edge so it never runs
+            // under the leading icons (12dp row inset + 32dp chevron slot + 4dp + 8dp dot + 8dp gap).
             HorizontalDivider(
                 thickness = 1.dp,
                 color = colors.borderL1,
@@ -1157,7 +1173,7 @@ private fun SearchResultRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = sessionTitle(hit.session),
-                style = DsType.rowTitle,
+                style = DsType.m3TitleMedium,
                 color = colors.labelPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -1171,7 +1187,7 @@ private fun SearchResultRow(
         hit.workspaceLabel.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                style = DsType.footnote,
+                style = DsType.m3BodyMedium,
                 color = colors.labelCaption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1180,7 +1196,7 @@ private fun SearchResultRow(
         hit.snippet?.let {
             Text(
                 text = it,
-                style = DsType.footnote,
+                style = DsType.m3BodyMedium,
                 color = colors.labelSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -1312,66 +1328,6 @@ internal fun sessionTitle(session: SessionRow): String {
 // ---------------------------------------------------------------------------
 
 /**
- * The always-visible connection health strip on the home page: host address, live/idle/
- * reconnecting state, and a tap to switch host. Nothing is worse than a companion app silently
- * talking to nothing, so the strip reads at a glance on every open.
- */
-@Composable
-private fun HostStatusStrip(
-    connectionState: ConnectionUiState,
-    hostLabel: String?,
-    onSwitchHost: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = DsTheme.colors
-    val dot = when (connectionState.phase) {
-        ConnectionPhase.CONNECTED -> StateDotState.Done
-        ConnectionPhase.CONNECTING, ConnectionPhase.RECONNECTING -> StateDotState.Running
-        else -> StateDotState.Idle
-    }
-    val label = when (connectionState.phase) {
-        ConnectionPhase.CONNECTED -> stringResource(R.string.common_connected)
-        ConnectionPhase.CONNECTING -> stringResource(R.string.common_loading)
-        ConnectionPhase.RECONNECTING -> stringResource(R.string.common_reconnecting)
-        else -> stringResource(R.string.common_offline)
-    }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(DsShapes.pillFull)
-            .background(colors.noteSurface)
-            .clickable(role = Role.Button, onClick = onSwitchHost)
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        StateDot(dot, size = 8.dp)
-        Spacer(Modifier.width(DsSpacing.small))
-        Text(
-            hostLabel ?: stringResource(R.string.settings_connection_host),
-            style = DsType.small13Strong,
-            color = colors.labelPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        Spacer(Modifier.width(DsSpacing.small))
-        Text(
-            label,
-            style = DsType.caption11,
-            color = colors.labelCaption,
-            maxLines = 1,
-        )
-        Spacer(Modifier.width(DsSpacing.xsmall))
-        Icon(
-            FeatherIcons.ChevronRight,
-            contentDescription = stringResource(R.string.common_switch_host),
-            tint = colors.labelTertiary,
-            modifier = Modifier.size(14.dp).autoMirrorDirectional(),
-        )
-    }
-}
-
-/**
  * One live/needs-action session in the pinned strip: title, state dot, relative time.
  * Tap opens the conversation; the list row below already carries the full verbs.
  */
@@ -1400,7 +1356,7 @@ private fun AttentionRow(
         Spacer(Modifier.width(DsSpacing.small))
         Text(
             sessionTitle(session),
-            style = DsType.std14Strong,
+            style = DsType.m3TitleMedium,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1409,7 +1365,7 @@ private fun AttentionRow(
         Spacer(Modifier.width(DsSpacing.small))
         Text(
             relativeTime(session.updatedAt),
-            style = DsType.caption11,
+            style = DsType.m3LabelSmall,
             color = colors.labelCaption,
         )
         Spacer(Modifier.width(DsSpacing.xsmall))

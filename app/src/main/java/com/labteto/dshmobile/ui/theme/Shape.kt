@@ -10,11 +10,11 @@ import androidx.compose.ui.unit.dp
  * pills r12, tooltips r8, toasts r14, chips r6, tree rows r8.
  */
 object DsShapes {
-    /** iOS sheet: rounded top corners only, sitting on the screen edge. */
+    /** Modal bottom sheet: rounded top corners only, sitting on the screen edge. */
     val sheetTop = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-    /** iOS alert plate. */
+    /** Alert plate. */
     val alert = RoundedCornerShape(14.dp)
-    /** iOS inset-grouped card. */
+    /** Inset-grouped card. */
     val groupCard = RoundedCornerShape(16.dp)
     val buttonCapsule = RoundedCornerShape(18.dp)
     val buttonSmall = RoundedCornerShape(14.dp)

@@ -14,7 +14,7 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 /**
  * A titled settings-style group: section header over an elevated [DsCard] of rows.
  *
- * The header now uses the title3 display voice so card groups read as designed sections rather
+ * The header uses the M3 labelLarge voice so card groups read as designed sections rather
  * than grey captions over flat platters.
  */
 @Composable

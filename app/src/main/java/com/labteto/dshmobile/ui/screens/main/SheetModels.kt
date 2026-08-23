@@ -79,7 +79,7 @@ internal fun ModelsSheet(
                 // At the section weight this used the group read as loud as its own contents.
                 Text(
                     group.name,
-                    style = DsType.xsmall12,
+                    style = DsType.m3LabelLarge,
                     color = colors.labelTertiary,
                     modifier = Modifier.padding(
                         start = DsSpacing.small,
@@ -154,7 +154,7 @@ private fun ModelRow(
                 Column(Modifier.weight(1f)) {
                     Text(
                         model.name,
-                        style = DsType.std14Strong,
+                        style = DsType.m3TitleMedium,
                         color = if (selected) colors.accent else colors.labelPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -162,7 +162,7 @@ private fun ModelRow(
                     model.description?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             it,
-                            style = DsType.caption11,
+                            style = DsType.m3LabelSmall,
                             color = colors.labelTertiary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,

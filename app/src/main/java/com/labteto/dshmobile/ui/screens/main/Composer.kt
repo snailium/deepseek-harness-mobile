@@ -132,6 +132,12 @@ internal fun Composer(
     onPermissionPick: (String) -> Unit,
     contextBreakdown: ContextBreakdownView?,
     contextPressure: ContextPressureView?,
+    /** The current model's display label; null hides the model chip in the config strip. */
+    modelLabel: String?,
+    /** Whether the model list is routable; a non-routable list shows a warning dot. */
+    modelsRoutable: Boolean,
+    /** Opens the model picker; the choice configures the next turn. */
+    onOpenModels: () -> Unit,
     running: Boolean,
     enabled: Boolean,
     onOpenSheet: () -> Unit,
@@ -154,6 +160,36 @@ internal fun Composer(
         // on stop, the disruptive action.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         currentOnSend(text)
+    }
+
+    // ---- Config strip: model · permission · context, above the input card ----
+    // This is the Gemini/ChatGPT arrangement: the model (and the other turn-configuration
+    // controls) live where the next turn is written, never in the title chrome.
+    val hasConfig = modelLabel != null || permissions != null || contextPressure?.usedRatio != null
+    if (hasConfig) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
+        ) {
+            if (modelLabel != null) {
+                ModelChip(
+                    label = modelLabel,
+                    routable = modelsRoutable,
+                    onClick = onOpenModels,
+                )
+            }
+            PermissionChip(
+                select = permissions,
+                pending = pendingPermission,
+                enabled = enabled,
+                onPick = onPermissionPick,
+            )
+            Spacer(Modifier.weight(1f))
+            ContextMeter(contextBreakdown, contextPressure)
+        }
     }
 
     Surface(
@@ -275,26 +311,6 @@ internal fun Composer(
                 }
             }
 
-            // The second row exists only when the harness offers either control: a dead row of
-            // padding would be the slab the first row just stopped being.
-            if (permissions != null || contextPressure?.usedRatio != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
-                ) {
-                    PermissionChip(
-                        select = permissions,
-                        pending = pendingPermission,
-                        enabled = enabled,
-                        onPick = onPermissionPick,
-                    )
-
-                    Spacer(Modifier.weight(1f))
-
-                    ContextMeter(contextBreakdown, contextPressure)
-                }
-            }
         }
     }
 }
