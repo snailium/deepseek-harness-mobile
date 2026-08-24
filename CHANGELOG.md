@@ -1,3 +1,41 @@
+## [0.19.0] - unreleased
+
+The session list stops grouping by workspace: one flat, recency-first list of every session, a
+redesigned row that tells you what a session is doing at a glance, and a workspaces sheet that
+owns the workspace verbs the grouping used to carry.
+
+### Added
+
+- **Flat session list.** Workspace section headers and the collapse/expand grouping are gone —
+  every session renders as one row in a single list. A session's working-directory folder still
+  rides its meta line, so "where does this live" is answered per row rather than by section.
+- **Session status tiles.** Each row leads with a filled circle that reads at a glance: a brand
+  pulse while running, an amber bolt when the session is waiting on you, a quiet gray tile when
+  idle.
+- **Always-visible row actions.** The overflow (rename / fork / archive) used to appear only on
+  the current session's row; it now sits on every row, where a long press is not required to
+  find it.
+- **Workspaces sheet.** The app-bar folder button opens a sheet listing every workspace with its
+  session count, "new session here" on tap, and the old header's verbs (new session / rename /
+  delete) on long press. Creating a workspace lives here too.
+- **One-tap new session.** The FAB and the empty state start a session in the harness home
+  directory immediately — no workspace picker in between. The old picker is gone.
+
+### Changed
+
+- **Recency is the default order.** The list sorts by last update unless you pick Manual order
+  (which now means the harness's own registration order, since there are no workspace groups to
+  order). The sort control is unchanged.
+- **Live strip polish.** "Needs your attention" rows are now compact live cards with the same
+  status-tile language as the list.
+
+### Fixed
+
+- **LocalizedStringsTest false positives.** Markdown.kt's block-list regex sources and the
+  adjacent-string `"x" to Regex(...)` pattern tripped the UI-localization scanner; they are
+  listed as deliberate exceptions with a comment. The test's protection of real UI copy is
+  unchanged.
+
 ## [0.18.0] - unreleased
 
 Material 3 / Android-native redesign: the UI stops borrowing iOS patterns and speaks native

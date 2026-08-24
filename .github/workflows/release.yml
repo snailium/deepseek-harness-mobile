@@ -49,7 +49,21 @@ jobs:
           sha256sum *.apk > SHA256SUMS.txt
           ls -la
 
+      # A release can already exist for this tag when it was created out-of-band
+      # (e.g. `gh release create` publishing a locally built, locally signed APK).
+      # softprops/action-gh-release would fail on the existing release, so publish
+      # only when the tag has no release yet.
+      - name: Check existing release
+        id: existing
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_ENV"
+          else
+            echo "exists=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Publish GitHub Release
+        if: env.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           files: |
