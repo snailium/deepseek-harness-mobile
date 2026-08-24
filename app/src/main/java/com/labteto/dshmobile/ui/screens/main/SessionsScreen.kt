@@ -1,14 +1,11 @@
 package com.labteto.dshmobile.ui.screens.main
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,22 +21,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -62,11 +57,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -82,7 +75,6 @@ import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
-import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsTopAppBar
@@ -105,7 +97,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: the workspace's own row order. */
+/** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: registration order. */
 private const val SORT_MANUAL = "manual"
 
 /** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: most recently updated first. */
@@ -115,14 +107,23 @@ private const val SORT_UPDATED = "updated"
  * The Sessions screen: the full-screen chat history, pushed over the chat the way Messages pushes
  * its conversation list.
  *
+ * The list is a single flat sequence of sessions — no workspace grouping. Grouping by workspace
+ * buried sessions three levels deep and made the list read like a file browser; the harness
+ * registers most sessions in one or two workspaces anyway, so the grouping mostly cost rows of
+ * headers. A session's working directory still rides its meta line, so "where does this live" is
+ * answered per-row rather than by section. Subagent transcripts still nest under the session that
+ * spawned them: that is lineage, not grouping, and it is what makes a run's output readable.
+ *
+ * Workspace verbs (create / rename / delete) live behind the folder button in the app bar — the
+ * features are all still here, just not as list furniture.
+ *
  * Two rules keep it readable. Blank sessions are hidden — the harness treats a session with no turn
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
  *
  * The chrome is Material 3: a top app bar with the title, connection state, search toggle and
  * sort on the actions side, an expanding M3 search field, a hairline-separated list with
- * swipe-to-archive and subagent nesting, and an extended FAB that creates a session or a
- * workspace.
+ * swipe-to-archive and subagent nesting, and an extended FAB that starts a session.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,7 +137,6 @@ fun ChatsScreen(
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
     val hostsStore = rememberHostsStore()
-    val focusManager = LocalFocusManager.current
 
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val workspaces by store.workspaces.collectAsStateWithLifecycle()
@@ -148,15 +148,14 @@ fun ChatsScreen(
 
     var query by remember { mutableStateOf("") }
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
-    // to reset every time the screen was left.
-    val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
+    // to reset every time the screen was left. Recency is the default; "manual" now means the
+    // harness's own registration order, since there are no workspace groups to order any more.
+    val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_UPDATED)
     val sortByRecency = sessionSort == SORT_UPDATED
-    var composeOpen by remember { mutableStateOf(false) }
+    var workspacesOpen by remember { mutableStateOf(false) }
     var newWorkspaceOpen by remember { mutableStateOf(false) }
-    var newSessionOpen by remember { mutableStateOf(false) }
     // Search is an expanding bar (Android pattern): the magnifier in the app bar toggles it.
     var searchVisible by remember { mutableStateOf(false) }
-    var searchFocused by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
     LaunchedEffect(query) {
@@ -181,7 +180,6 @@ fun ChatsScreen(
     val listable = sessions.filter { it.sessionId !in archivedIds && !it.blank }
     val sessionsById = sessions.associateBy { it.sessionId }
     val archivedSessions = sessions.filter { it.sessionId in archivedIds }
-    val workspaceSessionIds = workspaces.flatMap { it.sessionIds }.toSet()
 
     // Subagents nest under the session that spawned them. `origin` is the discriminator, not
     // `parentSessionId` — an ordinary fork sets a parent too, and a fork is a session in its own
@@ -224,12 +222,20 @@ fun ChatsScreen(
         return out
     }
 
+    // ---- The flat list: every top-level session once, in one order. ----
+    // Top-level = sessions that are not nested under another session's subagent tree. Ordering is
+    // recency by default; "manual" falls back to the harness's registration order, which is the
+    // only meaningful manual order once workspace groups are gone.
+    val topLevel = remember(listable, nestedIds, sortByRecency) {
+        orderTopLevel(listable, nestedIds, sortByRecency)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.bgBase),
     ) {
-        // ---- M3 top app bar: title · search toggle · host · sort ----
+        // ---- M3 top app bar: title · count · host · workspaces · search · sort ----
         // WindowInsets(0) because the home Scaffold already supplies the status-bar inset to the
         // content; a second status-bar inset here would double the top padding.
         DsTopAppBar(
@@ -255,6 +261,19 @@ fun ChatsScreen(
                             modifier = Modifier.widthIn(max = 132.dp),
                         )
                     }
+                }
+                // Workspaces: the folder button owns the workspace verbs now that the list no
+                // longer groups by them.
+                IconButton(
+                    onClick = { workspacesOpen = true },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        FeatherIcons.Folder,
+                        contentDescription = stringResource(R.string.chatlist_workspaces),
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
                 IconButton(
                     onClick = { searchVisible = !searchVisible },
@@ -288,7 +307,7 @@ fun ChatsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     query = query,
                     onQueryChange = { query = it },
-                    onFocusChange = { searchFocused = it },
+                    onFocusChange = {},
                 )
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
                 // content index off, so this is a normal capability note — not a failure.
@@ -371,73 +390,27 @@ fun ChatsScreen(
                 }
             }
 
-            var anyShown = false
-            for (workspace in workspaces) {
-                val roots = workspace.sessionIds
-                    .mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
-                    .filterNot { it.sessionId in nestedIds }
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                if (roots.isEmpty()) continue
-                anyShown = true
-                // Only the workspace you are working in is open by default. With twenty sessions
-                // and their subagents in one group, expanding everything buries the list you came
-                // for; the explicit map entry then remembers whatever you choose.
-                val holdsCurrent = roots.any { it.sessionId in openPath }
-                val isCollapsed = collapsed[workspace.workspaceId] ?: !holdsCurrent
-                item(key = "ws-${workspace.workspaceId}") {
-                    WorkspaceHeader(
-                        workspace = workspace,
-                        collapsed = isCollapsed,
-                        // Sessions, not sessions-plus-their-subagents: a subagent count belongs on
-                        // the row that spawned them, where it says something.
-                        sessionCount = roots.size,
-                        onToggle = { collapsed[workspace.workspaceId] = !isCollapsed },
-                        store = store,
-                        scope = scope,
-                        onNewSession = {
+            if (topLevel.isEmpty() && archivedSessions.isEmpty()) {
+                item(key = "empty") {
+                    // The FAB is at the bottom corner; a first-time user staring at an empty list
+                    // should not have to discover it to start. The same create-session action the
+                    // FAB runs is one tap away from the empty state itself.
+                    EmptyHero(
+                        headline = stringResource(R.string.chatlist_empty),
+                        subtitle = stringResource(R.string.chatlist_empty_hint),
+                        chips = listOf(stringResource(R.string.chatlist_new_session)),
+                        onChipClick = {
                             scope.launch {
-                                store.createSession(workspaceId = workspace.workspaceId)
+                                store.createSession()
                                 store.currentSessionId.value?.let(onOpenSession)
                             }
                         },
                     )
                 }
-                if (!isCollapsed) {
-                    val flat = roots.flatMap { subtree(it) }
-                    items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                        Box(Modifier.animateItem()) {
-                            SessionRowItem(
-                                session = session,
-                                isCurrent = session.sessionId == currentSessionId,
-                                store = store,
-                                scope = scope,
-                                onOpenSession = onOpenSession,
-                                depth = depth,
-                                childCount = childrenByParent[session.sessionId].orEmpty().size,
-                                childrenExpanded = isExpanded(session.sessionId),
-                                onToggleChildren = { toggleChildren(session.sessionId) },
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Sessions the harness never registered in a workspace, plus any subagent whose whole
-            // ancestry is archived or blank — those have no row left to nest under.
-            val ungrouped = listable.filter {
-                it.sessionId !in workspaceSessionIds && it.sessionId !in nestedIds
-            }
-            if (ungrouped.isNotEmpty()) {
-                anyShown = true
-                item(key = "sessions-header") {
-                    SectionHeader(
-                        stringResource(R.string.chatlist_sessions),
-                        modifier = Modifier.padding(horizontal = DsSpacing.medium),
-                    )
-                }
-                val flat = ungrouped
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    .flatMap { subtree(it) }
+            } else {
+                // One flat list of sessions. Each top-level row carries its subagent subtree; the
+                // section headers are gone with the workspace grouping.
+                val flat = topLevel.flatMap { subtree(it) }
                 items(flat, key = { it.first.sessionId }) { (session, depth) ->
                     Box(Modifier.animateItem()) {
                         SessionRowItem(
@@ -456,7 +429,6 @@ fun ChatsScreen(
             }
 
             if (archivedSessions.isNotEmpty()) {
-                anyShown = true
                 item(key = "archived") {
                     var archivedExpanded by remember { mutableStateOf(false) }
                     DisclosureRow(
@@ -472,25 +444,18 @@ fun ChatsScreen(
                     }
                 }
             }
-
-            if (!anyShown) {
-                item(key = "empty") {
-                    // The FAB is at the bottom corner; a first-time user staring at an empty list
-                    // should not have to discover it to start. The same action sheet the FAB opens
-                    // is one tap away from the empty state itself.
-                    EmptyHero(
-                        headline = stringResource(R.string.chatlist_empty),
-                        subtitle = stringResource(R.string.chatlist_empty_hint),
-                        chips = listOf(stringResource(R.string.chatlist_new_session)),
-                        onChipClick = { composeOpen = true },
-                    )
-                }
-            }
         }
 
-        // M3 extended FAB (Google Messages pattern): the one primary compose action on the list.
+        // M3 extended FAB: the one primary compose action on the list. Tapping it starts a session
+        // in the harness home directory immediately — the fast path. Workspaces are managed from
+        // the app-bar folder button, not from here.
         ExtendedFloatingActionButton(
-            onClick = { composeOpen = true },
+            onClick = {
+                scope.launch {
+                    store.createSession()
+                    store.currentSessionId.value?.let(onOpenSession)
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = DsSpacing.large, bottom = DsSpacing.large),
@@ -510,55 +475,62 @@ fun ChatsScreen(
         }
     }
 
-    // The compose button opens an action sheet: creating a session and creating a workspace are
-    // the two things "make something new" can mean here.
-    if (composeOpen) {
-        DsBottomSheet(title = null, onDismiss = { composeOpen = false }) {
-            SheetRow(
-                title = stringResource(R.string.chatlist_new_session),
-                leading = {
-                    Icon(
-                        FeatherIcons.MessageSquare,
-                        contentDescription = null,
-                        tint = colors.labelSecondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                },
-                onClick = {
-                    composeOpen = false
-                    newSessionOpen = true
-                },
-            )
-            SheetRow(
-                title = stringResource(R.string.chatlist_new_workspace),
-                leading = {
-                    Icon(
-                        FeatherIcons.Folder,
-                        contentDescription = null,
-                        tint = colors.labelSecondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                },
-                onClick = {
-                    composeOpen = false
-                    newWorkspaceOpen = true
-                },
-            )
-        }
-    }
+    // ---- Workspaces: the sheet that owns the workspace verbs. ----
+    // The list no longer groups by workspace, so the verbs need a home. The sheet lists every
+    // workspace with its session count and a "New session" tap; long-pressing a row offers
+    // rename / delete. The dialogs those verbs open are hoisted here so they render over the
+    // sheet as proper composables.
+    var renameWorkspace by remember { mutableStateOf<WorkspaceRow?>(null) }
+    var deleteWorkspace by remember { mutableStateOf<WorkspaceRow?>(null) }
 
-    if (newSessionOpen) {
-        NewSessionDialog(
+    if (workspacesOpen) {
+        WorkspacesSheet(
             workspaces = workspaces,
-            homeCwd = hostInfo?.cwd,
-            onPick = { workspaceId ->
-                newSessionOpen = false
+            onDismiss = { workspacesOpen = false },
+            onNewWorkspace = {
+                workspacesOpen = false
+                newWorkspaceOpen = true
+            },
+            onNewSessionIn = { workspaceId ->
+                workspacesOpen = false
                 scope.launch {
                     store.createSession(workspaceId = workspaceId)
                     store.currentSessionId.value?.let(onOpenSession)
                 }
             },
-            onDismiss = { newSessionOpen = false },
+            onRename = { workspace ->
+                workspacesOpen = false
+                renameWorkspace = workspace
+            },
+            onDelete = { workspace ->
+                workspacesOpen = false
+                deleteWorkspace = workspace
+            },
+        )
+    }
+
+    renameWorkspace?.let { workspace ->
+        RenameDialog(
+            initial = workspace.title,
+            title = stringResource(R.string.chatlist_workspace_rename),
+            onDismiss = { renameWorkspace = null },
+            onConfirm = {
+                scope.launch { store.renameWorkspace(workspace.workspaceId, it) }
+                renameWorkspace = null
+            },
+        )
+    }
+
+    deleteWorkspace?.let { workspace ->
+        ConfirmDialog(
+            title = stringResource(R.string.chatlist_workspace_delete),
+            body = stringResource(R.string.chatlist_workspace_delete_confirm),
+            confirmLabel = stringResource(R.string.common_remove),
+            onDismiss = { deleteWorkspace = null },
+            onConfirm = {
+                scope.launch { store.deleteWorkspace(workspace.workspaceId) }
+                deleteWorkspace = null
+            },
         )
     }
 
@@ -584,55 +556,6 @@ private fun ConnectionDot(connectionState: ConnectionUiState) {
         else -> StateDotState.Idle
     }
     StateDot(state, size = 7.dp)
-}
-
-/**
- * The host identity as a compact chip on the navigation bar's trailing side, itself the anchor
- * for its verbs.
- *
- * Tapping the host (or the chevron) offers the two things you can do to the connection: switch to
- * another harness, or open Settings. The old connected-to card, footer rows and the two-line
- * header stack are all gone — the chip is one tappable pill on the title's row.
- */
-@Composable
-private fun HostChip(
-    hostLabel: String?,
-    onSwitchHost: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    if (hostLabel == null) return
-    DsMenu(
-        anchor = {
-            Row(
-                modifier = Modifier
-                    .heightIn(min = 30.dp)
-                    .clip(DsShapes.pillFull)
-                    .background(colors.hoverSolid)
-                    .padding(horizontal = DsSpacing.compact),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-            ) {
-                StateDot(StateDotState.Done, size = 6.dp)
-                Text(
-                    hostLabel,
-                    style = DsType.m3LabelMedium,
-                    color = colors.labelSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.widthIn(max = 132.dp),
-                )
-                Icon(
-                    FeatherIcons.ChevronDown,
-                    contentDescription = null,
-                    tint = colors.labelTertiary,
-                    modifier = Modifier.size(12.dp),
-                )
-            }
-        },
-        items = listOf(
-            MenuItem(text = stringResource(R.string.chatlist_switch_host)) { onSwitchHost() },
-        ),
-    )
 }
 
 /**
@@ -739,133 +662,6 @@ private fun SearchCapsule(
 // ---------------------------------------------------------------------------
 
 /**
- * A workspace header that collapses its group and carries the workspace verbs.
- *
- * Rename and remove exist on the wire and had no UI at all; a long-press menu is where a
- * phone user expects to find them.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun WorkspaceHeader(
-    workspace: WorkspaceRow,
-    collapsed: Boolean,
-    sessionCount: Int,
-    onToggle: () -> Unit,
-    store: SessionStore,
-    scope: CoroutineScope,
-    onNewSession: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    var menuOpen by remember { mutableStateOf(false) }
-    var renaming by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    val rotation by animateFloatAsState(
-        targetValue = if (collapsed) 0f else 90f,
-        animationSpec = DsAnimations.chevron,
-        label = "workspaceChevron",
-    )
-    val label = workspace.title.ifBlank { basename(workspace.path) }
-    val haptics = LocalHapticFeedback.current
-
-    Box {
-        // A quiet M3 section label — a step *above* rows, not another row type. Tap collapses the
-        // group; long-press opens the workspace verbs (rename / delete / new session).
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 40.dp)
-                .clip(DsShapes.row)
-                .combinedClickable(
-                    onClick = onToggle,
-                    onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        menuOpen = true
-                    },
-                    onLongClickLabel = stringResource(R.string.chatlist_workspace_actions),
-                )
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                FeatherIcons.ChevronRight,
-                contentDescription = null,
-                tint = colors.labelCaption,
-                modifier = Modifier
-                    .size(12.dp)
-                    .graphicsLayer { rotationZ = rotation }
-                    .autoMirrorDirectional(),
-            )
-            Spacer(Modifier.width(DsSpacing.tiny))
-            // Section-label voice: 13 semibold secondary — the same voice as SectionHeader.
-            Text(
-                label,
-                style = DsType.m3LabelLarge,
-                color = colors.labelSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Text(sessionCount.toString(), style = DsType.m3LabelSmall, color = colors.labelCaption)
-        }
-        if (menuOpen) {
-            WorkspaceMenu(
-                onDismiss = { menuOpen = false },
-                onNewSession = {
-                    menuOpen = false
-                    onNewSession()
-                },
-                onRename = {
-                    menuOpen = false
-                    renaming = true
-                },
-                onDelete = {
-                    menuOpen = false
-                    deleting = true
-                },
-            )
-        }
-    }
-
-    if (renaming) {
-        RenameDialog(
-            initial = workspace.title,
-            title = stringResource(R.string.chatlist_workspace_rename),
-            onDismiss = { renaming = false },
-            onConfirm = {
-                scope.launch { store.renameWorkspace(workspace.workspaceId, it) }
-                renaming = false
-            },
-        )
-    }
-    if (deleting) {
-        ConfirmDialog(
-            title = stringResource(R.string.chatlist_workspace_delete),
-            body = stringResource(R.string.chatlist_workspace_delete_confirm),
-            confirmLabel = stringResource(R.string.common_remove),
-            onDismiss = { deleting = false },
-            onConfirm = {
-                scope.launch { store.deleteWorkspace(workspace.workspaceId) }
-                deleting = false
-            },
-        )
-    }
-}
-
-@Composable
-private fun WorkspaceMenu(
-    onDismiss: () -> Unit,
-    onNewSession: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    DsDialog(title = null, onDismiss = onDismiss) {
-        SheetRow(title = stringResource(R.string.chatlist_workspace_new_session), onClick = onNewSession)
-        SheetRow(title = stringResource(R.string.chatlist_workspace_rename), onClick = onRename)
-        SheetRow(title = stringResource(R.string.chatlist_workspace_delete), onClick = onDelete)
-    }
-}
-
-/**
  * 40dp hit area around a 16dp glyph — the same affordance ChatNodeItem uses for message actions,
  * so a row's overflow and a bubble's overflow share a size and a feel.
  */
@@ -892,7 +688,8 @@ private fun ActionIcon(
 }
 
 /**
- * One session row: status, title, relative time, and the session verbs on long-press.
+ * One session row: a status tile up front, title, meta (folder · time), and the session verbs on
+ * the overflow — always visible, not just on the current row.
  *
  * [depth] indents the row under whatever spawned it, and a row with [childCount] subagents grows a
  * disclosure chevron that opens them in place. Subagents used to be dumped into one flat
@@ -982,7 +779,7 @@ private fun SessionRowItem(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 56.dp)
+                    .heightIn(min = 60.dp)
                     .padding(start = (depth * 16).dp)
                     // M3 selected state: a tonal brand-tinted wash.
                     .background(if (isCurrent) colors.selectionTonal else Color.Transparent)
@@ -1029,20 +826,9 @@ private fun SessionRowItem(
                 Spacer(Modifier.width(32.dp))
             }
             Spacer(Modifier.width(DsSpacing.tiny))
-            StateDot(
-                state = when {
-                    session.running -> StateDotState.Running
-                    session.pendingInteraction != null -> StateDotState.Warning
-                    else -> StateDotState.Idle
-                },
-                contentDescription = stringResource(
-                    when {
-                        session.running -> R.string.status_running
-                        session.pendingInteraction != null -> R.string.chatlist_needs_action
-                        else -> R.string.status_idle
-                    },
-                ),
-            )
+            // Leading status tile: a filled circle that reads at a glance — running (brand
+            // pulse), needs-you (amber), idle (quiet gray).
+            SessionStatusTile(session)
             Spacer(Modifier.width(DsSpacing.small))
             // M3 ListItem anatomy: headline (16 Medium) over a supporting meta line (14).
             Column(Modifier.weight(1f)) {
@@ -1083,21 +869,21 @@ private fun SessionRowItem(
                 Spacer(Modifier.width(DsSpacing.xsmall))
                 DsPill(text = stringResource(R.string.chatlist_subagents))
             }
-            if (isCurrent) {
-                Spacer(Modifier.width(DsSpacing.xsmall))
-                ActionIcon(
-                    icon = FeatherIcons.MoreHorizontal,
-                    label = stringResource(R.string.chatlist_session_actions),
-                    onClick = { menuOpen = true },
-                )
-            }
+            Spacer(Modifier.width(DsSpacing.xsmall))
+            // The overflow is always visible now — the current-row-only rule meant every other
+            // row hid its actions behind a long press nobody discovers.
+            ActionIcon(
+                icon = FeatherIcons.MoreHorizontal,
+                label = stringResource(R.string.chatlist_session_actions),
+                onClick = { menuOpen = true },
+            )
             }
             // Plain hairline separator, aligned to the title's leading edge so it never runs
-            // under the leading icons (12dp row inset + 32dp chevron slot + 4dp + 8dp dot + 8dp gap).
+            // under the leading icons (12dp inset + 32dp chevron slot + 4dp + 36dp tile + 8dp gap).
             HorizontalDivider(
                 thickness = 1.dp,
                 color = colors.borderL1,
-                modifier = Modifier.padding(start = (64 + depth * 16).dp),
+                modifier = Modifier.padding(start = (92 + depth * 16).dp),
             )
             }
         }
@@ -1142,6 +928,58 @@ private fun SessionRowItem(
                 archiveConfirmOpen = false
             },
         )
+    }
+}
+
+/**
+ * The leading status tile: a filled circle whose color and glyph say at a glance whether the
+ * session is running, waiting on you, or idle.
+ *
+ * Idle is the quiet default (gray fill, message glyph). Running is the brand pulse — the same
+ * state dot the chat uses, sized up into the tile. Needs-you is the amber warn fill with a
+ * lightning glyph, so the row's "you owe this session something" reads before the title does.
+ */
+@Composable
+private fun SessionStatusTile(session: SessionRow) {
+    val colors = DsTheme.colors
+    val running = session.running
+    val warning = session.pendingInteraction != null
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(
+                when {
+                    running -> colors.accentTertiary
+                    warning -> colors.warnTertiary
+                    else -> colors.bgLayer2
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        when {
+            running -> {
+                Box(contentAlignment = Alignment.Center) {
+                    StateDot(StateDotState.Running, size = 20.dp)
+                }
+            }
+            warning -> {
+                Icon(
+                    FeatherIcons.Zap,
+                    contentDescription = stringResource(R.string.chatlist_needs_action),
+                    tint = colors.warnLabel,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            else -> {
+                Icon(
+                    FeatherIcons.MessageSquare,
+                    contentDescription = stringResource(R.string.status_idle),
+                    tint = colors.labelTertiary,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
     }
 }
 
@@ -1206,39 +1044,145 @@ private fun SearchResultRow(
 }
 
 // ---------------------------------------------------------------------------
-// Dialogs
+// Workspaces sheet
 // ---------------------------------------------------------------------------
 
+/**
+ * The workspaces sheet: every workspace with its session count, plus the workspace verbs.
+ *
+ * With grouping gone from the list, this is the single home for "new session in a workspace",
+ * "new workspace", rename and delete — everything the old workspace headers offered, reachable
+ * from the app bar. A workspace row long-presses to rename or delete, mirroring the old header's
+ * menu; the footer row creates a workspace.
+ */
 @Composable
-private fun NewSessionDialog(
+private fun WorkspacesSheet(
     workspaces: List<WorkspaceRow>,
-    homeCwd: String?,
-    onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
+    onNewWorkspace: () -> Unit,
+    onNewSessionIn: (String) -> Unit,
+    onRename: (WorkspaceRow) -> Unit,
+    onDelete: (WorkspaceRow) -> Unit,
 ) {
-    val colors = DsTheme.colors
-    DsDialog(title = stringResource(R.string.chatlist_new_session_in), onDismiss = onDismiss) {
+    // Long-pressing a workspace row opens the same three-verb menu the old header had.
+    var menuWorkspace by remember { mutableStateOf<WorkspaceRow?>(null) }
+    DsBottomSheet(
+        title = stringResource(R.string.chatlist_workspaces),
+        onDismiss = onDismiss,
+    ) {
         if (workspaces.isEmpty()) {
             Text(
                 stringResource(R.string.chatlist_no_workspaces),
                 style = DsType.std14,
-                color = colors.labelSecondary,
+                color = DsTheme.colors.labelSecondary,
             )
         }
         workspaces.forEach { workspace ->
-            SheetRow(
-                title = workspace.title.ifBlank { basename(workspace.path) },
-                subtitle = workspace.path,
-                onClick = { onPick(workspace.workspaceId) },
+            WorkspaceSheetRow(
+                workspace = workspace,
+                onClick = { onNewSessionIn(workspace.workspaceId) },
+                onLongClick = { menuWorkspace = workspace },
             )
         }
         SheetRow(
-            title = stringResource(R.string.chatlist_home_directory),
-            subtitle = homeCwd,
-            onClick = { onPick(null) },
+            title = stringResource(R.string.chatlist_new_workspace),
+            leading = {
+                Icon(
+                    FeatherIcons.Folder,
+                    contentDescription = null,
+                    tint = DsTheme.colors.labelSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            },
+            onClick = onNewWorkspace,
+        )
+    }
+
+    // The verbs ride a small dialog over the sheet, like the old workspace header's menu.
+    menuWorkspace?.let { workspace ->
+        DsDialog(title = null, onDismiss = { menuWorkspace = null }) {
+            SheetRow(title = stringResource(R.string.chatlist_workspace_new_session)) {
+                menuWorkspace = null
+                onNewSessionIn(workspace.workspaceId)
+            }
+            SheetRow(title = stringResource(R.string.chatlist_workspace_rename)) {
+                menuWorkspace = null
+                onRename(workspace)
+            }
+            SheetRow(title = stringResource(R.string.chatlist_workspace_delete)) {
+                menuWorkspace = null
+                onDelete(workspace)
+            }
+        }
+    }
+}
+
+/**
+ * One workspace in the sheet: title (folder name), path, session count. Tap starts a session
+ * there; long-press offers rename / delete.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun WorkspaceSheetRow(
+    workspace: WorkspaceRow,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    val haptics = LocalHapticFeedback.current
+    val label = workspace.title.ifBlank { basename(workspace.path) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLongClick()
+                },
+                onLongClickLabel = stringResource(R.string.chatlist_workspace_actions),
+            )
+            .padding(vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            FeatherIcons.Folder,
+            contentDescription = null,
+            tint = colors.labelSecondary,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(DsSpacing.medium))
+        Column(Modifier.weight(1f)) {
+            Text(
+                label,
+                style = DsType.std14Strong,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (workspace.path.isNotBlank()) {
+                Text(
+                    workspace.path,
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(Modifier.width(DsSpacing.small))
+        Text(
+            workspace.sessionIds.size.toString(),
+            style = DsType.caption11,
+            color = colors.labelCaption,
         )
     }
 }
+
+// ---------------------------------------------------------------------------
+// Dialogs
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun NewWorkspaceDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
@@ -1273,10 +1217,6 @@ private fun NewWorkspaceDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Walk a (possibly nested) subagent session's parent chain up to the session directly registered in
- * a workspace, returning that workspace id — or null for an orphan.
- */
 /**
  * Group subagent sessions under the visible session that spawned them.
  *
@@ -1323,6 +1263,21 @@ internal fun sessionTitle(session: SessionRow): String {
     return title ?: folder ?: session.sessionId
 }
 
+/**
+ * The flat list order: top-level sessions (not nested under a subagent tree), in either
+ * recency order (default) or the harness's registration order.
+ *
+ * Free function so the ordering rules are testable without a device.
+ */
+internal fun orderTopLevel(
+    listable: List<SessionRow>,
+    nestedIds: Set<String>,
+    byRecency: Boolean,
+): List<SessionRow> {
+    val roots = listable.filterNot { it.sessionId in nestedIds }
+    return if (byRecency) roots.sortedByDescending(SessionRow::updatedAt) else roots
+}
+
 // ---------------------------------------------------------------------------
 // Host status strip + needs-attention rows (homepage redesign)
 // ---------------------------------------------------------------------------
@@ -1341,18 +1296,33 @@ private fun AttentionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(DsShapes.row)
+            .background(colors.bgLayer2)
             .clickable(onClick = onOpen)
             .padding(horizontal = DsSpacing.small, vertical = DsSpacing.small),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StateDot(
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(
+                    when {
+                        session.running -> colors.accentTertiary
+                        else -> colors.warnTertiary
+                    },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
             when {
-                session.running -> StateDotState.Running
-                session.pendingInteraction != null -> StateDotState.Warning
-                else -> StateDotState.Idle
-            },
-            size = 8.dp,
-        )
+                session.running -> StateDot(StateDotState.Running, size = 14.dp)
+                else -> Icon(
+                    FeatherIcons.Zap,
+                    contentDescription = null,
+                    tint = colors.warnLabel,
+                    modifier = Modifier.size(13.dp),
+                )
+            }
+        }
         Spacer(Modifier.width(DsSpacing.small))
         Text(
             sessionTitle(session),

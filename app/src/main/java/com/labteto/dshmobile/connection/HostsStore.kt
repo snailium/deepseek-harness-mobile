@@ -193,8 +193,8 @@ class HostsStore @Inject constructor(
         return runCatching { WireJson.decodeFromString(lastSessionsSerializer, raw) }.getOrDefault(emptyMap())
     }
 
-    /** Drawer session ordering: `"manual"` follows the workspace order, `"updated"` sorts by recency. */
-    val sessionSort: Flow<String> = dataStore.data.map { it[Keys.SESSION_SORT] ?: "manual" }
+    /** Drawer session ordering: `"updated"` sorts by recency (the default), `"manual"` follows registration order. */
+    val sessionSort: Flow<String> = dataStore.data.map { it[Keys.SESSION_SORT] ?: "updated" }
 
     suspend fun setSessionSort(value: String) {
         dataStore.edit { it[Keys.SESSION_SORT] = value }
