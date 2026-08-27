@@ -18,6 +18,15 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
 </p>
 
+<p align="center">
+  <b>English</b> ·
+  <a href="README.zh-CN.md">中文</a> ·
+  <a href="README.hi.md">हिन्दी</a> ·
+  <a href="README.es.md">Español</a> ·
+  <a href="README.fr.md">Français</a> ·
+  <a href="README.th.md">ไทย</a>
+</p>
+
 DSH Mobile is an **unofficial companion app** for the
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (MIT), mirroring its web GUI
 feature-for-feature in the harness's own visual language. Android only, Kotlin + Jetpack Compose.
