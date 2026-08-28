@@ -30,7 +30,6 @@ class PluginInventoryDecodeTest {
         transport = FixedTransport(
             """{"type":"server-response","rpcId":"1","result":{"ok":true,"value":$value}}""",
         ),
-        wsFactory = { _, _ -> error("not used") },
     )
 
     private suspend fun listOrFail(value: String) =

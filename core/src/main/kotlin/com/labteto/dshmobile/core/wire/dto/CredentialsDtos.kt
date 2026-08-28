@@ -50,3 +50,20 @@ data class CredentialsUnsetRequest(
 /** Value of `credentials.unset` (empty object). */
 @Serializable
 class CredentialsUnsetValue
+
+/**
+ * One credential slot's state, from `credentials/describe`.
+ *
+ * The call answers a map keyed by reference name rather than a wrapper object, so this is the
+ * map's value type. It never carries the credential itself — only whether resolving would
+ * produce one, and from where.
+ */
+@Serializable
+data class CredentialInfo(
+    /** Whether resolving the reference would currently return a value. */
+    @SerialName("configured") val configured: Boolean = false,
+    /** Source layer currently supplying the value; absent while unconfigured. */
+    @SerialName("source") val source: String? = null,
+    /** Whether the active provider can write this reference. */
+    @SerialName("writable") val writable: Boolean = false,
+)

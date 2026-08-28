@@ -53,6 +53,7 @@ import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.WorkflowNode
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
+import com.labteto.dshmobile.core.DshCore
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.dto.JobView
 import com.labteto.dshmobile.core.wire.dto.SessionStatsView
@@ -663,14 +664,15 @@ private fun WorkflowCard(nodes: List<ChatNode>) {
 private fun HostCard(hostInfo: HostDescription?) {
     val colors = DsTheme.colors
     if (hostInfo == null) return
-    Card(title = stringResource(R.string.settings_host_info), summary = hostInfo.version) {
+    // The harness's own version used to head this card. No 0.1.2 wire field carries it, so the
+    // card names the protocol this build was written against instead — which is this client's
+    // fact, not the host's, and is labelled as such rather than dressed up as a host version.
+    Card(
+        title = stringResource(R.string.settings_host_info),
+        summary = stringResource(R.string.connect_protocol_baseline, DshCore.PROTOCOL_BASELINE),
+    ) {
         Text(
-            stringResource(R.string.connect_harness_version, hostInfo.version, hostInfo.cwd),
-            style = DsType.caption11,
-            color = colors.labelCaption,
-        )
-        Text(
-            stringResource(R.string.connect_attached_sessions, hostInfo.attachedSessions),
+            stringResource(R.string.connect_harness_home, hostInfo.home),
             style = DsType.caption11,
             color = colors.labelCaption,
         )

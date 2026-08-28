@@ -417,7 +417,7 @@ fun ChatListDrawer(
     if (newSessionOpen) {
         NewSessionDialog(
             workspaces = workspaces,
-            homeCwd = hostInfo?.cwd,
+            homeCwd = hostInfo?.home,
             onPick = { workspaceId ->
                 newSessionOpen = false
                 scope.launch {

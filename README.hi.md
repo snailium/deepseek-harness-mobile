@@ -90,7 +90,9 @@ DSH Mobile [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (
 
 - Android 8.0+ (minSdk 26)।
 - एक चालू [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-  (`0.1.1-rc.2` पर परखा गया)।
+  (`0.1.2-alpha.1` पर परखा गया)। **0.9.0, 0.1.1 प्रोटोकॉल नहीं बोलता** — उस रिलीज़ ने
+  प्रोटोकॉल को बढ़ाया नहीं, बदल दिया, इसलिए ऐप और हार्नेस दोनों साथ अपडेट होने चाहिए।
+  देखें [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)।
 
 ## जल्दी शुरू करें
 
@@ -130,6 +132,8 @@ DSH Mobile [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (
 पेज ठीक उसी वाक्य के हिसाब से बना है।
 
 ## संगतता और सुरक्षा
+
+> **0.1.2:** हार्नेस 0.1.2 से हार्नेस अपने पूरे API को प्रमाणित करता है: ऐप पूछे तो स्टार्टअप पर छपा लिंक एक बार पेस्ट करें। यह फ़ोन को प्रमाणित करता है, पर कनेक्शन को एन्क्रिप्ट नहीं करता — इसलिए केवल भरोसेमंद नेटवर्क पर।
 
 - harness संस्करण मैट्रिक्स और केवल-लूपबैक सतहों के लिए
   [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) देखें।

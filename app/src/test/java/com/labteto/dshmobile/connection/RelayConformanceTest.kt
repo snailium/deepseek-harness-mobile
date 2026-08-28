@@ -8,12 +8,11 @@ import com.labteto.dshmobile.core.wire.RelayPairOutcome
 import com.labteto.dshmobile.core.wire.RelayPairing
 import com.labteto.dshmobile.core.wire.RelayTls
 import com.labteto.dshmobile.core.wire.RpcResult
-import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.TransportFailure
 import com.labteto.dshmobile.core.wire.TransportFailures
 import com.labteto.dshmobile.core.wire.WireJson
-import com.labteto.dshmobile.core.wire.WsDownlink
-import com.labteto.dshmobile.core.wire.WsDownlinkSink
+import com.labteto.dshmobile.core.wire.WsChannel
+import com.labteto.dshmobile.core.wire.WsChannelSink
 import com.labteto.dshmobile.mockharness.MockHarness
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -102,19 +101,19 @@ class RelayConformanceTest {
         // 4. Unauthenticated, the relay refuses before the harness is ever reached — and with 403,
         //    never 401, which is what this client's whole diagnosis rests on.
         val anonymous = clientFor(origin, authorization = null)
-        val refused = (anonymous.hostDescribe() as RpcResult.Err).error
+        val refused = (anonymous.sessionCanOpenWorkspacePath() as RpcResult.Err).error
         assertEquals(TransportFailure.TRUST_FENCE, TransportFailures.of(refused))
         assertEquals(403, TransportFailures.statusOf(refused))
 
         // 5. With the bearer, the unary call reaches the harness behind the proxy.
         val authorized = clientFor(origin, "Bearer $token")
-        assertTrue(authorized.hostDescribe() is RpcResult.Ok)
+        assertTrue(authorized.sessionCanOpenWorkspacePath() is RpcResult.Ok)
 
         // 6. And both downlinks upgrade — the half that costs a whole connection generation when
         //    the header is missing, because the loop opens them together on a 3000ms budget.
-        for (path in listOf("/api/events.mux", "/api/events.host")) {
+        for (path in listOf("/api/remote.mux")) {
             val sink = LatchSink()
-            val socket = WsDownlink("$origin$path", http, sink, "Bearer $token")
+            val socket = WsChannel("$origin$path", http, sink, "Bearer $token")
             socket.start()
             assertTrue("$path did not open", sink.opened.await(10, TimeUnit.SECONDS))
             assertNull(sink.failure)
@@ -123,7 +122,7 @@ class RelayConformanceTest {
 
         // 7. Without it, the upgrade is refused at the handshake rather than opening and closing.
         val bare = LatchSink()
-        val unauthorized = WsDownlink("$origin/api/events.mux", http, bare, authorization = null)
+        val unauthorized = WsChannel("$origin/api/remote.mux", http, bare, authorization = null)
         unauthorized.start()
         assertTrue(bare.closed.await(10, TimeUnit.SECONDS))
         assertEquals(TransportFailure.TRUST_FENCE, TransportFailures.classify(bare.failure))
@@ -244,7 +243,6 @@ class RelayConformanceTest {
             readTimeoutMs = 10_000,
             authorization = authorization,
         ),
-        wsFactory = { path, sink -> WsDownlink("$baseUrl$path", http, sink, authorization) },
     )
 
     /** A client that reaches the relay by an authority it was never told about. */
@@ -262,14 +260,14 @@ class RelayConformanceTest {
         .flatMap { listOf(File(it, "node.exe"), File(it, "node")) }
         .firstOrNull { it.isFile }
 
-    private class LatchSink : WsDownlinkSink {
+    private class LatchSink : WsChannelSink {
         val opened = CountDownLatch(1)
         val closed = CountDownLatch(1)
 
         @Volatile
         var failure: Throwable? = null
 
-        override fun onFrame(frame: ServerRequest) = Unit
+        override fun onMessage(text: String) = Unit
 
         override fun onOpen() {
             opened.countDown()

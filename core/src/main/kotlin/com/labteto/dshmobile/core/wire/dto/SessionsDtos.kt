@@ -42,11 +42,33 @@ data class SessionProjectionsBlock(
     @SerialName("values") val values: Map<String, JsonElement> = emptyMap(),
 )
 
-/** One history page entry: the raw event plus the optional host-computed render intent. */
+/**
+ * One history page entry.
+ *
+ * Superseded by [SessionHistoryRecord], which is what `session/page` and `session/follow`
+ * actually answer. Retained only for the shapes that still name it; the `view` field it used to
+ * carry is gone entirely — harness 0.1.2 sends no host-computed render intent, and tool cards
+ * are derived in the app from the raw call and result instead.
+ */
 @Serializable
 data class HistoryEntry(
     @SerialName("event") val event: SessionEvent,
-    @SerialName("view") val view: ToolEventView? = null,
+)
+
+/**
+ * The `modelSelection` projection: what this session last used, and what it will use next.
+ *
+ * Harness 0.1.2 moved the per-session selection out of the model listing and into a durable
+ * projection, because a catalog describes the host generation while a selection describes one
+ * session. `next` is a chosen-but-not-yet-used selection; it clears once a request commits with
+ * it, so the session's effective choice is `next` when present and `lastUsed` otherwise.
+ */
+@Serializable
+data class ModelSelectionProjection(
+    /** The selection the most recent request actually used; absent before the first turn. */
+    @SerialName("lastUsed") val lastUsed: ModelSelection? = null,
+    /** A selection chosen for the next request; absent when the last used one still stands. */
+    @SerialName("next") val next: ModelSelection? = null,
 )
 
 /** Complete provider/model selection for one session. */
@@ -379,3 +401,20 @@ data class SessionCancelValue(
     @SerialName("accepted") val accepted: Boolean = true,
 )
 
+/**
+ * Value of `session/modelCatalog` — every currently routable model for a host generation.
+ *
+ * Replaces both `session.models` and `llm.models`. It is not session-specific despite living in
+ * the session namespace: the catalog belongs to the host generation, and a per-session current
+ * selection is read from that session's projections instead.
+ */
+@Serializable
+data class ModelCatalog(
+    /** The deployment default applied when a new agent names no model. */
+    @SerialName("default") val default: ModelSelection,
+    /** Provider routes currently able to serve a request, including those with empty catalogs. */
+    @SerialName("routableProviders") val routableProviders: List<String> = emptyList(),
+    @SerialName("groups") val groups: List<ModelProviderGroup> = emptyList(),
+    /** Providers whose catalog lookup failed; isolated so one bad route does not empty the list. */
+    @SerialName("failures") val failures: List<ModelCatalogFailure> = emptyList(),
+)

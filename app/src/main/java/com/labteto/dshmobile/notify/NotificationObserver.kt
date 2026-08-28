@@ -7,9 +7,9 @@ import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.HostsStore
 import com.labteto.dshmobile.core.notify.CompletionClassifier
 import com.labteto.dshmobile.core.notify.CompletionEvent
-import com.labteto.dshmobile.core.wire.ServerRequest
+import com.labteto.dshmobile.core.session.SessionEventEnvelope
+import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
 import com.labteto.dshmobile.data.SessionStore
-import com.labteto.dshmobile.data.parseSessionEventEnvelope
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,10 +24,16 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * Turns completion/needs-action wire signals into local notifications.
  *
- * `start()` launches collectors on the connection manager's downlink frames; call it once from
- * [android.app.Application.onCreate] after the store is initialized. Each notification id is
+ * `start()` launches one collector on the connection manager's host event stream; call it once
+ * from [android.app.Application.onCreate] after the store is initialized. Each notification id is
  * stable per session (hash % 1000 + a per-channel offset) so re-notifying the same session
  * replaces the previous one instead of stacking.
+ *
+ * Turn and goal completions are not seen here any more. Through 0.1.1 they arrived as
+ * `session/event` frames on the all-session mux, which this observer read directly; 0.1.2 carries
+ * session events only on a per-session `session/follow` stream, so [SessionStore] — which owns
+ * those streams — reports them through [onSessionEvent] instead. What remains on the host event
+ * stream is the two pending-request waterfalls and the session status notification.
  */
 @Singleton
 class NotificationObserver @Inject constructor(
@@ -55,33 +61,42 @@ class NotificationObserver @Inject constructor(
             hostsStore.settings.collect { settings = it }
         }
         scope.launch {
-            connectionManager.muxFrames.collect { handleMuxFrame(it) }
-        }
-        scope.launch {
-            connectionManager.hostFrames.collect { handleHostFrame(it) }
+            connectionManager.eventFrames.collect { handleEventFrame(it) }
         }
     }
 
-    private fun handleMuxFrame(frame: ServerRequest) {
-        val payload = frame.payload as? JsonObject ?: return
-        // approval/requested and question/requested classify straight off the method.
-        classifier.classifyMux(frame.method, payload)?.let { maybeNotify(it) }
+    private fun handleEventFrame(frame: RemoteEventFrame) {
+        when (frame) {
+            is RemoteEventFrame.Waterfall ->
+                classifier.classifyWaterfall(frame.event, frame.eventId, frame.agentId, frame.request)
+                    ?.let { maybeNotify(it) }
 
-        if (frame.method == "session/event") {
-            val sessionId = payload["sessionId"]?.jsonPrimitive?.contentOrNull ?: return
-            val eventJson = payload["event"] ?: return
-            val envelope = parseSessionEventEnvelope(eventJson) ?: return
-            when (envelope.type) {
-                "turn/start" -> classifier.markSessionRunning(sessionId)
-                "turn/end", "goal/change" ->
-                    classifier.classifyEvent(sessionId, envelope)?.let { maybeNotify(it) }
-            }
+            is RemoteEventFrame.Emit ->
+                classifier.classifyNotification(frame.event, frame.args)?.let { maybeNotify(it) }
+
+            // A withdrawn request needs no notification of its own; the prompt it belongs to is
+            // retired by whoever is showing it. Ready never reaches here, and an unknown frame
+            // kind is exactly what this observer should ignore.
+            is RemoteEventFrame.Cancel,
+            is RemoteEventFrame.Ready,
+            is RemoteEventFrame.Unknown,
+            -> Unit
         }
     }
 
-    private fun handleHostFrame(frame: ServerRequest) {
-        val payload = frame.payload as? JsonObject ?: return
-        classifier.classifyHost(frame.method, payload)?.let { maybeNotify(it) }
+    /**
+     * One session event, forwarded by [SessionStore] from that session's follow stream.
+     *
+     * The observer cannot subscribe to these itself: 0.1.2 has no all-session event stream, and
+     * opening one follow per session purely to watch for completions would resume agents the user
+     * never opened.
+     */
+    fun onSessionEvent(sessionId: String, envelope: SessionEventEnvelope) {
+        when (envelope.type) {
+            "turn/start" -> classifier.markSessionRunning(sessionId)
+            "turn/end", "goal/change" ->
+                classifier.classifyEvent(sessionId, envelope)?.let { maybeNotify(it) }
+        }
     }
 
     private fun maybeNotify(event: CompletionEvent) {

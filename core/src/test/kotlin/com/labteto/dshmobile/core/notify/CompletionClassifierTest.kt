@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.core.notify
 
 import com.labteto.dshmobile.core.session.SessionEventEnvelope
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -63,38 +64,48 @@ class CompletionClassifierTest {
 
     @Test
     fun approvalRequestedFires() {
-        val frame = buildJsonObject {
-            put("sessionId", "s1")
-            put("approvalId", "appr-1")
+        // The session is the frame's `agentId` and the correlation id is its `eventId`: 0.1.2
+        // mints no separate approval id, so the event id is what an answer and a withdrawal both
+        // name — and what the notification has to dedupe on.
+        val request = buildJsonObject {
             put("toolName", "bash")
             put("reason", "justification")
         }
-        val result = classifier.classifyMux("approval/requested", frame)
+        val result = classifier.classifyWaterfall("approval/request", "evt-1", "s1", request)
         assertTrue(result is CompletionEvent.ReviewRequested)
-        assertEquals("review:s1:appr-1", result!!.dedupKey)
+        assertEquals("review:s1:evt-1", result!!.dedupKey)
     }
 
     @Test
     fun questionRequestedFires() {
-        val frame = buildJsonObject {
-            put("sessionId", "s1")
+        val request = buildJsonObject {
             putJsonArray("questions") {
                 add(buildJsonObject { put("id", "q1"); put("question", "which one?") })
             }
         }
-        val result = classifier.classifyMux("question/requested", frame)
+        val result = classifier.classifyWaterfall("user-questions/request", "evt-2", "s1", request)
         assertTrue(result is CompletionEvent.QuestionRequested)
         assertEquals("which one?", (result as CompletionEvent.QuestionRequested).firstQuestion)
     }
 
     @Test
+    fun anUnselectedWaterfallIsIgnored() {
+        val result = classifier.classifyWaterfall("something/else", "evt-3", "s1", buildJsonObject { })
+        assertNull(result)
+    }
+
+    @Test
     fun sessionIdleOnlyAfterRunning() {
-        val stopped = buildJsonObject { put("sessionId", "s1"); put("running", false) }
-        val started = buildJsonObject { put("sessionId", "s1"); put("running", true) }
-        assertNull(classifier.classifyHost("host/session-status", stopped))
-        classifier.classifyHost("host/session-status", started)
-        assertTrue(classifier.classifyHost("host/session-status", stopped) is CompletionEvent.SessionIdle)
+        // Positional arguments now: the host forwards the Cordis listener's own argument list
+        // rather than a named payload object.
+        val stopped = listOf(JsonPrimitive("s1"), JsonPrimitive(false))
+        val started = listOf(JsonPrimitive("s1"), JsonPrimitive(true))
+        assertNull(classifier.classifyNotification("api-session/status", stopped))
+        classifier.classifyNotification("api-session/status", started)
+        assertTrue(
+            classifier.classifyNotification("api-session/status", stopped) is CompletionEvent.SessionIdle,
+        )
         // Second stop does not refire.
-        assertNull(classifier.classifyHost("host/session-status", stopped))
+        assertNull(classifier.classifyNotification("api-session/status", stopped))
     }
 }

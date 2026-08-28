@@ -51,21 +51,20 @@ class MockHarnessTest {
     }
 
     @Test
-    fun hostDescribeReturnsVersion() {
-        val response = post("/api/host.describe", envelope("host.describe"))
+    fun theProbeCallAnswers() {
+        // `host.describe` is gone. What a reachability probe calls now is an argument-free
+        // Session Controller method, and what it proves is only that the endpoint speaks the
+        // protocol — the host facts come from the ready frame instead.
+        val response = post(
+            "/api/session/canOpenWorkspacePath",
+            envelope("session/canOpenWorkspacePath"),
+        )
         assertEquals(200, response.statusCode())
         val body = Json.parseToJsonElement(response.body()).jsonObject
         assertEquals("server-response", body["type"]!!.jsonPrimitive.content)
         val result = body["result"]!!.jsonObject
         assertTrue(result["ok"]!!.jsonPrimitive.boolean)
-        val value = result["value"]!!.jsonObject
-        assertEquals("0.1.1-rc.2", value["version"]!!.jsonPrimitive.content)
-        assertEquals("C:\\demo", value["cwd"]!!.jsonPrimitive.content)
-        assertEquals(0, value["attachedSessions"]!!.jsonPrimitive.int)
-        // Required from 0.1.0-rc.8, and the field the client reads to decide which
-        // `commands/execute` shape this host accepts.
-        assertEquals("C:\\Users\\demo", value["home"]!!.jsonPrimitive.content)
-        assertTrue(value["canOpenPath"]!!.jsonPrimitive.boolean)
+        assertTrue(result["value"]!!.jsonPrimitive.boolean)
     }
 
     @Test
@@ -135,17 +134,37 @@ class MockHarnessTest {
     }
 
     @Test
-    fun respondEndpointAccepts() {
+    fun eventResultAcceptsAnAnswerForThisGeneration() {
         val rpcId = UUID.randomUUID().toString()
-        val body = """{"type":"client-response","rpcId":"$rpcId","result":{"ok":true,"value":{}}}"""
-        val response = post("/api/respond", body)
+        val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
+            """"payload":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}"""
+        val response = post("/api/${'$'}events/result", body)
         assertEquals(200, response.statusCode())
         val json = Json.parseToJsonElement(response.body()).jsonObject
-        assertEquals(true, json["accepted"]!!.jsonPrimitive.boolean)
+        assertTrue(json["result"]!!.jsonObject["ok"]!!.jsonPrimitive.boolean)
     }
 
     @Test
-    fun muxWebSocketReceivesSubscribedHello() {
+    fun eventResultRefusesAnAnswerFromARetiredGeneration() {
+        // The clientId binding is the whole point of the ready frame: an answer minted against a
+        // connection that has since been replaced must not resolve a request the host has
+        // already replayed to the new one.
+        val rpcId = UUID.randomUUID().toString()
+        val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
+            """"payload":{"clientId":"stale","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}"""
+        val response = post("/api/${'$'}events/result", body)
+        assertEquals(200, response.statusCode())
+        val result = Json.parseToJsonElement(response.body()).jsonObject["result"]!!.jsonObject
+        assertEquals(false, result["ok"]!!.jsonPrimitive.boolean)
+        assertEquals("stale-generation", result["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun openingTheEventsStreamAnswersWithReady() {
+        // The mux is bidirectional: nothing arrives until the client opens a stream by name.
+        // A mock that pushed on connect would let a client pass without ever sending an `open`.
         val received = CompletableFuture<String>()
         val listener = object : WebSocket.Listener {
             override fun onText(webSocket: WebSocket, data: CharSequence, last: Boolean): java.util.concurrent.CompletionStage<*>? {
@@ -155,16 +174,20 @@ class MockHarnessTest {
             }
         }
         val webSocket = http.newWebSocketBuilder()
-            .buildAsync(URI.create("ws://127.0.0.1:$port/api/events.mux"), listener)
+            .buildAsync(URI.create("ws://127.0.0.1:$port/api/remote.mux"), listener)
             .get(5, TimeUnit.SECONDS)
         try {
+            webSocket.sendText(
+                """{"type":"open","streamId":"1","endpoint":"${'$'}events","payload":{"args":{}}}""",
+                true,
+            ).get(5, TimeUnit.SECONDS)
             val frame = Json.parseToJsonElement(received.get(5, TimeUnit.SECONDS)).jsonObject
-            assertEquals("server-request", frame["type"]!!.jsonPrimitive.content)
-            assertTrue(frame["rpcId"]!!.jsonPrimitive.content.isNotBlank())
-            assertEquals("session/subscribed", frame["method"]!!.jsonPrimitive.content)
-            val payload = frame["payload"]!!.jsonObject
-            assertEquals("demo", payload["sessionId"]!!.jsonPrimitive.content)
-            assertEquals(-1, payload["lastSeq"]!!.jsonPrimitive.int)
+            assertEquals("item", frame["type"]!!.jsonPrimitive.content)
+            assertEquals("1", frame["streamId"]!!.jsonPrimitive.content)
+            val value = frame["value"]!!.jsonObject
+            assertEquals("ready", value["type"]!!.jsonPrimitive.content)
+            assertEquals(harness.clientId, value["clientId"]!!.jsonPrimitive.content)
+            assertEquals("C:\\Users\\demo", value["host"]!!.jsonObject["home"]!!.jsonPrimitive.content)
         } finally {
             webSocket.sendClose(WebSocket.NORMAL_CLOSURE, "done")
         }

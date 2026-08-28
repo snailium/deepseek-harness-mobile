@@ -30,6 +30,16 @@ sealed interface ConnectFailure {
     data object TrustFence : ConnectFailure
 
     /**
+     * The harness answered and has no browser session for this client (HTTP 401).
+     *
+     * Harness 0.1.2 authenticates its whole `/api` surface, so a device that has not exchanged a
+     * launch token is refused before any method runs. Separate from [TrustFence] because the fix
+     * is on the phone (exchange a token from the harness's startup URL) rather than in the
+     * harness's trusted-host list.
+     */
+    data object Unauthenticated : ConnectFailure
+
+    /**
      * A relay answered and refused this device's credential.
      *
      * The same HTTP 403 as [TrustFence] — the relay never answers 401, on purpose — so the two are
@@ -80,6 +90,7 @@ sealed interface ConnectFailure {
             ProbeOutcome.PairingRequired -> PairingRequired
             ProbeOutcome.CertificateChanged -> CertificateChanged
             ProbeOutcome.TrustFence -> if (relay) PairingRequired else TrustFence
+            ProbeOutcome.Unauthenticated -> if (relay) PairingRequired else Unauthenticated
             ProbeOutcome.Refused -> Refused
             ProbeOutcome.Timeout -> Timeout
             ProbeOutcome.DnsFailure -> DnsFailure
@@ -93,9 +104,11 @@ sealed interface ConnectFailure {
 
         /** Map a failure from inside the connection loop's readiness handshake. */
         fun from(failure: GenerationFailure, relay: Boolean = false): ConnectFailure = when (failure) {
-            is GenerationFailure.StreamsTimedOut -> StreamsBlocked
-            is GenerationFailure.StreamFailed -> fromKind(failure.kind, failure.message, StreamsBlocked, relay)
-            is GenerationFailure.DescribeFailed -> fromKind(
+            is GenerationFailure.MuxTimedOut -> StreamsBlocked
+            is GenerationFailure.MuxFailed -> fromKind(failure.kind, failure.message, StreamsBlocked, relay)
+            // The ready frame replaced `host.describe` as the last handshake step, so this is where
+            // "reached it, could not finish" now lands.
+            is GenerationFailure.ReadyFailed -> fromKind(
                 TransportFailures.of(failure.error),
                 failure.error.message,
                 Other(failure.error.message),
@@ -111,6 +124,7 @@ sealed interface ConnectFailure {
         ): ConnectFailure = when (kind) {
             TransportFailure.CERTIFICATE_PIN -> CertificateChanged
             TransportFailure.TRUST_FENCE -> if (relay) PairingRequired else TrustFence
+            TransportFailure.UNAUTHENTICATED -> if (relay) PairingRequired else Unauthenticated
             TransportFailure.REFUSED -> Refused
             TransportFailure.TIMEOUT, TransportFailure.UNREACHABLE -> Timeout
             TransportFailure.DNS -> DnsFailure

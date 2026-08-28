@@ -85,7 +85,8 @@ harness，而不是对着一个敞开的端口。参见
 
 - Android 8.0 及以上（minSdk 26）。
 - 一个正在运行的 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-  （已针对 `0.1.1-rc.2` 测试）。
+  （已针对 `0.1.2-alpha.1` 测试）。**0.9.0 不支持 0.1.1 协议** —— 该版本是替换协议而非扩展，
+  因此 App 与 harness 必须同时升级。参见 [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。
 
 ## 快速开始
 
@@ -123,6 +124,8 @@ harness，而不是对着一个敞开的端口。参见
 页面就是按那一句话组织的。
 
 ## 兼容性与安全
+
+> **0.1.2:** 从 harness 0.1.2 起，harness 会对整个 API 进行认证：在 App 询问时，把它启动时打印的链接粘贴一次。这会认证本机，但不会加密连接，因此仍然只应在可信网络上使用。
 
 - harness 版本矩阵和仅回环可用的接口见
   [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)。

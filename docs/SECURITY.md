@@ -34,8 +34,11 @@ authentication:
 - DSH Mobile states this on the connect screen whenever local-network mode is
   selected.
 - Sensitive surfaces (settings, credentials, agent-preset authoring, host file
-  pickers) remain loopback-only by harness design and are shown read-only over
-  the network.
+  pickers) are **no longer loopback-only**. Harness 0.1.2 deleted that method
+  tier and replaced it with one uniform rule: whoever holds a browser session
+  reaches the complete tool-capable API. Behind a relay, what gates those
+  surfaces is the relay's own `privilegedMethods` policy — set it to
+  `loopback-only` if a paired phone should not reach them.
 
 ## Relay mode
 
@@ -153,8 +156,8 @@ with one exception:
   carries, and it is the only request that leaves your network. Turn it off in
   **Settings → About → Check for updates**.
 - **Scanning** probes only your own device's IPv4 /24 — with a TCP connect
-  followed by `host.describe` in local-network mode, or by `/relay/health` in
-  relay mode. Relay mode browses mDNS `_dsh._tcp` first and only sweeps if that
+  followed by one argument-free `session/canOpenWorkspacePath` call in
+  local-network mode, or by `/relay/health` in relay mode. Relay mode browses mDNS `_dsh._tcp` first and only sweeps if that
   finds nothing.
 
 ## Reporting a vulnerability

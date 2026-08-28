@@ -53,6 +53,7 @@ import com.labteto.dshmobile.ui.components.ToggleRow
 import com.labteto.dshmobile.ui.components.WhaleMark
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.relativeTime
@@ -262,6 +263,16 @@ fun ConnectScreen(
                     retrying = state.retrying,
                     onCancel = viewModel::cancelConnect,
                     onPair = { onPair(state.attemptedBaseUrl) },
+                    onSignIn = { viewModel.setSignInOpen(true) },
+                )
+            }
+
+            if (state.signInOpen) {
+                LaunchTokenDialog(
+                    signingIn = state.signingIn,
+                    error = state.signInError,
+                    onDismiss = { viewModel.setSignInOpen(false) },
+                    onSubmit = viewModel::signIn,
                 )
             }
 
@@ -383,9 +394,9 @@ private fun RecentHarnessCard(
     val colors = DsTheme.colors
     val reachable = probe as? HostProbe.Reachable
     val title = if (host.isLoopback) stringResource(R.string.connect_same_device) else host.name
-    val version = reachable?.description?.version ?: host.lastVersion
-    val cwd = reachable?.description?.cwd ?: host.lastCwd
-    val sessions = reachable?.description?.attachedSessions ?: host.lastSessions
+    // 0.1.2 publishes only the host home. The harness version, its working directory and its
+    // attached-session count all came from `host.describe`, which no longer exists.
+    val home = reachable?.description?.home ?: host.lastHome
 
     DsCard(onClick = onConnect) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -430,7 +441,7 @@ private fun RecentHarnessCard(
                 } else {
                     null
                 },
-                cwd?.let { basename(it) },
+                home?.let { basename(it) },
             ).joinToString(" · "),
             style = DsType.caption11,
             color = colors.labelTertiary,
@@ -439,7 +450,7 @@ private fun RecentHarnessCard(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                statusLine(probe, version, sessions),
+                statusLine(probe, home),
                 style = DsType.caption11,
                 color = if (probe is HostProbe.Unreachable) colors.labelCaption else colors.labelTertiary,
                 maxLines = 1,
@@ -456,15 +467,19 @@ private fun RecentHarnessCard(
     }
 }
 
-/** The third line: what the harness is, or why it has nothing to say. */
+/**
+ * The third line: what the harness is, or why it has nothing to say.
+ *
+ * Through 0.1.1 this named the harness version and its attached-session count, both from
+ * `host.describe`. Neither is published any more, so a reachable host shows the home directory it
+ * reported — the only host fact 0.1.2 carries — and says so plainly when even that is unknown.
+ */
 @Composable
-private fun statusLine(probe: HostProbe?, version: String?, sessions: Int?): String = when {
+private fun statusLine(probe: HostProbe?, home: String?): String = when {
     probe is HostProbe.Probing -> stringResource(R.string.connect_checking)
     probe is HostProbe.Unreachable -> stringResource(R.string.connect_unreachable)
-    version != null -> listOfNotNull(
-        stringResource(R.string.connect_harness_version_only, version),
-        sessions?.let { stringResource(R.string.connect_sessions_short, it) },
-    ).joinToString(" · ")
+    home != null -> stringResource(R.string.connect_harness_home, home)
+    probe is HostProbe.Reachable -> stringResource(R.string.connect_reachable)
     else -> stringResource(R.string.common_loading)
 }
 
@@ -515,11 +530,7 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
         }
         if (description != null) {
             Text(
-                listOfNotNull(
-                    stringResource(R.string.connect_harness_version_only, description.version),
-                    basename(description.cwd).takeIf { it.isNotBlank() },
-                    stringResource(R.string.connect_sessions_short, description.attachedSessions),
-                ).joinToString(" · "),
+                basename(description.home).takeIf { it.isNotBlank() }.orEmpty(),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
                 maxLines = 1,
@@ -651,6 +662,7 @@ private fun ConnectFailureBlock(
     retrying: Boolean,
     onCancel: () -> Unit,
     onPair: () -> Unit,
+    onSignIn: () -> Unit,
 ) {
     val colors = DsTheme.colors
     val authority = attempted.orEmpty()
@@ -679,6 +691,7 @@ private fun ConnectFailureBlock(
         ConnectFailure.Timeout -> stringResource(R.string.connect_fail_timeout, authority, port)
         ConnectFailure.Refused -> stringResource(R.string.connect_fail_refused, authority)
         ConnectFailure.TrustFence -> stringResource(R.string.connect_failed_fence)
+        ConnectFailure.Unauthenticated -> stringResource(R.string.connect_fail_unauthenticated, authority)
         ConnectFailure.PairingRequired -> stringResource(R.string.connect_fail_pairing)
         ConnectFailure.CertificateChanged -> stringResource(R.string.connect_fail_certificate, authority)
         ConnectFailure.DnsFailure -> stringResource(R.string.connect_fail_dns, authority)
@@ -717,6 +730,16 @@ private fun ConnectFailureBlock(
                     size = DsButtonSize.Small,
                 )
             }
+            // A harness that has not signed this phone in is fixed here rather than on the
+            // harness: it wants a launch token, and retrying without one only repeats the 401.
+            if (failure is ConnectFailure.Unauthenticated) {
+                DsButton(
+                    text = stringResource(R.string.connect_sign_in),
+                    onClick = onSignIn,
+                    variant = DsButtonVariant.Ghost,
+                    size = DsButtonSize.Small,
+                )
+            }
             // The loop backs off and retries forever; without this there is no way to stop it.
             if (retrying) {
                 DsButton(
@@ -727,6 +750,57 @@ private fun ConnectFailureBlock(
                 )
             }
         }
+    }
+}
+
+/**
+ * The launch-token prompt.
+ *
+ * Harness 0.1.2 signs a browser in by exchanging a token it prints once per process, and accepts
+ * that token only on its index route — so there is no way for a connection attempt to do this on
+ * its own, and no way to skip it. The field takes the whole startup line as readily as the bare
+ * token, because that is what people actually copy.
+ */
+@Composable
+private fun LaunchTokenDialog(
+    signingIn: Boolean,
+    error: SignInError?,
+    onDismiss: () -> Unit,
+    onSubmit: (String) -> Unit,
+) {
+    val colors = DsTheme.colors
+    var input by remember { mutableStateOf("") }
+    DsDialog(title = stringResource(R.string.connect_sign_in_title), onDismiss = onDismiss) {
+        Text(
+            stringResource(R.string.connect_sign_in_body),
+            style = DsType.small13,
+            color = colors.labelSecondary,
+        )
+        TextField(
+            value = input,
+            onValueChange = { input = it },
+            singleLine = true,
+            enabled = !signingIn,
+            label = { Text(stringResource(R.string.connect_sign_in_label)) },
+            colors = connectFieldColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        val message = when (error) {
+            SignInError.Refused -> stringResource(R.string.connect_sign_in_refused)
+            SignInError.Unreachable -> stringResource(R.string.connect_sign_in_unreachable)
+            SignInError.NoHost -> stringResource(R.string.connect_sign_in_no_host)
+            null -> null
+        }
+        if (message != null) {
+            Text(message, style = DsType.caption11, color = colors.warnLabel)
+        }
+        DsButton(
+            text = stringResource(R.string.connect_sign_in),
+            onClick = { onSubmit(input) },
+            enabled = !signingIn && input.isNotBlank(),
+            variant = DsButtonVariant.Info,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

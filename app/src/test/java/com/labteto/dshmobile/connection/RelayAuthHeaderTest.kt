@@ -3,11 +3,10 @@ package com.labteto.dshmobile.connection
 import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.RpcResult
-import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.TransportFailure
 import com.labteto.dshmobile.core.wire.TransportFailures
-import com.labteto.dshmobile.core.wire.WsDownlink
-import com.labteto.dshmobile.core.wire.WsDownlinkSink
+import com.labteto.dshmobile.core.wire.WsChannel
+import com.labteto.dshmobile.core.wire.WsChannelSink
 import com.labteto.dshmobile.mockharness.MockHarness
 import com.labteto.dshmobile.mockharness.RelayMode
 import kotlinx.coroutines.runBlocking
@@ -23,12 +22,12 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /**
- * The credential has to be on the unary calls *and* on both WebSocket upgrades.
+ * The credential has to be on the unary calls *and* on the WebSocket upgrade.
  *
  * The upgrade is the half that is easy to miss and expensive to miss: the connection loop opens
- * `/api/events.mux` and `/api/events.host` together and gives them 3000ms, and a relay refuses an
- * upgrade with no `Authorization` at the handshake. That surfaces as "the streams would not open",
- * which reads like a firewall or a VPN — everything except the one thing it is.
+ * `/api/remote.mux` and gives it 3000ms, and a relay refuses an upgrade with no `Authorization`
+ * at the handshake. That surfaces as "the stream would not open", which reads like a firewall or
+ * a VPN — everything except the one thing it is.
  */
 class RelayAuthHeaderTest {
 
@@ -50,7 +49,7 @@ class RelayAuthHeaderTest {
 
     @Test
     fun `an authenticated unary call reaches the harness`() = runBlocking {
-        val result = clientWith(token).hostDescribe()
+        val result = clientWith(token).sessionCanOpenWorkspacePath()
         assertTrue(result is RpcResult.Ok)
     }
 
@@ -60,7 +59,7 @@ class RelayAuthHeaderTest {
      */
     @Test
     fun `an unauthenticated unary call is refused with the fence marker`() = runBlocking {
-        val result = clientWith(null).hostDescribe()
+        val result = clientWith(null).sessionCanOpenWorkspacePath()
         val error = (result as RpcResult.Err).error
         assertEquals(TransportFailure.TRUST_FENCE, TransportFailures.of(error))
         assertEquals(403, TransportFailures.statusOf(error))
@@ -69,7 +68,7 @@ class RelayAuthHeaderTest {
     @Test
     fun `an authenticated upgrade opens`() {
         val sink = LatchSink()
-        val socket = WsDownlink("$baseUrl/api/events.mux", http, sink, token)
+        val socket = WsChannel("$baseUrl/api/remote.mux", http, sink, token)
         socket.start()
         assertTrue(sink.opened.await(5, TimeUnit.SECONDS))
         assertNull(sink.failure)
@@ -79,7 +78,7 @@ class RelayAuthHeaderTest {
     @Test
     fun `an upgrade with no credential is refused at the handshake`() {
         val sink = LatchSink()
-        val socket = WsDownlink("$baseUrl/api/events.mux", http, sink, authorization = null)
+        val socket = WsChannel("$baseUrl/api/remote.mux", http, sink, authorization = null)
         socket.start()
         assertTrue(sink.closed.await(5, TimeUnit.SECONDS))
         val failure = sink.failure
@@ -90,14 +89,23 @@ class RelayAuthHeaderTest {
         socket.close()
     }
 
-    /** Both downlinks carry it; testing only the mux one would miss half the handshake. */
+    /**
+     * The mux is written to, so the credential has to survive past the handshake as well.
+     *
+     * Its predecessors were downlink-only and there were two of them; this is the one socket, and
+     * a client that cannot send on it cannot open a single stream.
+     */
     @Test
-    fun `the host downlink needs the credential too`() {
+    fun `an authenticated socket accepts a stream open`() {
         val sink = LatchSink()
-        val socket = WsDownlink("$baseUrl/api/events.host", http, sink, authorization = null)
+        val socket = WsChannel("$baseUrl/api/remote.mux", http, sink, token)
         socket.start()
-        assertTrue(sink.closed.await(5, TimeUnit.SECONDS))
-        assertEquals(TransportFailure.TRUST_FENCE, TransportFailures.classify(sink.failure))
+        assertTrue(sink.opened.await(5, TimeUnit.SECONDS))
+        assertTrue(
+            socket.send(
+                """{"type":"open","streamId":"1","endpoint":"${'$'}events","payload":{"args":{}}}""",
+            ),
+        )
         socket.close()
     }
 
@@ -109,17 +117,16 @@ class RelayAuthHeaderTest {
             readTimeoutMs = 5_000,
             authorization = authorization,
         ),
-        wsFactory = { path, sink -> WsDownlink("$baseUrl$path", http, sink, authorization) },
     )
 
-    private class LatchSink : WsDownlinkSink {
+    private class LatchSink : WsChannelSink {
         val opened = CountDownLatch(1)
         val closed = CountDownLatch(1)
 
         @Volatile
         var failure: Throwable? = null
 
-        override fun onFrame(frame: ServerRequest) = Unit
+        override fun onMessage(text: String) = Unit
 
         override fun onOpen() {
             opened.countDown()

@@ -174,13 +174,12 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 
                 SettingsCard(stringResource(R.string.settings_harness)) {
                     connectionState.description?.let { host ->
+                        // Only the home directory survives from `host.describe`; the version and
+                        // attached-session count are not published by 0.1.2 at all. About already
+                        // shows the protocol baseline, so it is not repeated here.
                         LabelledValue(
                             stringResource(R.string.settings_host_info),
-                            stringResource(R.string.connect_harness_version, host.version, host.cwd),
-                        )
-                        LabelledValue(
-                            stringResource(R.string.subagents_title),
-                            stringResource(R.string.connect_attached_sessions, host.attachedSessions),
+                            host.home,
                         )
                     }
                     Text(

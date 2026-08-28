@@ -3,6 +3,98 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.9.0] - 2026-08-28
+
+The protocol underneath moved, and this release moves with it.
+
+Harness 0.1.2-alpha.1 did not extend the wire this app speaks — it replaced it.
+The package every one of this client's DTOs was ported from,
+`packages/host/apiproxy`, was deleted upstream, and each operation moved onto
+the business service that owns it. Every method was renamed, both event sockets
+were replaced by one, `host.describe` is gone, reading a transcript became a
+stream, and the whole `/api` surface now wants a browser session before it will
+answer at all.
+
+**This release does not speak the 0.1.1 protocol.** Every previous baseline move
+left the older wire working; this one cannot. A 0.9.0 app cannot connect to a
+0.1.1 harness, and a 0.8.0 app cannot connect to a 0.1.2 one — both fail at the
+handshake rather than partway through a session. Upgrade both, or neither.
+
+Reaching a harness through a relay additionally needs **dsh-relay 0.2.0**: the
+relay strips the client's `Cookie` before forwarding, so until it holds a
+harness session of its own every proxied request is answered 401.
+
+### Changed
+
+- **One socket, opened by name.** `/api/events.mux` and `/api/events.host` —
+  two downlink-only sockets, each carrying a fixed frame union — are now
+  `/api/remote.mux`, which multiplexes independently cancellable logical
+  streams and is written to as well as read. A client that sends nothing on it
+  now receives nothing.
+- **Readiness is a frame, not a call.** A connection is ready when the host's
+  `$events` stream yields its opening `ready` frame, which proves the host
+  installed its incremental listeners before answering. `host.describe` used to
+  play that role and no longer exists.
+- **Every method renamed**, from `domain.method` to `namespace/method`. Several
+  calls that took a request object now take flat named arguments, because the
+  gateway matches an args object against the host method's own parameter names.
+- **History is a stream.** `session.history` became `session/follow` — which
+  opens with a complete snapshot and replaces it wholesale on every reconnect —
+  plus `session/page`, a read that *requires* the follow generation's cursor.
+  There is no longer a way to read history without following first. History
+  pages can also carry losslessly packed runs of assistant deltas, which the app
+  expands.
+- **Queue, jobs, projections and the workspace registry** arrive on their own
+  streams (`session/control`, `workspace/follow`), each opening with a complete
+  baseline rather than a trickle of updates.
+- **Approvals and questions** are agent-scoped waterfalls on `$events`, answered
+  through `$events/result` and bound to the connection generation by a
+  `clientId`. `/api/respond` is gone. A dismissal is now a rejection rather than
+  an `ok: false` receipt — answering every item with an empty selection remains
+  a valid answer, which the model reads as no preference.
+- **Tool cards are derived here now.** The host stopped computing render
+  intents, so terminal, diff, read, search and web cards are built in the app
+  from the raw call, result and durable metadata. Anything not recognised in
+  full falls back to the generic card rather than being half-rendered.
+
+### Added
+
+- **Sign in to a harness.** Harness 0.1.2 authenticates its whole API against a
+  signed browser session, so a direct connection now asks for the launch token
+  the harness prints when it starts. Paste the startup line, the URL, or just
+  the token. The session survives harness restarts even though the token itself
+  changes on every one.
+- **401 is told apart from 403.** They need opposite fixes — a 403 is about the
+  address a request arrived on and is fixed on the harness, a 401 is about who
+  is asking and is fixed by signing in — so the connect screen says which
+  happened and offers the matching action.
+
+### Removed
+
+- **The loopback-only method tier.** Harness 0.1.2 deleted its
+  `PRIVILEGED_METHODS` list; there is one uniform authenticated surface, and
+  possession of a browser session authorizes the complete tool-capable API. A
+  paired device now reaches settings and credentials where it previously got a
+  refusal. Behind a relay, what gates those is the relay's own
+  `privilegedMethods` policy — set it to `loopback-only` if a phone should not
+  reach them. This is a real change in posture; see `docs/SECURITY.md`.
+- **The harness's version, working directory and attached-session count.** No
+  0.1.2 wire field carries any of them. Where the version was shown, the app
+  now shows the host's home directory or its own pinned protocol baseline,
+  labelled as this client's fact rather than the harness's.
+- **The client's one version-shaped branch.** `commands/execute` took a required
+  `images` argument only from 0.1.0-rc.8, so the client chose its shape from a
+  field only that release emitted. 0.1.2 declares the parameter unconditionally
+  and deleted the field that was read, so both are gone.
+
+### Fixed
+
+- A response value of the wrong shape could throw out of the wire client instead
+  of returning a result. Decoding an object where a primitive is declared
+  surfaces from inside kotlinx as an `IndexOutOfBoundsException`, not a
+  `SerializationException`, and the narrower catch let it escape — turning
+  "that is not a harness" into a crash on the connect screen.
+
 ## [0.8.0] - 2026-08-22
 
 The app can hold a credential.

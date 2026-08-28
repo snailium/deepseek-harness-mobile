@@ -8,7 +8,6 @@ import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -86,6 +85,7 @@ class OkHttpRpcTransport(
     readTimeoutMs: Long = 30_000,
     writeTimeoutMs: Long = 30_000,
     private val authorization: String? = null,
+    private val cookie: String? = null,
 ) : RpcTransport {
 
     private val base: HttpUrl = baseUrl.toHttpUrl()
@@ -112,6 +112,7 @@ class OkHttpRpcTransport(
                 .header("Host", hostHeader)
                 .header("Content-Type", "application/json")
                 .authorized(authorization)
+                .cookied(cookie)
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             val call = httpClient.newCall(request)
@@ -158,6 +159,7 @@ class OkHttpRpcTransport(
             .url(target)
             .header("Host", hostHeader)
             .authorized(authorization)
+            .cookied(cookie)
             .get()
             .build()
         val response = try {
@@ -198,47 +200,83 @@ internal fun Request.Builder.authorized(authorization: String?): Request.Builder
     if (authorization == null) this else header("Authorization", authorization)
 
 /**
+ * Set `Cookie` when there is a harness browser session, and leave the request untouched when
+ * there is not.
+ *
+ * Harness 0.1.2 authenticates the complete `/api` surface — every Remote call, the mux upgrade,
+ * and the session-log download — against one signed cookie, and answers 401 without it. The
+ * cookie is obtained once per authority by exchanging the launch token at `GET /?token=…`; see
+ * `HarnessSession`. It is deliberately not an `Authorization` header, because the harness refuses
+ * to read the token from one.
+ *
+ * Behind `dsh-relay` this stays null: the relay holds the harness session itself and injects it
+ * upstream, and a phone has no business carrying the host's cookie across the network.
+ */
+internal fun Request.Builder.cookied(cookie: String?): Request.Builder =
+    if (cookie == null) this else header("Cookie", cookie)
+
+/**
  * Carrier-layer failure text; 403 names the trust fence because that is the usual cause.
  *
  * File-level so the WebSocket path can wrap a failed upgrade in the same shape as a failed POST —
  * a fence rejection of `/api/events.mux` is the same fact as one on `/api/host.describe`.
  */
-internal fun carrierMessage(status: Int): String = if (status == 403) {
-    "harness trust fence rejected the request (HTTP 403)"
-} else {
-    "carrier returned HTTP $status"
+internal fun carrierMessage(status: Int): String = when (status) {
+    // Since 0.1.2 these are two different facts and the connect screen has to say which. 403 is
+    // the Host/Origin fence, which runs first and is about *where* the request came from. 401 is
+    // the browser session, which is about *who* is asking — a harness that would answer happily
+    // if this client had exchanged a launch token. Collapsing them sends people to reconfigure a
+    // firewall when they actually need to re-pair.
+    401 -> "harness has no browser session for this client (HTTP 401)"
+    403 -> "harness trust fence rejected the request (HTTP 403)"
+    else -> "carrier returned HTTP $status"
 }
 
-/** Receives downlink WebSocket events; all callbacks may run on OkHttp's socket threads. */
-interface WsDownlinkSink {
-    /** One parsed downstream frame (`type: server-request`). */
-    fun onFrame(frame: ServerRequest)
+/** Receives WebSocket carrier events; all callbacks may run on OkHttp's socket threads. */
+interface WsChannelSink {
+    /**
+     * One complete text message, still unparsed.
+     *
+     * The carrier deliberately does not decode: harness 0.1.2 multiplexes every logical stream
+     * over this one socket, so which parser applies is a function of the message, not the socket.
+     * Parsing here would put the mux's dispatch table in the transport.
+     */
+    fun onMessage(text: String)
 
     /** The WebSocket handshake completed and the socket is ready. */
     fun onOpen()
 
     /**
      * The socket closed or failed. `cause` is non-null on a failure, null on a clean close.
-     * The loop treats this as the end of the stream's generation.
+     * Every logical stream riding this socket ends with it.
      */
     fun onClosed(cause: Throwable?)
 }
 
 /**
- * A downlink-only WebSocket to `/api/events.mux` or `/api/events.host`. The client never sends
- * application data — sending any would make the server close the socket with code 1008 — so this
- * class only performs the handshake and reads frames.
+ * A bidirectional WebSocket to `/api/remote.mux`.
  *
- * [authorization] rides on the upgrade itself. That is the whole credential for this socket: there
- * is no later request to carry one, and `dsh-relay` refuses an unauthenticated upgrade at the
- * handshake. Both downlinks must open inside the loop's 3000ms budget, so a missing header here
- * costs the entire connection generation rather than one call.
+ * Its predecessor was downlink-only: `/api/events.mux` and `/api/events.host` closed the socket
+ * with 1008 on any client message. The 0.1.2 mux is the opposite — the client must send `open`
+ * and `cancel` to get anything at all — so [send] is the substantive difference here, not an
+ * extra.
+ *
+ * The host sends RFC 6455 Ping at `websocketHeartbeatIntervalMs` (30s by default) and OkHttp
+ * answers Pong at the protocol layer, so idle liveness needs no application code and no
+ * application-level heartbeat frame. There is no Pong deadline upstream; half-open detection is
+ * left to TCP.
+ *
+ * [authorization] rides on the upgrade itself, which is the whole credential for this socket:
+ * there is no later request to carry one. `dsh-relay` refuses an unauthenticated upgrade at the
+ * handshake, and against a direct 0.1.2 harness the browser-session cookie is required here too —
+ * a missing credential costs the entire connection generation rather than one call.
  */
-open class WsDownlink(
+open class WsChannel(
     private val url: String,
     private val client: OkHttpClient,
-    private val sink: WsDownlinkSink,
+    private val sink: WsChannelSink,
     private val authorization: String? = null,
+    private val cookie: String? = null,
 ) {
     @Volatile
     private var webSocket: WebSocket? = null
@@ -252,19 +290,7 @@ open class WsDownlink(
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            val frame = try {
-                decodeServerRequest(text)
-            } catch (e: SerializationException) {
-                // Protocol drift on the downlink: terminate this generation so the loop reconnects.
-                webSocket.cancel()
-                sink.onClosed(e)
-                return
-            } catch (e: IllegalArgumentException) {
-                webSocket.cancel()
-                sink.onClosed(e)
-                return
-            }
-            sink.onFrame(frame)
+            sink.onMessage(text)
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -275,7 +301,8 @@ open class WsDownlink(
             // A rejected upgrade carries its status only on the response; OkHttp reports it as a
             // bare ProtocolException ("Expected HTTP 101 … was '403'"), which no caller can
             // classify without reading English. Re-wrap so a trust-fence rejection of the stream
-            // reads the same as one on a POST.
+            // reads the same as one on a POST — and so 401 (no browser session) stays tellable
+            // apart from 403 (Host/Origin refused), which now mean different things.
             sink.onClosed(
                 if (response != null) {
                     RpcTransportException(response.code, carrierMessage(response.code), t)
@@ -286,13 +313,24 @@ open class WsDownlink(
         }
     }
 
-    /** Perform the RFC 6455 handshake and begin reading frames. Idempotent. */
+    /** Perform the RFC 6455 handshake and begin reading messages. Idempotent. */
     open fun start() {
         if (started) return
         started = true
-        val request = Request.Builder().url(url).authorized(authorization).build()
+        val request = Request.Builder()
+            .url(url)
+            .authorized(authorization)
+            .cookied(cookie)
+            .build()
         webSocket = client.newWebSocket(request, listener)
     }
+
+    /**
+     * Queue one text message. Returns false when the socket is gone or its send buffer is full —
+     * the caller must treat that as the stream having failed rather than retrying, because
+     * OkHttp has already begun tearing the socket down by then.
+     */
+    open fun send(text: String): Boolean = webSocket?.send(text) ?: false
 
     /** Tear the socket down. Idempotent. */
     open fun close() {

@@ -4,38 +4,40 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Host-domain DTOs, ported from `packages/host/apiproxy/src/api/host.schema.ts` (v0.1.1-rc.2).
- * Wire keys are camelCase exactly as the harness emits them.
+ * Host-domain DTOs.
+ *
+ * Harness 0.1.2 deleted `host.describe` and split what it carried three ways: the stable host
+ * home now rides the `$events` ready frame, each capability is answered by the domain that owns
+ * it when its page appears, and the process metadata (version, cwd, attached session count) is
+ * simply no longer sent. The directory verbs moved to the `directoryPicker` namespace on the
+ * Workspace Controller; the shapes below are ported from
+ * `packages/api/workspace-controller/src/directory-picker.ts` (v0.1.2-alpha.1).
  */
 
-/** Value of `host.describe`. */
+/**
+ * What this client knows about the host after a generation is ready.
+ *
+ * The sole field is what the ready frame carries, and it exists for one purpose: abbreviating
+ * displayed filesystem paths. Nothing else survived `host.describe`.
+ *
+ * In particular there is no `version`. The connect list, the details panel and Settings screens
+ * used to show the harness's own version here; no 0.1.2 wire field replaces it, so they show
+ * this client's pinned baseline instead — see `docs/COMPATIBILITY.md`.
+ */
 @Serializable
 data class HostDescription(
-    /** The host app's version (apps/cli package.json version). */
-    @SerialName("version") val version: String,
-    /** The host process working directory (root for session persistence and tool execution). */
-    @SerialName("cwd") val cwd: String,
-    /** Provider applied by default when a new agent does not specify one; absent when unset. */
-    @SerialName("provider") val provider: String? = null,
-    /** Model applied by default when a new agent does not specify one; absent when unset. */
-    @SerialName("model") val model: String? = null,
-    /** Count of currently attached sessions (those with a live agent). */
-    @SerialName("attachedSessions") val attachedSessions: Int,
-    /**
-     * The host account's home directory. Required from harness 0.1.0-rc.8 and absent before it,
-     * which makes its presence the client's rc.8 signal — see [com.labteto.dshmobile.core.DshCore]
-     * and `docs/COMPATIBILITY.md`. Nullable so an rc.7 host still decodes, and so the handshake,
-     * which runs `host.describe` before anything else, cannot fail on a missing key.
-     */
-    @SerialName("home") val home: String? = null,
-    /** Whether this deployment can hand a path to a user-visible native desktop. */
-    @SerialName("canOpenPath") val canOpenPath: Boolean,
+    /** The host account's home directory. Always present from 0.1.2; the ready frame requires it. */
+    @SerialName("home") val home: String,
 )
 
-/** Value of `host.pickDirectory`; `path` is null when the user cancelled the picker. */
-@Serializable
+/**
+ * Value of `directoryPicker/pick`; null when the operator cancelled the chooser.
+ *
+ * The remote returns a bare `string | null` rather than an object, so this is a thin holder the
+ * client wraps around the decoded value rather than a wire shape of its own.
+ */
 data class HostPickDirectoryValue(
-    @SerialName("path") val path: String? = null,
+    val path: String? = null,
 )
 
 /** One directory row: a child entry or a breadcrumb ancestor. */
@@ -64,32 +66,42 @@ data class DirectoryListing(
     @SerialName("truncated") val truncated: Boolean,
 )
 
-/** Request payload of `host.listDirectory`; an absent path lists the home directory. */
+/** Named arguments of `directoryPicker/list`; an absent path lists the home directory. */
 @Serializable
 data class HostListDirectoryRequest(
     @SerialName("path") val path: String? = null,
 )
 
-/** Request payload of `host.createDirectory`. */
+/** Named arguments of `directoryPicker/createDirectory`. */
 @Serializable
 data class HostCreateDirectoryRequest(
     @SerialName("path") val path: String,
     @SerialName("name") val name: String,
 )
 
-/** Value of `host.createDirectory`: the created directory's absolute path. */
-@Serializable
+/**
+ * Value of `directoryPicker/createDirectory`: the created directory's absolute path.
+ *
+ * Like [HostPickDirectoryValue] this wraps a bare wire `string`; 0.1.1 wrapped it in an object.
+ */
 data class HostCreateDirectoryValue(
-    @SerialName("path") val path: String,
+    val path: String,
 )
 
-/** Request payload of `host.openPath`. */
+/**
+ * Named arguments of `session/openWorkspacePath`.
+ *
+ * This replaces `host.openPath`, and the move is not only a rename: the path is now resolved
+ * against the addressed session's workspace before the host opens it, so a caller must name a
+ * session rather than handing the host an absolute filesystem target of its choosing.
+ */
 @Serializable
-data class HostOpenPathRequest(
+data class SessionOpenWorkspacePathRequest(
+    @SerialName("sessionId") val sessionId: String,
     @SerialName("path") val path: String,
 )
 
-/** Value of `host.openPath`. */
+/** Value of `session/openWorkspacePath`. */
 @Serializable
 data class HostOpenPathValue(
     @SerialName("opened") val opened: Boolean = true,

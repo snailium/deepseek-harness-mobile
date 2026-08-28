@@ -111,3 +111,30 @@ data class WorkspaceInsertSessionBeforeValue(
 data class WorkspaceArchiveSessionValue(
     @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
 )
+
+// ============================================================================================
+// harness 0.1.2 values
+// ============================================================================================
+
+/** Value of `workspace/rename` and `workspace/insertSessionBefore`. */
+@Serializable
+data class WorkspaceValue(
+    @SerialName("workspace") val workspace: WorkspaceView,
+)
+
+/**
+ * Value of `workspace/insertBefore`: the complete registry order after the mutation.
+ *
+ * Complete rather than a delta, and authoritative: the client replaces its order with this
+ * rather than inferring one from the sequence of upserts it happened to observe.
+ */
+@Serializable
+data class WorkspaceOrderValue(
+    @SerialName("workspaceIds") val workspaceIds: List<String> = emptyList(),
+)
+
+/** Value of `workspace/archiveSession`: the complete registry-global archived set. */
+@Serializable
+data class WorkspaceArchiveValue(
+    @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
+)

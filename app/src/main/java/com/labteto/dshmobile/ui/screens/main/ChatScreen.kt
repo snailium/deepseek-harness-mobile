@@ -77,7 +77,6 @@ fun ChatScreen(
     val conversation by store.currentConversation.collectAsStateWithLifecycle()
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
     val sessions by store.sessions.collectAsStateWithLifecycle()
-    val toolViews by store.toolViews.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
     val skills by store.skills.collectAsStateWithLifecycle()
     val commands by store.commands.collectAsStateWithLifecycle()
@@ -279,7 +278,6 @@ fun ChatScreen(
 
             val nodeContext = ChatNodeContext(
                 nodes = conversation?.nodes ?: emptyList(),
-                toolViews = toolViews,
                 running = conversation?.running == true,
                 cwd = currentSession?.cwd,
                 onOpenSubagent = { childId ->

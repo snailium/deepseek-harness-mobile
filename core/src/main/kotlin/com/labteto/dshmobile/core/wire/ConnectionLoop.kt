@@ -1,29 +1,25 @@
 package com.labteto.dshmobile.core.wire
 
 import com.labteto.dshmobile.core.wire.dto.HostDescription
-import com.labteto.dshmobile.core.wire.dto.HostFrame
-import com.labteto.dshmobile.core.wire.dto.HostFrameSerializer
-import com.labteto.dshmobile.core.wire.dto.MuxFrame
-import com.labteto.dshmobile.core.wire.dto.MuxFrameSerializer
+import com.labteto.dshmobile.core.wire.dto.REMOTE_EVENT_STREAM_ENDPOINT
+import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
 import kotlin.math.pow
 import kotlin.random.Random
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonElement
 
-/** Loop connection state: `connected` once both streams + host.describe succeeded. */
+/** Loop connection state: `connected` once the mux is open and `$events` has said `ready`. */
 enum class ConnectionState {
     CONNECTED,
     RECONNECTING,
@@ -31,35 +27,65 @@ enum class ConnectionState {
 
 /** Which part of the readiness handshake is under way. */
 enum class HandshakeStep {
-    /** Both downlink WebSockets are being opened. */
-    OPENING_STREAMS,
+    /** The `/api/remote.mux` WebSocket is being opened. */
+    OPENING_MUX,
 
-    /** The streams are up; `host.describe` is in flight. */
-    DESCRIBING,
+    /** The socket is up; the `$events` logical stream is open and its ready frame is awaited. */
+    AWAITING_READY,
 }
 
 /** Why one generation failed to reach [ConnectionState.CONNECTED]. */
 sealed class GenerationFailure {
-    /** Neither stream finished opening inside the budget. */
-    data class StreamsTimedOut(val timeoutMs: Long) : GenerationFailure()
+    /** The mux socket did not finish its handshake inside the budget. */
+    data class MuxTimedOut(val timeoutMs: Long) : GenerationFailure()
 
-    /** A stream failed outright — a refused connection, or a rejected upgrade. */
-    data class StreamFailed(val kind: TransportFailure, val message: String?) : GenerationFailure()
+    /**
+     * The mux socket failed outright — a refused connection, or a rejected upgrade.
+     *
+     * A rejected upgrade is the common case against a 0.1.2 harness reached directly: the whole
+     * `/api` surface, this socket included, wants a browser session, so an unpaired client is
+     * refused here rather than on its first call.
+     */
+    data class MuxFailed(val kind: TransportFailure, val message: String?) : GenerationFailure()
 
-    /** The streams opened but `host.describe` did not answer usefully. */
-    data class DescribeFailed(val error: RpcError) : GenerationFailure()
+    /** The socket opened but `$events` did not produce a usable ready frame. */
+    data class ReadyFailed(val error: RpcError) : GenerationFailure()
 }
+
+/**
+ * One established connection generation: the ready facts plus the mux carrying every stream.
+ *
+ * [mux] is handed to the sink rather than kept private because the streams a caller needs —
+ * `session/follow`, `session/control`, `workspace/follow` — are opened on demand by the layers
+ * above, and they all ride this one socket. It is valid only until the next
+ * [ConnectionState.RECONNECTING].
+ */
+data class HostGeneration(
+    /** Stable host facts from the ready frame. */
+    val description: HostDescription,
+    /**
+     * This generation's client identity.
+     *
+     * Every `$events/result` reply carries it, and the host refuses one bound to a retired
+     * generation — which is what stops an answer typed before a reconnect from resolving a
+     * request the host has already replayed.
+     */
+    val clientId: String,
+    /** The open mux; open further logical streams here. */
+    val mux: RemoteStreamMux,
+)
 
 /** Callbacks from the connection loop. Exceptions thrown here never kill the loop. */
 interface LoopSinks {
-    /** One parsed mux-stream frame (including stream/error frames). */
-    fun onMuxFrame(frame: ServerRequest)
+    /**
+     * One frame from the `$events` stream: a notification, a pending waterfall, or a withdrawal.
+     *
+     * The ready frame is consumed by the handshake and does not arrive here.
+     */
+    fun onEventFrame(frame: RemoteEventFrame)
 
-    /** One parsed host-stream frame (including stream/error frames). */
-    fun onHostFrame(frame: ServerRequest)
-
-    /** The readiness handshake completed: both streams open and host.describe succeeded. */
-    fun onConnected(description: HostDescription)
+    /** The readiness handshake completed: the mux is open and `$events` said ready. */
+    fun onConnected(generation: HostGeneration)
 
     /** The connection state changed. */
     fun onStateChange(state: ConnectionState)
@@ -88,8 +114,15 @@ class LoopConfig(
     val maxDelayMs: Long = 10_000L,
     /** Jitter span bound: the actual sleep is uniform in [cap/2, cap] of the attempt cap. */
     val jitterCapMs: Long = 10_000L,
-    /** How long a generation may take to open both streams before it is abandoned. */
+    /** How long a generation may take to open the mux socket before it is abandoned. */
     val streamOpenTimeoutMs: Long = 3_000L,
+    /**
+     * How long the ready frame may take once the socket is open.
+     *
+     * Separate from [streamOpenTimeoutMs] because it covers a different failure: the socket is
+     * established and the host is simply not answering, which the TCP layer will not report.
+     */
+    val readyTimeoutMs: Long = 5_000L,
     /** Injectable sleep used between generations. */
     val delay: suspend (Long) -> Unit = ::defaultSleep,
 )
@@ -100,19 +133,24 @@ private suspend fun defaultSleep(ms: Long) {
 }
 
 /**
- * Owns the readiness handshake and reconnect loop for the two downlink streams:
+ * Owns the readiness handshake and reconnect loop for the harness connection.
  *
- * 1. Open both WebSockets (`/api/events.mux` and `/api/events.host`) and wait for both opens
- *    (stream-open timeout 3s).
- * 2. Call `host.describe`; when it succeeds the loop is [ConnectionState.CONNECTED].
- * 3. Stream frames to [LoopSinks] until a `stream/error` frame, a socket close, or a failure
- *    terminates the generation — then reconnect with exponential backoff
- *    (base 500ms, factor 2, max 10s, jitter cap/2..cap).
+ * 1. Open the `/api/remote.mux` WebSocket (open timeout 3s).
+ * 2. Open the Gateway-internal `$events` logical stream and read its first item, which must be a
+ *    `ready` frame. That frame — not a `host.describe` call — is what makes the generation
+ *    connected: it proves the host installed its incremental listeners before answering, so no
+ *    baseline read can race them.
+ * 3. Forward `$events` frames to [LoopSinks] until the stream ends, fails, or the socket dies —
+ *    then reconnect with exponential backoff (base 500ms, factor 2, max 10s, jitter cap/2..cap).
+ *
+ * The two sockets this replaces each carried a fixed frame union and needed no client message.
+ * Here there is one socket, and everything else the app streams is a further logical stream on
+ * it, opened through [HostGeneration.mux].
  *
  * [start] and [stop] are idempotent. Sink exceptions are contained and never kill the loop.
  */
 class ConnectionLoop(
-    private val api: DshApiClient,
+    private val muxFactory: suspend () -> RemoteStreamMux,
     private val sinks: LoopSinks,
     private val config: LoopConfig = LoopConfig(),
     private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -123,7 +161,7 @@ class ConnectionLoop(
     private var job: Job? = null
 
     @Volatile
-    private var generation: Generation? = null
+    private var current: RemoteStreamMux? = null
 
     /** Begin the loop. Idempotent. */
     fun start() {
@@ -132,11 +170,11 @@ class ConnectionLoop(
         job = newJob
     }
 
-    /** Stop the loop and tear down any open streams. Idempotent. */
+    /** Stop the loop and tear down the mux. Idempotent. */
     fun stop() {
-        val current = job ?: return
+        val running = job ?: return
         job = null
-        current.cancel()
+        running.cancel()
         closeGeneration()
     }
 
@@ -149,17 +187,17 @@ class ConnectionLoop(
             when (val opened = openGeneration()) {
                 is Opened.Ok -> {
                     attempt = 0
-                    generation = opened.generation
-                    safeSink { sinks.onConnected(opened.generation.description) }
+                    safeSink { sinks.onConnected(opened.generation) }
                     safeSink { sinks.onStateChange(ConnectionState.CONNECTED) }
-                    consumeGeneration(opened.generation)
+                    consumeEvents(opened.events)
                     closeGeneration()
                 }
 
                 is Opened.Failed -> {
                     attempt += 1
-                    val current = attempt
-                    safeSink { sinks.onGenerationFailed(current, opened.failure) }
+                    val reported = attempt
+                    closeGeneration()
+                    safeSink { sinks.onGenerationFailed(reported, opened.failure) }
                 }
             }
             if (!currentCoroutineContext().isActive) break
@@ -167,164 +205,121 @@ class ConnectionLoop(
         }
     }
 
-    /** Outcome of one handshake attempt: the open generation, or why it did not open. */
+    /** Outcome of one handshake attempt: the ready generation, or why it did not open. */
     private sealed class Opened {
-        data class Ok(val generation: Generation) : Opened()
+        data class Ok(val generation: HostGeneration, val events: RemoteStream) : Opened()
         data class Failed(val failure: GenerationFailure) : Opened()
     }
 
-    /** The open streams of the current generation, plus their frame/failure channels. */
-    private class Generation(
-        val muxWs: WsDownlink,
-        val hostWs: WsDownlink,
-        val muxFrames: Channel<ServerRequest>,
-        val hostFrames: Channel<ServerRequest>,
-        val muxFailed: CompletableDeferred<Throwable>,
-        val hostFailed: CompletableDeferred<Throwable>,
-        val description: HostDescription,
-    )
-
-    private class BridgeSink(
-        private val frames: Channel<ServerRequest>,
-        private val opened: CompletableDeferred<Unit>,
-        private val failed: CompletableDeferred<Throwable>,
-    ) : WsDownlinkSink {
-        override fun onFrame(frame: ServerRequest) {
-            frames.trySend(frame)
-        }
-
-        override fun onOpen() {
-            opened.complete(Unit)
-        }
-
-        override fun onClosed(cause: Throwable?) {
-            if (cause != null) {
-                failed.complete(cause)
-            } else if (!failed.isCompleted) {
-                failed.complete(StreamClosedException())
-            }
-        }
-    }
-
-    /** Open both streams and complete the readiness handshake, or report why it did not. */
+    /**
+     * Open the mux, open `$events`, and read its ready frame — or report why none of that worked.
+     *
+     * The stream handle is read here only far enough to take its opening frame, then handed back
+     * so [consumeEvents] continues the *same* logical stream. That is why the mux hands out a
+     * handle rather than a cold flow: collecting a flow twice would open two event generations
+     * for one connection.
+     */
     private suspend fun openGeneration(): Opened {
-        val muxFrames = Channel<ServerRequest>(Channel.UNLIMITED)
-        val hostFrames = Channel<ServerRequest>(Channel.UNLIMITED)
-        val muxOpened = CompletableDeferred<Unit>()
-        val hostOpened = CompletableDeferred<Unit>()
-        val muxFailed = CompletableDeferred<Throwable>()
-        val hostFailed = CompletableDeferred<Throwable>()
+        safeSink { sinks.onHandshakeStep(HandshakeStep.OPENING_MUX) }
+        val mux = muxFactory()
+        current = mux
+        mux.start()
 
-        safeSink { sinks.onHandshakeStep(HandshakeStep.OPENING_STREAMS) }
-        val muxWs = api.openEvents(mux = true, sink = BridgeSink(muxFrames, muxOpened, muxFailed))
-        val hostWs = api.openEvents(mux = false, sink = BridgeSink(hostFrames, hostOpened, hostFailed))
-        muxWs.start()
-        hostWs.start()
-
-        val opened = try {
-            withTimeout(config.streamOpenTimeoutMs) {
-                muxOpened.await()
-                hostOpened.await()
-            }
-            true
+        try {
+            withTimeout(config.streamOpenTimeoutMs) { mux.awaitOpen() }
         } catch (e: TimeoutCancellationException) {
-            false
-        }
-        if (!opened || muxFailed.isCompleted || hostFailed.isCompleted) {
-            // A stream that failed outright says more than the timeout does — a rejected upgrade
-            // carries its status. `await` on an already-completed deferred returns at once, which
-            // avoids the experimental getCompleted().
-            val cause = when {
-                muxFailed.isCompleted -> muxFailed.await()
-                hostFailed.isCompleted -> hostFailed.await()
-                else -> null
-            }
-            muxWs.close()
-            hostWs.close()
+            return Opened.Failed(GenerationFailure.MuxTimedOut(config.streamOpenTimeoutMs))
+        } catch (e: Throwable) {
             return Opened.Failed(
-                if (cause != null) {
-                    GenerationFailure.StreamFailed(TransportFailures.classify(cause), cause.message)
-                } else {
-                    GenerationFailure.StreamsTimedOut(config.streamOpenTimeoutMs)
-                },
+                GenerationFailure.MuxFailed(TransportFailures.classify(e), e.message),
             )
         }
 
-        // Describing is the last handshake step, and DshApiClient.hostDescribe latches this
-        // connection's command-image capability from the answer — so by the time anyone can
-        // reach a command through this client, its `commands/execute` shape is already decided.
-        safeSink { sinks.onHandshakeStep(HandshakeStep.DESCRIBING) }
-        return when (val describe = api.hostDescribe()) {
-            is RpcResult.Ok -> Opened.Ok(
-                Generation(
-                    muxWs = muxWs,
-                    hostWs = hostWs,
-                    muxFrames = muxFrames,
-                    hostFrames = hostFrames,
-                    muxFailed = muxFailed,
-                    hostFailed = hostFailed,
-                    description = describe.value,
+        safeSink { sinks.onHandshakeStep(HandshakeStep.AWAITING_READY) }
+        val events = try {
+            mux.open(REMOTE_EVENT_STREAM_ENDPOINT)
+        } catch (e: RemoteStreamException) {
+            return Opened.Failed(GenerationFailure.ReadyFailed(e.error))
+        }
+        val ready = try {
+            withTimeout(config.readyTimeoutMs) { events.receive() }
+        } catch (e: TimeoutCancellationException) {
+            return Opened.Failed(
+                GenerationFailure.ReadyFailed(
+                    RpcError("internal", "no ready frame within ${config.readyTimeoutMs}ms"),
                 ),
             )
-            is RpcResult.Err -> {
-                muxWs.close()
-                hostWs.close()
-                Opened.Failed(GenerationFailure.DescribeFailed(describe.error))
+        } catch (e: RemoteStreamException) {
+            return Opened.Failed(GenerationFailure.ReadyFailed(e.error))
+        } catch (e: Throwable) {
+            return Opened.Failed(
+                GenerationFailure.ReadyFailed(RpcError("internal", e.message ?: "events stream failed")),
+            )
+        }
+
+        if (ready == null) {
+            return Opened.Failed(
+                GenerationFailure.ReadyFailed(RpcError("internal", "events stream ended before it was ready")),
+            )
+        }
+        val frame = decodeEventFrame(ready)
+            ?: return Opened.Failed(
+                GenerationFailure.ReadyFailed(RpcError("internal", "opening event frame did not parse")),
+            )
+        // A generation that opens on anything but `ready` is a protocol failure, not a frame to
+        // skip: every later reply is bound to the clientId this frame carries, so without it
+        // there is nothing to answer a waterfall with.
+        if (frame !is RemoteEventFrame.Ready) {
+            return Opened.Failed(
+                GenerationFailure.ReadyFailed(
+                    RpcError("internal", "events stream opened with \"${frame.type}\", not \"ready\""),
+                ),
+            )
+        }
+
+        return Opened.Ok(
+            generation = HostGeneration(
+                description = HostDescription(home = frame.host.home),
+                clientId = frame.clientId,
+                mux = mux,
+            ),
+            events = events,
+        )
+    }
+
+    /** Forward `$events` frames until the stream ends or its carrier fails. */
+    private suspend fun consumeEvents(events: RemoteStream) {
+        try {
+            while (true) {
+                val value = events.receive() ?: return
+                val frame = decodeEventFrame(value)
+                // One unparseable frame is not worth ending a generation over: the allowlist
+                // upstream grows and the union already passes unknown kinds through, so only a
+                // frame that is not an object at all lands here.
+                if (frame != null) safeSink { sinks.onEventFrame(frame) }
             }
+        } catch (e: RemoteStreamException) {
+            // Terminal for this generation either way. Ending `$events` — cleanly or not — ends
+            // the generation, because it is the sole source of connection liveness; the loop's
+            // next pass reports the state change and reconnects.
+        } finally {
+            events.cancel()
         }
     }
 
-    /** Forward frames until the generation ends (stream/error, close, or failure). */
-    private suspend fun consumeGeneration(gen: Generation) {
-        while (currentCoroutineContext().isActive) {
-            val event = select<ConsumeEvent> {
-                gen.muxFrames.onReceiveCatching { result ->
-                    result.getOrNull()?.let { ConsumeEvent.Frame(it, true) } ?: ConsumeEvent.StreamEnded
-                }
-                gen.hostFrames.onReceiveCatching { result ->
-                    result.getOrNull()?.let { ConsumeEvent.Frame(it, false) } ?: ConsumeEvent.StreamEnded
-                }
-                gen.muxFailed.onAwait { ConsumeEvent.StreamEnded }
-                gen.hostFailed.onAwait { ConsumeEvent.StreamEnded }
-            }
-            when (event) {
-                is ConsumeEvent.Frame -> {
-                    safeSink {
-                        if (event.mux) sinks.onMuxFrame(event.frame) else sinks.onHostFrame(event.frame)
-                    }
-                    if (isStreamError(event.frame, event.mux)) return
-                }
-                ConsumeEvent.StreamEnded -> return
-            }
-        }
+    private fun decodeEventFrame(value: JsonElement): RemoteEventFrame? = try {
+        decodeFromJsonElement(RemoteEventFrame.serializer(), value)
+    } catch (e: SerializationException) {
+        null
+    } catch (e: IllegalArgumentException) {
+        null
     }
 
-    private sealed class ConsumeEvent {
-        data class Frame(val frame: ServerRequest, val mux: Boolean) : ConsumeEvent()
-        object StreamEnded : ConsumeEvent()
-    }
-
-    /** Whether the frame's payload is a stream/error frame of either stream. */
-    private fun isStreamError(frame: ServerRequest, mux: Boolean): Boolean {
-        return try {
-            if (mux) {
-                decodeFromJsonElement(MuxFrameSerializer, frame.payload) is MuxFrame.StreamError
-            } else {
-                decodeFromJsonElement(HostFrameSerializer, frame.payload) is HostFrame.StreamError
-            }
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    /** Tear down the current generation's sockets. */
+    /** Tear down the current generation's socket. */
     private fun closeGeneration() {
-        val gen = generation
-        generation = null
-        if (gen != null) {
-            runCatching { gen.muxWs.close() }
-            runCatching { gen.hostWs.close() }
-        }
+        val mux = current
+        current = null
+        if (mux != null) runCatching { mux.close() }
     }
 
     /**
@@ -351,7 +346,3 @@ class ConnectionLoop(
         }
     }
 }
-
-/** Sentinel thrown into the failed channel when a socket closed without an error. */
-private class StreamClosedException : Exception("downlink stream closed")
-

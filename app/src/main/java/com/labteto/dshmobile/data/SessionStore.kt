@@ -5,80 +5,85 @@ import android.util.Log
 import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.core.session.ChunkRows
 import com.labteto.dshmobile.core.session.ConversationSnapshot
 import com.labteto.dshmobile.core.session.EventFold
 import com.labteto.dshmobile.core.session.QueueItem
 import com.labteto.dshmobile.core.session.SessionEventEnvelope
 import com.labteto.dshmobile.core.wire.DshApiClient
-import com.labteto.dshmobile.core.wire.RpcReceipt
 import com.labteto.dshmobile.core.wire.RpcResult
-import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
-import com.labteto.dshmobile.core.wire.encodeToJsonElement
+import com.labteto.dshmobile.core.wire.dto.APPROVAL_REQUEST_EVENT
 import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
-import com.labteto.dshmobile.core.wire.dto.AgentPresetSelectRequest
+import com.labteto.dshmobile.core.wire.dto.ApprovalOutcome
+import com.labteto.dshmobile.core.wire.dto.ApprovalRequestEvent
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionIntent
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionItem
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionRequestEvent
 import com.labteto.dshmobile.core.wire.dto.CUSTOM_PRESET
 import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
-import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
-import com.labteto.dshmobile.core.wire.dto.ImageRejection
-import com.labteto.dshmobile.core.wire.dto.imageRejectionOf
 import com.labteto.dshmobile.core.wire.dto.ContentBlock
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
-import com.labteto.dshmobile.core.wire.dto.GoalClearRequest
-import com.labteto.dshmobile.core.wire.dto.GoalCompleteRequest
-import com.labteto.dshmobile.core.wire.dto.GoalCreateRequest
-import com.labteto.dshmobile.core.wire.dto.GoalEditRequest
-import com.labteto.dshmobile.core.wire.dto.GoalPauseRequest
+import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.GoalRef
-import com.labteto.dshmobile.core.wire.dto.GoalResumeRequest
 import com.labteto.dshmobile.core.wire.dto.GoalSnapshot
 import com.labteto.dshmobile.core.wire.dto.HostDescription
-import com.labteto.dshmobile.core.wire.dto.HistoryEntry
-import com.labteto.dshmobile.core.wire.dto.HostFrame
 import com.labteto.dshmobile.core.wire.dto.ImageLimitsView
+import com.labteto.dshmobile.core.wire.dto.ImageRejection
 import com.labteto.dshmobile.core.wire.dto.JobView
-import com.labteto.dshmobile.core.wire.dto.MuxFrame
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
-import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.core.wire.dto.PlanStateView
+import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.core.wire.dto.PromptContentPart
 import com.labteto.dshmobile.core.wire.dto.QUESTION_CANCELLED
 import com.labteto.dshmobile.core.wire.dto.QueueAction
+import com.labteto.dshmobile.core.wire.dto.ModelSelectionProjection
+import kotlinx.coroutines.flow.combine
+import com.labteto.dshmobile.core.wire.dto.ModelCatalog
+import com.labteto.dshmobile.core.wire.dto.QueuedInboxItem
+import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
+import com.labteto.dshmobile.core.wire.dto.RemoteEventOutcome
+import com.labteto.dshmobile.core.wire.dto.RemoteEventRejection
+import com.labteto.dshmobile.core.wire.dto.SessionAddress
 import com.labteto.dshmobile.core.wire.dto.SessionAttachmentRequest
 import com.labteto.dshmobile.core.wire.dto.SessionCancelRequest
+import com.labteto.dshmobile.core.wire.dto.SessionControlFrame
+import com.labteto.dshmobile.core.wire.dto.SessionControlFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.SessionCreateRequest
+import com.labteto.dshmobile.core.wire.dto.SessionEvent
+import com.labteto.dshmobile.core.wire.dto.SessionFollowFrame
+import com.labteto.dshmobile.core.wire.dto.SessionFollowFrameSerializer
+import com.labteto.dshmobile.core.wire.dto.SessionFollowRequest
 import com.labteto.dshmobile.core.wire.dto.SessionForkRequest
-import com.labteto.dshmobile.core.wire.dto.SessionHistoryRequest
-import com.labteto.dshmobile.core.wire.dto.SessionModelsRequest
+import com.labteto.dshmobile.core.wire.dto.SessionHistoryRecord
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
-import com.labteto.dshmobile.core.wire.dto.SessionPromptRequest
+import com.labteto.dshmobile.core.wire.dto.SessionPageRequest
 import com.labteto.dshmobile.core.wire.dto.SessionProjectionsBlock
+import com.labteto.dshmobile.core.wire.dto.SessionPromptRequest
 import com.labteto.dshmobile.core.wire.dto.SessionRenameRequest
 import com.labteto.dshmobile.core.wire.dto.SessionSelectModelRequest
 import com.labteto.dshmobile.core.wire.dto.SessionStatsView
-import com.labteto.dshmobile.core.wire.dto.SessionEvent
-import com.labteto.dshmobile.core.wire.dto.TokenUsageView
+import com.labteto.dshmobile.core.wire.dto.SessionSummary
 import com.labteto.dshmobile.core.wire.dto.SessionUpdateQueueRequest
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.core.wire.dto.SkillListRequest
-import com.labteto.dshmobile.core.wire.dto.SubagentHistoryRequest
-import com.labteto.dshmobile.core.wire.dto.SubagentInterruptRequest
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
-import com.labteto.dshmobile.core.wire.dto.SubagentListRequest
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
-import com.labteto.dshmobile.core.wire.dto.ToolEventView
-import com.labteto.dshmobile.core.wire.dto.UnknownHostFrame
-import com.labteto.dshmobile.core.wire.dto.UnknownMuxFrame
+import com.labteto.dshmobile.core.wire.dto.TokenUsageView
+import com.labteto.dshmobile.core.wire.dto.USER_QUESTIONS_REQUEST_EVENT
 import com.labteto.dshmobile.core.wire.dto.UnknownSubagentListEntry
 import com.labteto.dshmobile.core.wire.dto.WorkspaceArchiveSessionRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceCreateRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceDeleteRequest
+import com.labteto.dshmobile.core.wire.dto.WorkspaceFollowFrame
+import com.labteto.dshmobile.core.wire.dto.WorkspaceFollowFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.WorkspaceRenameRequest
+import com.labteto.dshmobile.core.wire.dto.WorkspaceValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceView
+import com.labteto.dshmobile.core.wire.dto.imageRejectionOf
+import com.labteto.dshmobile.core.wire.encodeToJsonElement
 import java.io.OutputStream
 import java.time.Instant
 import java.util.TimeZone
@@ -86,6 +91,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -103,10 +109,13 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 
 /** One renderable session list row (manual order, live). */
@@ -273,8 +282,10 @@ class SessionStore @Inject constructor(
     private val _skills = MutableStateFlow<List<SkillEntry>>(emptyList())
     val skills: StateFlow<List<SkillEntry>> = _skills.asStateFlow()
 
-    private val _models = MutableStateFlow<SessionModelsValue?>(null)
-    val models: StateFlow<SessionModelsValue?> = _models.asStateFlow()
+    private val _models = MutableStateFlow<ModelCatalog?>(null)
+
+    /** The host generation's routable model catalog, before the session's own selection is joined in. */
+    val modelCatalog: StateFlow<ModelCatalog?> = _models.asStateFlow()
 
     private val _hostInfo = MutableStateFlow<HostDescription?>(null)
     val hostInfo: StateFlow<HostDescription?> = _hostInfo.asStateFlow()
@@ -282,8 +293,6 @@ class SessionStore @Inject constructor(
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
 
-    private val _toolViews = MutableStateFlow<Map<Long, ToolEventView>>(emptyMap())
-    val toolViews: StateFlow<Map<Long, ToolEventView>> = _toolViews.asStateFlow()
 
     /** A backwards page is in flight; the transcript shows a spinner and suppresses re-entry. */
     private val _loadingOlder = MutableStateFlow(false)
@@ -349,6 +358,33 @@ class SessionStore @Inject constructor(
     val imageLimits: StateFlow<ImageLimitsView?> = projectionOf(ImageLimitsView.serializer(), "imageLimits")
     val planState: StateFlow<PlanStateView?> = projectionOf(PlanStateView.serializer(), "plan")
 
+    /** This session's durable model choice; the catalog alone no longer carries one. */
+    val modelSelection: StateFlow<ModelSelectionProjection?> =
+        projectionOf(ModelSelectionProjection.serializer(), "modelSelection")
+
+    /**
+     * The model surface every screen renders: the session's effective selection over the host's
+     * catalog.
+     *
+     * A join rather than a wire value, because 0.1.2 answers the two halves separately — the
+     * catalog belongs to the host generation and the selection to the session. `next` wins over
+     * `lastUsed` (it is the choice that has not been spent yet), and the deployment default
+     * stands in before a session has either.
+     */
+    val models: StateFlow<SessionModelsValue?> =
+        combine(_models, modelSelection) { catalog, selection ->
+            if (catalog == null) return@combine null
+            val current = selection?.next ?: selection?.lastUsed ?: catalog.default
+            SessionModelsValue(
+                current = current,
+                // `routableProviders` lists what can serve a request at all; whether *this*
+                // session can start a turn is whether its own provider is in that list.
+                routable = current.provider in catalog.routableProviders,
+                groups = catalog.groups,
+                failures = catalog.failures,
+            )
+        }.stateIn(scope, SharingStarted.Eagerly, null)
+
     /** One projection key, decoded leniently: unknown or malformed payloads read as absent. */
     private fun <T> projectionOf(serializer: KSerializer<T>, key: String): StateFlow<T?> =
         currentConversation
@@ -368,9 +404,11 @@ class SessionStore @Inject constructor(
     private var archived = emptySet<String>()
     private val pendingKinds = HashMap<String, MutableSet<String>>()
 
-    // Pending server-initiated requests the store can answer.
-    private val approvalRequests = HashMap<String, ApprovalRequest>() // approvalId -> request
-    private val questionRpcBySession = HashMap<String, String>() // sessionId -> rpcId
+    // Pending Remote Event waterfalls this store can answer. Keyed by the frame's `eventId`,
+    // which is both what an answer names and what a `cancel` frame withdraws — 0.1.2 mints no
+    // separate approval id.
+    private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
+    private val questionEventBySession = HashMap<String, String>() // sessionId -> eventId
 
     // Open-session fold state.
     private var currentId: String? = null
@@ -379,12 +417,28 @@ class SessionStore @Inject constructor(
     private var currentBlank = true
     private val currentProjections = HashMap<String, ProjectionValue>()
     private var currentQueue = emptyList<QueueItem>()
-    private val toolViewsBySeq = HashMap<Long, ToolEventView>()
+
+    /**
+     * The open session's follow cursor: the log cut its current stream generation opened at.
+     *
+     * `session/page` will not answer without it. Paging is pinned to the same cut the live tail
+     * started from, which is what lets an older page and the streaming tail be joined without a
+     * gap — so a page requested before the snapshot arrives has nothing to send and is skipped.
+     */
+    private var followCursor: Int? = null
+
+    /** The open session's live journal. Cancelled and replaced whenever the open session changes. */
+    private var followJob: Job? = null
+
+    /** Host-wide live control (queue, jobs, projections). One per connection generation. */
+    private var controlJob: Job? = null
+
+    /** Workspace registry stream. One per connection generation. */
+    private var workspaceJob: Job? = null
 
     private data class ApprovalRequest(
         val sessionId: String,
-        val approvalId: String,
-        val rpcId: String,
+        val eventId: String,
         val toolName: String,
         val reason: String?,
     )
@@ -392,7 +446,7 @@ class SessionStore @Inject constructor(
 
     init {
         observeConnection()
-        observeFrames()
+        observeEvents()
         observePermissionSettlement()
         observeRebuildTicks()
     }
@@ -449,14 +503,44 @@ class SessionStore @Inject constructor(
         }
     }
 
-    private fun observeFrames() {
+    private fun observeEvents() {
         scope.launch {
-            connectionManager.muxFrames.collect { handleMuxFrame(it) }
-        }
-        scope.launch {
-            connectionManager.hostFrames.collect { handleHostFrame(it) }
+            connectionManager.eventFrames.collect { handleEventFrame(it) }
         }
     }
+
+    /**
+     * Open the two host-wide streams for this connection generation.
+     *
+     * Both replace things that used to arrive unbidden on the all-session mux, and both open with
+     * a complete baseline — which is the point: a reconnect replaces the mirror wholesale rather
+     * than leaving whatever the old generation last said. They are cancelled and reopened with
+     * the generation, because a stream's items are only meaningful within the socket that carries
+     * them.
+     */
+    private fun startHostStreams() {
+        val mux = connectionManager.generation?.mux ?: return
+        controlJob?.cancel()
+        controlJob = scope.launch {
+            runCatching {
+                mux.openStream("session/control").collect { item ->
+                    decodeOrNull(SessionControlFrameSerializer, item)?.let { handleControlFrame(it) }
+                }
+            }.onFailure { log("session/control ended", it) }
+        }
+        workspaceJob?.cancel()
+        workspaceJob = scope.launch {
+            runCatching {
+                mux.openStream("workspace/follow").collect { item ->
+                    decodeOrNull(WorkspaceFollowFrameSerializer, item)?.let { handleWorkspaceFrame(it) }
+                }
+            }.onFailure { log("workspace/follow ended", it) }
+        }
+    }
+
+    /** Decode one stream item, or null when it does not match the expected frame union. */
+    private fun <T> decodeOrNull(serializer: kotlinx.serialization.KSerializer<T>, item: JsonElement): T? =
+        runCatching { decodeFromJsonElement(serializer, item) }.getOrNull()
 
     private fun triggerBaseline() {
         scope.launch {
@@ -475,6 +559,10 @@ class SessionStore @Inject constructor(
         // Whether content search works is a fact about the harness we just reached, so a fresh
         // connection re-earns the answer rather than inheriting the previous host's.
         _contentSearchAvailable.value = true
+        // Before the list read: the workspace and control streams each open with their own
+        // complete baseline, and the list is what their increments are applied on top of.
+        startHostStreams()
+        _hostInfo.value = connectionManager.generation?.description
         refreshSessions()
         // Host-scoped and needed before anything is tapped: the chat bar names the session's preset
         // as soon as it renders, and without the roster it could only show the raw wire id.
@@ -512,53 +600,52 @@ class SessionStore @Inject constructor(
     private fun hostKey(): String? =
         connectionManager.state.value.host?.let { "${it.host}:${it.port}" }
 
-    // ------------------------------------------------------------------ frame handlers
-    private fun handleMuxFrame(frame: ServerRequest) {
-        val mux = parseMuxFrame(frame.payload) ?: return
-        when (mux) {
-            is MuxFrame.SessionEventFrame -> handleSessionEvent(mux.sessionId, mux.event, mux.view)
-            is MuxFrame.SessionSubscribed -> {
-                val sid = mux.sessionId
-                scope.launch {
-                    if (sid == currentSessionId.value) openSession(sid)
-                }
-            }
-            is MuxFrame.ApprovalRequested -> handleApprovalRequested(frame.rpcId, mux)
-            is MuxFrame.ApprovalResolved -> handleApprovalResolved(mux)
-            is MuxFrame.QuestionRequested -> handleQuestionRequested(frame.rpcId, mux)
-            is MuxFrame.QuestionResolved -> handleQuestionResolved(mux)
-            is MuxFrame.SessionQueue -> handleSessionQueue(mux)
-            is MuxFrame.SessionJobs -> handleSessionJobs(mux)
-            is MuxFrame.SessionProjection -> handleSessionProjection(mux)
-            is MuxFrame.StreamError -> log("mux stream/error ${mux.error.code}: ${mux.error.message}")
-            is UnknownMuxFrame -> log("unknown mux frame ${mux.type}")
-        }
-    }
-
-    private fun handleHostFrame(frame: ServerRequest) {
-        val host = parseHostFrame(frame.payload) ?: return
-        when (host) {
-            is HostFrame.SessionAdded -> onSessionAdded(host)
-            is HostFrame.SessionRemoved -> onSessionRemoved(host.sessionId)
-            is HostFrame.SessionStatus -> setRunning(host.sessionId, host.running)
-            is HostFrame.AgentError -> setConnectionError(host.message)
-            is HostFrame.WorkspaceChanged -> upsertWorkspace(host.workspace)
-            is HostFrame.WorkspaceRemoved -> removeWorkspace(host.workspaceId)
-            is HostFrame.WorkspaceOrderChanged -> setWorkspaceOrder(host.workspaceIds)
-            is HostFrame.ArchivedSessionsChanged -> setArchived(host.archivedSessionIds)
-            is HostFrame.RemoteEvent -> onRemoteEvent(host.event)
-            is HostFrame.StreamError -> log("host stream/error ${host.error.code}: ${host.error.message}")
-            is UnknownHostFrame -> log("unknown host frame ${host.type}")
+    // ------------------------------------------------------------------ host event frames
+    /**
+     * One frame of the host's `$events` stream.
+     *
+     * This is the whole of what arrives unbidden in 0.1.2. Session events are not here — they
+     * belong to a per-session `session/follow` stream — and neither is queue, job or projection
+     * state, which belongs to `session/control`. What is left is notifications and the two
+     * agent-scoped waterfalls.
+     */
+    private fun handleEventFrame(frame: RemoteEventFrame) {
+        when (frame) {
+            is RemoteEventFrame.Emit -> handleNotification(frame.event, frame.args)
+            is RemoteEventFrame.Waterfall -> handleWaterfall(frame)
+            is RemoteEventFrame.Cancel -> handleWaterfallCancelled(frame.eventId)
+            // Consumed by the connection loop's handshake; it never forwards one.
+            is RemoteEventFrame.Ready -> Unit
+            is RemoteEventFrame.Unknown -> log("unknown host event frame ${frame.type}")
         }
     }
 
     /**
-     * One allowlisted host event forwarded verbatim. Only the two that invalidate cached catalogs
-     * are acted on: a registry change, and a preset switch (which changes what an agent resolves
-     * without registering anything globally, so the registry-wide signal never fires for it).
+     * One ordinary host notification.
+     *
+     * Arguments are positional — the host forwards the Cordis listener's own argument list — so
+     * these read by index rather than by key. None of them is replayed after a reconnect, which
+     * is why every one of them is either repairable from the session list baseline or purely
+     * advisory.
      */
-    private fun onRemoteEvent(event: String) {
+    private fun handleNotification(event: String, args: List<JsonElement>) {
+        fun str(i: Int) = args.getOrNull(i)?.jsonPrimitive?.contentOrNull
         when (event) {
+            "api-session/added" -> args.firstOrNull()?.let { onSessionAdded(it) }
+            "api-session/removed" -> str(0)?.let { onSessionRemoved(it) }
+            "api-session/status" -> {
+                val sid = str(0) ?: return
+                val running = args.getOrNull(1)?.jsonPrimitive?.booleanOrNull ?: false
+                setRunning(sid, running)
+            }
+            "api-session/activity" -> {
+                // Only reorders the list; the durable value is the session's own projection, so a
+                // missed one is corrected by the next list read rather than lost.
+                val sid = str(0) ?: return
+                val updatedAt = args.getOrNull(1)?.jsonPrimitive?.longOrNull ?: return
+                setUpdatedAt(sid, updatedAt)
+            }
+            "api-session/error" -> setConnectionError(str(1))
             "commands/change" -> scope.launch { refreshCommands() }
             "agent-preset/selected" -> scope.launch {
                 refreshAgentPresets()
@@ -568,9 +655,150 @@ class SessionStore @Inject constructor(
         }
     }
 
-    private fun handleSessionEvent(sessionId: String, event: SessionEvent, view: ToolEventView?) {
-        val envelope = sessionEventToEnvelope(event)
-        when (event.type) {
+    /** One pending agent-scoped request awaiting this client's answer. */
+    private fun handleWaterfall(frame: RemoteEventFrame.Waterfall) {
+        when (frame.event) {
+            APPROVAL_REQUEST_EVENT -> {
+                val request = runCatching {
+                    decodeFromJsonElement(ApprovalRequestEvent.serializer(), frame.request)
+                }.getOrNull() ?: return
+                handleApprovalRequested(frame.eventId, frame.agentId, request)
+            }
+            USER_QUESTIONS_REQUEST_EVENT -> {
+                val request = runCatching {
+                    decodeFromJsonElement(AskUserQuestionRequestEvent.serializer(), frame.request)
+                }.getOrNull() ?: return
+                handleQuestionRequested(frame.eventId, frame.agentId, request.questions)
+            }
+            else -> log("unhandled waterfall ${frame.event}")
+        }
+    }
+
+    /**
+     * A pending request was withdrawn: another client answered it, or the host's caller cancelled.
+     *
+     * Replaces the `approval/resolved` and `question/resolved` frames, and covers both — an
+     * `eventId` identifies the request without saying which kind it was, so both registries are
+     * checked.
+     */
+    private fun handleWaterfallCancelled(eventId: String) {
+        val approval = synchronized(lock) { approvalRequests.remove(eventId) }
+        if (approval != null) {
+            synchronized(lock) {
+                removePendingLocked(approval.sessionId, "approval")
+                emitSessionsLocked()
+            }
+            if (_pendingApproval.value?.approvalId == eventId) _pendingApproval.value = null
+            return
+        }
+        val sessionId = synchronized(lock) {
+            questionEventBySession.entries.firstOrNull { it.value == eventId }?.key
+        } ?: return
+        synchronized(lock) {
+            questionEventBySession.remove(sessionId)
+            removePendingLocked(sessionId, "question")
+            removePendingLocked(sessionId, "plan-review")
+            emitSessionsLocked()
+        }
+        if (_pendingQuestions.value?.sessionId == sessionId) _pendingQuestions.value = null
+    }
+
+    // ------------------------------------------------------------------ control stream
+    /**
+     * One frame of the host-wide live-control stream.
+     *
+     * Queue and job values are complete replacements applied last-wins, never deltas, so an
+     * empty value is a real "nothing pending" rather than an absent update.
+     */
+    private fun handleControlFrame(frame: SessionControlFrame) {
+        when (frame) {
+            is SessionControlFrame.Baseline -> {
+                val sid = synchronized(lock) { currentId } ?: return
+                frame.value.queues[sid]?.let { items -> applyQueue(sid, items) }
+                frame.value.jobs[sid]?.let { jobs -> applyJobs(sid, jobs) }
+                frame.value.projections[sid]?.let { block -> applyProjectionBaseline(sid, block) }
+            }
+            is SessionControlFrame.Queue -> applyQueue(frame.sessionId, frame.items)
+            is SessionControlFrame.Jobs -> applyJobs(frame.sessionId, frame.jobs)
+            is SessionControlFrame.Projection -> synchronized(lock) {
+                if (frame.sessionId == currentId) {
+                    mergeProjectionLocked(frame.key, frame.seq, frame.value)
+                    rebuildCurrentLocked()
+                }
+            }
+            is SessionControlFrame.Unknown -> log("unknown control frame ${frame.type}")
+        }
+    }
+
+    private fun applyQueue(sessionId: String, items: List<QueuedInboxItem>) {
+        synchronized(lock) {
+            if (sessionId == currentId) {
+                currentQueue = items.map { queuedInboxItemToQueueItem(it) }
+                rebuildCurrentLocked()
+            }
+        }
+    }
+
+    private fun applyJobs(sessionId: String, jobs: List<JobView>) {
+        synchronized(lock) {
+            if (sessionId == currentId) _jobs.value = jobs
+        }
+    }
+
+    /**
+     * Merge a projection baseline for one session.
+     *
+     * The tail page's baseline and the control stream's are produced independently, so neither is
+     * authoritative on its own; [mergeProjectionLocked] keeps whichever carries the higher
+     * watermark.
+     */
+    private fun applyProjectionBaseline(sessionId: String, block: JsonObject) {
+        synchronized(lock) {
+            if (sessionId != currentId) return@synchronized
+            val asOf = block["asOfSeq"]?.jsonPrimitive?.intOrNull ?: 0
+            (block["values"] as? JsonObject)?.forEach { (key, value) ->
+                mergeProjectionLocked(key, asOf, value)
+            }
+            rebuildCurrentLocked()
+        }
+    }
+
+    // ------------------------------------------------------------------ workspace stream
+    /**
+     * One frame of the workspace registry stream.
+     *
+     * The `order` frame is complete and authoritative; display order is never inferred from the
+     * arrival order of upserts, which is what makes the list converge after a reconnect baseline.
+     */
+    private fun handleWorkspaceFrame(frame: WorkspaceFollowFrame) {
+        when (frame) {
+            is WorkspaceFollowFrame.Baseline -> synchronized(lock) {
+                workspaceRows.clear()
+                workspaceOrder.clear()
+                for (w in frame.workspaces) workspaceRows[w.workspaceId] = w.toRow()
+                workspaceOrder.addAll(frame.workspaceIds.ifEmpty { frame.workspaces.map { it.workspaceId } })
+                archived = frame.archivedSessionIds.toSet()
+                _archivedSessionIds.value = archived
+                emitWorkspacesLocked()
+            }
+            is WorkspaceFollowFrame.Upsert -> upsertWorkspace(frame.workspace)
+            is WorkspaceFollowFrame.Remove -> removeWorkspace(frame.workspaceId)
+            is WorkspaceFollowFrame.Order -> setWorkspaceOrder(frame.workspaceIds)
+            is WorkspaceFollowFrame.Archived -> setArchived(frame.archivedSessionIds)
+            is WorkspaceFollowFrame.Unknown -> log("unknown workspace frame ${frame.type}")
+        }
+    }
+
+    /**
+     * One event from the open session's follow stream.
+     *
+     * Through 0.1.1 this arrived for every session at once on the mux, which is how the store
+     * kept list state for sessions nobody had opened. 0.1.2 has no such stream: an event is only
+     * seen for the session actually being followed, and everything else about the list comes from
+     * a notification or a list read.
+     */
+    private fun handleSessionEvent(sessionId: String, envelope: SessionEventEnvelope) {
+        when (envelope.type) {
             "turn/start" -> {
                 setRunning(sessionId, true)
                 setBlank(sessionId, false)
@@ -582,125 +810,105 @@ class SessionStore @Inject constructor(
                 if (title != null) setTitle(sessionId, title)
             }
         }
+        // Completion notifications used to be classified from the all-session mux. That stream is
+        // gone, so the session that owns the event forwards it to whoever is watching for one.
+        notificationSink?.invoke(sessionId, envelope)
         synchronized(lock) {
-            if (sessionId == currentId) {
-                appendCurrentEventLocked(envelope)
-                if (view != null) {
-                    toolViewsBySeq[event.seq.toLong()] = view
-                    _toolViews.value = toolViewsBySeq.toMap()
-                }
-            }
+            if (sessionId == currentId) appendCurrentEventLocked(envelope)
         }
     }
 
-    private fun handleApprovalRequested(rpcId: String, frame: MuxFrame.ApprovalRequested) {
+    /**
+     * Where session events go for completion notifications.
+     *
+     * A hook rather than a direct dependency: the notification observer already depends on this
+     * store, and 0.1.2 leaves no all-session stream for it to read instead.
+     */
+    @Volatile
+    var notificationSink: ((String, SessionEventEnvelope) -> Unit)? = null
+
+    private fun handleApprovalRequested(eventId: String, sessionId: String, request: ApprovalRequestEvent) {
         synchronized(lock) {
-            approvalRequests[frame.approvalId] =
-                ApprovalRequest(frame.sessionId, frame.approvalId, rpcId, frame.toolName, frame.reason)
-            addPendingLocked(frame.sessionId, "approval")
+            approvalRequests[eventId] =
+                ApprovalRequest(sessionId, eventId, request.toolName, request.reason)
+            addPendingLocked(sessionId, "approval")
             emitSessionsLocked()
         }
         _pendingApproval.value = PendingApproval(
-            sessionId = frame.sessionId,
-            approvalId = frame.approvalId,
-            rpcId = rpcId,
-            toolName = frame.toolName,
-            reason = frame.reason,
+            sessionId = sessionId,
+            // The event id is the approval id now: 0.1.2 correlates a pending request by the
+            // frame's own `eventId` and mints nothing separate.
+            approvalId = eventId,
+            rpcId = eventId,
+            toolName = request.toolName,
+            reason = request.reason,
         )
     }
 
-    private fun handleApprovalResolved(frame: MuxFrame.ApprovalResolved) {
+    private fun handleQuestionRequested(
+        eventId: String,
+        sessionId: String,
+        questions: List<AskUserQuestionItem>,
+    ) {
         synchronized(lock) {
-            approvalRequests.remove(frame.approvalId)
-            removePendingLocked(frame.sessionId, "approval")
-            emitSessionsLocked()
-        }
-        if (_pendingApproval.value?.approvalId == frame.approvalId) _pendingApproval.value = null
-    }
-
-    private fun handleQuestionRequested(rpcId: String, frame: MuxFrame.QuestionRequested) {
-        synchronized(lock) {
-            questionRpcBySession[frame.sessionId] = rpcId
-            val kind = if (frame.questions.any { it.intent is AskUserQuestionIntent.PlanReview }) {
+            questionEventBySession[sessionId] = eventId
+            val kind = if (questions.any { it.intent is AskUserQuestionIntent.PlanReview }) {
                 "plan-review"
             } else {
                 "question"
             }
-            addPendingLocked(frame.sessionId, kind)
+            addPendingLocked(sessionId, kind)
             emitSessionsLocked()
         }
-        _pendingQuestions.value = PendingQuestions(frame.sessionId, rpcId, frame.questions)
+        _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
     }
 
-    private fun handleQuestionResolved(frame: MuxFrame.QuestionResolved) {
-        synchronized(lock) {
-            questionRpcBySession.remove(frame.sessionId)
-            removePendingLocked(frame.sessionId, "question")
-            removePendingLocked(frame.sessionId, "plan-review")
-            emitSessionsLocked()
-        }
-        if (_pendingQuestions.value?.sessionId == frame.sessionId) _pendingQuestions.value = null
+    // ------------------------------------------------------------------ session list state updates
+    /**
+     * One session became visible to list consumers.
+     *
+     * The notification carries the whole list row rather than the loose fields the old
+     * `host/session-added` frame did, so this decodes a summary and folds it in.
+     */
+    private fun onSessionAdded(summary: JsonElement) {
+        val item = runCatching {
+            decodeFromJsonElement(SessionSummary.serializer(), summary)
+        }.getOrNull() ?: return
+        onSessionAdded(item)
     }
 
-    private fun handleSessionQueue(frame: MuxFrame.SessionQueue) {
+    private fun onSessionAdded(item: SessionSummary) {
         synchronized(lock) {
-            if (frame.sessionId == currentId) {
-                currentQueue = frame.items.map { queuedInboxItemToQueueItem(it) }
-                rebuildCurrentLocked()
-            }
-        }
-    }
-
-    private fun handleSessionJobs(frame: MuxFrame.SessionJobs) {
-        synchronized(lock) {
-            if (frame.sessionId == currentId) {
-                _jobs.value = frame.jobs
-            }
-        }
-    }
-
-    private fun handleSessionProjection(frame: MuxFrame.SessionProjection) {
-        synchronized(lock) {
-            if (frame.sessionId == currentId) {
-                mergeProjectionLocked(frame.key, frame.seq, frame.value)
-                rebuildCurrentLocked()
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------ host frame state updates
-    private fun onSessionAdded(frame: HostFrame.SessionAdded) {
-        synchronized(lock) {
-            val existing = sessionRows[frame.sessionId]
-            val title = titleBySession[frame.sessionId]
+            val existing = sessionRows[item.sessionId]
+            val title = titleBySession[item.sessionId]
             val row = existing?.copy(
                 title = title ?: existing.title,
-                blank = frame.blank,
-                parentSessionId = frame.parentSessionId,
-                origin = frame.origin,
-                cwd = frame.cwd,
-                agentPreset = frame.agentPreset,
+                blank = item.blank,
+                parentSessionId = item.parentSessionId,
+                origin = item.origin,
+                cwd = item.cwd,
+                agentPreset = item.agentPreset,
             ) ?: SessionRow(
-                sessionId = frame.sessionId,
+                sessionId = item.sessionId,
                 title = title,
-                running = runningBySession[frame.sessionId] ?: false,
-                blank = frame.blank,
-                parentSessionId = frame.parentSessionId,
-                origin = frame.origin,
-                cwd = frame.cwd,
-                agentPreset = frame.agentPreset,
-                updatedAt = System.currentTimeMillis(),
+                running = runningBySession[item.sessionId] ?: item.running,
+                blank = item.blank,
+                parentSessionId = item.parentSessionId,
+                origin = item.origin,
+                cwd = item.cwd,
+                agentPreset = item.agentPreset,
+                updatedAt = item.updatedAt,
                 pendingInteraction = null,
             )
             if (existing == null) {
                 // New sessions appear at the front (most recent first).
                 val copy = LinkedHashMap<String, SessionRow>(sessionRows.size + 1)
-                copy[frame.sessionId] = row
+                copy[item.sessionId] = row
                 copy.putAll(sessionRows)
                 sessionRows.clear()
                 sessionRows.putAll(copy)
             } else {
-                sessionRows[frame.sessionId] = row
+                sessionRows[item.sessionId] = row
             }
             emitSessionsLocked()
         }
@@ -711,7 +919,7 @@ class SessionStore @Inject constructor(
             sessionRows.remove(sessionId)
             pendingKinds.remove(sessionId)
             runningBySession.remove(sessionId)
-            questionRpcBySession.remove(sessionId)
+            questionEventBySession.remove(sessionId)
             emitSessionsLocked()
         }
     }
@@ -721,6 +929,15 @@ class SessionStore @Inject constructor(
             runningBySession[sessionId] = running
             sessionRows[sessionId]?.let { if (it.running != running) sessionRows[sessionId] = it.copy(running = running) }
             if (sessionId == currentId) rebuildCurrentLocked()
+            emitSessionsLocked()
+        }
+    }
+
+    /** Reorder one session on a durable user message, without touching anything else about it. */
+    private fun setUpdatedAt(sessionId: String, updatedAt: Long) {
+        synchronized(lock) {
+            val row = sessionRows[sessionId] ?: return@synchronized
+            sessionRows[sessionId] = row.copy(updatedAt = updatedAt)
             emitSessionsLocked()
         }
     }
@@ -909,32 +1126,19 @@ class SessionStore @Inject constructor(
             }
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
-        refreshWorkspaces()
-        when (val r = api.hostDescribe()) {
-            is RpcResult.Ok -> _hostInfo.value = r.value
-            is RpcResult.Err -> setConnectionError(r.error.message)
-        }
     }
 
-    private suspend fun refreshWorkspaces() {
-        val api = apiOrNull() ?: return
-        when (val r = api.workspaceList()) {
-            is RpcResult.Ok -> {
-                synchronized(lock) {
-                    workspaceRows.clear()
-                    workspaceOrder.clear()
-                    for (w in r.value.items) {
-                        workspaceRows[w.workspaceId] = w.toRow()
-                        workspaceOrder.add(w.workspaceId)
-                    }
-                    archived = r.value.archivedSessionIds.toSet()
-                    _archivedSessionIds.value = archived
-                    emitWorkspacesLocked()
-                }
-            }
-            is RpcResult.Err -> setConnectionError(r.error.message)
-        }
-    }
+    /**
+     * Apply one workspace mutation's own answer immediately.
+     *
+     * `workspace.list` no longer exists; the registry is a stream, and a mutation answers with the
+     * value it produced. Applying it here keeps the UI responsive without waiting for the stream
+     * to commit, and the stream's next frame — which is authoritative — corrects anything this
+     * guessed. Deleting is the one case that must not be optimistic in reverse: a delayed upsert
+     * could otherwise resurrect a row, which is why removal goes through the same path as the
+     * stream's own.
+     */
+    private fun applyWorkspaceValue(value: WorkspaceValue) = upsertWorkspace(value.workspace)
 
     suspend fun openSession(sessionId: String) = withContext(Dispatchers.Default) {
         val api = apiOrNull() ?: return@withContext
@@ -948,8 +1152,6 @@ class SessionStore @Inject constructor(
             currentBlank = sessionRows[sessionId]?.blank ?: true
             currentProjections.clear()
             currentQueue = emptyList()
-            toolViewsBySeq.clear()
-            _toolViews.value = emptyMap()
             if (!same) {
                 _currentConversation.value = null
                 _jobs.value = emptyList()
@@ -962,41 +1164,100 @@ class SessionStore @Inject constructor(
                 _pendingPermission.value = null
             }
         }
-        when (val r = api.sessionHistory(SessionHistoryRequest(sessionId, null, HISTORY_PAGE_SIZE))) {
-            is RpcResult.Ok -> {
-                clearConnectionError()
-                val page = historyTail(r.value.events)
-                val overDelivered = r.value.events.size > page.size
-                val envelopes = ArrayList<SessionEventEnvelope>(page.size)
-                val views = HashMap<Long, ToolEventView>()
-                for (entry in page) {
-                    envelopes.add(sessionEventToEnvelope(entry.event))
-                    entry.view?.let { views[entry.event.seq.toLong()] = it }
-                }
-                synchronized(lock) {
-                    if (currentId != sessionId) return@synchronized
-                    currentEvents.clear()
-                    currentEvents.addAll(envelopes)
-                    currentEvents.sortBy { it.seq }
-                    currentHasMore = r.value.hasMore || overDelivered
-                    toolViewsBySeq.putAll(views)
-                    _toolViews.value = toolViewsBySeq.toMap()
-                    r.value.projections?.let { block ->
-                        block.values.forEach { (key, value) ->
-                            currentProjections[key] = ProjectionValue(block.asOfSeq, value)
-                        }
-                    }
-                    rebuildCurrentLocked()
-                }
-            }
-            is RpcResult.Err -> setConnectionError(r.error.message)
-        }
+        startFollow(sessionId)
         loadSkills(sessionId)
         loadModels(sessionId)
         refreshSubagents()
         refreshCommands()
         rememberLastSession(sessionId)
     }
+
+    /**
+     * Open the live journal for one session, replacing whatever was open.
+     *
+     * There is no separate history read any more. `session/follow` opens with a complete snapshot
+     * carrying the first page, its projections, and the log cut the generation opened at; every
+     * later item is one live event. A reconnect re-opens the stream and sends another complete
+     * snapshot, so the window is replaced wholesale rather than patched — which is why the
+     * snapshot handler clears the buffer instead of merging into it.
+     *
+     * Following does not resume a stopped agent: the host publishes a cold session's prepared
+     * snapshot immediately and promotes it in the background, so opening a transcript is an
+     * observation rather than an execution.
+     */
+    private fun startFollow(sessionId: String) {
+        followJob?.cancel()
+        followCursor = null
+        val mux = connectionManager.generation?.mux
+        if (mux == null) {
+            log("cannot follow $sessionId: no connection generation")
+            return
+        }
+        val args = buildJsonObject {
+            put(
+                "request",
+                encodeToJsonElement(
+                    SessionFollowRequest.serializer(),
+                    SessionFollowRequest(
+                        address = SessionAddress.Session(sessionId = sessionId),
+                        maxMessages = HISTORY_PAGE_SIZE,
+                    ),
+                ),
+            )
+        }
+        followJob = scope.launch {
+            runCatching {
+                mux.openStream("session/follow", args).collect { item ->
+                    when (val frame = decodeOrNull(SessionFollowFrameSerializer, item)) {
+                        is SessionFollowFrame.Snapshot -> applyFollowSnapshot(sessionId, frame)
+                        is SessionFollowFrame.Entry -> applyFollowEntry(sessionId, frame.record)
+                        null -> log("undecodable session/follow frame")
+                    }
+                }
+            }.onFailure { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                log("session/follow ended for $sessionId", failure)
+                setConnectionError(failure.message)
+            }
+        }
+    }
+
+    /** Install one complete opening window, replacing any previous one for this session. */
+    private fun applyFollowSnapshot(sessionId: String, frame: SessionFollowFrame.Snapshot) {
+        clearConnectionError()
+        val envelopes = expandRecords(frame.records)
+        val page = historyTail(envelopes)
+        val overDelivered = envelopes.size > page.size
+        synchronized(lock) {
+            if (currentId != sessionId) return@synchronized
+            followCursor = frame.cursor
+            currentEvents.clear()
+            currentEvents.addAll(page)
+            currentEvents.sortBy { it.seq }
+            currentHasMore = frame.hasMore || overDelivered
+            val asOf = frame.projections["asOfSeq"]?.jsonPrimitive?.intOrNull ?: frame.cursor
+            (frame.projections["values"] as? JsonObject)?.forEach { (key, value) ->
+                mergeProjectionLocked(key, asOf, value)
+            }
+            rebuildCurrentLocked()
+        }
+    }
+
+    /** One live event. Always scalar — packing applies to history pages only. */
+    private fun applyFollowEntry(sessionId: String, record: SessionHistoryRecord) {
+        for (envelope in expandRecords(listOf(record))) {
+            handleSessionEvent(sessionId, envelope)
+        }
+    }
+
+    /**
+     * Flatten history records into the envelopes the fold consumes.
+     *
+     * A packed run expands into one event per member; see
+     * [com.labteto.dshmobile.core.session.ChunkRows] for why expansion rather than folding.
+     */
+    private fun expandRecords(records: List<SessionHistoryRecord>): List<SessionEventEnvelope> =
+        ChunkRows.expandAll(records).map { wireEventToEnvelope(it) }
 
     /** Persist the landing session for this harness; a write failure is not worth surfacing. */
     private suspend fun rememberLastSession(sessionId: String) {
@@ -1018,31 +1279,39 @@ class SessionStore @Inject constructor(
         val api = apiOrNull() ?: return@withContext
         if (!_loadingOlder.compareAndSet(expect = false, update = true)) return@withContext
         try {
-            val oldestSeq = synchronized(lock) { currentEvents.firstOrNull()?.seq }
-            when (val r = api.sessionHistory(SessionHistoryRequest(sid, oldestSeq?.toInt(), HISTORY_PAGE_SIZE))) {
+            val (oldestSeq, cursor) = synchronized(lock) {
+                currentEvents.firstOrNull()?.seq to followCursor
+            }
+            // A page is pinned to the follow generation's log cut, and there is no page without
+            // one. Before the opening snapshot lands there is nothing to pin to, so this waits
+            // for the next scroll rather than guessing a cut the host would reject.
+            if (cursor == null) {
+                log("cannot page $sid: no follow cursor yet")
+                return@withContext
+            }
+            val request = SessionPageRequest(
+                address = SessionAddress.Session(sessionId = sid),
+                throughSeq = cursor,
+                beforeSeq = oldestSeq?.toInt(),
+                maxMessages = HISTORY_PAGE_SIZE,
+            )
+            when (val r = api.sessionPage(request)) {
                 is RpcResult.Ok -> {
                     clearConnectionError()
                     _loadOlderFailed.value = false
-                    // Same guard as the initial page, so paging backwards stays bounded instead of
-                    // pulling the whole log at once.
-                    val page = historyTail(r.value.events)
-                    val overDelivered = r.value.events.size > page.size
-                    val envelopes = ArrayList<SessionEventEnvelope>(page.size)
-                    val views = HashMap<Long, ToolEventView>()
-                    for (entry in page) {
-                        envelopes.add(sessionEventToEnvelope(entry.event))
-                        entry.view?.let { views[entry.event.seq.toLong()] = it }
-                    }
+                    // Same guard as the opening window, so paging backwards stays bounded instead
+                    // of pulling the whole log at once.
+                    val envelopes = expandRecords(r.value.records)
+                    val page = historyTail(envelopes)
+                    val overDelivered = envelopes.size > page.size
                     synchronized(lock) {
                         if (currentId != sid) return@synchronized
                         val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
-                        val fresh = envelopes.filter { it.seq !in existingSeqs }
+                        val fresh = page.filter { it.seq !in existingSeqs }
                         if (fresh.isNotEmpty()) {
                             currentEvents.addAll(fresh)
                             currentEvents.sortBy { it.seq }
                         }
-                        views.forEach { (seq, view) -> toolViewsBySeq[seq] = view }
-                        _toolViews.value = toolViewsBySeq.toMap()
                         currentHasMore = nextHasMore(fresh.size, r.value.hasMore, overDelivered)
                         rebuildCurrentLocked()
                     }
@@ -1186,14 +1455,20 @@ class SessionStore @Inject constructor(
             log("no pending approval for id $approvalId")
             return
         }
-        val outcome = if (allow) "allowed-once" else "rejected"
-        val value = buildJsonObject {
-            put("sessionId", JsonPrimitive(sessionId))
-            put("approvalId", JsonPrimitive(approvalId))
-            put("outcome", JsonPrimitive(outcome))
+        val clientId = connectionManager.generation?.clientId
+        if (clientId == null) {
+            log("cannot answer approval $approvalId: no connection generation")
+            return
         }
-        val receipt = api.respond(request.rpcId, value)
-        if (receipt == null) log("approval response not acknowledged for $approvalId")
+        val outcome = if (allow) ApprovalOutcome.ALLOWED_ONCE else ApprovalOutcome.REJECTED
+        // The waterfall's own return value *is* the outcome string, so this claims the request
+        // with a bare value rather than the object 0.1.1 posted to /api/respond.
+        val result = api.answerEvent(
+            clientId = clientId,
+            eventId = request.eventId,
+            outcome = RemoteEventOutcome.Result(value = JsonPrimitive(outcome)),
+        )
+        if (result is RpcResult.Err) log("approval response failed for $approvalId: ${result.error.message}")
     }
 
     /**
@@ -1207,12 +1482,20 @@ class SessionStore @Inject constructor(
      */
     suspend fun answerQuestions(sessionId: String, answer: AskUserQuestionAnswer): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val rpcId = pendingQuestionRpc(sessionId) ?: return QuestionOutcome.Refused("not-pending")
-        val value = buildJsonObject {
-            put("sessionId", JsonPrimitive(sessionId))
-            put("answer", encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer))
-        }
-        return receiptOutcome(api.respond(rpcId, value), "question response", sessionId)
+        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
+        // The waterfall returns the answer object itself; there is no envelope around it now.
+        return answerOutcome(
+            api.answerEvent(
+                clientId = clientId,
+                eventId = eventId,
+                outcome = RemoteEventOutcome.Result(
+                    value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
+                ),
+            ),
+            "question response",
+            sessionId,
+        )
     }
 
     /**
@@ -1225,35 +1508,56 @@ class SessionStore @Inject constructor(
      */
     suspend fun dismissQuestions(sessionId: String): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val rpcId = pendingQuestionRpc(sessionId) ?: return QuestionOutcome.Refused("not-pending")
-        return receiptOutcome(
-            api.respondError(rpcId, QUESTION_CANCELLED),
+        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
+        // A rejection, not an empty answer, and not `next`: `next` would delegate to the host's
+        // own later listeners, which is a different thing from the user closing the prompt.
+        return answerOutcome(
+            api.answerEvent(
+                clientId = clientId,
+                eventId = eventId,
+                outcome = RemoteEventOutcome.Rejected(
+                    error = RemoteEventRejection(
+                        name = "UserQuestionError",
+                        message = QUESTION_CANCELLED.message,
+                        code = QUESTION_CANCELLED.code,
+                    ),
+                ),
+            ),
             "question dismissal",
             sessionId,
         )
     }
 
-    private fun pendingQuestionRpc(sessionId: String): String? {
-        val rpcId = synchronized(lock) { questionRpcBySession[sessionId] }
-        if (rpcId == null) log("no pending question for session $sessionId")
-        return rpcId
+    private fun pendingQuestionEvent(sessionId: String): String? {
+        val eventId = synchronized(lock) { questionEventBySession[sessionId] }
+        if (eventId == null) log("no pending question for session $sessionId")
+        return eventId
     }
 
-    private fun receiptOutcome(
-        receipt: RpcReceipt?,
+    /**
+     * Map one `$events/result` answer onto the store's outcome vocabulary.
+     *
+     * A failure here is not retried: upstream fails the whole connection generation on it and
+     * replays the pending request on the next one, so a retry would answer the same question
+     * twice.
+     */
+    private fun answerOutcome(
+        result: RpcResult<JsonElement>,
         what: String,
         sessionId: String,
-    ): QuestionOutcome = when {
-        receipt == null -> {
-            log("$what not acknowledged for $sessionId")
-            QuestionOutcome.Unsent
-        }
-        receipt.accepted -> QuestionOutcome.Accepted
-        else -> {
-            log("$what refused for $sessionId: ${receipt.reason}")
-            QuestionOutcome.Refused(receipt.reason ?: "refused")
+    ): QuestionOutcome = when (result) {
+        is RpcResult.Ok -> QuestionOutcome.Accepted
+        is RpcResult.Err -> {
+            log("$what failed for $sessionId: ${result.error.message}")
+            if (result.error.code == "not-pending") {
+                QuestionOutcome.Refused("not-pending")
+            } else {
+                QuestionOutcome.Unsent
+            }
         }
     }
+
 
     suspend fun selectModel(provider: String, model: String, reasoningEffort: String? = null) {
         val sid = currentSessionId.value ?: return
@@ -1320,7 +1624,7 @@ class SessionStore @Inject constructor(
     suspend fun refreshSubagents() {
         val sid = currentSessionId.value ?: return
         val api = apiOrNull() ?: return
-        when (val r = api.subagentList(SubagentListRequest(sid))) {
+        when (val r = api.subagentList(sid)) {
             is RpcResult.Ok -> synchronized(lock) {
                 if (currentId == sid) _subagents.value = r.value.entries
             }
@@ -1331,7 +1635,7 @@ class SessionStore @Inject constructor(
     suspend fun interruptSubagent(childSessionId: String) {
         val sid = currentSessionId.value ?: return
         val api = apiOrNull() ?: return
-        when (val r = api.subagentInterrupt(SubagentInterruptRequest(parentSessionId = sid, childSessionId = childSessionId))) {
+        when (val r = api.subagentInterrupt(childSessionId = childSessionId, parentSessionId = sid)) {
             is RpcResult.Ok -> Unit
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
@@ -1369,15 +1673,31 @@ class SessionStore @Inject constructor(
             log("subagent $childSessionId has no readable transcript mode")
             return
         }
-        val request = SubagentHistoryRequest(sid, childSessionId, mode, null, HISTORY_PAGE_SIZE)
-        when (val r = api.subagentHistory(request)) {
+        // `subagents/history` is gone: one address protocol covers ordinary sessions and direct
+        // children alike, so a child transcript is an ordinary page read against a subagent
+        // address. It needs a follow cursor like any other page, and this surface has no stream of
+        // its own — so it reads at the parent's current cut, which is the same log the child's
+        // events are sequenced in.
+        val cursor = synchronized(lock) { followCursor }
+        if (cursor == null) {
+            _subagentConversation.value = null
+            log("cannot read subagent $childSessionId: no follow cursor yet")
+            return
+        }
+        val request = SessionPageRequest(
+            address = SessionAddress.Subagent(
+                parentSessionId = sid,
+                childSessionId = childSessionId,
+                mode = mode,
+            ),
+            throughSeq = cursor,
+            maxMessages = HISTORY_PAGE_SIZE,
+        )
+        when (val r = api.sessionPage(request)) {
             is RpcResult.Ok -> {
-                val envelopes = r.value.events.mapNotNull { sessionEventToEnvelope(it.event) }
-                val snapshot = EventFold(childSessionId).fold(envelopes).copy(
-                    hasMore = r.value.hasMore,
-                    projections = r.value.projections?.values ?: emptyMap(),
-                )
-                _subagentConversation.value = snapshot
+                val envelopes = expandRecords(r.value.records)
+                _subagentConversation.value = EventFold(childSessionId).fold(envelopes)
+                    .copy(hasMore = r.value.hasMore)
             }
             is RpcResult.Err -> {
                 _subagentConversation.value = null
@@ -1389,7 +1709,7 @@ class SessionStore @Inject constructor(
     suspend fun createWorkspace(path: String) {
         val api = apiOrNull() ?: return
         when (val r = api.workspaceCreate(WorkspaceCreateRequest(path))) {
-            is RpcResult.Ok -> refreshWorkspaces()
+            is RpcResult.Ok -> upsertWorkspace(r.value.workspace)
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
     }
@@ -1397,7 +1717,7 @@ class SessionStore @Inject constructor(
     suspend fun renameWorkspace(id: String, title: String) {
         val api = apiOrNull() ?: return
         when (val r = api.workspaceRename(WorkspaceRenameRequest(id, title))) {
-            is RpcResult.Ok -> refreshWorkspaces()
+            is RpcResult.Ok -> applyWorkspaceValue(r.value)
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
     }
@@ -1405,7 +1725,7 @@ class SessionStore @Inject constructor(
     suspend fun deleteWorkspace(id: String) {
         val api = apiOrNull() ?: return
         when (val r = api.workspaceDelete(WorkspaceDeleteRequest(id))) {
-            is RpcResult.Ok -> refreshWorkspaces()
+            is RpcResult.Ok -> removeWorkspace(id)
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
     }
@@ -1420,7 +1740,9 @@ class SessionStore @Inject constructor(
                     log("goal create requires an objective")
                     return
                 }
-                handleResult(api.goalCreate(GoalCreateRequest(sid, obj)))
+                handleResult(
+                    api.goalCreate(sid, buildJsonObject { put("objective", JsonPrimitive(obj)) }),
+                )
             }
             "edit", "pause", "resume", "complete", "clear" -> {
                 val ref = synchronized(lock) { goalRefFromProjectionLocked() }
@@ -1429,11 +1751,19 @@ class SessionStore @Inject constructor(
                     return
                 }
                 when (action) {
-                    "edit" -> handleResult(api.goalEdit(GoalEditRequest(sid, ref, objective)))
-                    "pause" -> handleResult(api.goalPause(GoalPauseRequest(sid, ref)))
-                    "resume" -> handleResult(api.goalResume(GoalResumeRequest(sid, ref)))
-                    "complete" -> handleResult(api.goalComplete(GoalCompleteRequest(sid, ref)))
-                    "clear" -> handleResult(api.goalClear(GoalClearRequest(sid, ref)))
+                    "edit" -> handleResult(
+                        api.goalEdit(
+                            sid,
+                            ref,
+                            buildJsonObject {
+                                if (objective != null) put("objective", JsonPrimitive(objective))
+                            },
+                        ),
+                    )
+                    "pause" -> handleResult(api.goalPause(sid, ref))
+                    "resume" -> handleResult(api.goalResume(sid, ref))
+                    "complete" -> handleResult(api.goalComplete(sid, ref))
+                    "clear" -> handleResult(api.goalClear(sid, ref))
                 }
             }
             else -> log("unknown goal action $action")
@@ -1573,7 +1903,7 @@ class SessionStore @Inject constructor(
     suspend fun selectAgentPreset(agentPreset: String): Boolean {
         val sid = currentSessionId.value ?: return false
         val api = apiOrNull() ?: return false
-        return when (val r = api.agentPresetSelect(AgentPresetSelectRequest(sid, agentPreset))) {
+        return when (val r = api.agentPresetSelect(sid, agentPreset)) {
             is RpcResult.Ok -> {
                 refreshSessions()
                 true
@@ -1634,7 +1964,9 @@ class SessionStore @Inject constructor(
 
     private suspend fun loadModels(sessionId: String) {
         val api = apiOrNull() ?: return
-        when (val r = api.sessionModels(SessionModelsRequest(sessionId))) {
+        // Host-scoped now, not session-scoped: `session/modelCatalog` describes the generation's
+        // routable models, and the session's own current selection comes from its projections.
+        when (val r = api.sessionModelCatalog()) {
             is RpcResult.Ok -> synchronized(lock) {
                 if (currentId == sessionId) _models.value = r.value
             }
@@ -1654,12 +1986,12 @@ class SessionStore @Inject constructor(
      * cannot stall the fold. Anything trimmed is reported as `hasMore`, which is what
      * "Load older" is for.
      */
-    private fun historyTail(entries: List<HistoryEntry>): List<HistoryEntry> {
+    private fun historyTail(entries: List<SessionEventEnvelope>): List<SessionEventEnvelope> {
         if (entries.size <= MAX_PAGE_EVENTS) return entries
         var messages = 0
         var index = entries.lastIndex
         while (index > 0 && entries.size - index < MAX_PAGE_EVENTS) {
-            if (entries[index].event.type in SURFACE_EVENT_TYPES) {
+            if (entries[index].type in SURFACE_EVENT_TYPES) {
                 messages++
                 if (messages >= HISTORY_PAGE_SIZE) break
             }
@@ -1676,12 +2008,14 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Whether this connection's harness carries images on a slash command (harness 0.1.0-rc.8).
+     * Whether this connection's harness carries images on a slash command.
      *
-     * Read at submit time rather than observed: the value is latched during the handshake, long
-     * before any command can be dispatched, and it never changes within a connection.
+     * Always true from harness 0.1.2: `commands/execute` declares the `images` parameter
+     * unconditionally, and the shape-derived capability check this used to perform depended on
+     * `host.describe`, which no longer exists. Kept as a property so the composer's adjudication
+     * has one place to consult if a future release makes it conditional again.
      */
-    val commandImagesSupported: Boolean get() = connectionManager.connectedApi?.acceptsCommandImages == true
+    val commandImagesSupported: Boolean get() = connectionManager.connectedApi != null
 
     private fun apiOrNull(): DshApiClient? {
         val api = connectionManager.connectedApi

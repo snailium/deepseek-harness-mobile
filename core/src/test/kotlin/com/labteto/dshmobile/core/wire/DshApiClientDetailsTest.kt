@@ -29,13 +29,17 @@ class DshApiClientDetailsTest {
             error("not used")
     }
 
-    private fun client(transport: RpcTransport) = DshApiClient(
-        transport = transport,
-        wsFactory = { _, _ -> error("not used") },
-    )
+    private fun client(transport: RpcTransport) = DshApiClient(transport = transport)
+
+    /**
+     * Any unary call would do; this one takes no arguments and every deployment composes it.
+     * `host.describe` used to play that role and no longer exists.
+     */
+    private suspend fun probe(transport: RpcTransport) =
+        client(transport).sessionCanOpenWorkspacePath()
 
     private suspend fun failureOf(transport: RpcTransport): TransportFailure? =
-        when (val r = client(transport).hostDescribe()) {
+        when (val r = probe(transport)) {
             is RpcResult.Ok -> error("expected a failure")
             is RpcResult.Err -> TransportFailures.of(r.error)
         }
@@ -43,7 +47,7 @@ class DshApiClientDetailsTest {
     @Test
     fun `a trust fence rejection keeps both its code and its kind`() = runTest {
         val transport = ThrowingTransport(RpcTransportException(403, carrierMessage(403)))
-        when (val r = client(transport).hostDescribe()) {
+        when (val r = probe(transport)) {
             is RpcResult.Ok -> error("expected a failure")
             is RpcResult.Err -> {
                 assertEquals("forbidden", r.error.code)
@@ -83,7 +87,22 @@ class DshApiClientDetailsTest {
     /** A well-formed envelope whose value does not match the expected schema lands the same way. */
     @Test
     fun `a decodable envelope with the wrong value shape is marked as such`() = runTest {
+        // The envelope parses and reports success; only the value inside it is not what the
+        // method declares. Something else answering on the port lands here rather than in the
+        // carrier-failure path, so the marker has to be set here too.
         val body = """{"type":"server-response","rpcId":"r1","result":{"ok":true,"value":{"nope":1}}}"""
-        assertEquals(TransportFailure.NOT_A_HARNESS, failureOf(FixedTransport(RpcHttpResponse(200, body))))
+        val result = client(FixedTransport(RpcHttpResponse(200, body))).settingsDescribe()
+        assertEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.of((result as RpcResult.Err).error))
+    }
+
+    @Test
+    fun `a value decode that throws outside SerializationException still returns a result`() = runTest {
+        // Decoding an object where a primitive is declared surfaces from inside kotlinx as an
+        // IndexOutOfBoundsException, not a SerializationException. This method promises an
+        // RpcResult either way; an escaping exception would crash the connect screen instead of
+        // reporting that the port is not a harness.
+        val body = """{"type":"server-response","rpcId":"r1","result":{"ok":true,"value":{"nope":1}}}"""
+        val result = probe(FixedTransport(RpcHttpResponse(200, body)))
+        assertEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.of((result as RpcResult.Err).error))
     }
 }

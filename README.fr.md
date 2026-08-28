@@ -98,7 +98,9 @@ et une [FAQ](https://github.com/sorsama/deepseek-harness-mobile/wiki/FAQ).
 
 - Android 8.0 ou plus (minSdk 26).
 - Un [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) en cours d'exécution
-  (testé avec `0.1.1-rc.2`).
+  (testé avec `0.1.2-alpha.1`). **0.9.0 ne parle pas le protocole 0.1.1** — cette
+  version a remplacé le protocole au lieu de l’étendre, donc l’app et le harness
+  doivent évoluer ensemble. Voir [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## Démarrage rapide
 
@@ -138,6 +140,8 @@ Si une tentative de connexion échoue, l'application en nomme la cause ; la page
 organisée autour de cette phrase exacte.
 
 ## Compatibilité et sécurité
+
+> **0.1.2:** Depuis le harness 0.1.2, le harness authentifie toute son API : collez une fois le lien qu’il affiche au démarrage lorsque l’app le demande. Cela authentifie le téléphone mais ne chiffre pas la connexion — réservez-le donc aux réseaux de confiance.
 
 - Voir [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) pour la matrice des versions du harness et
   les surfaces accessibles uniquement en loopback.

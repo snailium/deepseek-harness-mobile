@@ -5,6 +5,7 @@ import com.labteto.dshmobile.core.wire.RelayOrigin
 import com.labteto.dshmobile.core.wire.RelayPairing
 import com.labteto.dshmobile.core.wire.RelayTls
 import com.labteto.dshmobile.core.wire.dto.HostDescription
+import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.TransportFailure
 import com.labteto.dshmobile.core.wire.TransportFailures
@@ -142,15 +143,23 @@ class DiscoveryEngine @Inject constructor(
             clientFactory.anonymousClient(harnessBaseUrl(host, port, useTls), timeouts)
         }
         val relay = config?.isRelay == true
-        when (val result = client.hostDescribe()) {
-            is RpcResult.Ok -> ProbeOutcome.Reachable(result.value)
+        // `host.describe` was the probe through 0.1.1: one call that proved the endpoint spoke the
+        // protocol and described it in the same breath. 0.1.2 has no such call, so the two jobs
+        // separate. `session/canOpenWorkspacePath` is the reachability proof — no arguments, and
+        // the Session Controller that serves it is composed by every deployment, so a 404 here
+        // really does mean "not a harness" rather than "that service is not installed".
+        when (val result = client.sessionCanOpenWorkspacePath()) {
+            is RpcResult.Ok -> ProbeOutcome.Reachable(describeHome(client, config))
             is RpcResult.Err -> when (TransportFailures.of(result.error)) {
                 // The relay answers the same 403 whether it has never seen this device, the token
-                // expired, or the operator revoked it — and never a 401, so the status alone cannot
-                // separate "pair again" from the harness's own `Host` fence. What the app already
-                // knows about the address can.
+                // expired, or the operator revoked it, so the status alone cannot separate "pair
+                // again" from the harness's own `Host` fence. What the app already knows about the
+                // address can. A harness reached directly now answers 401 for the same class of
+                // fact — no browser session — which is its own outcome rather than a fence.
                 TransportFailure.TRUST_FENCE ->
                     if (relay) ProbeOutcome.PairingRequired else ProbeOutcome.TrustFence
+                TransportFailure.UNAUTHENTICATED ->
+                    if (relay) ProbeOutcome.PairingRequired else ProbeOutcome.Unauthenticated
                 TransportFailure.CERTIFICATE_PIN -> ProbeOutcome.CertificateChanged
                 TransportFailure.REFUSED -> ProbeOutcome.Refused
                 TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
@@ -161,6 +170,20 @@ class DiscoveryEngine @Inject constructor(
                 TransportFailure.OTHER, null -> ProbeOutcome.Other(result.error.message)
             }
         }
+    }
+
+    /**
+     * The host home, for a host worth a second call.
+     *
+     * Only the ready frame publishes this fact for certain, and a probe does not open the mux. A
+     * directory listing carries the same value, so a named host spends one extra request to fill
+     * in its subtitle; the LAN sweep does not, because 254 candidates are not worth 254 extra
+     * round-trips for a caption. A deployment whose picker cannot browse simply answers an error,
+     * and the host stays reachable with an unknown home.
+     */
+    private suspend fun describeHome(client: DshApiClient, config: HostConfig?): HostDescription? {
+        if (config == null) return null
+        return (client.hostListDirectory() as? RpcResult.Ok)?.value?.home?.let { HostDescription(it) }
     }
 
     /**

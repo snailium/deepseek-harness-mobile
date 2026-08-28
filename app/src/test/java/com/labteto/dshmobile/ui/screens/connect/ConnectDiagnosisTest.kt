@@ -43,7 +43,7 @@ class ConnectDiagnosisTest {
     fun `streams that never open are reported as blocked, not as a dead host`() {
         assertEquals(
             ConnectFailure.StreamsBlocked,
-            ConnectFailure.from(GenerationFailure.StreamsTimedOut(3_000)),
+            ConnectFailure.from(GenerationFailure.MuxTimedOut(3_000)),
         )
     }
 
@@ -51,19 +51,19 @@ class ConnectDiagnosisTest {
     fun `a stream failure carries its transport kind through`() {
         assertEquals(
             ConnectFailure.TrustFence,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.TRUST_FENCE, "403")),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.TRUST_FENCE, "403")),
         )
         assertEquals(
             ConnectFailure.Refused,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.REFUSED, null)),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.REFUSED, null)),
         )
         assertEquals(
             ConnectFailure.Timeout,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.TIMEOUT, null)),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.TIMEOUT, null)),
         )
         assertEquals(
             ConnectFailure.TlsFailure,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.TLS, "handshake failed")),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.TLS, "handshake failed")),
         )
     }
 
@@ -71,7 +71,7 @@ class ConnectDiagnosisTest {
     fun `an unclassifiable stream failure falls back to blocked streams`() {
         assertEquals(
             ConnectFailure.StreamsBlocked,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.OTHER, null)),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.OTHER, null)),
         )
     }
 
@@ -82,14 +82,14 @@ class ConnectDiagnosisTest {
             message = "harness trust fence rejected the request (HTTP 403)",
             details = TransportFailures.details(TransportFailure.TRUST_FENCE, 403),
         )
-        assertEquals(ConnectFailure.TrustFence, ConnectFailure.from(GenerationFailure.DescribeFailed(fenced)))
+        assertEquals(ConnectFailure.TrustFence, ConnectFailure.from(GenerationFailure.ReadyFailed(fenced)))
 
         val notHarness = RpcError(
             code = "internal",
             message = "decode failed",
             details = TransportFailures.details(TransportFailure.NOT_A_HARNESS),
         )
-        assertEquals(ConnectFailure.NotAHarness, ConnectFailure.from(GenerationFailure.DescribeFailed(notHarness)))
+        assertEquals(ConnectFailure.NotAHarness, ConnectFailure.from(GenerationFailure.ReadyFailed(notHarness)))
     }
 
     /** A business error (agent-busy, say) carries no transport marker; keep its message. */
@@ -98,7 +98,7 @@ class ConnectDiagnosisTest {
         val business = RpcError("agent-busy", "the agent is busy", JsonObject(emptyMap()))
         assertEquals(
             ConnectFailure.Other("the agent is busy"),
-            ConnectFailure.from(GenerationFailure.DescribeFailed(business)),
+            ConnectFailure.from(GenerationFailure.ReadyFailed(business)),
         )
     }
 
@@ -117,7 +117,7 @@ class ConnectDiagnosisTest {
         assertEquals(
             ConnectFailure.PairingRequired,
             ConnectFailure.from(
-                GenerationFailure.StreamFailed(TransportFailure.TRUST_FENCE, "403"),
+                GenerationFailure.MuxFailed(TransportFailure.TRUST_FENCE, "403"),
                 relay = true,
             ),
         )
@@ -128,7 +128,7 @@ class ConnectDiagnosisTest {
         )
         assertEquals(
             ConnectFailure.PairingRequired,
-            ConnectFailure.from(GenerationFailure.DescribeFailed(fenced), relay = true),
+            ConnectFailure.from(GenerationFailure.ReadyFailed(fenced), relay = true),
         )
     }
 
@@ -138,7 +138,7 @@ class ConnectDiagnosisTest {
         assertEquals(ConnectFailure.TrustFence, ConnectFailure.from(ProbeOutcome.TrustFence))
         assertEquals(
             ConnectFailure.TrustFence,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.TRUST_FENCE, "403")),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.TRUST_FENCE, "403")),
         )
     }
 
@@ -157,12 +157,12 @@ class ConnectDiagnosisTest {
     fun `a pin mismatch is reported as a changed certificate either way`() {
         assertEquals(
             ConnectFailure.CertificateChanged,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.CERTIFICATE_PIN, null)),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.CERTIFICATE_PIN, null)),
         )
         assertEquals(
             ConnectFailure.CertificateChanged,
             ConnectFailure.from(
-                GenerationFailure.StreamFailed(TransportFailure.CERTIFICATE_PIN, null),
+                GenerationFailure.MuxFailed(TransportFailure.CERTIFICATE_PIN, null),
                 relay = true,
             ),
         )

@@ -106,3 +106,18 @@ data class AgentPresetRemoveRequest(
 /** Value of `agentPreset.remove` (empty object). */
 @Serializable
 class AgentPresetRemoveValue
+
+/** Value of `agentPresets/read`: one preset's stored composition. */
+@Serializable
+data class AgentPresetDocument(
+    /** The preset the composition belongs to. */
+    @SerialName("agentPreset") val agentPreset: String,
+    /** Trust of the root this preset was discovered under. */
+    @SerialName("trust") val trust: AgentPresetTrust,
+    /** The composition exactly as stored. */
+    @SerialName("content") val content: String,
+    /** Display name the preset published. */
+    @SerialName("name") val name: String? = null,
+    /** One sentence on what this preset is for. */
+    @SerialName("description") val description: String? = null,
+)

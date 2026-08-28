@@ -25,14 +25,18 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * The four wire full-form RPC message envelopes plus the result/error vocabulary, ported from
- * `packages/host/apiproxy/src/api/rpc.ts` and `rpc.schema.ts` (v0.1.1-rc.2).
+ * The RPC message envelopes plus the result/error vocabulary, ported from
+ * `packages/client/connection/src/rpc.ts` and `rpc-schema.ts` (v0.1.2-alpha.1).
  *
- * Wire forms:
- * - [ClientRequest]  — POST /api/<method> body (`type: "client-request"`).
+ * This is the one part of the wire harness 0.1.2 kept unchanged, and there are two forms left
+ * rather than four:
+ *
+ * - [ClientRequest]  — `POST /api/<namespace>/<method>` body (`type: "client-request"`).
  * - [ServerResponse] — the HTTP response body of that POST (`type: "server-response"`).
- * - [ServerRequest]  — one downstream stream frame (`type: "server-request"`).
- * - [ClientResponse] — POST /api/respond body (`type: "client-response"`).
+ *
+ * The server-initiated pair went with `/api/respond`. A host request is now a `waterfall` frame
+ * on the `$events` stream and its answer an ordinary [ClientRequest] to `$events/result`, so
+ * neither direction needs an envelope of its own — see `core/wire/dto/StreamProtocol.kt`.
  */
 
 /** RPC error body: `code` (one of the documented RpcError codes), `message`, required `details`. */
@@ -93,7 +97,7 @@ object RpcResultJsonSerializer : KSerializer<RpcResult<JsonElement>> {
     }
 }
 
-/** Call initiated by the client (wire carrier: POST /api/<method> body). */
+/** Call initiated by the client (wire carrier: POST /api/<namespace>/<method> body). */
 @Serializable
 data class ClientRequest(
     @SerialName("type") val type: String = "client-request",
@@ -110,31 +114,4 @@ data class ServerResponse(
     @SerialName("result")
     @Serializable(with = RpcResultJsonSerializer::class)
     val result: RpcResult<JsonElement>,
-)
-
-/** Message initiated by the server (wire carrier: downstream stream frame). */
-@Serializable
-data class ServerRequest(
-    @SerialName("type") val type: String = "server-request",
-    @SerialName("rpcId") val rpcId: String,
-    @SerialName("method") val method: String,
-    @SerialName("payload") val payload: JsonElement,
-)
-
-/** Response to a ServerRequest (wire carrier: POST /api/respond body); rpcId echoed, never minted anew. */
-@Serializable
-data class ClientResponse(
-    @SerialName("type") val type: String = "client-response",
-    @SerialName("rpcId") val rpcId: String,
-    @SerialName("result")
-    @Serializable(with = RpcResultJsonSerializer::class)
-    val result: RpcResult<JsonElement>,
-)
-
-/** Carrier receipt (the HTTP response body of the POST carrying a client-response). */
-@Serializable
-data class RpcReceipt(
-    @SerialName("accepted") val accepted: Boolean,
-    /** Present only when `accepted` is false: 'not-pending' | 'bad-response'. */
-    @SerialName("reason") val reason: String? = null,
 )

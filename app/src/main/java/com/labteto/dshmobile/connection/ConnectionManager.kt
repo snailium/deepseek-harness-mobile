@@ -12,7 +12,9 @@ import com.labteto.dshmobile.core.wire.GenerationFailure
 import com.labteto.dshmobile.core.wire.HandshakeStep
 import com.labteto.dshmobile.core.wire.LoopSinks
 import com.labteto.dshmobile.ui.screens.connect.ConnectFailure
-import com.labteto.dshmobile.core.wire.ServerRequest
+import com.labteto.dshmobile.core.wire.HostGeneration
+import com.labteto.dshmobile.core.wire.RemoteStreamMux
+import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
 import com.labteto.dshmobile.core.wire.TransportFailure
 import com.labteto.dshmobile.core.wire.TransportFailures
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -29,7 +31,13 @@ import javax.inject.Singleton
 /** UI-facing connection state. */
 enum class ConnectionPhase { DISCONNECTED, CONNECTING, CONNECTED, RECONNECTING }
 
-/** How far the readiness handshake has got, so the connect screen can say what it is doing. */
+/**
+ * How far the readiness handshake has got, so the connect screen can say what it is doing.
+ *
+ * `OpeningStreams` is now one socket rather than two, and `Verifying` is waiting for the
+ * host's ready frame rather than a `host.describe` answer. The names are kept because what
+ * they mean to someone watching the screen has not changed.
+ */
 enum class ConnectStage { Idle, Validating, Reaching, OpeningStreams, Verifying, Connected }
 
 data class ConnectionUiState(
@@ -70,26 +78,41 @@ class ConnectionManager @Inject constructor(
     private var api: DshApiClient? = null
     private var activeHost: HostConfig? = null
 
-    /** Downlink frame consumers (screens subscribe here). */
-    val muxFrames = kotlinx.coroutines.flow.MutableSharedFlow<ServerRequest>(extraBufferCapacity = 256)
-    val hostFrames = kotlinx.coroutines.flow.MutableSharedFlow<ServerRequest>(extraBufferCapacity = 64)
+    /**
+     * The current generation, or null while disconnected.
+     *
+     * Screens need it for two things the unary client cannot give them: the mux, to open a
+     * session journal or the control stream, and the `clientId` every waterfall answer has to
+     * carry. It is replaced wholesale on each reconnect, so nothing may cache the mux out of it.
+     */
+    @Volatile
+    var generation: HostGeneration? = null
+        private set
+
+    /**
+     * Host event frames (screens subscribe here).
+     *
+     * One flow now, where there were two: 0.1.2 delivers notifications and pending waterfalls
+     * on the single `$events` stream, and the mux/host split it replaced no longer exists.
+     *
+     * Nothing here is replayed after a reconnect. State that must survive one has to come from
+     * a query or a stream baseline instead — an `emit` that arrives while disconnected is gone.
+     */
+    val eventFrames = kotlinx.coroutines.flow.MutableSharedFlow<RemoteEventFrame>(extraBufferCapacity = 256)
 
     private val sinks = object : LoopSinks {
-        override fun onMuxFrame(frame: ServerRequest) {
-            muxFrames.tryEmit(frame)
+        override fun onEventFrame(frame: RemoteEventFrame) {
+            eventFrames.tryEmit(frame)
         }
 
-        override fun onHostFrame(frame: ServerRequest) {
-            hostFrames.tryEmit(frame)
-        }
-
-        override fun onConnected(description: HostDescription) {
+        override fun onConnected(generation: HostGeneration) {
+            this@ConnectionManager.generation = generation
             val host = activeHost
             if (host != null) scope.launch { hostsStore.touchHost(host.host, host.port) }
             _state.value = ConnectionUiState(
                 phase = ConnectionPhase.CONNECTED,
                 host = activeHost,
-                description = description,
+                description = generation.description,
                 stage = ConnectStage.Connected,
                 failure = null,
                 attempts = 0,
@@ -115,8 +138,8 @@ class ConnectionManager @Inject constructor(
 
         override fun onHandshakeStep(step: HandshakeStep) {
             val stage = when (step) {
-                HandshakeStep.OPENING_STREAMS -> ConnectStage.OpeningStreams
-                HandshakeStep.DESCRIBING -> ConnectStage.Verifying
+                HandshakeStep.OPENING_MUX -> ConnectStage.OpeningStreams
+                HandshakeStep.AWAITING_READY -> ConnectStage.Verifying
             }
             _state.value = _state.value.copy(stage = stage)
         }
@@ -150,9 +173,8 @@ class ConnectionManager @Inject constructor(
             host = config,
             stage = ConnectStage.OpeningStreams,
         )
-        val client = clientFactory.clientFor(config)
-        api = client
-        val loop = ConnectionLoop(client, sinks, LoopConfig())
+        api = clientFactory.clientFor(config)
+        val loop = ConnectionLoop(muxFactory(config), sinks, LoopConfig())
         this.loop = loop
         loop.start()
         hostsStore.upsertHost(config)
@@ -162,6 +184,7 @@ class ConnectionManager @Inject constructor(
         loop?.stop()
         loop = null
         api = null
+        generation = null
         activeHost = null
         stopService()
         _state.value = ConnectionUiState()
@@ -175,9 +198,21 @@ class ConnectionManager @Inject constructor(
             // rotated or dropped while the app is backgrounded, and the credential is baked into the
             // client at construction. This is the path [KeepAliveWorker] takes, which is exactly
             // when that is most likely to have happened.
-            val client = clientFactory.clientFor(host).also { api = it }
-            loop = ConnectionLoop(client, sinks, LoopConfig()).also { it.start() }
+            api = clientFactory.clientFor(host)
+            loop = ConnectionLoop(muxFactory(host), sinks, LoopConfig()).also { it.start() }
         }
+    }
+
+    /**
+     * A per-generation mux builder for [host].
+     *
+     * The loop calls this once per attempt and owns the socket's lifetime, so the credential is
+     * re-read on every reconnect rather than baked in once. That matters for the same reason
+     * [reconnectIfNeeded] rebuilds its client: a relay token can rotate while the app is
+     * backgrounded, and a socket built with the old one is refused at the upgrade.
+     */
+    private fun muxFactory(host: HostConfig): () -> RemoteStreamMux = {
+        kotlinx.coroutines.runBlocking { clientFactory.muxFor(host) }
     }
 
     /**
@@ -192,11 +227,16 @@ class ConnectionManager @Inject constructor(
     private fun isTerminalForRelay(host: HostConfig, failure: GenerationFailure): Boolean {
         if (!host.isRelay) return false
         val kind = when (failure) {
-            is GenerationFailure.StreamFailed -> failure.kind
-            is GenerationFailure.DescribeFailed -> TransportFailures.of(failure.error)
-            is GenerationFailure.StreamsTimedOut -> null
+            is GenerationFailure.MuxFailed -> failure.kind
+            is GenerationFailure.ReadyFailed -> TransportFailures.of(failure.error)
+            is GenerationFailure.MuxTimedOut -> null
         }
-        return kind == TransportFailure.TRUST_FENCE || kind == TransportFailure.CERTIFICATE_PIN
+        // UNAUTHENTICATED joins the two: harness 0.1.2 answers 401 where a browser session is
+        // missing, and behind a relay that is the same dead end as a rejected credential —
+        // retrying cannot produce one.
+        return kind == TransportFailure.TRUST_FENCE ||
+            kind == TransportFailure.CERTIFICATE_PIN ||
+            kind == TransportFailure.UNAUTHENTICATED
     }
 
     /**

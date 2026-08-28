@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.core.notify
 
 import com.labteto.dshmobile.core.session.SessionEventEnvelope
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -93,35 +94,62 @@ class CompletionClassifier {
         }
     }
 
-    /** Classify a mux-frame (method + payload object, sessionId inside). */
-    fun classifyMux(method: String, payload: JsonObject): CompletionEvent? {
-        val sessionId = payload["sessionId"]?.jsonPrimitive?.contentOrNull ?: return null
-        val seq = payload["seq"]?.jsonPrimitive?.let { runCatching { it.content.toLong() }.getOrNull() } ?: 0L
-        return when (method) {
-            "approval/requested" -> CompletionEvent.ReviewRequested(
-                sessionId = sessionId,
-                seq = seq,
-                approvalId = payload["approvalId"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                toolName = payload["toolName"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                reason = payload["reason"]?.jsonPrimitive?.contentOrNull,
-            )
+    /**
+     * Classify one pending Remote Event waterfall.
+     *
+     * Replaces the `approval/requested` and `question/requested` mux frames. Two things moved with
+     * them: the session is the frame's `agentId` rather than a `sessionId` inside the payload, and
+     * the correlation id is the frame's `eventId` — 0.1.2 mints no separate `approvalId`, so the
+     * event id is what an answer and a withdrawal both name.
+     *
+     * There is no sequence number on a waterfall. These are process-local requests with no place
+     * in the durable log, so 0 is the honest value rather than a lookup this frame cannot satisfy.
+     *
+     * @param event the Remote Event name.
+     * @param eventId the pending request's correlation id, also what a later `cancel` names.
+     * @param agentId the session the request is scoped to.
+     * @param request the waterfall body, with `agent` and `signal` already stripped by the host.
+     */
+    fun classifyWaterfall(
+        event: String,
+        eventId: String,
+        agentId: String,
+        request: JsonObject,
+    ): CompletionEvent? = when (event) {
+        "approval/request" -> CompletionEvent.ReviewRequested(
+            sessionId = agentId,
+            seq = 0L,
+            approvalId = eventId,
+            toolName = request["toolName"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            reason = request["reason"]?.jsonPrimitive?.contentOrNull,
+        )
 
-            "question/requested" -> CompletionEvent.QuestionRequested(
-                sessionId = sessionId,
-                seq = seq,
-                firstQuestion = (payload["questions"] as? kotlinx.serialization.json.JsonArray)
-                    ?.firstOrNull()?.jsonObject?.get("question")?.jsonPrimitive?.contentOrNull,
-            )
+        "user-questions/request" -> CompletionEvent.QuestionRequested(
+            sessionId = agentId,
+            seq = 0L,
+            firstQuestion = (request["questions"] as? kotlinx.serialization.json.JsonArray)
+                ?.firstOrNull()?.jsonObject?.get("question")?.jsonPrimitive?.contentOrNull,
+        )
 
-            else -> null
-        }
+        else -> null
     }
 
-    /** Classify a host-frame (method + payload object). */
-    fun classifyHost(method: String, payload: JsonObject): CompletionEvent? {
-        if (method != "host/session-status") return null
-        val sessionId = payload["sessionId"]?.jsonPrimitive?.contentOrNull ?: return null
-        val isRunning = payload["running"]?.jsonPrimitive?.let { runCatching { it.content.toBoolean() }.getOrNull() } ?: false
+    /**
+     * Classify one ordinary Remote Event notification.
+     *
+     * Replaces `host/session-status`. The arguments are positional now — the host forwards the
+     * Cordis listener's own argument list — so this reads `args[0]` and `args[1]` rather than
+     * named payload keys.
+     *
+     * Note these are never replayed after a reconnect. A session that went idle while the phone
+     * was disconnected produces no notification at all, which is why nothing here may be treated
+     * as a durable record of what happened.
+     */
+    fun classifyNotification(event: String, args: List<JsonElement>): CompletionEvent? {
+        if (event != "api-session/status") return null
+        val sessionId = args.getOrNull(0)?.jsonPrimitive?.contentOrNull ?: return null
+        val isRunning = args.getOrNull(1)?.jsonPrimitive
+            ?.let { runCatching { it.content.toBoolean() }.getOrNull() } ?: false
         val wasRunning = running.contains(sessionId)
         if (isRunning) {
             running.add(sessionId)

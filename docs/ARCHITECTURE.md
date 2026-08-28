@@ -5,28 +5,31 @@ DSH Mobile is a three-module Gradle project (Kotlin 2.0, Compose, Hilt).
 ```
 core/           pure JVM — no Android imports
   wire/         the DeepSeek Harness web-client protocol:
-                  envelopes (client-request / server-response /
-                  server-request / client-response), the lenient WireJson
-                  codec, RpcTransport (OkHttp), WsDownlink (downlink-only
-                  WebSockets /api/events.mux + /api/events.host),
-                  DshApiClient (52 typed unary methods + respond + typert
-                  remotes), ConnectionLoop (readiness handshake
-                  host.describe + both streams, exponential backoff)
+                  envelopes (client-request / server-response), the
+                  lenient WireJson codec, RpcTransport (OkHttp),
+                  WsChannel (the bidirectional /api/remote.mux socket),
+                  RemoteStreamMux (logical streams over it),
+                  DshApiClient (typed unary methods, namespace/method),
+                  ConnectionLoop (readiness handshake: mux open + the
+                  $events ready frame, exponential backoff)
   wire/dto/     kotlinx.serialization ports of the harness schemas
-                  (sessions, host, workspace, skills, goals, settings,
-                  credentials, llm, subagents, agent presets, events,
-                  frames, tool views) — lenient, merge-extensible
+                  (sessions, session history/control, host, workspace,
+                  skills, goals, settings, credentials, llm, subagents,
+                  agent presets, events, stream protocol) — lenient,
+                  merge-extensible
   session/      EventFold: raw session events → ConversationSnapshot
                   (turn/step/message/tool nodes, streaming block assembly,
-                  interruption marking, gap detection)
+                  interruption marking, gap detection);
+                  ChunkRows: expands packed history delta runs
   notify/       CompletionClassifier: turn/goal/approval/question/idle
                   events with dedup keys
 
 app/            Android UI
   connection/   HostsStore (remembered hosts + settings, DataStore),
-                  DiscoveryEngine (Wi-Fi subnet sweep + host.describe
-                  probe), ConnectionManager (owns the ConnectionLoop,
-                  exposes mux/host frame flows), ConnectionService
+                  DiscoveryEngine (Wi-Fi subnet sweep +
+                  session/canOpenWorkspacePath probe), ConnectionManager
+                  (owns the ConnectionLoop, exposes the host event flow
+                  and the current generation), ConnectionService
                   (foreground service), KeepAliveWorker (15-min fallback)
   data/         SessionStore — the live mirror of the harness: session
                   list/workspaces/folds per session, queue/jobs/
@@ -57,8 +60,9 @@ tools/capture/  Node recorder of real harness traffic → conformance fixtures
 1. `ConnectionManager` performs the readiness handshake and pumps the two
    WebSocket downlinks; frames fan out as SharedFlows.
 2. `SessionStore` folds session events into `ConversationSnapshot`s
-   (incremental), keeps the session/workspace registry from host frames,
-   and merges queue/jobs/projection snapshots. Typed projection views
+   (incremental) from that session's session/follow stream, keeps the
+   workspace registry from workspace/follow, and merges queue/jobs/
+   projection snapshots from session/control. Typed projection views
    (permissions, stats, usage, context, image limits) are *derived* from
    that snapshot rather than fetched, so they stay in lockstep with the
    transcript and cost no round trips.
@@ -66,9 +70,12 @@ tools/capture/  Node recorder of real harness traffic → conformance fixtures
    (`data/InitialSession.kt`): the session last opened on this harness,
    else the most recently active one. Reconnects keep whatever was open.
 3. Screens observe `StateFlow`s and render; user actions go back through
-   `SessionStore` → `DshApiClient` (`POST /api/<method>`, `/api/respond`).
-4. `NotificationObserver` classifies frames into completion events and
-   posts channel-notifications that deep-link into sessions.
+   `SessionStore` → `DshApiClient` (`POST /api/<namespace>/<method>`), and
+   pending approvals/questions are answered through `$events/result`.
+4. `NotificationObserver` classifies host events into completion events and
+   posts channel-notifications that deep-link into sessions. Turn and goal
+   completions reach it from `SessionStore`, which owns the only stream
+   they travel on.
 
 ## Key invariants
 
@@ -76,8 +83,13 @@ tools/capture/  Node recorder of real harness traffic → conformance fixtures
   unknown event/frame/card types fall back to `Unknown*` passthroughs.
 - HTTP status is carrier-only; business failures arrive as `ok: false`
   with a typed error code (see `docs/PROTOCOL.md`).
-- The WebSocket streams are **downlink-only** — the client never sends.
-- Settings/credentials/host-native methods are loopback-only by harness
-  design; over LAN the app surfaces them read-only (see
+- The mux socket is **bidirectional** — the client opens and cancels
+  logical streams on it. (Its two predecessors were downlink-only.)
+- Every `/api` request needs a harness browser session; 401 and 403 are
+  different facts and are reported separately.
+- There is no loopback-only method tier any more: harness 0.1.2 deleted it,
+  and one authenticated caller reaches the whole API (see
   `docs/COMPATIBILITY.md`).
-- Protocol baseline: harness `0.1.1-rc.2` (`core.DshCore.PROTOCOL_BASELINE`).
+- Tool cards are derived in the app from raw call/result data; the host
+  sends no render intent.
+- Protocol baseline: harness `0.1.2-alpha.1` (`core.DshCore.PROTOCOL_BASELINE`).

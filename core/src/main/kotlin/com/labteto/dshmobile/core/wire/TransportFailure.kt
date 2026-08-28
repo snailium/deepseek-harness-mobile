@@ -39,6 +39,18 @@ enum class TransportFailure {
     /** HTTP 403: the harness answered and its `Host` trust fence rejected the request. */
     TRUST_FENCE,
 
+    /**
+     * HTTP 401: the harness answered, accepted where the request came from, and has no browser
+     * session for this client.
+     *
+     * Distinct from [TRUST_FENCE] because the remedy is opposite. A 403 is about the address the
+     * request arrived on and is fixed by reconfiguring the harness or reaching it differently; a
+     * 401 means the address was fine and this client never exchanged a launch token, which is
+     * fixed by pairing again. Harness 0.1.2 authenticates the whole `/api` surface this way, so
+     * this is now the ordinary failure for an unpaired direct connection rather than a rarity.
+     */
+    UNAUTHENTICATED,
+
     /** HTTP 404: no route claimed the path; the build does not compose that service. */
     NOT_FOUND,
 
@@ -89,6 +101,7 @@ object TransportFailures {
 
     /** Classify a carrier exception: HTTP status first, then the underlying I/O cause. */
     fun classify(e: RpcTransportException): TransportFailure = when (e.status) {
+        401 -> TransportFailure.UNAUTHENTICATED
         403 -> TransportFailure.TRUST_FENCE
         404 -> TransportFailure.NOT_FOUND
         0 -> classify(e.cause)

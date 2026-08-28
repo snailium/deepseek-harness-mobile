@@ -52,7 +52,6 @@ import com.labteto.dshmobile.core.session.TurnErrorNode
 import com.labteto.dshmobile.core.session.TurnStartNode
 import com.labteto.dshmobile.core.session.UserMessageNode
 import com.labteto.dshmobile.core.session.WorkflowNode
-import com.labteto.dshmobile.core.wire.dto.ToolEventView
 import com.labteto.dshmobile.ui.components.AttachmentImage
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DisclosureState
@@ -73,9 +72,10 @@ import kotlinx.serialization.json.JsonObject
 /** Everything one transcript row needs that is not on the node itself. */
 internal data class ChatNodeContext(
     val nodes: List<ChatNode>,
-    val toolViews: Map<Long, ToolEventView>,
     val running: Boolean,
     val cwd: String?,
+    /** Host account home, used only to abbreviate a leftover home-rooted path as `~`. */
+    val home: String? = null,
     val onOpenSubagent: (String) -> Unit,
     val onBranchFrom: (Long) -> Unit,
     val onFeedback: (Long, Boolean) -> Unit,
@@ -323,14 +323,13 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
     val result = context.nodes
         .filterIsInstance<ToolResultNode>()
         .firstOrNull { it.callId == node.callId }
-    val callView = context.toolViews[node.seq]
-    val resultView = result?.let { context.toolViews[it.seq] }
+
     val card = buildToolCardView(
         call = node,
         result = result,
-        callView = callView,
-        resultView = resultView,
         running = result == null && context.running,
+        cwd = context.cwd,
+        home = context.home,
     )
     // The row header is derived here rather than taken from the card: only this layer knows the
     // tool's name and the session's cwd, which is what turns an absolute path into `app\build.gradle.kts`.
@@ -338,7 +337,8 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
         toolName = node.name,
         argumentsJson = node.arguments,
         cwd = context.cwd,
-        viewTitle = (resultView ?: callView).titleOrNull(),
+        // Derived from the call itself now: 0.1.2 sends no presenter title to prefer over it.
+        viewTitle = null,
     )
     var expanded by remember(node.callId) { mutableStateOf(false) }
     // The leading slot carries the outcome: a red dot for a failed call, the tool glyph otherwise.

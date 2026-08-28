@@ -1,5 +1,7 @@
 package com.labteto.dshmobile.core.wire
 
+import com.labteto.dshmobile.core.wire.dto.RemoteEventRejection
+import com.labteto.dshmobile.core.wire.dto.RemoteEventOutcome
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswerItem
 import com.labteto.dshmobile.core.wire.dto.QUESTION_CANCELLED
@@ -42,10 +44,7 @@ class QuestionResponseEncodingTest {
         ): T = consume(null, null, ByteArrayInputStream(ByteArray(0)))
     }
 
-    private fun client(transport: RpcTransport) = DshApiClient(
-        transport = transport,
-        wsFactory = { _, _ -> error("not used") },
-    )
+    private fun client(transport: RpcTransport) = DshApiClient(transport = transport)
 
     private fun body(transport: RecordingTransport) =
         Json.parseToJsonElement(transport.lastBody!!).jsonObject
@@ -62,17 +61,23 @@ class QuestionResponseEncodingTest {
         val value = Json.parseToJsonElement(
             encodeToString(AskUserQuestionAnswer.serializer(), answer),
         )
-        client(transport).respond("rpc-1", value)
+        client(transport).answerEvent("client-1", "evt-1", RemoteEventOutcome.Result(value = value))
 
-        assertEquals("/api/respond", transport.lastPath)
+        // `/api/respond` is gone: an answer is an ordinary unary call to the Gateway's own
+        // `$events/result` endpoint, bound to the generation by `clientId`.
+        assertEquals("/api/\$events/result", transport.lastPath)
         val envelope = body(transport)
-        assertEquals("client-response", envelope["type"]!!.jsonPrimitive.content)
-        assertEquals("rpc-1", envelope["rpcId"]!!.jsonPrimitive.content)
-        val answers = envelope["result"]!!.jsonObject["value"]!!.jsonObject["answers"]!!.jsonArray
+        assertEquals("client-request", envelope["type"]!!.jsonPrimitive.content)
+        val payload = envelope["payload"]!!.jsonObject
+        assertEquals("client-1", payload["clientId"]!!.jsonPrimitive.content)
+        assertEquals("evt-1", payload["eventId"]!!.jsonPrimitive.content)
+        val outcome = payload["outcome"]!!.jsonObject
+        assertEquals("result", outcome["kind"]!!.jsonPrimitive.content)
+        val answers = outcome["value"]!!.jsonObject["answers"]!!.jsonArray
         assertNull(answers[0].jsonObject["custom"])
         assertEquals("in my own words", answers[1].jsonObject["custom"]!!.jsonPrimitive.content)
         // The batch itself carries nothing but the list; a sibling key here is what went missing.
-        assertEquals(setOf("answers"), envelope["result"]!!.jsonObject["value"]!!.jsonObject.keys)
+        assertEquals(setOf("answers"), outcome["value"]!!.jsonObject.keys)
     }
 
     @Test
@@ -87,16 +92,28 @@ class QuestionResponseEncodingTest {
     }
 
     @Test
-    fun `a dismissal posts an ok-false result whose code is exactly cancelled`() = runTest {
+    fun `a dismissal rejects the waterfall rather than answering it`() = runTest {
+        // Answering every item with an empty selection is a valid *answer* the model reads as
+        // "no preference". A dismissal has to fail the host's wait instead, so the tool call
+        // settles as cancelled — and it must not be `next`, which would delegate to the host's
+        // own later listeners rather than ending the request.
         val transport = RecordingTransport()
-        client(transport).respondError("rpc-2", QUESTION_CANCELLED)
+        client(transport).answerEvent(
+            "client-1",
+            "evt-2",
+            RemoteEventOutcome.Rejected(
+                error = RemoteEventRejection(
+                    name = "UserQuestionError",
+                    message = QUESTION_CANCELLED.message,
+                    code = QUESTION_CANCELLED.code,
+                ),
+            ),
+        )
 
-        val result = body(transport)["result"]!!.jsonObject
-        assertEquals(false, result["ok"]!!.jsonPrimitive.content.toBoolean())
-        val error = result["error"]!!.jsonObject
+        val outcome = body(transport)["payload"]!!.jsonObject["outcome"]!!.jsonObject
+        assertEquals("rejected", outcome["kind"]!!.jsonPrimitive.content)
+        val error = outcome["error"]!!.jsonObject
         assertEquals("cancelled", error["code"]!!.jsonPrimitive.content)
         assertEquals("the user closed this question request", error["message"]!!.jsonPrimitive.content)
-        // `details` is required by the schema even when there is nothing to put in it.
-        assertTrue(error["details"]!!.jsonObject.isEmpty())
     }
 }

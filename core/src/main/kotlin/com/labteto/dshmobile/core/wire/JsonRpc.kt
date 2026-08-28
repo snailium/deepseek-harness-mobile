@@ -30,24 +30,11 @@ fun newRpcId(): String = UUID.randomUUID().toString()
 fun encodeEnvelope(request: ClientRequest): String =
     WireJson.encodeToString(ClientRequest.serializer(), request)
 
-/** Encode a client-response envelope (POST /api/respond body). */
-fun encodeClientResponse(response: ClientResponse): String =
-    WireJson.encodeToString(ClientResponse.serializer(), response)
-
 /** Decode and validate a server-response envelope (the HTTP response body of a unary call). */
 fun decodeServerResponse(json: String): ServerResponse {
     val envelope: ServerResponse = WireJson.decodeFromString(ServerResponse.serializer(), json)
     require(envelope.type == "server-response") {
         "expected a server-response envelope but got type \"${envelope.type}\""
-    }
-    return envelope
-}
-
-/** Decode and validate a server-request envelope (one downstream stream frame). */
-fun decodeServerRequest(json: String): ServerRequest {
-    val envelope: ServerRequest = WireJson.decodeFromString(ServerRequest.serializer(), json)
-    require(envelope.type == "server-request") {
-        "expected a server-request envelope but got type \"${envelope.type}\""
     }
     return envelope
 }

@@ -105,3 +105,27 @@ typealias SettingsReplaceValue = SettingsNamespaceView
 /** Value of `settings.mutate` (the namespace's new redacted view). */
 typealias SettingsMutateValue = SettingsNamespaceView
 
+/**
+ * One path-addressed edit of `settings/mutate`.
+ *
+ * The same shape [SettingsPathOp] carried through 0.1.1, under the name the host now uses. It is
+ * a separate declaration rather than a typealias because it is serialized as a standalone
+ * argument now: `settings/mutate` takes `ns`, `ops` and `expectedRevision` as flat named
+ * arguments rather than one request object.
+ */
+@Serializable
+@kotlinx.serialization.json.JsonClassDiscriminator("op")
+sealed class SettingsPathOpView {
+    @Serializable
+    @SerialName("set")
+    data class Set(
+        @SerialName("path") val path: List<String>,
+        @SerialName("value") val value: JsonElement,
+    ) : SettingsPathOpView()
+
+    @Serializable
+    @SerialName("unset")
+    data class Unset(
+        @SerialName("path") val path: List<String>,
+    ) : SettingsPathOpView()
+}

@@ -23,7 +23,9 @@ import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
+import io.ktor.websocket.Frame
 import io.ktor.websocket.WebSocketSession
+import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,15 +47,19 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * A scriptable stand-in for the DeepSeek Harness HTTP/WebSocket protocol.
  *
- * The harness exposes a JSON-RPC-flavored protocol on plain HTTP:
- *  - unary calls: `POST /api/<method>` with a `client-request` envelope, answered with a
- *    `server-response` envelope carrying `{"ok": true, "value": ...}` or
+ * Speaks harness **0.1.2-alpha.1**:
+ *  - unary calls: `POST /api/<namespace>/<method>` with a `client-request` envelope, answered
+ *    with a `server-response` envelope carrying `{"ok": true, "value": ...}` or
  *    `{"ok": false, "error": {"code", "message", "details"}}`;
- *  - answers: `POST /api/respond` with a `client-response` envelope. An answer to a question
- *    this mock pushed is judged by [judgeQuestionResponse], the host's own acceptance law;
- *    anything else is acknowledged;
- *  - downlink-only WebSockets `/api/events.mux` and `/api/events.host`, where the server
- *    pushes `server-request` frames and the client must not send.
+ *  - one bidirectional WebSocket at `/api/remote.mux`, carrying logical streams the client
+ *    opens by name. The `$events` stream answers its `open` with a `ready` frame; everything
+ *    else a test pushes rides whichever stream it names;
+ *  - answers to pending waterfalls: `POST /api/$events/result` with `{clientId, eventId,
+ *    outcome}`. An answer to a question this mock pushed is judged by [judgeQuestionResponse],
+ *    the host's own acceptance law; anything else is acknowledged.
+ *
+ * `/api/events.mux`, `/api/events.host`, `/api/respond` and `host.describe` are all gone, as
+ * they are upstream.
  *
  * A trust fence rejects every POST whose Host header is neither loopback nor listed in
  * [trustedHosts] with HTTP 403, replicated before any dispatch.
@@ -75,12 +81,21 @@ class MockHarness(
     private val okHandlers = ConcurrentHashMap<String, (JsonElement) -> JsonElement>()
     private val failHandlers = ConcurrentHashMap<String, (JsonElement) -> RpcErrorData>()
     private val asyncHandlers = ConcurrentHashMap<String, suspend (JsonElement) -> JsonElement>()
-    private val muxSockets = ConcurrentHashMap.newKeySet<WebSocketSession>()
     private val pendingQuestions = ConcurrentHashMap<String, PendingQuestion>()
-    private val hostSockets = ConcurrentHashMap.newKeySet<WebSocketSession>()
+
+    /**
+     * Every connected mux socket and the logical streams open on it.
+     *
+     * One socket carries them all, so a push has to know which stream a frame belongs to —
+     * which is the substantive difference from the two fixed downlinks this replaces.
+     */
+    private val muxSockets = ConcurrentHashMap<WebSocketSession, ConcurrentHashMap<String, String>>()
+
+    /** The client id handed out with the `ready` frame; every answer must carry it back. */
+    val clientId: String = "mock-client"
 
     @Volatile
-    private var describeTransform: ((JsonObject) -> JsonObject)? = null
+    private var readyHostTransform: ((JsonObject) -> JsonObject)? = null
 
     /** Body served by `GET /api/session.export`; tests set this to assert on the streamed bytes. */
     @Volatile
@@ -92,7 +107,9 @@ class MockHarness(
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
     init {
-        on("host.describe") { describeValue() }
+        // The probe every reachability check makes: no arguments, and every deployment composes
+        // the Session Controller that serves it.
+        on("session/canOpenWorkspacePath") { JsonPrimitive(true) }
         on("pluginInventory/list") { pluginInventoryValue() }
     }
 
@@ -162,22 +179,18 @@ class MockHarness(
                 get("/api/session.export") {
                     call.handleSessionExport()
                 }
+                // Kept for the Gateway's own single-segment endpoints; every business call
+                // takes the two-segment form below.
                 post("/api/{method}") {
                     call.handleApi()
                 }
-                // The typert Remote gateway lives on a second path segment
-                // (`/api/commands/execute`) but shares the ordinary envelope, so it maps onto the
-                // same handler under the composed method name.
                 post("/api/{namespace}/{method}") {
                     val namespace = call.parameters["namespace"].orEmpty()
                     val method = call.parameters["method"].orEmpty()
                     call.handleApi("$namespace/$method")
                 }
-                webSocket("/api/events.mux") {
+                webSocket("/api/remote.mux") {
                     handleMuxSocket()
-                }
-                webSocket("/api/events.host") {
-                    handleHostSocket()
                 }
             }
         }
@@ -228,14 +241,14 @@ class MockHarness(
     }
 
     /**
-     * Overrides the built-in `host.describe` handler: [transform] receives the default
-     * describe value and returns the value that will be served.
+     * Overrides the host facts served in the `$events` ready frame.
      *
-     * Use it to serve a pre-0.1.0-rc.8 host by dropping the key that release added:
-     * `describe { JsonObject(it - "home") }`.
+     * Replaces the old `describe { … }` hook. There is far less to override now: the ready frame
+     * carries only `home`, because 0.1.2 publishes no version, cwd or attached-session count at
+     * all.
      */
-    fun describe(transform: (JsonObject) -> JsonObject) {
-        describeTransform = transform
+    fun readyHost(transform: (JsonObject) -> JsonObject) {
+        readyHostTransform = transform
     }
 
     /**
@@ -285,52 +298,121 @@ class MockHarness(
     }
 
     /**
-     * Broadcasts a `server-request` frame to every connected `/api/events.mux` socket.
+     * Push one item onto every open `$events` stream.
      *
-     * The [frame] argument is the frame payload. If it is a JSON object carrying a string
-     * `method` member, that member becomes the frame method and its `payload` member (when
-     * present) the frame payload; otherwise the whole [frame] becomes the payload and the
-     * method defaults to `"frame"`. Every broadcast gets a fresh `rpcId`.
+     * [frame] is the item verbatim — an `emit`, a `waterfall`, or a `cancel`. A pushed
+     * `waterfall` naming the question event is remembered so its answer is held to the host's
+     * own standard rather than waved through.
      */
-    suspend fun pushMux(frame: JsonElement): String {
-        val rpcId = broadcast(muxSockets, frame)
-        rememberQuestion(rpcId, payloadOf(frame))
-        return rpcId
+    suspend fun pushEvent(frame: JsonElement): String {
+        val eventId = ((frame as? JsonObject)?.get("eventId") as? JsonPrimitive)?.contentOrNull
+            ?: UUID.randomUUID().toString()
+        rememberQuestion(eventId, frame)
+        pushStream(EVENTS_ENDPOINT, frame)
+        return eventId
     }
 
     /**
-     * Remember a pushed question request, so an answer to it is held to the host's own standard
-     * instead of being waved through. Everything else — an approval, a frame no test registered —
-     * keeps the blanket acknowledgement.
+     * Push one item onto every open stream for [endpoint].
+     *
+     * A test opens `session/follow` or `session/control` through the client and then feeds it
+     * from here; an endpoint nobody opened simply has no listeners.
      */
-    private fun rememberQuestion(rpcId: String, payload: JsonElement) {
-        val frame = payload as? JsonObject ?: return
-        if ((frame["type"] as? JsonPrimitive)?.contentOrNull != "question/requested") return
-        val sessionId = (frame["sessionId"] as? JsonPrimitive)?.contentOrNull ?: return
-        val questions = frame["questions"] as? JsonArray ?: return
-        pendingQuestions[rpcId] = PendingQuestion(sessionId, questions)
+    suspend fun pushStream(endpoint: String, item: JsonElement) {
+        for ((session, streams) in muxSockets) {
+            for ((streamId, openEndpoint) in streams) {
+                if (openEndpoint != endpoint) continue
+                try {
+                    session.send(streamItem(streamId, item))
+                } catch (ignored: Exception) {
+                    // A disconnected client must not abort the broadcast.
+                }
+            }
+        }
     }
 
-    /** The receipt for one `/api/respond` body, as JSON. */
-    private fun judgeRespond(body: String): String {
-        val envelope = runCatching { Json.parseToJsonElement(body) }.getOrNull() as? JsonObject
-            ?: return REFUSED_BAD_RESPONSE
-        val rpcId = (envelope["rpcId"] as? JsonPrimitive)?.contentOrNull
-        val pending = rpcId?.let { pendingQuestions[it] } ?: return ACCEPTED
-        return when (val receipt = judgeQuestionResponse(envelope, pending)) {
-            is QuestionReceipt.Accepted -> {
-                pendingQuestions.remove(rpcId)
-                ACCEPTED
+    /** End one logical stream with an error, which is terminal for that stream alone. */
+    suspend fun failStream(endpoint: String, code: String, message: String) {
+        for ((session, streams) in muxSockets) {
+            for ((streamId, openEndpoint) in streams.toMap()) {
+                if (openEndpoint != endpoint) continue
+                streams.remove(streamId)
+                val frame = buildJsonObject {
+                    put("type", "error")
+                    put("streamId", streamId)
+                    put(
+                        "error",
+                        buildJsonObject {
+                            put("code", code)
+                            put("message", message)
+                            put("details", buildJsonObject { })
+                        },
+                    )
+                }
+                runCatching { session.send(frame.toString()) }
             }
-            is QuestionReceipt.Refused -> """{"accepted":false,"reason":"${receipt.reason}"}"""
         }
     }
 
     /**
-     * Broadcasts a `server-request` frame to every connected `/api/events.host` socket;
-     * see [pushMux] for the frame shape.
+     * Remember a pushed question waterfall, so an answer to it is held to the host's own
+     * standard instead of being waved through. Everything else — an approval, an event no test
+     * registered — keeps the blanket acknowledgement.
      */
-    suspend fun pushHost(frame: JsonElement): String = broadcast(hostSockets, frame)
+    private fun rememberQuestion(eventId: String, frame: JsonElement) {
+        val f = frame as? JsonObject ?: return
+        if ((f["type"] as? JsonPrimitive)?.contentOrNull != "waterfall") return
+        if ((f["event"] as? JsonPrimitive)?.contentOrNull != "user-questions/request") return
+        val sessionId = (f["agentId"] as? JsonPrimitive)?.contentOrNull ?: return
+        val questions = (f["request"] as? JsonObject)?.get("questions") as? JsonArray ?: return
+        pendingQuestions[eventId] = PendingQuestion(sessionId, questions)
+    }
+
+    /**
+     * Judge one `$events/result` payload.
+     *
+     * The generation binding is real: an answer carrying a `clientId` this mock never issued is
+     * refused, which is what stops a reply from a retired connection resolving a request the
+     * host has since replayed.
+     */
+    private fun judgeEventResult(payload: JsonElement): JsonElement {
+        val body = payload as? JsonObject ?: throw MockRefusal("bad-response")
+        if ((body["clientId"] as? JsonPrimitive)?.contentOrNull != clientId) {
+            throw MockRefusal("stale-generation")
+        }
+        val eventId = (body["eventId"] as? JsonPrimitive)?.contentOrNull
+            ?: throw MockRefusal("bad-response")
+        val pending = pendingQuestions[eventId] ?: return buildJsonObject { }
+        val outcome = body["outcome"] as? JsonObject ?: throw MockRefusal("bad-response")
+        when ((outcome["kind"] as? JsonPrimitive)?.contentOrNull) {
+            // A dismissal, or a delegation. The host settles the tool call itself; the answer
+            // law does not apply to either.
+            "rejected", "next" -> {
+                pendingQuestions.remove(eventId)
+                return buildJsonObject { }
+            }
+            "result" -> Unit
+            else -> throw MockRefusal("bad-response")
+        }
+        // The answer object is the outcome's value; 0.1.1 wrapped it in a response envelope,
+        // and [judgeQuestionResponse] still reads that shape.
+        val envelope = buildJsonObject {
+            put(
+                "result",
+                buildJsonObject {
+                    put("ok", true)
+                    put("value", outcome["value"] ?: JsonNull)
+                },
+            )
+        }
+        return when (val receipt = judgeQuestionResponse(envelope, pending)) {
+            is QuestionReceipt.Accepted -> {
+                pendingQuestions.remove(eventId)
+                buildJsonObject { }
+            }
+            is QuestionReceipt.Refused -> throw MockRefusal(receipt.reason)
+        }
+    }
 
     /**
      * The session-log download: a plain `GET` answered with an attachment, not an RPC. Serves
@@ -426,10 +508,6 @@ class MockHarness(
             return
         }
         val pathMethod = pathMethodOverride ?: parameters["method"] ?: ""
-        if (pathMethod == "respond") {
-            respondJson(judgeRespond(runCatching { receiveText() }.getOrDefault("")))
-            return
-        }
         val body = runCatching { receiveText() }.getOrDefault("")
         val envelope = runCatching { Json.parseToJsonElement(body) }.getOrNull() as? JsonObject
         val rpcId = (envelope?.get("rpcId") as? JsonPrimitive)?.contentOrNull
@@ -440,6 +518,14 @@ class MockHarness(
         }
         val method = (envelope?.get("method") as? JsonPrimitive)?.contentOrNull ?: pathMethod
         val payload = envelope?.get("payload") ?: JsonNull
+        if (method == EVENT_RESULT_ENDPOINT) {
+            try {
+                respondJson(okEnvelope(rpcId, judgeEventResult(payload)))
+            } catch (refusal: MockRefusal) {
+                respondJson(errorEnvelope(rpcId, refusal.reason, "answer refused"))
+            }
+            return
+        }
         when {
             asyncHandlers.containsKey(method) ->
                 respondJson(okEnvelope(rpcId, asyncHandlers[method]!!(payload)))
@@ -459,63 +545,68 @@ class MockHarness(
         }
     }
 
+    /**
+     * The mux: one socket, many logical streams.
+     *
+     * Unlike the downlinks it replaces, this reads from the client — a stream exists only
+     * because the client asked for it, so a mock that ignored incoming messages would answer
+     * nothing at all.
+     */
     private suspend fun WebSocketSession.handleMuxSocket() {
-        muxSockets += this
+        val streams = ConcurrentHashMap<String, String>()
+        muxSockets[this] = streams
         try {
-            send(muxSubscribedHello())
-            while (incoming.receiveCatching().isSuccess) {
-                // The DSH protocol is downlink-only; frames from the client are discarded.
+            while (true) {
+                val received = incoming.receiveCatching().getOrNull() ?: break
+                val text = (received as? Frame.Text)?.readText() ?: continue
+                val message = runCatching { Json.parseToJsonElement(text) }.getOrNull() as? JsonObject
+                    ?: continue
+                val streamId = (message["streamId"] as? JsonPrimitive)?.contentOrNull ?: continue
+                when ((message["type"] as? JsonPrimitive)?.contentOrNull) {
+                    "open" -> {
+                        val endpoint = (message["endpoint"] as? JsonPrimitive)?.contentOrNull
+                            ?: continue
+                        streams[streamId] = endpoint
+                        // `$events` proves readiness by answering immediately; every other
+                        // stream stays silent until a test pushes to it.
+                        if (endpoint == EVENTS_ENDPOINT) send(streamItem(streamId, readyFrame()))
+                    }
+                    "cancel" -> {
+                        streams.remove(streamId)
+                        send(
+                            buildJsonObject {
+                                put("type", "end")
+                                put("streamId", streamId)
+                            }.toString(),
+                        )
+                    }
+                }
             }
         } finally {
-            muxSockets -= this
+            muxSockets.remove(this)
         }
     }
 
-    private suspend fun WebSocketSession.handleHostSocket() {
-        hostSockets += this
-        try {
-            while (incoming.receiveCatching().isSuccess) {
-                // The DSH protocol is downlink-only; frames from the client are discarded.
-            }
-        } finally {
-            hostSockets -= this
-        }
-    }
+    /** One `item` frame for a logical stream. */
+    private fun streamItem(streamId: String, value: JsonElement): String = buildJsonObject {
+        put("type", "item")
+        put("streamId", streamId)
+        put("value", value)
+    }.toString()
 
-    /** The frame's payload slot, or the frame itself when it carries no envelope of its own. */
-    private fun payloadOf(frame: JsonElement): JsonElement =
-        (frame as? JsonObject)?.get("payload") ?: frame
-
-    /** Sends the frame to every listener and returns the rpcId it was minted with. */
-    private suspend fun broadcast(sockets: MutableSet<WebSocketSession>, frame: JsonElement): String {
-        val frameObject = frame as? JsonObject
-        val method = (frameObject?.get("method") as? JsonPrimitive)?.contentOrNull ?: "frame"
-        val rpcId = UUID.randomUUID().toString()
-        val envelope = buildJsonObject {
-            put("type", "server-request")
-            put("rpcId", rpcId)
-            put("method", method)
-            put("payload", payloadOf(frame))
-        }.toString()
-        for (session in sockets) {
-            try {
-                session.send(envelope)
-            } catch (ignored: Exception) {
-                // A disconnected client must not abort the broadcast.
-            }
+    /**
+     * The opening frame of `$events`: what makes a connection generation ready.
+     *
+     * It carries the only host fact 0.1.2 publishes plus the client id every later answer must
+     * quote — which is what `host.describe` used to be for.
+     */
+    private fun readyFrame(): JsonObject {
+        val host = buildJsonObject { put("home", "C:\\Users\\demo") }
+        return buildJsonObject {
+            put("type", "ready")
+            put("clientId", clientId)
+            put("host", readyHostTransform?.invoke(host) ?: host)
         }
-        return rpcId
-    }
-
-    private fun describeValue(): JsonObject {
-        val base = buildJsonObject {
-            put("version", "0.1.1-rc.2")
-            put("cwd", "C:\\demo")
-            put("attachedSessions", 0)
-            put("home", "C:\\Users\\demo")
-            put("canOpenPath", true)
-        }
-        return describeTransform?.invoke(base) ?: base
     }
 
     /**
@@ -539,15 +630,21 @@ class MockHarness(
         }
     }
 
-    /** Broadcast one `session/projection` frame, the way the host publishes a projection value. */
+    /**
+     * Push one projection value the way the host publishes one.
+     *
+     * It rides `session/control` now rather than the all-session mux — the stream that also
+     * carries queue and job state for every live session.
+     */
     suspend fun pushProjection(
         sessionId: String,
         key: String,
         value: JsonElement,
         seq: Int = 0,
-    ): String = pushMux(
+    ) = pushStream(
+        SESSION_CONTROL_ENDPOINT,
         buildJsonObject {
-            put("type", "session/projection")
+            put("type", "projection")
             put("sessionId", sessionId)
             put("key", key)
             put("value", value)
@@ -634,6 +731,27 @@ class MockHarness(
         }
     }
 }
+
+/** The Gateway-internal stream every connection opens to learn it is ready. */
+internal const val EVENTS_ENDPOINT = "\u0024events"
+
+/** The host-wide live-control stream: queue, jobs and projections for every live session. */
+internal const val SESSION_CONTROL_ENDPOINT = "session/control"
+
+/** One session's journal: a complete opening snapshot, then live events. */
+internal const val SESSION_FOLLOW_ENDPOINT = "session/follow"
+
+/** The Gateway-internal unary endpoint one waterfall answer is posted to. */
+internal const val EVENT_RESULT_ENDPOINT = "\u0024events/result"
+
+/**
+ * A refused answer.
+ *
+ * 0.1.1 answered a bad response with an `{"accepted":false,"reason":…}` receipt on its own
+ * carrier. 0.1.2 has no such carrier — the answer is an ordinary unary call — so a refusal is an
+ * ordinary business error whose `code` carries the reason.
+ */
+internal class MockRefusal(val reason: String) : Exception(reason)
 
 private const val ACCEPTED = """{"accepted":true}"""
 private const val REFUSED_BAD_RESPONSE = """{"accepted":false,"reason":"bad-response"}"""

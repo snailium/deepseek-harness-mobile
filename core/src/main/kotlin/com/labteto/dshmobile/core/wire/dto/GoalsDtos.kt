@@ -2,6 +2,7 @@ package com.labteto.dshmobile.core.wire.dto
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /**
  * Goals-domain DTOs, ported from `packages/host/apiproxy/src/api/goals.schema.ts` and
@@ -147,4 +148,31 @@ data class GoalCompleteValue(
 @Serializable
 data class GoalClearValue(
     @SerialName("cleared") val cleared: Boolean = true,
+)
+
+/**
+ * Value of every goal mutation except `clear`.
+ *
+ * 0.1.1 acknowledged a mutation with a bare `{ ref }`; 0.1.2 answers the updated view, so the
+ * caller no longer has to re-read a projection to show the result of its own edit.
+ *
+ * Extends the durable snapshot with replay counters and process-local activation. `activation`
+ * is never persisted — a goal reloaded from a cold log has none.
+ */
+@Serializable
+data class GoalView(
+    @SerialName("id") val id: String,
+    @SerialName("revision") val revision: Int,
+    @SerialName("objective") val objective: String,
+    @SerialName("phase") val phase: GoalPhase,
+    @SerialName("blockedReason") val blockedReason: GoalBlockReason? = null,
+    @SerialName("maxGoalRounds") val maxGoalRounds: Int,
+    /** Highest admitted round number for this goal. */
+    @SerialName("roundsStarted") val roundsStarted: Int = 0,
+    /** Epoch milliseconds of the create mutation. */
+    @SerialName("createdAt") val createdAt: Long = 0,
+    /** Epoch milliseconds of the latest mutation. */
+    @SerialName("updatedAt") val updatedAt: Long = 0,
+    /** Process-local continuation eligibility; opaque here and never persisted. */
+    @SerialName("activation") val activation: JsonElement? = null,
 )

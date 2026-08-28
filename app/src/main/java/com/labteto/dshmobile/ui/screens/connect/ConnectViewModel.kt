@@ -1,5 +1,7 @@
 package com.labteto.dshmobile.ui.screens.connect
 
+import com.labteto.dshmobile.core.wire.SessionExchange
+import com.labteto.dshmobile.connection.HarnessSessionStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.labteto.dshmobile.connection.ConnectMode
@@ -48,6 +50,18 @@ sealed interface HostProbe {
 /** How far the subnet sweep has got, so the UI can show more than a spinner. */
 data class ScanProgress(val probed: Int, val total: Int)
 
+/** Why a launch-token exchange did not produce a browser session. */
+enum class SignInError {
+    /** The screen has no remembered host to sign in to — nothing was attempted yet. */
+    NoHost,
+
+    /** The harness answered and issued no session; the token is not the current process's. */
+    Refused,
+
+    /** The exchange never reached a harness. */
+    Unreachable,
+}
+
 data class ConnectUiState(
     /**
      * Which way the user chose to connect: [ConnectMode.LAN] or [ConnectMode.RELAY].
@@ -71,6 +85,12 @@ data class ConnectUiState(
     val attempted: String? = null,
     /** The loop is still retrying in the background, so a cancel is worth offering. */
     val retrying: Boolean = false,
+    /** The launch-token prompt is showing. */
+    val signInOpen: Boolean = false,
+    /** An exchange is in flight. */
+    val signingIn: Boolean = false,
+    /** Why the last exchange did not produce a session, or null. */
+    val signInError: SignInError? = null,
     val autoConnectLast: Boolean = true,
     val autoConnectLan: Boolean = false,
     val autoConnectLoopback: Boolean = true,
@@ -124,6 +144,7 @@ class ConnectViewModel @Inject constructor(
     private val discoveryEngine: DiscoveryEngine,
     private val mdnsDiscovery: MdnsDiscovery,
     private val hostsStore: HostsStore,
+    private val harnessSessions: HarnessSessionStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConnectUiState())
@@ -141,6 +162,50 @@ class ConnectViewModel @Inject constructor(
 
     /** The sweep in flight, so a second tap cannot start a rival one and Cancel has something to stop. */
     private var scanJob: Job? = null
+
+    /**
+     * Exchange a harness launch token for a browser session, then retry the connection.
+     *
+     * Harness 0.1.2 authenticates its whole `/api` surface, so a direct connection to a harness
+     * this device has never signed in to is refused before any method runs. The token is printed
+     * once per harness process and is only accepted on the index route, which is why this is a
+     * separate step rather than something a connection attempt could do on its own.
+     *
+     * [input] may be the bare token, the `?token=…` URL, or the whole startup line.
+     */
+    fun signIn(input: String) {
+        val host = _state.value.let { current ->
+            current.remembered.firstOrNull { it.authority == current.attempted }
+        }
+        if (host == null) {
+            _state.update { it.copy(signInError = SignInError.NoHost) }
+            return
+        }
+        _state.update { it.copy(signingIn = true, signInError = null) }
+        viewModelScope.launch {
+            val outcome = harnessSessions.pair(host.id, host.baseUrl, input)
+            _state.update { current ->
+                current.copy(
+                    signingIn = false,
+                    signInError = when (outcome) {
+                        is SessionExchange.Granted -> null
+                        // Almost always a token from an earlier harness process: it rotates on
+                        // every start and is never persisted.
+                        is SessionExchange.Refused -> SignInError.Refused
+                        is SessionExchange.Unreachable -> SignInError.Unreachable
+                    },
+                    // The dialog closes on success; a failure keeps it open with the reason.
+                    signInOpen = outcome !is SessionExchange.Granted,
+                )
+            }
+            if (outcome is SessionExchange.Granted) connectTo(host)
+        }
+    }
+
+    /** Open or close the launch-token prompt. */
+    fun setSignInOpen(open: Boolean) {
+        _state.update { it.copy(signInOpen = open, signInError = null) }
+    }
 
     init {
         viewModelScope.launch {

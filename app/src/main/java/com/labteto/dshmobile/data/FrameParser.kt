@@ -5,12 +5,9 @@ import com.labteto.dshmobile.core.session.SessionEventEnvelope
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
 import com.labteto.dshmobile.core.wire.encodeToJsonElement
 import com.labteto.dshmobile.core.wire.dto.ContentBlock
-import com.labteto.dshmobile.core.wire.dto.HostFrame
-import com.labteto.dshmobile.core.wire.dto.HostFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.MessageData
-import com.labteto.dshmobile.core.wire.dto.MuxFrame
-import com.labteto.dshmobile.core.wire.dto.MuxFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.QueuedInboxItem
+import com.labteto.dshmobile.core.wire.dto.SessionWireEvent
 import com.labteto.dshmobile.core.wire.dto.SessionEvent
 import com.labteto.dshmobile.core.wire.dto.SessionEventSerializer
 import kotlinx.serialization.json.JsonElement
@@ -20,18 +17,28 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
 /**
- * Pure, unit-testable frame-decode helpers shared by [SessionStore] and the notification
- * observer. Every function is lenient: malformed payloads yield `null` (or an empty snapshot
- * field) instead of throwing, because stream frames are merge-extensible and may drift.
+ * Pure, unit-testable decode helpers shared by [SessionStore] and the notification observer.
+ *
+ * Every function is lenient: malformed payloads yield `null` (or an empty field) instead of
+ * throwing, because stream frames are merge-extensible and may drift.
  */
 
-/** Decode a mux-stream frame payload (`session/event`, `approval/requested`, …) or null. */
-fun parseMuxFrame(payload: JsonElement): MuxFrame? =
-    runCatching { decodeFromJsonElement(MuxFrameSerializer, payload) }.getOrNull()
-
-/** Decode a host-stream frame payload (`host/session-added`, …) or null. */
-fun parseHostFrame(payload: JsonElement): HostFrame? =
-    runCatching { decodeFromJsonElement(HostFrameSerializer, payload) }.getOrNull()
+/**
+ * Convert one wire event from a journal record into the raw-envelope shape the fold consumes.
+ *
+ * The journal's event form is already flat — type, seq, time, raw `data` — so unlike
+ * [sessionEventToEnvelope] this needs no round-trip through a typed DTO. `surfaceOp` is
+ * stringified for the envelope exactly as the typed path does it.
+ */
+fun wireEventToEnvelope(event: SessionWireEvent): SessionEventEnvelope = SessionEventEnvelope(
+    type = event.type,
+    seq = event.seq.toLong(),
+    time = event.time,
+    data = event.data,
+    surfaceOp = event.surfaceOp?.let { raw ->
+        (raw as? JsonPrimitive)?.contentOrNull ?: raw.toString()
+    },
+)
 
 /**
  * Convert a typed [SessionEvent] into the raw-envelope shape the fold consumes. `data` is the

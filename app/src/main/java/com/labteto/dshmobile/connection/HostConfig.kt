@@ -30,9 +30,15 @@ data class HostConfig(
      */
     val useTls: Boolean = false,
     val lastConnectedAt: Long = 0L,
-    val lastVersion: String? = null,
-    val lastCwd: String? = null,
-    val lastSessions: Int? = null,
+    /**
+     * The host account's home directory, as of the last successful connection.
+     *
+     * This is the only host fact 0.1.2 still publishes. Through 0.1.1 the record also remembered
+     * the harness version, its working directory and its attached-session count, all from
+     * `host.describe`; that call is gone and nothing replaces those three, so they are no longer
+     * remembered or shown.
+     */
+    val lastHome: String? = null,
     /** Base64 SHA-256 of the relay's DER SubjectPublicKeyInfo; null when there is nothing to pin. */
     val relayFingerprint: String? = null,
     /** The relay's own id for this device, shown in its device list. Non-null iff this host is paired. */

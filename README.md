@@ -90,7 +90,10 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
 
 - Android 8.0+ (minSdk 26).
 - A running [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-  (tested against `0.1.1-rc.2`).
+  (tested against `0.1.2-alpha.1`). **0.9.0 does not speak the 0.1.1 protocol** —
+  that release replaced the wire rather than extending it, so the app and the
+  harness have to move together. See
+  [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## Quick start
 
@@ -113,9 +116,12 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
    client you use has paired, turn off the relay's `compat.addressGrants` —
    nothing here needs it.
 
-   **Local network** — no setup on the phone, no authentication at all. Apply
-   the one-file LAN patch in [`harness/README.md`](harness/README.md), restart
-   `dsh web`, then tap **Scan network**. Only on networks you trust.
+   **Local network** — apply the one-file LAN patch in
+   [`harness/README.md`](harness/README.md), restart `dsh web`, then tap
+   **Scan network**. The harness signs each device in once: paste the link it
+   prints at startup when the app asks. That link authenticates the phone, but
+   it does not encrypt the connection and it does not stop anyone already on the
+   network from reaching the port — so still only on networks you trust.
 
    **Behind your own HTTPS reverse proxy** — paste the `https://` address into
    local-network mode. The proxy can forward to loopback, so the harness needs
@@ -123,7 +129,8 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
    [`harness/README.md`](harness/README.md).
 
    **USB / emulator** — `dsh web`, then `adb reverse tcp:3080 tcp:3080`, and
-   connect to `127.0.0.1:3080` in local-network mode. No patch needed.
+   connect to `127.0.0.1:3080` in local-network mode. No patch needed; the app
+   still asks for the startup link once.
 3. Pick a session, chat, and get notified when the harness is done.
 
 If a connect attempt fails, the app names the cause; the wiki's
@@ -132,12 +139,13 @@ keyed on that exact sentence.
 
 ## Compatibility & security
 
-- See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the harness version matrix and
-  loopback-only surfaces.
-- **Read [docs/SECURITY.md](docs/SECURITY.md) first.** The bare harness has no authentication, so
-  local-network mode is for trusted networks only — the app says so on the connect screen for the
-  same reason. Relay mode adds a real credential and a pinned certificate, but authenticating still
-  grants the same power as a shell on that computer, because the agent runs commands there.
+- See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the harness version matrix and what
+  0.1.2 changed.
+- **Read [docs/SECURITY.md](docs/SECURITY.md) first.** From harness 0.1.2 the harness authenticates
+  its whole API, and a signed-in device reaches all of it — there is no longer a reduced tier for
+  a caller that is not on the machine itself. Signing in grants the same power as a shell on that
+  computer, because the agent runs commands there. Local-network mode authenticates but does not
+  encrypt; relay mode adds a pinned certificate on top.
 
 ## Building
 

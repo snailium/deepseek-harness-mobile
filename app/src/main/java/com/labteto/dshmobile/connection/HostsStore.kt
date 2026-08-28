@@ -122,9 +122,7 @@ class HostsStore @Inject constructor(
             port = port,
             isLoopback = isLoopback,
             lastConnectedAt = System.currentTimeMillis(),
-            lastVersion = description?.version ?: existing?.lastVersion,
-            lastCwd = description?.cwd ?: existing?.lastCwd,
-            lastSessions = description?.attachedSessions ?: existing?.lastSessions,
+            lastHome = description?.home ?: existing?.lastHome,
             // A fresh pairing replaces the whole relay identity rather than merging into it: a
             // re-pair mints a new device id, may move between TLS postures, and can land on a
             // regenerated key. Keeping any of the previous three would leave the record describing
@@ -139,18 +137,14 @@ class HostsStore @Inject constructor(
         return config
     }
 
-    /** Fold a fresh `host.describe` into the remembered entry without touching its recency. */
+    /** Fold a fresh host description into the remembered entry without touching its recency. */
     suspend fun cacheDescription(host: String, port: Int, description: HostDescription) {
         val current = hosts.first()
         if (current.none { it.host == host && it.port == port }) return
         persist(
             current.map {
                 if (it.host == host && it.port == port) {
-                    it.copy(
-                        lastVersion = description.version,
-                        lastCwd = description.cwd,
-                        lastSessions = description.attachedSessions,
-                    )
+                    it.copy(lastHome = description.home)
                 } else {
                     it
                 }

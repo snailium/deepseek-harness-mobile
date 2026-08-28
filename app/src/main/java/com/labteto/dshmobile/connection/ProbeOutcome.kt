@@ -11,11 +11,29 @@ import com.labteto.dshmobile.core.wire.dto.HostDescription
  */
 sealed interface ProbeOutcome {
 
-    /** A harness answered `host.describe`. */
-    data class Reachable(val description: HostDescription) : ProbeOutcome
+    /**
+     * A harness answered.
+     *
+     * [description] is null when the endpoint proved itself but its home directory was not read —
+     * on the LAN sweep, which does not spend a second request for a caption, and on any host whose
+     * directory listing is unavailable. Reachability and description were one call through 0.1.1;
+     * from 0.1.2 they are not, so "reachable" no longer implies "described".
+     */
+    data class Reachable(val description: HostDescription?) : ProbeOutcome
 
     /** HTTP 403 — the harness is there and its `Host` trust fence refused this address. */
     data object TrustFence : ProbeOutcome
+
+    /**
+     * HTTP 401 — the harness is there, accepted the address, and has no browser session for this
+     * client.
+     *
+     * New with harness 0.1.2, which authenticates the whole `/api` surface against a signed cookie
+     * obtained by exchanging a launch token. Deliberately not folded into [TrustFence]: a 403 is
+     * about where the request came from and is fixed on the harness, while this is about who is
+     * asking and is fixed by exchanging a token from the harness's startup URL.
+     */
+    data object Unauthenticated : ProbeOutcome
 
     /**
      * HTTP 403 from a relay: this device has no credential it will accept any more.
