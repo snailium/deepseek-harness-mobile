@@ -386,7 +386,7 @@
     <string name="connect_mode_title">Способ подключения</string>
     <string name="connect_mode_lan">Локальная сеть</string>
     <string name="connect_mode_relay">Реле</string>
-    <string name="connect_mode_lan_hint">Напрямую к harness в вашей сети Wi-Fi. Никто не проверяет, кто вы, поэтому используйте это только в доверенных сетях.</string>
+    <string name="connect_mode_lan_hint">Напрямую к harness в вашей сети Wi-Fi. Он один раз выполняет вход для этого устройства, но соединение не шифруется, поэтому используйте только в доверенных сетях.</string>
     <string name="connect_mode_relay_hint">К harness через dsh-relay. Устройство хранит токен, выданный один раз, соединение шифруется, и это работает даже за пределами вашей сети Wi-Fi.</string>
     <string name="connect_relay_banner">Реле проверяет только то, что это действительно вы. После сопряжения устройство может выполнять команды на том компьютере — ровно как открытый на нём терминал.</string>
     <string name="connect_relay_remembered">Сопряжённые реле</string>

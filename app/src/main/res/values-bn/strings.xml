@@ -386,7 +386,7 @@
     <string name="connect_mode_title">কীভাবে সংযোগ করবেন</string>
     <string name="connect_mode_lan">লোকাল নেটওয়ার্ক</string>
     <string name="connect_mode_relay">রিলে</string>
-    <string name="connect_mode_lan_hint">আপনার Wi-Fi-এ চলা harness-এর সঙ্গে সরাসরি কথা বলুন। এখানে কেউ পরিচয় যাচাই করে না, তাই কেবল বিশ্বস্ত নেটওয়ার্কে এটি ব্যবহার করুন।</string>
+    <string name="connect_mode_lan_hint">আপনার Wi-Fi-এ চলা harness-এর সঙ্গে সরাসরি কথা বলুন। এটি এই ডিভাইসকে একবার সাইন ইন করায়, কিন্তু সংযোগ এনক্রিপ্টেড নয়, তাই কেবল বিশ্বস্ত নেটওয়ার্কে ব্যবহার করুন।</string>
     <string name="connect_mode_relay_hint">dsh-relay-এর মাধ্যমে harness-এর সঙ্গে কথা বলুন। এই ডিভাইস একবার ইস্যু হওয়া একটি টোকেন রাখে, সংযোগ এনক্রিপ্টেড থাকে, এবং আপনার Wi-Fi-এর বাইরে থেকেও কাজ করে।</string>
     <string name="connect_relay_banner">রিলে শুধু যাচাই করে যে এটি আপনিই। জোড়া লাগার পর এই ডিভাইস ওই কম্পিউটারে কমান্ড চালাতে পারে — ঠিক যেমন সেখানে খোলা কোনো টার্মিনাল পারত।</string>
     <string name="connect_relay_remembered">জোড়া লাগানো রিলে</string>

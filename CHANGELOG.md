@@ -3,6 +3,27 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.9.2] - 2026-08-28
+
+Verified on an Android emulator against a live relay, which is how the first
+two of these were found.
+
+### Fixed
+
+- **A failure straight after pairing named no address**, reading "Something
+  answered at , but it is not a DeepSeek Harness." Pairing connects through the
+  connection manager directly rather than through the connect screen's own
+  path, so the screen never recorded which host was being attempted. It falls
+  back to the manager's active host now.
+
+### Changed
+
+- **Local-network mode no longer claims nothing checks who you are.** That was
+  true through harness 0.1.1 and is not true of 0.1.2, which signs each device
+  in before it will answer at all. The banner says what is actually still worth
+  warning about: the connection is authenticated but not encrypted. Corrected
+  in all eleven locales.
+
 ## [0.9.1] - 2026-08-28
 
 ### Fixed

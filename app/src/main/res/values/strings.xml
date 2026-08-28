@@ -51,7 +51,7 @@
     <string name="connect_auto_last">Reconnect to last used harness</string>
     <string name="connect_auto_lan">Auto-connect to discovered harness on Wi-Fi</string>
     <string name="connect_auto_loopback">Auto-connect to harness on this device</string>
-    <string name="connect_security_banner">Warning: the harness has no authentication. Only connect to networks you trust.</string>
+    <string name="connect_security_banner">Warning: this connection is not encrypted. Only connect to networks you trust.</string>
     <string name="connect_failed">Could not reach a harness at %1$s:%2$s</string>
     <string name="connect_failed_fence">Connect using the computer\'s IP address instead of its name, or start the harness with --trusted-host.</string>
     <string name="connect_stage_validating">Checking the address…</string>
@@ -388,7 +388,7 @@
     <string name="connect_mode_title">How to connect</string>
     <string name="connect_mode_lan">Local network</string>
     <string name="connect_mode_relay">Relay</string>
-    <string name="connect_mode_lan_hint">Talk straight to a harness on your Wi-Fi. Nothing checks who you are, so use this only on a network you trust.</string>
+    <string name="connect_mode_lan_hint">Talk straight to a harness on your Wi-Fi. It signs this device in once, but the connection is not encrypted, so use it only on a network you trust.</string>
     <string name="connect_mode_relay_hint">Talk to a harness through dsh-relay. This device holds a token it is issued once, the connection is encrypted, and it works from outside your Wi-Fi.</string>
     <string name="connect_relay_banner">A relay checks that it is you, and nothing else. Once paired, this device can run commands on that computer, exactly as a terminal on it could.</string>
     <string name="connect_relay_remembered">Paired relays</string>

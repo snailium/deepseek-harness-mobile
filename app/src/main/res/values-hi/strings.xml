@@ -386,7 +386,7 @@
     <string name="connect_mode_title">कैसे कनेक्ट करें</string>
     <string name="connect_mode_lan">लोकल नेटवर्क</string>
     <string name="connect_mode_relay">रिले</string>
-    <string name="connect_mode_lan_hint">अपने Wi-Fi पर चल रहे harness से सीधे बात करें। यहाँ कोई पहचान नहीं जाँची जाती, इसलिए इसे सिर्फ़ भरोसेमंद नेटवर्क पर इस्तेमाल करें।</string>
+    <string name="connect_mode_lan_hint">अपने Wi-Fi पर चल रहे harness से सीधे बात करें। यह इस डिवाइस को एक बार साइन इन करता है, पर कनेक्शन एन्क्रिप्टेड नहीं है, इसलिए इसे सिर्फ़ भरोसेमंद नेटवर्क पर इस्तेमाल करें।</string>
     <string name="connect_mode_relay_hint">dsh-relay के ज़रिए harness से बात करें। यह डिवाइस एक बार जारी हुआ टोकन रखता है, कनेक्शन एन्क्रिप्टेड रहता है, और यह आपके Wi-Fi के बाहर से भी काम करता है।</string>
     <string name="connect_relay_banner">रिले सिर्फ़ यह जाँचता है कि यह आप ही हैं। पेयर होने के बाद यह डिवाइस उस कंप्यूटर पर कमांड चला सकता है — ठीक वैसे ही जैसे उस पर खुला कोई टर्मिनल।</string>
     <string name="connect_relay_remembered">पेयर किए गए रिले</string>

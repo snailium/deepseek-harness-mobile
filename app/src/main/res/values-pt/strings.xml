@@ -386,7 +386,7 @@
     <string name="connect_mode_title">Como conectar</string>
     <string name="connect_mode_lan">Rede local</string>
     <string name="connect_mode_relay">Relay</string>
-    <string name="connect_mode_lan_hint">Fala diretamente com um harness no seu Wi-Fi. Nada verifica quem você é, então use apenas em redes de confiança.</string>
+    <string name="connect_mode_lan_hint">Fala diretamente com um harness no seu Wi-Fi. Ele autentica este dispositivo uma vez, mas a ligação não é encriptada, então use apenas em redes de confiança.</string>
     <string name="connect_mode_relay_hint">Fala com um harness através do dsh-relay. Este dispositivo guarda um token emitido uma única vez, a conexão é criptografada e funciona também fora do seu Wi-Fi.</string>
     <string name="connect_relay_banner">Um relay confirma que é você, e nada mais. Depois de pareado, este dispositivo pode executar comandos naquele computador, exatamente como um terminal aberto nele.</string>
     <string name="connect_relay_remembered">Relays pareados</string>

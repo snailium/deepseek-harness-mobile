@@ -386,7 +386,7 @@
     <string name="connect_mode_title">วิธีเชื่อมต่อ</string>
     <string name="connect_mode_lan">เครือข่ายภายใน</string>
     <string name="connect_mode_relay">รีเลย์</string>
-    <string name="connect_mode_lan_hint">คุยกับ harness บน Wi-Fi ของคุณโดยตรง ไม่มีการตรวจสอบว่าคุณเป็นใคร จึงควรใช้เฉพาะบนเครือข่ายที่ไว้ใจได้</string>
+    <string name="connect_mode_lan_hint">คุยกับ harness บน Wi-Fi ของคุณโดยตรง ระบบจะลงชื่อเข้าใช้อุปกรณ์นี้หนึ่งครั้ง แต่การเชื่อมต่อไม่ได้เข้ารหัส จึงควรใช้เฉพาะบนเครือข่ายที่ไว้ใจได้</string>
     <string name="connect_mode_relay_hint">คุยกับ harness ผ่าน dsh-relay อุปกรณ์นี้จะเก็บโทเคนที่ออกให้เพียงครั้งเดียว การเชื่อมต่อถูกเข้ารหัส และใช้งานได้แม้อยู่นอก Wi-Fi ของคุณ</string>
     <string name="connect_relay_banner">รีเลย์ตรวจสอบเพียงว่าเป็นคุณจริงเท่านั้น เมื่อจับคู่แล้ว อุปกรณ์นี้จะสั่งรันคำสั่งบนคอมพิวเตอร์เครื่องนั้นได้ เหมือนเทอร์มินัลที่เปิดอยู่บนเครื่องนั้นทุกประการ</string>
     <string name="connect_relay_remembered">รีเลย์ที่จับคู่แล้ว</string>

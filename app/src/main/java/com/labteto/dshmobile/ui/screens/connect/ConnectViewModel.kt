@@ -220,6 +220,10 @@ class ConnectViewModel @Inject constructor(
                             owned -> current.failure
                             else -> conn.failure
                         },
+                        // Whoever started the attempt owns this normally, but pairing connects
+                        // through the manager directly — so a failure after pairing arrived with
+                        // no address at all, and the message read "Something answered at , but…".
+                        attempted = current.attempted ?: conn.host?.authority,
                         retrying = !owned && !connected && conn.attempts > 0,
                         // The Recent card's liveness dot used to be greyed by the failure callback
                         // that no longer exists; without this a dead entry keeps looking healthy.

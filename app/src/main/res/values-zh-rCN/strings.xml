@@ -386,7 +386,7 @@
     <string name="connect_mode_title">连接方式</string>
     <string name="connect_mode_lan">局域网</string>
     <string name="connect_mode_relay">中继</string>
-    <string name="connect_mode_lan_hint">直接连接同一 Wi-Fi 下的 harness。没有任何身份验证，请只在可信网络中使用。</string>
+    <string name="connect_mode_lan_hint">直接连接同一 Wi-Fi 下的 harness。它会为本机登录一次，但连接不加密，请只在可信网络中使用。</string>
     <string name="connect_mode_relay_hint">通过 dsh-relay 连接 harness。本设备保存一次性签发的令牌，连接经过加密，在 Wi-Fi 之外也能使用。</string>
     <string name="connect_relay_banner">中继只验证连接的人是不是你。配对之后，本设备可以在那台电脑上执行命令，与在它上面打开终端完全一样。</string>
     <string name="connect_relay_remembered">已配对的中继</string>

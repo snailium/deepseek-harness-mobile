@@ -386,7 +386,7 @@
     <string name="connect_mode_title">Cómo conectar</string>
     <string name="connect_mode_lan">Red local</string>
     <string name="connect_mode_relay">Relé</string>
-    <string name="connect_mode_lan_hint">Habla directamente con un harness de tu wifi. Nada comprueba quién eres, así que usa esta opción solo en redes de confianza.</string>
+    <string name="connect_mode_lan_hint">Habla directamente con un harness de tu wifi. Registra este dispositivo una vez, pero la conexión no está cifrada, así que úsalo solo en redes de confianza.</string>
     <string name="connect_mode_relay_hint">Habla con un harness a través de dsh-relay. Este dispositivo guarda un token que se emite una sola vez, la conexión va cifrada y funciona también fuera de tu wifi.</string>
     <string name="connect_relay_banner">Un relé comprueba que eres tú, y nada más. Una vez emparejado, este dispositivo puede ejecutar comandos en ese ordenador igual que un terminal abierto en él.</string>
     <string name="connect_relay_remembered">Relés emparejados</string>

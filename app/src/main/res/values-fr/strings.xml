@@ -386,7 +386,7 @@
     <string name="connect_mode_title">Mode de connexion</string>
     <string name="connect_mode_lan">Réseau local</string>
     <string name="connect_mode_relay">Relais</string>
-    <string name="connect_mode_lan_hint">Parlez directement à un harness sur votre Wi-Fi. Rien ne vérifie qui vous êtes : à réserver aux réseaux de confiance.</string>
+    <string name="connect_mode_lan_hint">Parlez directement à un harness sur votre Wi-Fi. Il connecte cet appareil une fois, mais la connexion n’est pas chiffrée : à réserver aux réseaux de confiance.</string>
     <string name="connect_mode_relay_hint">Parlez à un harness via dsh-relay. Cet appareil conserve un jeton délivré une seule fois, la connexion est chiffrée, et cela fonctionne aussi hors de votre Wi-Fi.</string>
     <string name="connect_relay_banner">Un relais vérifie que c\'est bien vous, rien de plus. Une fois appairé, cet appareil peut exécuter des commandes sur cet ordinateur, exactement comme un terminal ouvert dessus.</string>
     <string name="connect_relay_remembered">Relais appairés</string>

@@ -386,7 +386,7 @@
     <string name="connect_mode_title">طريقة الاتصال</string>
     <string name="connect_mode_lan">الشبكة المحلية</string>
     <string name="connect_mode_relay">مُرحِّل</string>
-    <string name="connect_mode_lan_hint">اتصال مباشر بـ harness على شبكة الواي فاي لديك. لا شيء يتحقق من هويتك، لذا استخدم هذا الخيار على الشبكات الموثوقة فقط.</string>
+    <string name="connect_mode_lan_hint">اتصال مباشر بـ harness على شبكة الواي فاي لديك. يسجّل دخول هذا الجهاز مرة واحدة، لكن الاتصال غير مشفّر، لذا استخدمه على الشبكات الموثوقة فقط.</string>
     <string name="connect_mode_relay_hint">اتصال بـ harness عبر dsh-relay. يحتفظ هذا الجهاز برمز يُصدَر مرة واحدة، والاتصال مُشفَّر، ويعمل حتى من خارج شبكتك.</string>
     <string name="connect_relay_banner">يتحقق المُرحِّل من أنك أنت، لا أكثر. بعد الاقتران يستطيع هذا الجهاز تنفيذ أوامر على ذلك الكمبيوتر تمامًا كأي طرفية مفتوحة عليه.</string>
     <string name="connect_relay_remembered">المُرحِّلات المقترنة</string>
