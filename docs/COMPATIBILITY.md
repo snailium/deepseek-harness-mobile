@@ -8,7 +8,8 @@ checked against.
 
 | DSH Mobile | Harness version | Status |
 |---|---|---|
-| 0.9.0 | 0.1.2-alpha.1 | Supported baseline |
+| 0.9.1 | 0.1.2-alpha.1 | Supported baseline |
+| 0.9.0 | 0.1.2-alpha.1 | |
 | 0.8.0 | 0.1.1-rc.2 | Previous baseline |
 | 0.7.0 | 0.1.1-rc.2 | |
 | 0.6.0 | 0.1.1-rc.2 | |
@@ -30,7 +31,8 @@ mounted beside the harness rather than part of it.
 
 | DSH Mobile | [dsh-relay](https://github.com/sorsama/deepseek-harness-relay) | Notes |
 |---|---|---|
-| 0.9.0 | 0.2.0 | Pairing payload `v: 1`; mDNS TXT `v: 1` |
+| 0.9.1 | 0.2.1 | Pairing payload `v: 1`; mDNS TXT `v: 1` |
+| 0.9.0 | 0.2.0 | |
 | 0.8.0 | 0.1.1 | |
 
 A relay older than 0.2.0 cannot serve a 0.1.2 harness at all. The harness now

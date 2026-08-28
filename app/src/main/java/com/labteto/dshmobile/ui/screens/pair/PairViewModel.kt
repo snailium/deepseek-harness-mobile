@@ -57,7 +57,14 @@ data class PairUiState(
     /** Set once a QR has been read, so the screen can show what it is about to pair with. */
     val scanned: RelayPairingPayload? = null,
     val failure: PairFailure? = null,
-    /** The endpoint that was just enrolled; the screen hands this back and closes. */
+    /**
+     * The endpoint that was just enrolled; the screen hands this back and closes.
+     *
+     * A one-shot signal, cleared by [PairViewModel.acknowledgePaired] as the screen acts on it.
+     * It cannot be left set: this ViewModel is scoped to the activity rather than to the screen,
+     * so it outlives a closed pairing screen — and a latched value would close the *next* one the
+     * instant it opened, which looks exactly like the button not working.
+     */
     val paired: HostConfig? = null,
 ) {
     val busy: Boolean get() = stage == PairStage.Claiming
@@ -257,6 +264,16 @@ class PairViewModel @Inject constructor(
         credentials.put(config.id, response.token)
         _state.update { it.copy(stage = PairStage.Paired, paired = config, failure = null) }
         connectionManager.connect(config)
+    }
+
+    /**
+     * Consume the [PairUiState.paired] signal.
+     *
+     * Called by the screen as it closes, so reopening pairing later starts from Idle rather than
+     * re-firing the close it already handled.
+     */
+    fun acknowledgePaired() {
+        _state.update { it.copy(stage = PairStage.Idle, paired = null) }
     }
 
     private fun fail(failure: PairFailure) {

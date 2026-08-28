@@ -69,7 +69,15 @@ fun PairScreen(
 
     LaunchedEffect(prefillUrl) { prefillUrl?.let(viewModel::prefill) }
     // The connection is already under way by the time this fires; the screen's job is done.
-    LaunchedEffect(state.paired) { if (state.paired != null) onClose() }
+    // Consumed before closing, not after: `onClose` removes this composable, which cancels the
+    // effect — so a clear that came second would never run, and the flag would still be set the
+    // next time pairing opened.
+    LaunchedEffect(state.paired) {
+        if (state.paired != null) {
+            viewModel.acknowledgePaired()
+            onClose()
+        }
+    }
 
     val scanner = rememberLauncherForActivityResult(ScanContract()) { result ->
         // A null payload is a cancel or a denied camera. Both leave the typed form on screen, which

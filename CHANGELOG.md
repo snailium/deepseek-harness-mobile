@@ -3,6 +3,24 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.9.1] - 2026-08-28
+
+### Fixed
+
+- **"Pair a relay" closed the instant it opened, after the first successful
+  pairing.** The screen closes itself when the view model reports a paired
+  endpoint, and that report was a latched value rather than a one-shot signal.
+  The view model is scoped to the activity, not to the screen, so it outlived
+  the pairing screen it belonged to — and the next time pairing opened, the
+  flag was still set from last time and the close fired immediately. It reads
+  exactly like the button doing nothing. The signal is consumed as the screen
+  acts on it now, and consumed *before* closing, since closing removes the
+  composable and cancels the effect that would otherwise have cleared it.
+
+  Pairing a relay for the first time on a fresh install was unaffected, which
+  is why it survived the 0.9.0 release: the flag is only stale once something
+  has set it.
+
 ## [0.9.0] - 2026-08-28
 
 The protocol underneath moved, and this release moves with it.
