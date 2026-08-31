@@ -136,22 +136,30 @@ fun ConnectScreen(
     }
 
     // Edit on a Recent card pre-fills the whole form and scrolls it into view, so a mistyped
-    // secret can be corrected without deleting the host and starting over.
+    // secret can be corrected without deleting the host and starting over. In relay mode the
+    // manual form is not rendered — a relay's credential comes from pairing, not from a field —
+    // so Edit routes to the pair screen with the address prefilled instead. The effect reads the
+    // current mode at fire time; switching modes while an edit is pending re-runs it for the new
+    // mode, which is the right behaviour rather than a stale prefill.
     LaunchedEffect(editingId) {
         val target = editingId
             ?.let { id -> state.remembered.firstOrNull { it.id == id } }
             ?: return@LaunchedEffect
-        address = target.displayAddress
-        scheme = target.scheme
-        port = target.port.toString()
-        token = target.authToken.orEmpty()
-        cfClientId = target.cfClientId.orEmpty()
-        cfClientSecret = target.cfClientSecret.orEmpty()
-        advancedTouched = true
-        advancedExpanded = true
-        authExpanded = token.isNotBlank() || cfClientId.isNotBlank() || cfClientSecret.isNotBlank()
-        if (manualTop > 0) {
-            scope.launch { scrollState.animateScrollTo((manualTop - scrollPadPx).coerceAtLeast(0)) }
+        if (state.mode == ConnectMode.RELAY) {
+            onPair(target.baseUrl)
+        } else {
+            address = target.displayAddress
+            scheme = target.scheme
+            port = target.port.toString()
+            token = target.authToken.orEmpty()
+            cfClientId = target.cfClientId.orEmpty()
+            cfClientSecret = target.cfClientSecret.orEmpty()
+            advancedTouched = true
+            advancedExpanded = true
+            authExpanded = token.isNotBlank() || cfClientId.isNotBlank() || cfClientSecret.isNotBlank()
+            if (manualTop > 0) {
+                scope.launch { scrollState.animateScrollTo((manualTop - scrollPadPx).coerceAtLeast(0)) }
+            }
         }
         editingId = null
     }

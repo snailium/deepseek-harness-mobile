@@ -138,8 +138,9 @@ class PairViewModel @Inject constructor(
 
     /** Prefill the address, e.g. when re-pairing a relay that revoked this device. */
     fun prefill(url: String) {
-        if (_state.value.url.isNotBlank()) return
-        _state.update { it.copy(url = url) }
+        // A re-pair from the connect screen's Edit is a deliberate correction of the address, so
+        // it wins over whatever stale value a previous pairing left in the field.
+        _state.update { it.copy(url = url, failure = null) }
     }
 
     fun setUrl(value: String) = _state.update { it.copy(url = value, failure = null) }
