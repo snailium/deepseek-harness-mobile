@@ -19,15 +19,21 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -42,11 +48,13 @@ import com.labteto.dshmobile.data.PromptOutcome
 import com.labteto.dshmobile.data.QuestionOutcome
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.ui.components.ApprovalPanel
+import com.labteto.dshmobile.ui.components.BannerTone
 import com.labteto.dshmobile.ui.components.ConnectionBanner
 import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.PlanReviewPanel
 import com.labteto.dshmobile.ui.components.planReviewOf
 import com.labteto.dshmobile.ui.components.QuestionsPanel
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -63,14 +71,18 @@ import kotlinx.coroutines.launch
  * animates out from under the cursor.
  */
 @Composable
-fun ChatScreen(
-    onOpenDetails: () -> Unit,
-    onOpenDrawer: () -> Unit,
-    detailsOpen: Boolean,
+fun ConversationScreen(
+    sessionId: String,
+    hostLabel: String?,
+    onBack: () -> Unit,
+    onSwitchHost: () -> Unit,
+    onOpenDetails: (() -> Unit)? = null,
 ) {
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
     val colors = DsTheme.colors
+    // The route names the session to show; open it once on entry (idempotent if already current).
+    LaunchedEffect(sessionId) { store.openSession(sessionId) }
     val context = LocalContext.current
     val toast = rememberDsToast()
 
@@ -103,7 +115,7 @@ fun ChatScreen(
         ?: currentSession?.cwd?.let { basename(it) }
         ?: currentSessionId.orEmpty()
 
-    var draft by rememberSaveable(currentSessionId) { mutableStateOf("") }
+    val composerDraft = rememberComposerDraft(currentSessionId)
     var mode by rememberSaveable(currentSessionId) { mutableStateOf("queue") }
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
     val attachments = remember(currentSessionId) { mutableStateListOf<PendingAttachment>() }
@@ -114,14 +126,39 @@ fun ChatScreen(
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
+    // The chrome folds its session-meta row once the reader scrolls the transcript, and only
+    // then: a programmatic scroll (session open, auto-paging, tail-follow) never counts, so the
+    // bar stays expanded when the view moves on its own.
+    var userScrolled by remember { mutableStateOf(false) }
+    var chromeCollapsed by remember { mutableStateOf(false) }
+    val scrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    userScrolled = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    LaunchedEffect(tab) {
+        if (tab != ChatTab.Chat) {
+            chromeCollapsed = false
+            return@LaunchedEffect
+        }
+        snapshotFlow {
+            userScrolled && chatListState.firstVisibleItemIndex > 1
+        }.collect { chromeCollapsed = it }
+    }
+
     val commandFailed = stringResource(R.string.err_command_failed)
     val unknownCommand = stringResource(R.string.err_command_unknown)
 
     fun report(outcome: CommandOutcome) {
         when (outcome) {
-            is CommandOutcome.Ok -> outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it) }
-            is CommandOutcome.Unknown -> toast.second(unknownCommand.format(outcome.line))
-            is CommandOutcome.Failed -> toast.second(commandFailed.format(outcome.message))
+            is CommandOutcome.Ok -> outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it, ToastTone.Info) }
+            is CommandOutcome.Unknown -> toast.second(unknownCommand.format(outcome.line), ToastTone.Error)
+            is CommandOutcome.Failed -> toast.second(commandFailed.format(outcome.message), ToastTone.Error)
         }
     }
 
@@ -149,7 +186,7 @@ fun ChatScreen(
             val bytes = runCatching { resolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
             if (bytes == null || bytes.isEmpty() || mediaType == null) {
                 // Nothing came back from the provider at all — a read failure, not a refusal.
-                toast.second(context.getString(R.string.err_attachment_failed))
+                toast.second(context.getString(R.string.err_attachment_failed), ToastTone.Error)
                 return@launch
             }
             // The host publishes its own attachment bounds, and its defaults stand in until the
@@ -247,7 +284,9 @@ fun ChatScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
+    // The chat keeps its own calm canvas (white / black) while the rest of the app sits on
+    // the M3 surface-variant canvas — this is the surface the reader stares at for the longest.
+    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgChat) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
@@ -255,40 +294,56 @@ fun ChatScreen(
             ChatTopBar(
                 title = title,
                 running = conversation?.running == true,
-                models = models,
+                hostLabel = hostLabel,
                 agentPresetLabel = currentSession?.agentPreset?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
-                detailsOpen = detailsOpen,
                 tab = tab,
-                onOpenDrawer = onOpenDrawer,
+                collapsed = chromeCollapsed,
+                modelLabel = null,
+                modelsRoutable = models?.routable != false,
+                onBack = onBack,
                 onOpenModels = { sheet = ChatSheet.Models },
                 onOpenPresets = {
                     scope.launch { store.refreshAgentPresets() }
                     sheet = ChatSheet.Presets
                 },
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
+                onSwitchHost = onSwitchHost,
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
             )
 
-            connectionError?.let { ConnectionBanner(it) }
+            // The two connection notices are different messages: a hard failure earns the red
+            // strip and a Retry; the loop's own backoff recovery is the calm blue notice.
+            connectionError?.let { error ->
+                ConnectionBanner(
+                    message = error,
+                    actionLabel = stringResource(R.string.common_retry),
+                    onAction = { scope.launch { store.retryConnection() } },
+                )
+            }
             if (conversation?.gap == true) {
-                ConnectionBanner(stringResource(R.string.common_reconnecting))
+                ConnectionBanner(
+                    stringResource(R.string.common_reconnecting),
+                    tone = BannerTone.Info,
+                )
             }
 
-            val nodeContext = ChatNodeContext(
-                nodes = conversation?.nodes ?: emptyList(),
-                running = conversation?.running == true,
-                cwd = currentSession?.cwd,
-                onOpenSubagent = { childId ->
-                    scope.launch { store.openSubagentTranscript(childId) }
-                    sheet = ChatSheet.Subagents
-                },
-                onBranchFrom = { seq -> scope.launch { currentSessionId?.let { store.forkSession(it, seq) } } },
-                onFeedback = { _, positive ->
-                    scope.launch { report(store.runCommand(if (positive) "/feedback +1" else "/feedback -1")) }
-                },
-            )
+            val nodeContext = remember(conversation?.nodes, conversation?.running == true, currentSession?.cwd) {
+                ChatNodeContext(
+                    nodes = conversation?.nodes ?: emptyList(),
+                    running = conversation?.running == true,
+                    cwd = currentSession?.cwd,
+                    onOpenSubagent = { childId ->
+                        scope.launch { store.openSubagentTranscript(childId) }
+                        sheet = ChatSheet.Subagents
+                    },
+                    onBranchFrom = { seq -> scope.launch { currentSessionId?.let { store.forkSession(it, seq) } } },
+                    onFeedback = { _, positive ->
+                        scope.launch { report(store.runCommand(if (positive) "/feedback +1" else "/feedback -1")) }
+                    },
+                )
+            }
 
             AnimatedContent(
                 targetState = tab,
@@ -311,7 +366,11 @@ fun ChatScreen(
                         loadOlderFailed = loadOlderFailed,
                         context = nodeContext,
                         listState = chatListState,
+                        scrollConnection = scrollConnection,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
+                        // A suggestion chip composes the message; sending stays on the explicit
+                        // send button, so a tap never fires a prompt by surprise.
+                        onSuggest = { suggestion -> composerDraft.value = suggestion },
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,
@@ -319,6 +378,7 @@ fun ChatScreen(
                         usage = tokenUsage,
                         cwd = currentSession?.cwd,
                         listState = trajectoryListState,
+                        running = conversation?.running == true,
                     )
                 }
             }
@@ -330,7 +390,8 @@ fun ChatScreen(
                         .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    parseTodos(conv.projections["todos"])?.let { TodoDock(it) }
+                    // To-dos render in-transcript from their TodoNode events; the goal and the
+                    // queue are the live run status that belongs pinned above the composer.
                     parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
                     QueueDock(conv.queue, store)
                 }
@@ -365,7 +426,7 @@ fun ChatScreen(
                         scope.launch {
                             refusalOf(block())?.let {
                                 planBusy = false
-                                toast.second(it)
+                                toast.second(it, ToastTone.Error)
                             }
                         }
                     }
@@ -385,7 +446,7 @@ fun ChatScreen(
                         // Wanting to talk it over first is not one of the options the asker stated,
                         // so it ends the request rather than answering it with the refusal.
                         onDiscuss = {
-                            draft = ""
+                            composerDraft.value = ""
                             settle { store.dismissQuestions(questions.sessionId) }
                         },
                     )
@@ -402,8 +463,7 @@ fun ChatScreen(
             }
 
             Composer(
-                draft = draft,
-                onDraftChange = { draft = it },
+                composerDraft = composerDraft,
                 attachments = attachments,
                 onRemoveAttachment = { index -> attachments.removeAt(index) },
                 permissions = permissions,
@@ -411,6 +471,9 @@ fun ChatScreen(
                 onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
                 contextBreakdown = contextBreakdown,
                 contextPressure = contextPressure,
+                modelLabel = currentModelLabel(models),
+                modelsRoutable = models?.routable != false,
+                onOpenModels = { sheet = ChatSheet.Models },
                 running = conversation?.running == true,
                 enabled = currentSessionId != null,
                 onOpenSheet = { sheet = ChatSheet.Commands },
@@ -418,7 +481,6 @@ fun ChatScreen(
                 onStop = { scope.launch { store.cancelTurn() } },
             )
 
-            StatsFooter(stats = sessionStats, usage = tokenUsage)
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
     }
@@ -441,7 +503,7 @@ fun ChatScreen(
                 if (attachments.isEmpty()) {
                     scope.launch { report(store.runCommand(line)) }
                 } else {
-                    toast.second(context.getString(R.string.err_command_no_images, name))
+                    toast.second(context.getString(R.string.err_command_no_images, name), ToastTone.Error)
                 }
             },
             onPrefillDraft = { prefix -> draft = prefix },

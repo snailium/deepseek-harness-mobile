@@ -768,3 +768,50 @@ Initial release.
 - Localization: en, zh-Hans, hi, es, fr, ar, bn, pt, ru, ur, th (RTL aware).
 - Harness-side LAN companion (`harness/`) and developer tooling
   (`mock-harness/`, `tools/capture/`).
+
+## [Import] - 2026-08-31
+
+### Imported from ymolliks/deepseek-harness-mobile (v0.6.0–v0.19.0)
+
+The following updates from the ymolliks fork have been merged into this branch:
+
+**Remote harness support (v0.6.0–v0.8.0)**
+- Edge proxy authentication: optional per-host credentials (access token, Cloudflare Access service token) stored app-private and sent on every exchange
+- Remote connection confirmation step for addresses outside the local network
+- `ACCESS_DENIED` failure class in `TransportFailure` and `ConnectDiagnosis`
+- `extraHeaders` transport seam in `RpcTransport` and `WsChannel`
+
+**UI re-architecture (v0.9.0–v0.18.0)**
+- Material 3 / Android-native redesign: M3 type scale, selected-row wash, drag handles on bottom sheets
+- Flat session list with recency-first ordering and status tiles
+- Redesigned session rows with always-visible actions
+- Workspaces sheet for workspace management
+- One-tap new session from FAB and empty state
+- Apple-style session details screen (`DetailsScreen`)
+- Single-field connect with `AddressParse` (scheme, host, port in one field)
+- Navigation architecture: `NavHost` with typed routes (`HomeRoute`, `SessionRoute`, `DetailsRoute`, `SettingsRoute`)
+- Deep-link support for opening a specific session from a notification
+
+**Markdown and readability (v0.10.0–v0.12.0)**
+- In-file Markdown renderer improvements (link handling, code blocks)
+- Tool card chrome strings and plurals for localization
+
+**Testing (v0.13.0–v0.19.0)**
+- `RemoteHeadersTest`: verifies credentials ride on every exchange (POST, download, WebSocket upgrade)
+- `LocalizedStringsTest`: UI-localization scanner with deliberate exceptions
+- `MarkdownLinkTest`, `AddressParseTest`, `ChatTurnGroupingTest`, `SessionListOrderingTest`
+- `IncrementalFoldLoadTest`, `IncrementalFoldTest`: core session fold behavior
+
+### Superseded by upstream (not imported)
+
+The following ymolliks changes were superseded by the corresponding upstream implementation:
+
+- **Relay pairing UI**: ymolliks had no relay mode; upstream's `PairScreen` and relay-specific strings are preserved
+- **Connection architecture**: upstream's `HarnessClientFactory`, `muxFactory` pattern, and `RemoteStreamMux` are used over ymolliks' inline transport construction
+- **Probe path**: upstream's `sessionCanOpenWorkspacePath()` + `describeHome` probe is used over ymolliks' `hostDescribe()`
+- **Mock harness protocol**: upstream's 0.1.2-alpha.1 protocol support (request object, prompt endpoints) is used over ymolliks' older protocol
+- **Security documentation**: upstream's comprehensive security model (local network mode, relay mode, HTTPS through reverse proxy) is used over ymolliks' edge-authentication section
+
+### Version note
+
+ymolliks uses its own version line (v0.6.0–v0.19.0), which is independent of the upstream line (0.5.x–0.9.x). This import does not renumber either; the merged branch continues from upstream's 0.9.3 baseline.

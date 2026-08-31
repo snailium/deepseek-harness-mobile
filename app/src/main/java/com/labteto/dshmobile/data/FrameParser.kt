@@ -15,6 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Pure, unit-testable decode helpers shared by [SessionStore] and the notification observer.
@@ -59,6 +60,29 @@ fun sessionEventToEnvelope(event: SessionEvent): SessionEventEnvelope {
         surfaceOp = surfaceOp,
     )
 }
+
+/**
+ * Fast path: build the fold envelope straight from the raw wire `session/event` frame, skipping
+ * the decode-to-typed-then-re-encode round trip. The frame payload already carries `event` as raw
+ * JSON; we read the envelope fields (`type`, `seq`, `time`) off it directly and hand the raw
+ * `data` object to the fold exactly as [sessionEventToEnvelope] would have produced it.
+ *
+ * Returns null when the frame does not look like a well-formed `session/event` payload — the
+ * caller then falls back to the typed path. This is purely an optimization: the fold consumes
+ * [SessionEventEnvelope] either way, so correctness is unchanged.
+ */
+fun rawSessionEventEnvelope(payload: JsonObject): SessionEventEnvelope? = runCatching {
+    val event = payload["event"] as? JsonObject ?: return@runCatching null
+    val type = event["type"]?.jsonPrimitive?.contentOrNull ?: return@runCatching null
+    val seq = event["seq"]?.jsonPrimitive?.content?.toLongOrNull() ?: return@runCatching null
+    val time = event["time"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L
+    SessionEventEnvelope(
+        type = type,
+        seq = seq,
+        time = time,
+        data = event["data"] as? JsonObject ?: JsonObject(emptyMap()),
+    )
+}.getOrNull()
 
 /** Decode a raw `session/event` event object into a [SessionEventEnvelope], or null on drift. */
 fun parseSessionEventEnvelope(eventJson: JsonElement): SessionEventEnvelope? =

@@ -1,23 +1,35 @@
 package com.labteto.dshmobile.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,12 +42,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.labteto.dshmobile.R
+import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -59,7 +77,8 @@ fun DsDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.92f),
+            // 0.92f on a phone, capped so a tablet does not get a full-width plate.
+            modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth(0.92f),
             shape = DsShapes.dialog,
             color = colors.bgLayer2,
             border = BorderStroke(1.dp, colors.borderL1),
@@ -79,40 +98,168 @@ fun DsDialog(
 }
 
 /**
- * Toast state pair: the current message ([State]) and a [show] lambda. The
- * message auto-clears 3s after the last [show] call.
+ * M3-style alert: a small centered plate — bold title, secondary message, hairline-separated
+ * text-button row — for confirmations. The cancel/confirm pair reads like an M3 alert; text
+ * entry stays on [DsDialog]'s form plate.
  */
 @Composable
-fun rememberDsToast(): Pair<State<String?>, (String) -> Unit> {
-    val flow = remember { MutableStateFlow<String?>(null) }
+fun DsAlert(
+    title: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+    message: String? = null,
+    destructive: Boolean = false,
+) {
+    val colors = DsTheme.colors
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = modifier.widthIn(min = 270.dp, max = 300.dp),
+            shape = DsShapes.alert,
+            color = colors.bgLayer2,
+            border = BorderStroke(1.dp, colors.borderL1),
+            shadowElevation = 4.dp,
+        ) {
+            Column(
+                Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    title,
+                    style = DsType.navTitle,
+                    color = colors.labelPrimary,
+                    textAlign = TextAlign.Center,
+                )
+                message?.let {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        it,
+                        style = DsType.footnote,
+                        color = colors.labelSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                // Hairline separating the message from the button row.
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(colors.borderL1),
+                )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 44.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                    ) {
+                        Text(
+                            stringResource(R.string.common_cancel),
+                            style = DsType.body17,
+                            color = colors.labelSecondary,
+                        )
+                    }
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(24.dp)
+                            .background(colors.borderL1),
+                    )
+                    TextButton(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                    ) {
+                        Text(
+                            confirmLabel,
+                            style = DsType.body17.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = if (destructive) colors.error else colors.accent,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** What a toast is telling the user; drives its icon and how long it stays. */
+enum class ToastTone { Info, Success, Error }
+
+/** A toast with its tone; a new instance replaces the previous toast. */
+data class ToastMessage(val text: String, val tone: ToastTone)
+
+/**
+ * Toast state pair: the current message ([State]) and a [show] lambda. The
+ * message auto-clears after the last [show] call — errors hold a moment longer,
+ * because a failure the user did not notice cannot be looked up again.
+ */
+@Composable
+fun rememberDsToast(): Pair<State<ToastMessage?>, (String, ToastTone) -> Unit> {
+    val flow = remember { MutableStateFlow<ToastMessage?>(null) }
     val state = flow.collectAsState()
     val message = state.value
     LaunchedEffect(message) {
         if (message != null) {
-            delay(3000)
+            delay(if (message.tone == ToastTone.Error) 4500 else 3000)
             flow.value = null
         }
     }
-    return state to { flow.value = it }
+    return state to { text, tone -> flow.value = ToastMessage(text, tone) }
 }
 
-/** Top-center toast plate driven by [rememberDsToast]. */
+/** Top-center toast plate driven by [rememberDsToast]; slides in and out of view. */
 @Composable
-fun DsToastHost(state: Pair<State<String?>, (String) -> Unit>, modifier: Modifier = Modifier) {
-    val message = state.first.value ?: return
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-        Surface(
-            shape = DsShapes.toast,
-            color = DsTheme.colors.toastBg,
-            shadowElevation = 4.dp,
-            modifier = Modifier.padding(top = 16.dp),
-        ) {
-            Text(
-                message,
-                style = DsType.small13,
-                color = Color.White,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-            )
+fun DsToastHost(state: Pair<State<ToastMessage?>, (String, ToastTone) -> Unit>, modifier: Modifier = Modifier) {
+    val message = state.first.value
+    val toneIcon = when (message?.tone) {
+        ToastTone.Success -> FeatherIcons.Check
+        ToastTone.Error -> FeatherIcons.AlertTriangle
+        else -> FeatherIcons.Info
+    }
+    val toneColor = when (message?.tone) {
+        ToastTone.Success -> DsTheme.colors.successSecondary
+        ToastTone.Error -> DsTheme.colors.errorSecondary
+        else -> Color.White.copy(alpha = 0.85f)
+    }
+    AnimatedVisibility(
+        visible = message != null,
+        enter = slideInVertically(DsAnimations.panelSlide) { -it } + fadeIn(DsAnimations.fade),
+        exit = slideOutVertically(DsAnimations.panelSlide) { -it } + fadeOut(DsAnimations.fade),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            val shown = message ?: return@Box
+            Surface(
+                shape = DsShapes.toast,
+                color = DsTheme.colors.toastBg,
+                shadowElevation = 4.dp,
+                modifier = Modifier.padding(top = 16.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(
+                        toneIcon,
+                        contentDescription = null,
+                        tint = toneColor,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Text(
+                        shown.text,
+                        style = DsType.small13,
+                        color = Color.White,
+                    )
+                }
+            }
         }
     }
 }
@@ -129,12 +276,21 @@ data class MenuItem(
  * Dropdown menu anchored to [anchor]; r12 bgLayer3 surface with h40 r10 cells,
  * hover fill, and danger rows in error/dangerHover.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DsMenu(anchor: @Composable () -> Unit, items: List<MenuItem>) {
     val colors = DsTheme.colors
     var expanded by remember { mutableStateOf(false) }
     Box {
-        Box(Modifier.clickable { expanded = true }) { anchor() }
+        Box(
+            modifier = Modifier
+                // The anchor is usually a bare 16-20dp icon; the menu it opens is the only
+                // affordance, so the tap target grows to the platform minimum while the glyph
+                // keeps its size (centered by the Box).
+                .minimumInteractiveComponentSize()
+                .clickable(role = Role.Button, onClick = { expanded = true }),
+            contentAlignment = Alignment.Center,
+        ) { anchor() }
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
@@ -181,7 +337,7 @@ private fun DsMenuPreview() {
         DsMenu(
             anchor = { DsButton("Menu", onClick = {}) },
             items = listOf(
-                MenuItem("Open", icon = Icons.Filled.Edit, onClick = {}),
+                MenuItem("Open", icon = FeatherIcons.Pencil, onClick = {}),
                 MenuItem("Delete", danger = true, onClick = {}),
             ),
         )

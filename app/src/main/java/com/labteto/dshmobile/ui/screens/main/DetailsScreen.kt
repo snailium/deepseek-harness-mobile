@@ -6,13 +6,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,15 +22,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -48,12 +47,10 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.ConversationSnapshot
-import com.labteto.dshmobile.core.session.QueueItem
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.WorkflowNode
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
-import com.labteto.dshmobile.core.DshCore
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.dto.JobView
 import com.labteto.dshmobile.core.wire.dto.SessionStatsView
@@ -63,24 +60,36 @@ import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.ui.components.ContextMeterDetail
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsTopAppBar
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsToastHost
+import com.labteto.dshmobile.ui.components.ApprovalPanel
+import com.labteto.dshmobile.ui.components.PlanReviewPanel
+import com.labteto.dshmobile.ui.components.QuestionsPanel
+import com.labteto.dshmobile.ui.components.planReviewOf
+import com.labteto.dshmobile.data.QuestionOutcome
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswerItem
+import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.formatDurationMs
 import com.labteto.dshmobile.ui.components.formatTokens
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -89,18 +98,18 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The session details panel: everything about the open session that is not the conversation.
- *
- * Organised as collapsible cards rather than one flat wall of headings, because on a phone-width
- * panel a flat list means the section you want is always three screens down. The trajectory ledger
- * that used to be squeezed in here now has its own tab — one home per fact.
+ * The per-session details screen: everything about the open session that is not the conversation —
+ * model, preset, approvals, questions, context, host, export/copy. Formerly the "Active" home tab;
+ * it is now a pushed destination (session details) so the home page stays two clean tabs.
+ * Collapsible cards rather than one flat wall of headings, because on a phone-width screen a flat
+ * list means the section you want is always three screens down.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailsPanel(
-    onClose: () -> Unit,
+fun ActiveScreen(
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
-    BackHandler(onBack = onClose)
     val store = rememberSessionStore()
     val colors = DsTheme.colors
     val scope = rememberCoroutineScope()
@@ -108,18 +117,20 @@ fun DetailsPanel(
     val toast = rememberDsToast()
     val clipboard = LocalClipboardManager.current
 
-    val conversation by store.currentConversation.collectAsState()
-    val jobs by store.jobs.collectAsState()
-    val hostInfo by store.hostInfo.collectAsState()
-    val subagents by store.subagents.collectAsState()
-    val sessions by store.sessions.collectAsState()
-    val currentSessionId by store.currentSessionId.collectAsState()
-    val stats by store.sessionStats.collectAsState()
-    val usage by store.tokenUsage.collectAsState()
-    val breakdown by store.contextBreakdown.collectAsState()
-    val pressure by store.contextPressure.collectAsState()
-    val models by store.models.collectAsState()
-    val agentPresets by store.agentPresets.collectAsState()
+    val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    val jobs by store.jobs.collectAsStateWithLifecycle()
+    val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
+    val subagents by store.subagents.collectAsStateWithLifecycle()
+    val sessions by store.sessions.collectAsStateWithLifecycle()
+    val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    val stats by store.sessionStats.collectAsStateWithLifecycle()
+    val usage by store.tokenUsage.collectAsStateWithLifecycle()
+    val breakdown by store.contextBreakdown.collectAsStateWithLifecycle()
+    val pressure by store.contextPressure.collectAsStateWithLifecycle()
+    val models by store.models.collectAsStateWithLifecycle()
+    val agentPresets by store.agentPresets.collectAsStateWithLifecycle()
+    val pendingApproval by store.pendingApproval.collectAsStateWithLifecycle()
+    val pendingQuestions by store.pendingQuestions.collectAsStateWithLifecycle()
     val current = sessions.firstOrNull { it.sessionId == currentSessionId }
 
     // This panel owns its own sheets rather than reaching back into ChatScreen's: it is reachable
@@ -129,6 +140,14 @@ fun DetailsPanel(
     val savedLabel = stringResource(R.string.chat_export_saved)
     val failedLabel = stringResource(R.string.chat_export_failed)
     val copiedLabel = stringResource(R.string.common_copied)
+
+    val answerRefused = stringResource(R.string.questions_answer_refused)
+    val answerUnsent = stringResource(R.string.questions_answer_unsent)
+    fun refusalOf(outcome: QuestionOutcome): String? = when (outcome) {
+        is QuestionOutcome.Accepted -> null
+        is QuestionOutcome.Refused -> answerRefused.format(outcome.reason)
+        is QuestionOutcome.Unsent -> answerUnsent
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip"),
@@ -140,88 +159,147 @@ fun DetailsPanel(
                     store.exportSessionTo(sink, includeDescendants = true)
                 } ?: false
             }.getOrDefault(false)
-            toast.second(if (ok) savedLabel else failedLabel)
+            toast.second(if (ok) savedLabel else failedLabel, if (ok) ToastTone.Success else ToastTone.Error)
         }
     }
 
     Surface(
-        modifier = modifier.fillMaxHeight(),
-        color = colors.bgLayer1,
-        shadowElevation = 8.dp,
+        modifier = modifier.fillMaxSize(),
+        // The screen sits on the grouped gray like every support surface; its cards are the
+        // white plates, so it reads as a stack of groups rather than a white slab.
+        color = colors.bgBase,
     ) {
         Box {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .safeDrawingPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(DsSpacing.medium),
-                verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-            ) {
-                HeaderRow(onClose)
-
-                SessionCard(
-                    session = current,
-                    models = models,
-                    presets = agentPresets,
-                    onRename = { title ->
-                        scope.launch { currentSessionId?.let { store.renameSession(it, title) } }
-                    },
-                    onFork = { scope.launch { currentSessionId?.let { store.forkSession(it) } } },
-                    onArchive = { scope.launch { currentSessionId?.let { store.archiveSession(it) } } },
-                    onOpenModels = { sheet = DetailsSheet.Models },
-                    onOpenPresets = {
-                        scope.launch { store.refreshAgentPresets() }
-                        sheet = DetailsSheet.Presets
+            Column(modifier = Modifier.fillMaxSize()) {
+                // M3 top app bar; WindowInsets(0) because the owning Scaffold supplies the status
+                // bar inset. The cards scroll beneath it.
+                DsTopAppBar(
+                    title = stringResource(R.string.session_details_title),
+                    navigationIcon = {
+                        if (onBack != null) {
+                            DsIconButton(
+                                icon = FeatherIcons.ArrowLeft,
+                                contentDescription = stringResource(R.string.common_back),
+                                onClick = onBack,
+                                mirrorForRtl = true,
+                            )
+                        }
                     },
                 )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                    DsButton(
-                        text = stringResource(R.string.chat_export),
-                        icon = Icons.Filled.Download,
-                        onClick = {
-                            exportLauncher.launch("dsh-session-${currentSessionId.orEmpty()}.zip")
-                        },
-                        variant = DsButtonVariant.Outline,
-                        size = DsButtonSize.Small,
-                        enabled = currentSessionId != null,
-                    )
-                    DsButton(
-                        text = stringResource(R.string.common_copy),
-                        onClick = {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = DsSpacing.medium)
+                        .padding(bottom = DsSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                ) {
+                    // Server-initiated requests that block the turn — surfaced here so a pending
+                    // approval or question is never missed while the conversation is scrolled away.
+                    pendingApproval?.takeIf { it.sessionId == currentSessionId }?.let { approval ->
+                        ApprovalPanel(
+                            toolName = approval.toolName,
+                            reason = approval.reason,
+                            onAllow = { scope.launch { store.respondApproval(approval.sessionId, approval.approvalId, true) } },
+                            onReject = { scope.launch { store.respondApproval(approval.sessionId, approval.approvalId, false) } },
+                        )
+                    }
+                    pendingQuestions?.takeIf { it.sessionId == currentSessionId }?.let { questions ->
+                        var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
+                        val review = remember(questions.rpcId) { planReviewOf(questions.items) }
+                        fun settle(block: suspend () -> QuestionOutcome) {
+                            planBusy = true
                             scope.launch {
-                                store.exportSessionUrl()?.let { url ->
-                                    clipboard.setText(AnnotatedString(url))
-                                    toast.second(copiedLabel)
+                                refusalOf(block())?.let {
+                                    planBusy = false
+                                    toast.second(it, ToastTone.Error)
                                 }
                             }
-                        },
-                        variant = DsButtonVariant.Ghost,
-                        size = DsButtonSize.Small,
-                    )
-                }
-
-                val conv = conversation
-                if (conv == null) {
-                    Text(
-                        stringResource(R.string.chat_details_empty),
-                        style = DsType.caption11,
-                        color = colors.labelTertiary,
-                    )
-                } else {
-                    ContextCard(breakdown, pressure, usage, stats)
-                    GoalCard(conv, store)
-                    PlanCard(conv) { next ->
-                        scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
+                        }
+                        if (review != null) {
+                            fun decide(option: AskUserQuestionOption) = settle {
+                                store.answerQuestions(
+                                    questions.sessionId,
+                                    AskUserQuestionAnswer(listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label)))),
+                                )
+                            }
+                            PlanReviewPanel(
+                                review = review,
+                                busy = planBusy,
+                                onApprove = { decide(review.approve) },
+                                onDecline = { review.decline?.let { decide(it) } },
+                                onDiscuss = { settle { store.dismissQuestions(questions.sessionId) } },
+                            )
+                        } else {
+                            QuestionsPanel(
+                                requestKey = questions.rpcId,
+                                questions = questions.items,
+                                onSubmit = { answer -> refusalOf(store.answerQuestions(questions.sessionId, answer)) },
+                                onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
+                            )
+                        }
                     }
-                    JobsCard(jobs)
-                    QueueCard(conv.queue, store)
-                    SubagentsCard(subagents) { id -> scope.launch { store.openSubagentTranscript(id) } }
-                    WorkflowCard(conv.nodes)
-                }
+                    SessionCard(
+                        session = current,
+                        models = models,
+                        presets = agentPresets,
+                        onRename = { title ->
+                            scope.launch { currentSessionId?.let { store.renameSession(it, title) } }
+                        },
+                        onFork = { scope.launch { currentSessionId?.let { store.forkSession(it) } } },
+                        onArchive = { scope.launch { currentSessionId?.let { store.archiveSession(it) } } },
+                        onOpenModels = { sheet = DetailsSheet.Models },
+                        onOpenPresets = {
+                            scope.launch { store.refreshAgentPresets() }
+                            sheet = DetailsSheet.Presets
+                        },
+                    )
 
-                HostCard(hostInfo)
+                    Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                        DsButton(
+                            text = stringResource(R.string.chat_export),
+                            icon = FeatherIcons.Download,
+                            onClick = {
+                                exportLauncher.launch("dsh-session-${currentSessionId.orEmpty()}.zip")
+                            },
+                            variant = DsButtonVariant.Outline,
+                            size = DsButtonSize.Small,
+                            enabled = currentSessionId != null,
+                        )
+                        DsButton(
+                            text = stringResource(R.string.common_copy),
+                            onClick = {
+                                scope.launch {
+                                    store.exportSessionUrl()?.let { url ->
+                                        clipboard.setText(AnnotatedString(url))
+                                        toast.second(copiedLabel, ToastTone.Info)
+                                    }
+                                }
+                            },
+                            variant = DsButtonVariant.Ghost,
+                            size = DsButtonSize.Small,
+                        )
+                    }
+
+                    val conv = conversation
+                    if (conv == null) {
+                        Text(
+                            stringResource(R.string.chat_details_empty),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                    } else {
+                        ContextCard(breakdown, pressure, usage, stats, currentSessionId)
+                        PlanCard(conv, currentSessionId) { next ->
+                            scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
+                        }
+                        JobsCard(jobs, currentSessionId)
+                        SubagentsCard(subagents, currentSessionId) { id -> scope.launch { store.openSubagentTranscript(id) } }
+                        WorkflowCard(conv.nodes, currentSessionId)
+                    }
+
+                    HostCard(hostInfo, currentSessionId)
+                }
             }
             DsToastHost(toast, modifier = Modifier.fillMaxWidth())
         }
@@ -243,23 +321,6 @@ fun DetailsPanel(
 /** Which picker, if any, is open over the details panel. */
 private enum class DetailsSheet { Models, Presets }
 
-@Composable
-private fun HeaderRow(onClose: () -> Unit) {
-    val colors = DsTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        DsIconButton(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = stringResource(R.string.common_back),
-            onClick = onClose,
-        )
-        Text(
-            stringResource(R.string.chat_details_title),
-            style = DsType.large20,
-            color = colors.labelPrimary,
-        )
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Cards
 // ---------------------------------------------------------------------------
@@ -270,15 +331,26 @@ private fun Card(
     title: String,
     summary: String? = null,
     initiallyExpanded: Boolean = false,
+    /** Key expansion on the session so switching sessions resets the panel to its defaults. */
+    sessionKey: String? = null,
     content: @Composable () -> Unit,
 ) {
-    var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
+    var expanded by remember(sessionKey, title) { mutableStateOf(initiallyExpanded) }
+    val colors = DsTheme.colors
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.groupCard)
+            .background(colors.bgLayer1)
+            .border(1.dp, colors.borderL2, DsShapes.groupCard)
+            .animateContentSize(),
+    ) {
         DisclosureRow(
             title = title,
             summary = summary,
             expanded = expanded,
             onToggle = { expanded = !expanded },
+            modifier = Modifier.padding(horizontal = DsSpacing.small),
         ) {
             Column(
                 Modifier.padding(start = 24.dp, top = 4.dp, bottom = 4.dp),
@@ -308,6 +380,7 @@ private fun SessionCard(
         title = session.title ?: session.cwd?.let { basename(it) } ?: session.sessionId,
         summary = session.cwd?.let { basename(it) },
         initiallyExpanded = true,
+        sessionKey = session.sessionId,
     ) {
         session.cwd?.let { Text(it, style = DsType.caption11, color = colors.labelCaption) }
         // The model and the preset are the two things about a session people most often come here
@@ -374,6 +447,7 @@ private fun ContextCard(
     pressure: ContextPressureView?,
     usage: TokenUsageView?,
     stats: SessionStatsView?,
+    sessionKey: String? = null,
 ) {
     val colors = DsTheme.colors
     if (breakdown == null && pressure == null && usage == null && stats == null) return
@@ -381,6 +455,7 @@ private fun ContextCard(
         title = stringResource(R.string.chat_context_title),
         summary = pressure?.usedRatio?.let { "${(it * 100).toInt()}%" },
         initiallyExpanded = true,
+        sessionKey = sessionKey,
     ) {
         ContextMeterDetail(breakdown, pressure)
         usage?.let {
@@ -415,46 +490,6 @@ private fun ContextCard(
     }
 }
 
-@Composable
-private fun GoalCard(conversation: ConversationSnapshot, store: com.labteto.dshmobile.data.SessionStore) {
-    val colors = DsTheme.colors
-    val goal = parseGoal(conversation.projections["goal"])
-    Card(
-        title = stringResource(R.string.goal_title),
-        summary = goal?.objective?.take(40),
-    ) {
-        if (goal == null) {
-            Text(stringResource(R.string.goal_none), style = DsType.caption11, color = colors.labelTertiary)
-            return@Card
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                goal.objective,
-                style = DsType.small13,
-                color = colors.labelPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(DsSpacing.small))
-            DsPill(text = stringResource(goalPhaseLabelRes(goal.phase)))
-        }
-        goal.blockedReason?.let {
-            Text(
-                stringResource(R.string.goal_blocked_reason, it.message),
-                style = DsType.caption11,
-                color = colors.warnLabel,
-            )
-        }
-        if (goal.maxGoalRounds > 0) {
-            Text(
-                stringResource(R.string.goal_max_rounds, goal.maxGoalRounds.toString()),
-                style = DsType.caption11,
-                color = colors.labelCaption,
-            )
-        }
-        GoalBar(goal, store)
-    }
-}
-
 /**
  * Plan mode, as a switch.
  *
@@ -467,7 +502,11 @@ private fun GoalCard(conversation: ConversationSnapshot, store: com.labteto.dshm
  * as this did, meant the control could turn plan mode on and never off again.
  */
 @Composable
-private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: Boolean) -> Unit) {
+private fun PlanCard(
+    conversation: ConversationSnapshot,
+    sessionKey: String? = null,
+    onTogglePlan: (active: Boolean) -> Unit,
+) {
     val active = parsePlanActive(conversation) ?: return
     Card(
         title = stringResource(R.string.plan_mode_title),
@@ -475,6 +514,7 @@ private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: 
         // Open by default: unlike the other cards this one is a control, and a control you have to
         // expand before you can reach is most of the way back to not having it.
         initiallyExpanded = true,
+        sessionKey = sessionKey,
     ) {
         ToggleRow(
             label = stringResource(R.string.plan_mode_hint),
@@ -485,11 +525,12 @@ private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: 
 }
 
 @Composable
-private fun JobsCard(jobs: List<JobView>) {
+private fun JobsCard(jobs: List<JobView>, sessionKey: String? = null) {
     val colors = DsTheme.colors
     Card(
         title = stringResource(R.string.jobs_title),
         summary = jobs.size.takeIf { it > 0 }?.toString(),
+        sessionKey = sessionKey,
     ) {
         if (jobs.isEmpty()) {
             Text(stringResource(R.string.jobs_empty), style = DsType.caption11, color = colors.labelTertiary)
@@ -537,50 +578,16 @@ private fun JobsCard(jobs: List<JobView>) {
 }
 
 @Composable
-private fun QueueCard(queue: List<QueueItem>, store: com.labteto.dshmobile.data.SessionStore) {
-    val colors = DsTheme.colors
-    val scope = rememberCoroutineScope()
-    Card(
-        title = stringResource(R.string.chat_queue_title),
-        summary = queue.size.takeIf { it > 0 }?.toString(),
-    ) {
-        if (queue.isEmpty()) {
-            Text(
-                stringResource(R.string.chat_queue_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            return@Card
-        }
-        queue.forEach { item ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        item.previewText,
-                        style = DsType.small13,
-                        color = colors.labelPrimary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(item.placement, style = DsType.caption11, color = colors.labelCaption)
-                }
-                DsButton(
-                    text = stringResource(R.string.common_remove),
-                    onClick = { scope.launch { store.updateQueue(item.id, "remove") } },
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SubagentsCard(subagents: List<SubagentListEntry>, onOpen: (String) -> Unit) {
+private fun SubagentsCard(
+    subagents: List<SubagentListEntry>,
+    sessionKey: String? = null,
+    onOpen: (String) -> Unit,
+) {
     val colors = DsTheme.colors
     Card(
         title = stringResource(R.string.subagents_title),
         summary = subagents.size.takeIf { it > 0 }?.toString(),
+        sessionKey = sessionKey,
     ) {
         if (subagents.isEmpty()) {
             Text(
@@ -623,11 +630,15 @@ private fun SubagentsCard(subagents: List<SubagentListEntry>, onOpen: (String) -
 }
 
 @Composable
-private fun WorkflowCard(nodes: List<ChatNode>) {
+private fun WorkflowCard(nodes: List<ChatNode>, sessionKey: String? = null) {
     val colors = DsTheme.colors
     val workflows = remember(nodes) { parseWorkflows(nodes) }
     if (workflows.isEmpty()) return
-    Card(title = stringResource(R.string.workflow_title), summary = workflows.size.toString()) {
+    Card(
+        title = stringResource(R.string.workflow_title),
+        summary = workflows.size.toString(),
+        sessionKey = sessionKey,
+    ) {
         workflows.forEach { workflow ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -661,18 +672,21 @@ private fun WorkflowCard(nodes: List<ChatNode>) {
 }
 
 @Composable
-private fun HostCard(hostInfo: HostDescription?) {
+private fun HostCard(hostInfo: HostDescription?, sessionKey: String? = null) {
     val colors = DsTheme.colors
     if (hostInfo == null) return
-    // The harness's own version used to head this card. No 0.1.2 wire field carries it, so the
-    // card names the protocol this build was written against instead — which is this client's
-    // fact, not the host's, and is labelled as such rather than dressed up as a host version.
     Card(
         title = stringResource(R.string.settings_host_info),
-        summary = stringResource(R.string.connect_protocol_baseline, DshCore.PROTOCOL_BASELINE),
+        summary = hostInfo.version,
+        sessionKey = sessionKey,
     ) {
         Text(
-            stringResource(R.string.connect_harness_home, hostInfo.home),
+            stringResource(R.string.connect_harness_version, hostInfo.version, hostInfo.cwd),
+            style = DsType.caption11,
+            color = colors.labelCaption,
+        )
+        Text(
+            stringResource(R.string.connect_attached_sessions, hostInfo.attachedSessions),
             style = DsType.caption11,
             color = colors.labelCaption,
         )

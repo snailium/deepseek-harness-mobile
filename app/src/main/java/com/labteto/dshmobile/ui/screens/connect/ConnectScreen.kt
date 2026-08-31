@@ -8,39 +8,53 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.connection.ConnectMode
 import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.HostConfig
+import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.dsTextFieldColors
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
@@ -49,129 +63,397 @@ import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
-import com.labteto.dshmobile.ui.components.ToggleRow
-import com.labteto.dshmobile.ui.components.WhaleMark
+import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.SectionHeader
-import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.relativeTime
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import kotlinx.coroutines.launch
 
-/**
- * Choose how to reach a harness, then reach one.
- *
- * The mode chooser is the first control on the screen because the two paths are not variations of
- * one connection. Local network talks straight to a harness that has no authentication at all, and
- * is only safe on a network you trust. Relay talks to `dsh-relay`, which holds this device to a
- * token it was issued once and pins the key it answers with — and works from outside the Wi-Fi.
- * Nothing here, auto-connect included, ever connects the way that was not picked.
- *
- * One rule shapes the layout: at most one paragraph of prose before something you can act on. The
- * first cut of relay mode opened with six lines of explanation across two blocks, then three empty
- * sections each saying a version of "you have no relay", and only then the button that was the
- * entire point of the screen.
- */
 @Composable
-fun ConnectScreen(
-    onOpenSettings: () -> Unit,
-    onPair: (prefillUrl: String?) -> Unit,
-    viewModel: ConnectViewModel = hiltViewModel(),
-) {
+fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
+    val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     // Saveable: a rotation mid-connect used to wipe a hand-typed address.
-    var host by rememberSaveable { mutableStateOf("") }
-    var port by rememberSaveable { mutableStateOf("3080") }
-    val relayMode = state.mode == ConnectMode.RELAY
-    val paired = state.visibleHosts
+    var address by rememberSaveable { mutableStateOf("") }
+    var scheme by rememberSaveable { mutableStateOf("http") }
+    var port by rememberSaveable { mutableStateOf("") }
+    var token by rememberSaveable { mutableStateOf("") }
+    var cfClientId by rememberSaveable { mutableStateOf("") }
+    var cfClientSecret by rememberSaveable { mutableStateOf("") }
+    var showToken by rememberSaveable { mutableStateOf(false) }
+    var showSecret by rememberSaveable { mutableStateOf(false) }
+    // Until the user touches the Advanced controls the scheme and port follow the address field;
+    // the first edit hands them over to the explicit values.
+    var advancedTouched by rememberSaveable { mutableStateOf(false) }
+    var advancedExpanded by rememberSaveable { mutableStateOf(false) }
+    var authExpanded by rememberSaveable { mutableStateOf(false) }
+    var editingId by remember { mutableStateOf<String?>(null) }
+    // Where the manual form sits in the scroll, so Edit can bring it into view.
+    var manualTop by remember { mutableStateOf(0) }
+
+    val parsed = remember(address) { parseAddress(address) }
+    val effectiveScheme = if (advancedTouched) scheme else (parsed?.scheme ?: scheme)
+    val effectivePortText =
+        if (advancedTouched && port.isNotBlank()) port else parsed?.port?.toString() ?: ""
+    // Read outside the effect: CompositionLocals are only reachable from composition, and the
+    // scroll-to-edit effect below needs the pixel value in its suspend body.
+    val scrollPadPx = with(LocalDensity.current) { DsSpacing.medium.toPx() }.toInt()
+
+    fun connect() {
+        val target = parseAddress(address)
+        if (target == null) {
+            // The parser rejected the text (garbage, an IPv6 literal, a bad port), so the form
+            // has no endpoint to offer — hand the VM nothing and let its InvalidInput diagnosis
+            // say what an address must look like. The field keeps what the user typed.
+            viewModel.connectManual("", "", "http", token, cfClientId, cfClientSecret)
+            return
+        }
+        viewModel.connectManual(
+            host = target.host,
+            port = effectivePortText,
+            scheme = effectiveScheme,
+            token = token,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+        )
+    }
+
+    // Edit on a Recent card pre-fills the whole form and scrolls it into view, so a mistyped
+    // secret can be corrected without deleting the host and starting over.
+    LaunchedEffect(editingId) {
+        val target = editingId
+            ?.let { id -> state.remembered.firstOrNull { it.id == id } }
+            ?: return@LaunchedEffect
+        address = target.displayAddress
+        scheme = target.scheme
+        port = target.port.toString()
+        token = target.authToken.orEmpty()
+        cfClientId = target.cfClientId.orEmpty()
+        cfClientSecret = target.cfClientSecret.orEmpty()
+        advancedTouched = true
+        advancedExpanded = true
+        authExpanded = token.isNotBlank() || cfClientId.isNotBlank() || cfClientSecret.isNotBlank()
+        if (manualTop > 0) {
+            scope.launch { scrollState.animateScrollTo((manualTop - scrollPadPx).coerceAtLeast(0)) }
+        }
+        editingId = null
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .safeDrawingPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = DsSpacing.xlarge, vertical = DsSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
+                .verticalScroll(scrollState)
+                .padding(DsSpacing.xlarge),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.large),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
                 DsIconButton(
-                    icon = FeatherIcons.Tool,
+                    icon = FeatherIcons.Settings,
                     contentDescription = stringResource(R.string.settings_title),
                     onClick = onOpenSettings,
                     tint = colors.labelTertiary,
                 )
             }
 
-            ConnectHeader()
-
-            // ---- How to connect ----------------------------------------------
-            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                SectionHeader(stringResource(R.string.connect_mode_title))
-                DsSegmented(
-                    segments = listOf(
-                        DsSegment(ConnectMode.LAN, stringResource(R.string.connect_mode_lan)),
-                        DsSegment(ConnectMode.RELAY, stringResource(R.string.connect_mode_relay)),
-                    ),
-                    selectedKey = state.mode,
-                    onSelect = viewModel::setMode,
-                    role = Role.Tab,
-                    // Two halves of one decision, so each gets half the track. Hugging their labels
-                    // left a third of a full-width pill empty and made the thing look unfinished.
-                    stretch = true,
+            // First-run vs returning: a fresh install gets a short explainer of what DSH Mobile
+            // is and the three options below; a returning user just wants the compact hero and the
+            // Resume card underneath.
+            if (state.remembered.isEmpty()) {
+                EmptyHero(
+                    headline = stringResource(R.string.onboarding_intro_title),
+                    subtitle = stringResource(R.string.onboarding_intro_body),
+                    chips = emptyList(),
+                    onChipClick = {},
+                )
+                // A big, unmissable primary path for someone who has never connected: the scan is
+                // the hands-free way to find the harness, and it is what the guide leads with. The
+                // manual form below still covers the edge cases.
+                DsButton(
+                    text = stringResource(R.string.onboarding_scan),
+                    icon = FeatherIcons.Search,
+                    onClick = { viewModel.scan() },
+                    variant = DsButtonVariant.Primary,
+                    size = DsButtonSize.Large,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // One notice, not two. What the mode is and what it costs you are the same thought,
-                // and the tint carries the difference between them: local network is a warning,
-                // relay is a statement of fact.
+            } else {
+                EmptyHero(
+                    headline = stringResource(R.string.app_long_name),
+                    subtitle = stringResource(R.string.connect_subtitle),
+                    chips = emptyList(),
+                    onChipClick = {},
+                )
+            }
+
+            // Security banner. Info-toned: the point is a calm reminder of where the protection
+            // lives, not an alarm about a fault — and once read, it stays dismissed until the
+            // next launch (rememberSaveable scopes it to the process lifetime).
+            var securityDismissed by rememberSaveable { mutableStateOf(false) }
+            if (!securityDismissed) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    color = if (relayMode) colors.hoverSolid else colors.warnTertiary,
+                    shape = DsShapes.alert,
+                    color = colors.accentTertiary,
                 ) {
+                    Row(
+                        modifier = Modifier.padding(start = DsSpacing.medium, top = DsSpacing.small, bottom = DsSpacing.small, end = DsSpacing.xsmall),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.connect_security_banner),
+                            style = DsType.small13,
+                            color = colors.labelSecondary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        DsIconButton(
+                            icon = FeatherIcons.X,
+                            contentDescription = stringResource(R.string.common_close),
+                            onClick = { securityDismissed = true },
+                            iconSize = 16.dp,
+                        )
+                    }
+                }
+            }
+
+            // ---- Resume -----------------------------------------------------
+            // The one-tap path back for a returning user: the most recent harness, big and
+            // primary. First-time users see no card here and the manual form below is the top.
+            state.remembered.firstOrNull()?.let { last ->
+                val probe = state.recentStatus[last.authority]
+                val reachable = probe as? HostProbe.Reachable
+                val version = reachable?.description?.version ?: last.lastVersion
+                val sessions = reachable?.description?.attachedSessions ?: last.lastSessions
+                DsCard(onClick = { viewModel.connectTo(last) }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        StateDot(
+                            when (probe) {
+                                is HostProbe.Reachable -> StateDotState.Done
+                                HostProbe.Probing -> StateDotState.Running
+                                else -> StateDotState.Idle
+                            },
+                            size = 8.dp,
+                            contentDescription = stringResource(
+                                when (probe) {
+                                    is HostProbe.Reachable -> R.string.status_online
+                                    HostProbe.Probing -> R.string.status_running
+                                    else -> R.string.status_offline
+                                },
+                            ),
+                        )
+                        Spacer(Modifier.width(DsSpacing.compact))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                last.displayAddress,
+                                style = DsType.std14Strong,
+                                color = colors.labelPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                statusLine(probe, version, sessions),
+                                style = DsType.caption11,
+                                color = colors.labelTertiary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        DsButton(
+                            text = stringResource(R.string.connect_button),
+                            onClick = { viewModel.connectTo(last) },
+                            variant = DsButtonVariant.Info,
+                            size = DsButtonSize.Small,
+                        )
+                    }
+                }
+            }
+
+            // ---- Manual -----------------------------------------------------
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { manualTop = it.positionInParent().y.toInt() },
+                verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            ) {
+                SectionHeader(stringResource(R.string.connect_manual_title))
+                // The form is one grouped plate: field, endpoint reading, and the disclosures
+                // live inside it, M3 settings-group style.
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(DsShapes.groupCard)
+                        .background(colors.bgLayer1)
+                        .border(1.dp, colors.borderL2, DsShapes.groupCard)
+                        .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                ) {
+                TextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(stringResource(R.string.connect_address_hint), style = DsType.std14)
+                    },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.connect_address_label)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { connect() }),
+                    colors = connectFieldColors(),
+                )
+                // The endpoint the form will actually use, stated before Connect is tapped:
+                // scheme and port defaults are guesses, and a guess the user can see is a guess
+                // the user can correct.
+                parsed?.let {
                     Text(
                         stringResource(
-                            if (relayMode) R.string.connect_mode_relay_hint else R.string.connect_mode_lan_hint,
+                            R.string.connect_endpoint,
+                            "$effectiveScheme://${it.host}:$effectivePortText",
                         ),
-                        style = DsType.small13,
-                        color = if (relayMode) colors.labelTertiary else colors.warnLabel,
-                        modifier = Modifier.padding(DsSpacing.medium),
+                        style = DsType.caption11,
+                        color = colors.labelTertiary,
+                    )
+                }
+                DisclosureRow(
+                    title = stringResource(R.string.connect_advanced_title),
+                    expanded = advancedExpanded,
+                    onToggle = { advancedExpanded = !advancedExpanded },
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = DsSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        DsSegmented(
+                            segments = listOf(
+                                DsSegment("http", stringResource(R.string.connect_scheme_http)),
+                                DsSegment("https", stringResource(R.string.connect_scheme_https)),
+                            ),
+                            selectedKey = effectiveScheme,
+                            onSelect = {
+                                scheme = it
+                                advancedTouched = true
+                            },
+                        )
+                        TextField(
+                            value = port,
+                            onValueChange = {
+                                port = it.filter { c -> c.isDigit() }
+                                advancedTouched = true
+                            },
+                            modifier = Modifier.width(140.dp),
+                            singleLine = true,
+                            label = { Text(stringResource(R.string.connect_port_label)) },
+                            placeholder = {
+                                Text(stringResource(R.string.connect_port_auto), style = DsType.std14)
+                            },
+                            colors = connectFieldColors(),
+                        )
+                    }
+                }
+                // Optional edge-proxy credentials, sent only when filled in. The token is an
+                // `Authorization: Bearer`; the two Cloudflare fields are a Cloudflare Access
+                // service token, which travels as its own pair of headers. The Client ID is not
+                // secret (it identifies the token); the Secret and the access token are masked.
+                DisclosureRow(
+                    title = stringResource(R.string.connect_auth_title),
+                    expanded = authExpanded,
+                    onToggle = { authExpanded = !authExpanded },
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = DsSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        Text(
+                            stringResource(R.string.connect_auth_hint),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                        SecretField(
+                            value = token,
+                            onValueChange = { token = it },
+                            label = stringResource(R.string.connect_token_label),
+                            visible = showToken,
+                            onToggleVisibility = { showToken = it },
+                        )
+                        SecretField(
+                            value = cfClientId,
+                            onValueChange = { cfClientId = it },
+                            label = stringResource(R.string.connect_cf_id_label),
+                            visible = true,
+                            toggleable = false,
+                        )
+                        SecretField(
+                            value = cfClientSecret,
+                            onValueChange = { cfClientSecret = it },
+                            label = stringResource(R.string.connect_cf_secret_label),
+                            visible = showSecret,
+                            onToggleVisibility = { showSecret = it },
+                        )
+                    }
+                }
+                } // end of the grouped form plate
+                DsButton(
+                    text = stringResource(R.string.connect_button),
+                    onClick = { connect() },
+                    enabled = !state.connecting,
+                    variant = DsButtonVariant.Info,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
+                state.failure?.let { failure ->
+                    ConnectFailureBlock(
+                        failure = failure,
+                        attempted = state.attempted,
+                        retrying = state.retrying,
+                        onCancel = viewModel::cancelConnect,
+                    )
+                }
+                // The wiki is the user guide; a caption link keeps the form self-servicing.
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    DsButton(
+                        text = stringResource(R.string.connect_help),
+                        onClick = {
+                            runCatching { uriHandler.openUri(HELP_URL) }
+                        },
+                        variant = DsButtonVariant.Ghost,
+                        size = DsButtonSize.Small,
                     )
                 }
             }
 
-            // ---- Recent ------------------------------------------------------
-            // Hidden entirely when empty in relay mode: the pairing card below already says there
-            // is nothing here, and saying it twice is what made the screen read as three dead ends.
-            if (paired.isNotEmpty() || !relayMode) {
-                Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                    SectionHeader(
-                        stringResource(
-                            if (relayMode) R.string.connect_relay_remembered else R.string.connect_remembered,
-                        ),
+            // ---- Recent -----------------------------------------------------
+            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                SectionHeader(stringResource(R.string.connect_remembered))
+                if (state.remembered.isEmpty()) {
+                    Text(
+                        stringResource(R.string.connect_remembered_empty),
+                        style = DsType.std14,
+                        color = colors.labelCaption,
                     )
-                    if (paired.isEmpty()) {
-                        Text(
-                            stringResource(R.string.connect_remembered_empty),
-                            style = DsType.std14,
-                            color = colors.labelCaption,
+                } else {
+                    state.remembered.forEach { saved ->
+                        RecentHarnessCard(
+                            host = saved,
+                            probe = state.recentStatus[saved.authority],
+                            onConnect = { viewModel.connectTo(saved) },
+                            onEdit = { editingId = saved.id },
+                            onForget = { viewModel.forget(saved) },
                         )
-                    } else {
-                        paired.forEach { saved ->
-                            RecentHarnessCard(
-                                host = saved,
-                                probe = state.recentStatus[saved.authority],
-                                onConnect = { viewModel.connectTo(saved) },
-                                onForget = { viewModel.forget(saved) },
-                            )
-                        }
                     }
                 }
             }
@@ -179,12 +461,8 @@ fun ConnectScreen(
             // ---- Discovered --------------------------------------------------
             Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
                 SectionHeader(
-                    title = stringResource(
-                        if (relayMode) R.string.connect_relay_discovered else R.string.connect_discovered,
-                    ),
-                    action = stringResource(
-                        if (relayMode) R.string.connect_relay_scan else R.string.connect_scan,
-                    ),
+                    title = stringResource(R.string.connect_discovered),
+                    action = stringResource(R.string.connect_scan),
                     onAction = { viewModel.scan() },
                 )
                 val unknown = state.unknownDiscovered
@@ -194,9 +472,7 @@ fun ConnectScreen(
                     ScanProgressRow(state.scanProgress) { viewModel.cancelScan() }
                 }
                 if (unknown.isEmpty()) {
-                    // In relay mode the pairing card carries the instruction, so the empty line here
-                    // would only be a third way of saying the same thing.
-                    if (!state.scanning && !relayMode) {
+                    if (!state.scanning) {
                         Text(
                             stringResource(R.string.connect_discovered_hint),
                             style = DsType.std14,
@@ -205,198 +481,108 @@ fun ConnectScreen(
                     }
                 } else {
                     unknown.forEach { found ->
-                        DiscoveredHarnessCard(found) {
-                            // A relay will not answer `/api` to a device it has never seen, so
-                            // "Connect" on one of these cards could only ever produce a 403. It
-                            // carries the address into pairing instead.
-                            if (found.isRelay) onPair(found.baseUrl) else viewModel.connectDiscovered(found)
-                        }
+                        DiscoveredHarnessCard(found) { viewModel.connectDiscovered(found) }
                     }
                 }
             }
 
-            if (relayMode) {
-                PairCallToAction(hasPaired = paired.isNotEmpty()) { onPair(null) }
-            } else {
-                // ---- Manual --------------------------------------------------
-                Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                    SectionHeader(stringResource(R.string.connect_manual_title))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextField(
-                            value = host,
-                            onValueChange = { host = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = {
-                                Text(stringResource(R.string.connect_host_hint), style = DsType.std14)
-                            },
-                            singleLine = true,
-                            label = { Text(stringResource(R.string.connect_host_label)) },
-                            colors = connectFieldColors(),
-                        )
-                        Spacer(Modifier.width(DsSpacing.compact))
-                        TextField(
-                            value = port,
-                            onValueChange = { port = it.filter { c -> c.isDigit() } },
-                            modifier = Modifier.width(92.dp),
-                            singleLine = true,
-                            label = { Text(stringResource(R.string.connect_port_label)) },
-                            colors = connectFieldColors(),
-                        )
-                    }
-                    DsButton(
-                        text = stringResource(R.string.connect_button),
-                        onClick = { viewModel.connectManual(host, port) },
-                        enabled = !state.connecting,
-                        variant = DsButtonVariant.Info,
-                        modifier = Modifier.fillMaxWidth(),
+            Spacer(Modifier.height(DsSpacing.xlarge))
+        }
+
+        // A manual connect to an address outside this phone's network pauses here once. The
+        // harness itself has no login, so the warning is the user's chance to notice they are
+        // sending agent control to somewhere else on the internet.
+        state.pendingRemoteConfirm?.let { pending ->
+            val address = if (pending.scheme == "https") "https://${pending.authority}" else pending.authority
+            AlertDialog(
+                onDismissRequest = viewModel::dismissRemoteConfirm,
+                title = { Text(stringResource(R.string.connect_remote_confirm_title)) },
+                text = {
+                    Text(
+                        stringResource(R.string.connect_remote_confirm_body, address),
+                        style = DsType.std14,
                     )
-                }
-            }
-
-            // Progress and failure are shared: an attempt reports the same way whichever mode
-            // started it, and duplicating the block per mode is how the two drift apart.
-            if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
-            state.failure?.let { failure ->
-                ConnectFailureBlock(
-                    failure = failure,
-                    attempted = state.attempted,
-                    retrying = state.retrying,
-                    onCancel = viewModel::cancelConnect,
-                    onPair = { onPair(state.attemptedBaseUrl) },
-                    onSignIn = { viewModel.setSignInOpen(true) },
-                )
-            }
-
-            if (state.signInOpen) {
-                LaunchTokenDialog(
-                    signingIn = state.signingIn,
-                    error = state.signInError,
-                    onDismiss = { viewModel.setSignInOpen(false) },
-                    onSubmit = viewModel::signIn,
-                )
-            }
-
-            // ---- Auto-connect ------------------------------------------------
-            Column {
-                SectionHeader(stringResource(R.string.connect_auto_title))
-                ToggleRow(
-                    label = stringResource(R.string.connect_auto_last),
-                    checked = state.autoConnectLast,
-                ) { viewModel.setAuto("last", !state.autoConnectLast) }
-                if (relayMode) {
-                    ToggleRow(
-                        label = stringResource(R.string.connect_auto_relay),
-                        checked = state.autoConnectRelay,
-                    ) { viewModel.setAuto("relay", !state.autoConnectRelay) }
-                } else {
-                    ToggleRow(
-                        label = stringResource(R.string.connect_auto_lan),
-                        checked = state.autoConnectLan,
-                    ) { viewModel.setAuto("lan", !state.autoConnectLan) }
-                    ToggleRow(
-                        label = stringResource(R.string.connect_auto_loopback),
-                        checked = state.autoConnectLoopback,
-                    ) { viewModel.setAuto("loopback", !state.autoConnectLoopback) }
-                }
-            }
-
-            Spacer(Modifier.height(DsSpacing.large))
-        }
-    }
-}
-
-/**
- * The screen's own masthead.
- *
- * Deliberately not [EmptyHero], which is the *chat's* empty state: it carries a "Preview" pill that
- * means nothing here, centres 32dp of padding around a 64dp mark, and pushed the mode chooser and
- * the one button on this screen below the fold on a normal phone.
- */
-@Composable
-private fun ConnectHeader() {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(DsSpacing.medium),
-    ) {
-        WhaleMark(Modifier.size(40.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                stringResource(R.string.app_long_name),
-                style = DsType.large20,
-                color = colors.labelPrimary,
-            )
-            Text(
-                stringResource(R.string.connect_subtitle),
-                style = DsType.small13,
-                color = colors.labelTertiary,
+                },
+                confirmButton = {
+                    TextButton(onClick = viewModel::confirmRemote) {
+                        Text(stringResource(R.string.connect_remote_confirm_continue))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissRemoteConfirm) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
             )
         }
     }
 }
 
 /**
- * The one thing this screen exists to offer, weighted by whether it has been done yet.
- *
- * With nothing paired it is the primary action and carries the instruction, because a relay cannot
- * be discovered into existence — someone has to open a page on the computer. Once a relay is
- * paired it steps back to a ghost button: still reachable, no longer the point.
+ * One credential field: masked by default with a show/hide toggle, so a Client Secret typed once
+ * is not permanently visible on the connect screen. [toggleable] is false for values that are not
+ * secret (the Cloudflare Client ID identifies the token; it need not be hidden).
  */
 @Composable
-private fun PairCallToAction(hasPaired: Boolean, onPair: () -> Unit) {
-    val colors = DsTheme.colors
-    if (hasPaired) {
-        DsButton(
-            text = stringResource(R.string.connect_relay_pair_another),
-            onClick = onPair,
-            variant = DsButtonVariant.Ghost,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        return
-    }
-    DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-        Text(
-            stringResource(R.string.connect_relay_pair_title),
-            style = DsType.std14Strong,
-            color = colors.labelPrimary,
-        )
-        Text(
-            stringResource(R.string.connect_relay_pair_hint),
-            style = DsType.small13,
-            color = colors.labelTertiary,
-        )
-        DsButton(
-            text = stringResource(R.string.connect_relay_pair_action),
-            onClick = onPair,
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
+private fun SecretField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    visible: Boolean,
+    toggleable: Boolean = true,
+    onToggleVisibility: (Boolean) -> Unit = {},
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            label = { Text(label) },
+            placeholder = { Text(stringResource(R.string.connect_token_hint), style = DsType.std14) },
+            visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                if (toggleable) {
+                    IconButton(onClick = { onToggleVisibility(!visible) }) {
+                        Icon(
+                            if (visible) FeatherIcons.EyeOff else FeatherIcons.Eye,
+                            contentDescription = stringResource(R.string.connect_token_show_hide),
+                            tint = DsTheme.colors.labelTertiary,
+                        )
+                    }
+                }
+            },
+            colors = connectFieldColors(),
         )
     }
 }
 
 @Composable
-private fun connectFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = DsTheme.colors.bgLayer1,
-    unfocusedContainerColor = DsTheme.colors.bgLayer1,
-    focusedIndicatorColor = DsTheme.colors.accent,
-    unfocusedIndicatorColor = DsTheme.colors.borderL2,
-    cursorColor = DsTheme.colors.accent,
-)
+private fun connectFieldColors() = dsTextFieldColors()
 
+/**
+ * One remembered harness.
+ *
+ * Everything on the card is already known or already probed — the address, the last-connected
+ * stamp, the harness version, the project it is sitting in, how many sessions are attached — and a
+ * status dot says whether it is answering right now. The previous row showed an icon and an IP
+ * repeated twice, which is why the list read as blank space.
+ */
 @Composable
 private fun RecentHarnessCard(
     host: HostConfig,
     probe: HostProbe?,
     onConnect: () -> Unit,
+    onEdit: () -> Unit,
     onForget: () -> Unit,
 ) {
     val colors = DsTheme.colors
     val reachable = probe as? HostProbe.Reachable
     val title = if (host.isLoopback) stringResource(R.string.connect_same_device) else host.name
-    // 0.1.2 publishes only the host home. The harness version, its working directory and its
-    // attached-session count all came from `host.describe`, which no longer exists.
-    val home = reachable?.description?.home ?: host.lastHome
+    val version = reachable?.description?.version ?: host.lastVersion
+    val cwd = reachable?.description?.cwd ?: host.lastCwd
+    val sessions = reachable?.description?.attachedSessions ?: host.lastSessions
 
     DsCard(onClick = onConnect) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -408,6 +594,13 @@ private fun RecentHarnessCard(
                     null -> StateDotState.Idle
                 },
                 size = 8.dp,
+                contentDescription = stringResource(
+                    when (probe) {
+                        is HostProbe.Reachable -> R.string.status_online
+                        HostProbe.Probing -> R.string.status_running
+                        else -> R.string.status_offline
+                    },
+                ),
             )
             Spacer(Modifier.width(DsSpacing.compact))
             Text(
@@ -430,19 +623,7 @@ private fun RecentHarnessCard(
             )
         }
         Text(
-            listOfNotNull(
-                host.displayAddress,
-                // Named on the card rather than only on the pairing screen: whether this connection
-                // is encrypted is a standing property of the endpoint, not a one-off notice.
-                if (host.isRelay) {
-                    stringResource(
-                        if (host.isPlaintext) R.string.connect_relay_plaintext else R.string.connect_relay_encrypted,
-                    )
-                } else {
-                    null
-                },
-                home?.let { basename(it) },
-            ).joinToString(" · "),
+            listOfNotNull(host.displayAddress, cwd?.let { basename(it) }).joinToString(" · "),
             style = DsType.caption11,
             color = colors.labelTertiary,
             maxLines = 1,
@@ -450,12 +631,21 @@ private fun RecentHarnessCard(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                statusLine(probe, home),
+                statusLine(probe, version, sessions),
                 style = DsType.caption11,
                 color = if (probe is HostProbe.Unreachable) colors.labelCaption else colors.labelTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
+            )
+            // Edit restores the host into the manual form — the one way to fix a mistyped
+            // credential short of deleting the host and typing everything again.
+            DsButton(
+                text = stringResource(R.string.common_edit),
+                icon = FeatherIcons.Pencil,
+                onClick = onEdit,
+                variant = DsButtonVariant.Ghost,
+                size = DsButtonSize.Small,
             )
             DsButton(
                 text = stringResource(R.string.common_delete),
@@ -467,19 +657,15 @@ private fun RecentHarnessCard(
     }
 }
 
-/**
- * The third line: what the harness is, or why it has nothing to say.
- *
- * Through 0.1.1 this named the harness version and its attached-session count, both from
- * `host.describe`. Neither is published any more, so a reachable host shows the home directory it
- * reported — the only host fact 0.1.2 carries — and says so plainly when even that is unknown.
- */
+/** The third line: what the harness is, or why it has nothing to say. */
 @Composable
-private fun statusLine(probe: HostProbe?, home: String?): String = when {
+private fun statusLine(probe: HostProbe?, version: String?, sessions: Int?): String = when {
     probe is HostProbe.Probing -> stringResource(R.string.connect_checking)
     probe is HostProbe.Unreachable -> stringResource(R.string.connect_unreachable)
-    home != null -> stringResource(R.string.connect_harness_home, home)
-    probe is HostProbe.Reachable -> stringResource(R.string.connect_reachable)
+    version != null -> listOfNotNull(
+        stringResource(R.string.connect_harness_version_only, version),
+        sessions?.let { stringResource(R.string.connect_sessions_short, it) },
+    ).joinToString(" · ")
     else -> stringResource(R.string.common_loading)
 }
 
@@ -494,12 +680,6 @@ private fun statusLine(probe: HostProbe?, home: String?): String = when {
 private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) {
     val colors = DsTheme.colors
     val description = found.description
-    // A relay is a find in its own right even though it says nothing about itself: `/relay/health`
-    // is all an unpaired device may ask, and the card's job is to carry the address into pairing.
-    if (found.isRelay) {
-        DiscoveredRelayCard(found, onConnect)
-        return
-    }
     DsCard(onClick = if (description != null) onConnect else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -530,7 +710,11 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
         }
         if (description != null) {
             Text(
-                basename(description.home).takeIf { it.isNotBlank() }.orEmpty(),
+                listOfNotNull(
+                    stringResource(R.string.connect_harness_version_only, description.version),
+                    basename(description.cwd).takeIf { it.isNotBlank() },
+                    stringResource(R.string.connect_sessions_short, description.attachedSessions),
+                ).joinToString(" · "),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
                 maxLines = 1,
@@ -539,75 +723,6 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
         } else {
             Text(
                 stringResource(R.string.connect_found_untrusted_hint),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-        }
-    }
-}
-
-/**
- * One relay found by its advertisement, or by knocking the ports a relay uses.
- *
- * Deliberately quiet about the harness behind it. Until this device pairs, the relay answers 403 to
- * everything but its own liveness probe — so there is no version, no cwd and no session count to
- * show, and inventing a Connect button that could only fail would be worse than none.
- */
-@Composable
-private fun DiscoveredRelayCard(found: DiscoveredHost, onPair: () -> Unit) {
-    val colors = DsTheme.colors
-    DsCard(onClick = if (found.hostRefused) null else onPair) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                FeatherIcons.Globe,
-                contentDescription = null,
-                tint = if (found.hostRefused) colors.warn else colors.accent,
-                modifier = Modifier.width(14.dp),
-            )
-            Spacer(Modifier.width(DsSpacing.compact))
-            Text(
-                found.authority,
-                style = DsType.std14Strong,
-                color = colors.labelPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            if (!found.hostRefused) {
-                DsButton(
-                    text = stringResource(R.string.connect_relay_pair_this),
-                    onClick = onPair,
-                    variant = DsButtonVariant.Info,
-                    size = DsButtonSize.Small,
-                )
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            DsPill(
-                text = stringResource(
-                    when {
-                        found.hostRefused -> R.string.connect_relay_refused
-                        found.fingerprint != null -> R.string.connect_relay_encrypted
-                        else -> R.string.connect_relay_plaintext
-                    },
-                ),
-                warn = found.hostRefused || found.fingerprint == null,
-            )
-            Spacer(Modifier.width(DsSpacing.compact))
-            Text(
-                stringResource(R.string.connect_relay_unpaired),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        // The most recoverable outcome a relay scan can produce, and the one the phone cannot fix:
-        // the relay is running and answering, and only its operator can widen the addresses it
-        // answers to. Naming the address is the whole of the instruction.
-        if (found.hostRefused) {
-            Text(
-                stringResource(R.string.connect_relay_refused_hint, found.authority),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
             )
@@ -661,8 +776,6 @@ private fun ConnectFailureBlock(
     attempted: String?,
     retrying: Boolean,
     onCancel: () -> Unit,
-    onPair: () -> Unit,
-    onSignIn: () -> Unit,
 ) {
     val colors = DsTheme.colors
     val authority = attempted.orEmpty()
@@ -672,8 +785,6 @@ private fun ConnectFailureBlock(
     // attempt (bad input), and a headline naming no address would say nothing.
     val title = when {
         failure is ConnectFailure.TrustFence -> stringResource(R.string.connect_fail_fence_title)
-        failure is ConnectFailure.PairingRequired -> stringResource(R.string.connect_fail_pairing_title)
-        failure is ConnectFailure.CertificateChanged -> stringResource(R.string.connect_fail_certificate_title)
         authority.isBlank() -> null
         else -> stringResource(
             R.string.connect_failed,
@@ -683,26 +794,18 @@ private fun ConnectFailureBlock(
     }
     val body = when (failure) {
         ConnectFailure.InvalidInput -> stringResource(R.string.connect_fail_invalid)
-        is ConnectFailure.DifferentSubnet -> stringResource(
-            R.string.connect_fail_subnet,
-            authority,
-            failure.localPrefix ?: stringResource(R.string.connect_unreachable),
-        )
+        ConnectFailure.AccessDenied -> stringResource(R.string.connect_fail_access, authority)
         ConnectFailure.Timeout -> stringResource(R.string.connect_fail_timeout, authority, port)
         ConnectFailure.Refused -> stringResource(R.string.connect_fail_refused, authority)
         ConnectFailure.TrustFence -> stringResource(R.string.connect_failed_fence)
-        ConnectFailure.Unauthenticated -> stringResource(R.string.connect_fail_unauthenticated, authority)
-        ConnectFailure.PairingRequired -> stringResource(R.string.connect_fail_pairing)
-        ConnectFailure.CertificateChanged -> stringResource(R.string.connect_fail_certificate, authority)
         ConnectFailure.DnsFailure -> stringResource(R.string.connect_fail_dns, authority)
         ConnectFailure.NotAHarness -> stringResource(R.string.connect_fail_not_harness, authority)
-        ConnectFailure.TlsFailure -> stringResource(R.string.connect_fail_tls, authority)
         ConnectFailure.StreamsBlocked -> stringResource(R.string.connect_fail_streams, authority)
         is ConnectFailure.Other -> stringResource(R.string.connect_fail_other, authority, failure.detail)
     }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = DsShapes.alert,
         color = colors.warnTertiary,
     ) {
         Column(
@@ -720,26 +823,6 @@ private fun ConnectFailureBlock(
             }
             // With no headline the body has already been shown beside the dot.
             if (title != null) Text(body, style = DsType.small13, color = colors.warnLabel)
-            // A relay that will not accept this device is not something to retry into: the loop
-            // has already been stopped, and the only move left is on the relay's pairing page.
-            if (failure is ConnectFailure.PairingRequired || failure is ConnectFailure.CertificateChanged) {
-                DsButton(
-                    text = stringResource(R.string.connect_pair_again),
-                    onClick = onPair,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
-            }
-            // A harness that has not signed this phone in is fixed here rather than on the
-            // harness: it wants a launch token, and retrying without one only repeats the 401.
-            if (failure is ConnectFailure.Unauthenticated) {
-                DsButton(
-                    text = stringResource(R.string.connect_sign_in),
-                    onClick = onSignIn,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
-            }
             // The loop backs off and retries forever; without this there is no way to stop it.
             if (retrying) {
                 DsButton(
@@ -750,57 +833,6 @@ private fun ConnectFailureBlock(
                 )
             }
         }
-    }
-}
-
-/**
- * The launch-token prompt.
- *
- * Harness 0.1.2 signs a browser in by exchanging a token it prints once per process, and accepts
- * that token only on its index route — so there is no way for a connection attempt to do this on
- * its own, and no way to skip it. The field takes the whole startup line as readily as the bare
- * token, because that is what people actually copy.
- */
-@Composable
-private fun LaunchTokenDialog(
-    signingIn: Boolean,
-    error: SignInError?,
-    onDismiss: () -> Unit,
-    onSubmit: (String) -> Unit,
-) {
-    val colors = DsTheme.colors
-    var input by remember { mutableStateOf("") }
-    DsDialog(title = stringResource(R.string.connect_sign_in_title), onDismiss = onDismiss) {
-        Text(
-            stringResource(R.string.connect_sign_in_body),
-            style = DsType.small13,
-            color = colors.labelSecondary,
-        )
-        TextField(
-            value = input,
-            onValueChange = { input = it },
-            singleLine = true,
-            enabled = !signingIn,
-            label = { Text(stringResource(R.string.connect_sign_in_label)) },
-            colors = connectFieldColors(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        val message = when (error) {
-            SignInError.Refused -> stringResource(R.string.connect_sign_in_refused)
-            SignInError.Unreachable -> stringResource(R.string.connect_sign_in_unreachable)
-            SignInError.NoHost -> stringResource(R.string.connect_sign_in_no_host)
-            null -> null
-        }
-        if (message != null) {
-            Text(message, style = DsType.caption11, color = colors.warnLabel)
-        }
-        DsButton(
-            text = stringResource(R.string.connect_sign_in),
-            onClick = { onSubmit(input) },
-            enabled = !signingIn && input.isNotBlank(),
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
@@ -843,3 +875,6 @@ private fun ScanProgressRow(progress: ScanProgress?, onCancel: () -> Unit) {
 /** Last path segment of a host cwd, so a card can name the project rather than print a full path. */
 private fun basename(path: String): String =
     path.trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\').ifBlank { path }
+
+/** The user-facing connect guide, from the upstream wiki. */
+private const val HELP_URL = "https://github.com/sorsama/deepseek-harness-mobile/wiki/Connecting"

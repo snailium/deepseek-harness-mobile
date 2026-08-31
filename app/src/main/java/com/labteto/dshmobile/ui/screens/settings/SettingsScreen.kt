@@ -2,7 +2,6 @@ package com.labteto.dshmobile.ui.screens.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,11 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -43,7 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -58,10 +55,12 @@ import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.ui.components.DsTopAppBar
+import com.labteto.dshmobile.ui.components.DsAlert
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
-import com.labteto.dshmobile.ui.components.DsDialog
+import com.labteto.dshmobile.ui.components.DsGroupCard
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsToastHost
@@ -70,12 +69,15 @@ import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.autoMirrorDirectional
 import java.util.Locale
 
 /**
@@ -86,8 +88,9 @@ import java.util.Locale
  * blanket-labelling the whole screen read-only, as it used to, tells users their own preferences
  * cannot be changed when they plainly can.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel = hiltViewModel()) {
     val settings by viewModel.state.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val store = rememberSessionStore()
@@ -96,7 +99,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     val toast = rememberDsToast()
     var showDisconnectDialog by remember { mutableStateOf(false) }
     var pluginsOpen by remember { mutableStateOf(false) }
-    BackHandler(onBack = onClose)
+    if (onClose != null) BackHandler(onBack = onClose)
 
     val hostsCleared = stringResource(R.string.settings_forget_hosts_done)
     val sessionsCleared = stringResource(R.string.settings_clear_last_sessions_done)
@@ -110,27 +113,40 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .safeDrawingPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
-                verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
+                    // Pushed from Connect (no home shell yet) there is no Scaffold to own the
+                    // status-bar inset, so the screen supplies it itself; as a tab the Home
+                    // Scaffold already did.
+                    .then(if (onClose == null) Modifier else Modifier.safeDrawingPadding()),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DsIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.common_back),
-                        onClick = onClose,
-                    )
-                    Text(
-                        stringResource(R.string.settings_title),
-                        style = DsType.large20,
-                        color = colors.labelPrimary,
-                    )
-                }
+                DsTopAppBar(
+                    title = stringResource(R.string.settings_title),
+                    navigationIcon = {
+                        if (onClose != null) {
+                            DsIconButton(
+                                icon = FeatherIcons.ArrowLeft,
+                                contentDescription = stringResource(R.string.common_back),
+                                onClick = onClose,
+                                mirrorForRtl = true,
+                            )
+                        }
+                    },
+                )
 
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
+                ) {
                 SettingsCard(stringResource(R.string.settings_general)) {
                     LanguageRow(settings) { tag -> viewModel.set { it.copy(localeOverride = tag) } }
                     AppearanceRow(settings) { mode -> viewModel.set { it.copy(themePreference = mode) } }
+                    ToggleRow(
+                        stringResource(R.string.settings_dynamic_color),
+                        settings.dynamicColor,
+                        stringResource(R.string.settings_dynamic_color_hint),
+                    ) { viewModel.set { it.copy(dynamicColor = !it.dynamicColor) } }
                 }
 
                 SettingsCard(stringResource(R.string.settings_connection)) {
@@ -197,15 +213,27 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                 SettingsCard(stringResource(R.string.settings_data)) {
                     DsButton(
                         text = stringResource(R.string.settings_forget_hosts),
-                        onClick = { viewModel.forgetHosts { toast.second(hostsCleared) } },
+                        onClick = { viewModel.forgetHosts { toast.second(hostsCleared, ToastTone.Success) } },
                         variant = DsButtonVariant.Outline,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     DsButton(
                         text = stringResource(R.string.settings_clear_last_sessions),
-                        onClick = { viewModel.clearLastSessions { toast.second(sessionsCleared) } },
+                        onClick = { viewModel.clearLastSessions { toast.second(sessionsCleared, ToastTone.Success) } },
                         variant = DsButtonVariant.Ghost,
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                SettingsCard(stringResource(R.string.settings_help)) {
+                    val uriHandler = LocalUriHandler.current
+                    HelpRow(
+                        title = stringResource(R.string.settings_help_connect),
+                        onClick = { runCatching { uriHandler.openUri(HELP_CONNECT_URL) } },
+                    )
+                    HelpRow(
+                        title = stringResource(R.string.settings_help_issues),
+                        onClick = { runCatching { uriHandler.openUri(HELP_ISSUES_URL) } },
                     )
                 }
 
@@ -228,7 +256,8 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     )
                 }
 
-                Spacer(Modifier.height(DsSpacing.xlarge))
+                    Spacer(Modifier.height(DsSpacing.xlarge))
+                }
             }
             DsToastHost(toast, modifier = Modifier.fillMaxWidth())
         }
@@ -239,53 +268,25 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     }
 
     if (showDisconnectDialog) {
-        DsDialog(
+        DsAlert(
             title = stringResource(R.string.settings_connection_disconnect_confirm),
+            message = stringResource(R.string.settings_connection_disconnect_message),
+            confirmLabel = stringResource(R.string.settings_connection_disconnect),
+            destructive = true,
+            onConfirm = {
+                viewModel.disconnect()
+                showDisconnectDialog = false
+                onClose?.invoke()
+            },
             onDismiss = { showDisconnectDialog = false },
-        ) {
-            Text(
-                stringResource(R.string.settings_connection_disconnect_message),
-                style = DsType.std14,
-                color = colors.labelSecondary,
-                modifier = Modifier.padding(bottom = DsSpacing.medium),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                DsButton(
-                    text = stringResource(R.string.settings_connection_disconnect),
-                    onClick = {
-                        viewModel.disconnect()
-                        showDisconnectDialog = false
-                        onClose()
-                    },
-                    variant = DsButtonVariant.Danger,
-                )
-                DsButton(
-                    text = stringResource(R.string.common_cancel),
-                    onClick = { showDisconnectDialog = false },
-                    variant = DsButtonVariant.Ghost,
-                )
-            }
-        }
+        )
     }
 }
 
 /** One settings group as a raised card, so groups read as blocks rather than a running list. */
 @Composable
 private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    val colors = DsTheme.colors
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
-        SectionHeader(title)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.block)
-                .background(colors.bgLayer1)
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-        ) {
-            content()
-        }
-    }
+    DsGroupCard(title) { content() }
 }
 
 /**
@@ -316,7 +317,11 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(DsShapes.row)
-                .clickable(onClick = onOpen)
+                .clickable(
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.settings_plugins),
+                    onClick = onOpen,
+                )
                 .padding(vertical = DsSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -333,7 +338,7 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
             )
             Spacer(Modifier.width(DsSpacing.xsmall))
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                FeatherIcons.ChevronRight,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(16.dp),
@@ -518,13 +523,39 @@ private fun ConnectionSection(connectionState: ConnectionUiState, onDisconnect: 
     if (isConnected && connectionState.host != null) {
         LabelledValue(
             stringResource(R.string.settings_connection_host),
-            connectionState.host.authority,
+            connectionState.host.displayAddress,
         )
         DsButton(
             text = stringResource(R.string.settings_connection_disconnect),
             onClick = onDisconnect,
             variant = DsButtonVariant.Outline,
             modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun HelpRow(title: String, onClick: () -> Unit) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onClick)
+            .padding(vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = DsType.std14,
+            color = colors.labelSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            FeatherIcons.ChevronRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(16.dp).autoMirrorDirectional(),
         )
     }
 }
@@ -569,7 +600,7 @@ private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
                         maxLines = 1,
                     )
                     Icon(
-                        Icons.Filled.KeyboardArrowDown,
+                        FeatherIcons.ChevronDown,
                         contentDescription = null,
                         tint = colors.labelSecondary,
                         modifier = Modifier.size(14.dp),
@@ -579,7 +610,7 @@ private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
             items = LanguageOptions.map { option ->
                 MenuItem(
                     text = labels[option].orEmpty(),
-                    icon = Icons.Filled.Check.takeIf { option.tag == settings.localeOverride },
+                    icon = FeatherIcons.Check.takeIf { option.tag == settings.localeOverride },
                 ) { onSelect(option.tag) }
             },
         )
@@ -630,3 +661,9 @@ private fun AppearanceChip(label: String, selected: Boolean, onClick: () -> Unit
         )
     }
 }
+
+/** The user-facing connect guide, from the upstream wiki. */
+private const val HELP_CONNECT_URL = "https://github.com/sorsama/deepseek-harness-mobile/wiki/Connecting"
+
+/** The upstream issue tracker, for problem reports. */
+private const val HELP_ISSUES_URL = "https://github.com/sorsama/deepseek-harness-mobile/issues"

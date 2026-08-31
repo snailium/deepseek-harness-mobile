@@ -55,11 +55,20 @@ internal fun TrajectoryTab(
     usage: TokenUsageView?,
     cwd: String?,
     listState: LazyListState,
+    /** Whether a turn is live right now; drives the running dot on in-flight calls. */
+    running: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     val nodes = conversation?.nodes ?: emptyList()
     val groups = remember(nodes) { groupByTurn(nodes) }
+    // Result lookup by call id, built once per snapshot instead of a filterIsInstance scan per
+    // tool row per composition.
+    val resultsByCallId = remember(nodes) {
+        nodes.mapNotNull { it as? ToolResultNode }
+            .filter { it.callId.isNotBlank() }
+            .associateBy { it.callId }
+    }
 
     LazyColumn(
         state = listState,
@@ -87,7 +96,7 @@ internal fun TrajectoryTab(
                 count = turnNodes.size,
                 key = { index -> "n-${turnNodes[index].seq}" },
             ) { index ->
-                TrajectoryRow(turnNodes[index], turnNodes, cwd)
+                TrajectoryRow(turnNodes[index], resultsByCallId, cwd, running)
             }
         }
         if (stats != null || usage != null) {
@@ -100,13 +109,18 @@ internal fun TrajectoryTab(
 }
 
 @Composable
-private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?) {
+private fun TrajectoryRow(
+    node: ChatNode,
+    resultsByCallId: Map<String, ToolResultNode>,
+    cwd: String?,
+    running: Boolean,
+) {
     val colors = DsTheme.colors
     when (node) {
         is UserMessageNode -> {
             val preview = node.previewText.trim()
             if (preview.isNotEmpty()) {
-                Text("> $preview", style = DsType.caption11, color = colors.labelSecondary)
+                Text("> $preview", style = DsType.footnote, color = colors.labelSecondary)
             }
         }
         is AssistantMessageNode -> {
@@ -114,7 +128,7 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
             if (snippet.isNotEmpty()) {
                 Text(
                     snippet,
-                    style = DsType.caption11,
+                    style = DsType.footnote,
                     color = colors.labelTertiary,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -122,25 +136,26 @@ private fun TrajectoryRow(node: ChatNode, siblings: List<ChatNode>, cwd: String?
             }
         }
         is ToolCallNode -> {
-            val result = siblings
-                .filterIsInstance<ToolResultNode>()
-                .firstOrNull { it.callId == node.callId }
-            ToolLedgerRow(node, result, cwd)
+            ToolLedgerRow(node, resultsByCallId[node.callId], cwd, running)
         }
         else -> Unit
     }
 }
 
 @Composable
-private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: String?) {
+private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: String?, running: Boolean) {
     val colors = DsTheme.colors
     val row = remember(call.callId, cwd) { toolRowModel(call.name, call.arguments, cwd) }
     var expanded by remember(call.callId) { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         StateDot(
             when {
-                result == null -> StateDotState.Running
-                result.isError -> StateDotState.Error
+                // Without a result the call is either still running or — after the turn ended,
+                // or across a paging boundary — simply has no result row attached. Only the
+                // live-turn case earns the chasing dot; a stale "running" on a finished turn
+                // reads as the ledger never having settled.
+                result == null && running -> StateDotState.Running
+                result?.isError == true -> StateDotState.Error
                 else -> StateDotState.Done
             },
             size = 8.dp,
@@ -180,7 +195,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
         stats?.let {
             Text(
                 stringResource(R.string.chat_stats_turns, it.turns, it.steps),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
             Text(
@@ -189,7 +204,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatDurationMs(it.llmMs),
                     formatDurationMs(it.toolMs),
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
             Text(
@@ -198,7 +213,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatDurationMs(it.meanTtftMs),
                     it.tokensPerSecond?.let { rate -> String.format(java.util.Locale.US, "%.0f", rate) } ?: "—",
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
         }
@@ -211,7 +226,7 @@ private fun TrajectoryTotals(stats: SessionStatsView?, usage: TokenUsageView?) {
                     formatTokens(it.cacheReadTokens),
                     formatTokens(it.cacheWriteTokens),
                 ),
-                style = DsType.caption11,
+                style = DsType.footnote,
                 color = colors.labelTertiary,
             )
         }

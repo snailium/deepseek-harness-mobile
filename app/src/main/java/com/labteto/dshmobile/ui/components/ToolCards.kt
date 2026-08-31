@@ -16,6 +16,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -23,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.R
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -66,6 +69,7 @@ fun ToolCard(
 
 // ---- Header helpers ---------------------------------------------------------
 
+@Composable
 private fun ToolCardView.displayTitle(): String = when (this) {
     is ToolCardView.GenericCard -> title ?: kind ?: "Tool"
     is ToolCardView.TerminalCard -> title ?: "Terminal"
@@ -75,24 +79,30 @@ private fun ToolCardView.displayTitle(): String = when (this) {
     is ToolCardView.WebCard -> title ?: "Web"
 }
 
+@Composable
 private fun ToolCardView.summary(): String? = when (this) {
     is ToolCardView.GenericCard ->
-        content?.size?.let { "$it block(s)" } ?: locations?.size?.let { "$it location(s)" }
+        content?.size?.let { pluralStringResource(R.plurals.tool_blocks, it, it) }
+            ?: locations?.size?.let { pluralStringResource(R.plurals.tool_locations_count, it, it) }
     is ToolCardView.TerminalCard -> when {
-        running == true -> "running"
-        signal != null -> "killed by $signal"
-        exitCode != null -> "exit $exitCode"
+        running == true -> stringResource(R.string.tool_running)
+        signal != null -> stringResource(R.string.tool_killed_by, signal)
+        exitCode != null -> stringResource(R.string.tool_exit_code, exitCode)
         else -> description ?: cwd
     }
     is ToolCardView.DiffCard -> {
         val (added, removed, files) = diffStats(diffs)
-        "+$added -$removed · $files file(s)"
+        pluralStringResource(R.plurals.tool_diff_stats, files, added, removed, files)
     }
-    is ToolCardView.SearchCard -> "${total ?: resultCount()} result(s)"
-    is ToolCardView.ReadCard -> "$totalLines lines"
+    is ToolCardView.SearchCard -> {
+        val count = total ?: resultCount()
+        pluralStringResource(R.plurals.tool_results_count, count, count)
+    }
+    is ToolCardView.ReadCard -> pluralStringResource(R.plurals.tool_lines_count, totalLines, totalLines)
     is ToolCardView.WebCard -> when (val kind = kind) {
-        is WebCardKind.Search -> kind.answer?.take(64) ?: "${kind.sources.size} source(s)"
-        is WebCardKind.Fetch -> kind.statusCode?.let { "HTTP $it" } ?: kind.url
+        is WebCardKind.Search -> kind.answer?.take(64)
+            ?: pluralStringResource(R.plurals.tool_sources_count, kind.sources.size, kind.sources.size)
+        is WebCardKind.Fetch -> kind.statusCode?.let { stringResource(R.string.tool_http_status, it) } ?: kind.url
     }
 }
 
@@ -133,7 +143,7 @@ private fun ToolCardBody(view: ToolCardView) {
             .fillMaxWidth()
             .clip(DsShapes.block)
             .background(colors.codeBlockBg)
-            .border(1.dp, colors.borderL1, DsShapes.block)
+            .border(1.dp, colors.borderL2, DsShapes.block)
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -181,8 +191,8 @@ private fun TerminalBody(card: ToolCardView.TerminalCard) {
                 )
             }
             val status = when {
-                card.signal != null -> "killed by ${card.signal}"
-                card.exitCode != null -> "exit ${card.exitCode}"
+                card.signal != null -> stringResource(R.string.tool_killed_by, card.signal)
+                card.exitCode != null -> stringResource(R.string.tool_exit_code, card.exitCode)
                 else -> null
             }
             if (status != null) {
@@ -226,7 +236,11 @@ private fun DiffBody(card: ToolCardView.DiffCard) {
             Spacer(Modifier.width(4.dp))
             Text("-$removed", style = DsType.caption11Strong, color = colors.error)
             Spacer(Modifier.width(4.dp))
-            Text("· $files file(s)", style = DsType.caption11, color = colors.labelCaption)
+            Text(
+                pluralStringResource(R.plurals.tool_files_count, files, files),
+                style = DsType.caption11,
+                color = colors.labelCaption,
+            )
         }
     }
 }
@@ -290,7 +304,7 @@ private fun SearchBody(card: ToolCardView.SearchCard) {
         }
         if (card.truncated) {
             Text(
-                "showing $shown of ${card.total ?: shown}",
+                stringResource(R.string.tool_showing_of, shown, card.total ?: shown),
                 style = DsType.caption11,
                 color = colors.labelCaption,
             )
@@ -303,7 +317,7 @@ private fun ReadBody(card: ToolCardView.ReadCard) {
     val colors = DsTheme.colors
     if (card.lines.isEmpty()) {
         Text(
-            "(${card.totalLines} lines)",
+            pluralStringResource(R.plurals.tool_lines_total, card.totalLines, card.totalLines),
             style = DsType.caption11,
             color = colors.labelCaption,
         )
@@ -379,8 +393,9 @@ private fun WebBody(card: ToolCardView.WebCard) {
                     }
                 }
                 if (kind.sources.size > 8) {
+                    val more = kind.sources.size - 8
                     Text(
-                        "+${kind.sources.size - 8} more",
+                        pluralStringResource(R.plurals.tool_more_count, more, more),
                         style = DsType.caption11,
                         color = colors.labelCaption,
                     )
@@ -397,7 +412,7 @@ private fun WebBody(card: ToolCardView.WebCard) {
                 kind.statusCode?.let { code ->
                     val ok = code in 200..299
                     Text(
-                        "HTTP $code",
+                        stringResource(R.string.tool_http_status, code),
                         style = DsType.caption11Strong,
                         color = if (ok) colors.success else colors.error,
                         modifier = Modifier
@@ -416,7 +431,7 @@ private fun GenericBody(card: ToolCardView.GenericCard) {
     val colors = DsTheme.colors
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         card.rawInput?.let { raw ->
-            SectionLabel("IN")
+            SectionLabel(stringResource(R.string.tool_input))
             Text(
                 prettyJson(raw),
                 style = DsType.mdCode,
@@ -430,7 +445,7 @@ private fun GenericBody(card: ToolCardView.GenericCard) {
             )
         }
         card.locations?.takeIf { it.isNotEmpty() }?.let { locations ->
-            SectionLabel("LOCATIONS")
+            SectionLabel(stringResource(R.string.tool_locations))
             locations.forEach { location ->
                 Text(
                     location,
@@ -442,7 +457,7 @@ private fun GenericBody(card: ToolCardView.GenericCard) {
             }
         }
         card.content?.takeIf { it.isNotEmpty() }?.let { blocks ->
-            SectionLabel("OUT")
+            SectionLabel(stringResource(R.string.tool_output))
             blocks.forEach { block ->
                 when (block) {
                     is ContentBlockView.TextBlock -> Text(

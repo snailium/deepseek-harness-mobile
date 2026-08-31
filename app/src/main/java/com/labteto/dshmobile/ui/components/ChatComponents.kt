@@ -1,7 +1,6 @@
 package com.labteto.dshmobile.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,20 +13,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -35,20 +35,19 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
-import java.util.Locale
 
 /**
- * Right-aligned user message bubble: r22, `userBubble` fill, hairline edge, 16/24 text.
+ * Right-aligned user message bubble: solid `userBubble` fill with white text, r22, 17/25 text.
  *
- * Three things carry the shape, and it needs all three. The assistant's turn is deliberately
- * container-less — as in the harness web UI — so the bubble is the *only* thing distinguishing who
- * said what, and it kept reading as plain text. `userBubble` now sits a step darker than the web
- * token (see `DsLight.userBubble`), `borderL3` draws an edge that survives a bright screen, and the
- * width cap keeps a short message a narrow pill hugging the right margin rather than a full-width
- * band that looks like more prose.
+ * A filled user bubble with white text and no border — the standard chat-app arrangement
+ * (WhatsApp/Telegram style) and the one thing that tells the two sides of the conversation apart
+ * at a glance. With a solid fill the border is unnecessary; the width cap keeps a short message
+ * a narrow pill hugging the right margin rather than a full-width band that looks like more
+ * prose.
  *
  * The cap mirrors the harness's `max-width: min(525px, 82%)`, which is why this measures its parent
  * rather than hardcoding a dp: a flat 320dp was most of a phone's width and none of a tablet's.
@@ -60,11 +59,14 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
         Text(
             text,
             style = DsType.bubbleText,
-            color = colors.labelPrimary,
+            color = colors.onAccent,
             modifier = Modifier
                 .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                .background(colors.userBubble, DsShapes.bubble)
-                .border(1.dp, colors.borderL3, DsShapes.bubble)
+                .shadow(DsSpacing.elevationQuiet, DsShapes.bubble)
+                .background(
+                    Brush.linearGradient(listOf(colors.userBubble, colors.userBubbleHighlight)),
+                    DsShapes.bubble,
+                )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
     }
@@ -93,7 +95,7 @@ fun ThinkingRow(
             Spacer(Modifier.width(6.dp))
         }
         Text(
-            summary ?: "Thinking…",
+            summary ?: stringResource(R.string.chat_thinking),
             style = DsType.mdSmall.copy(color = colors.labelTertiary),
             color = colors.labelTertiary,
             maxLines = 1,
@@ -106,7 +108,7 @@ fun ThinkingRow(
             label = "thinkingChevron",
         )
         Icon(
-            Icons.Filled.KeyboardArrowDown,
+            FeatherIcons.ChevronDown,
             contentDescription = stringResource(R.string.chat_thinking),
             tint = colors.labelTertiary,
             modifier = Modifier
@@ -116,66 +118,63 @@ fun ThinkingRow(
     }
 }
 
-/** Full-width top strip announcing a connection problem. */
+/** How a connection notice should read: a hard failure, or a recovery in progress. */
+enum class BannerTone { Error, Info }
+
+/**
+ * Full-width top strip announcing a connection problem.
+ *
+ * Error is the red failure strip; Info is the calm "reconnecting" notice — the two used to share
+ * the red, which made a routine backoff retry look like a crash. [actionLabel]/[onAction] add a
+ * right-aligned Retry for the failure case; the recovery case has nothing to press.
+ */
 @Composable
-fun ConnectionBanner(message: String) {
+fun ConnectionBanner(
+    message: String,
+    tone: BannerTone = BannerTone.Error,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val colors = DsTheme.colors
+    val background = if (tone == BannerTone.Error) colors.errorFill else colors.accentTertiary
+    val foreground = if (tone == BannerTone.Error) Color.White else colors.labelSecondary
+    // A warning triangle on the calm "reconnecting" notice was the wrong glyph for the wrong
+    // message; the error strip keeps the warning, the recovery notice gets a refresh.
+    val glyph = if (tone == BannerTone.Error) FeatherIcons.AlertTriangle else FeatherIcons.RefreshCw
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DsTheme.colors.error)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .background(background)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Icons.Filled.Warning,
+            glyph,
             contentDescription = null,
-            tint = Color.White,
+            tint = foreground,
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(8.dp))
         Text(
             message,
             style = DsType.small13,
-            color = Color.White,
+            color = foreground,
             modifier = Modifier.weight(1f),
         )
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.width(8.dp))
+            Text(
+                actionLabel,
+                style = DsType.small13Strong,
+                color = foreground,
+                modifier = Modifier
+                    .clip(DsShapes.row)
+                    .clickable(role = Role.Button, onClick = onAction)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+            )
+        }
     }
 }
-
-/** Centered run statistics with tabular numerals. */
-@Composable
-fun StatsLine(
-    turns: Int,
-    steps: Int,
-    llmMs: Long? = null,
-    ttftMs: Long? = null,
-    tokPerSec: Double? = null,
-) {
-    val colors = DsTheme.colors
-    val text = buildString {
-        append("Turns $turns")
-        append(" · Steps $steps")
-        append(" · LLM ${formatDuration(llmMs)}")
-        append(" · TTFT ${formatDuration(ttftMs)}")
-        append(" · ${formatRate(tokPerSec)} tok/s")
-    }
-    Text(
-        text,
-        style = DsType.statsText.copy(color = colors.labelCaption, fontFeatureSettings = "tnum"),
-        color = colors.labelCaption,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}
-
-private fun formatDuration(ms: Long?): String = when {
-    ms == null -> "—"
-    ms >= 1000 -> "%.1fs".format(Locale.US, ms / 1000.0)
-    else -> "${ms}ms"
-}
-
-private fun formatRate(perSec: Double?): String =
-    perSec?.let { "%.1f".format(Locale.US, it) } ?: "—"
 
 @Preview(showBackground = true, widthDp = 360)
 @Composable
@@ -188,7 +187,6 @@ private fun ChatComponentsPreview() {
             UserBubble("Build the shared component library.")
             ThinkingRow("Working through the diff…", expanded = false, onToggle = {}, streaming = true)
             ConnectionBanner("Connection lost — retrying…")
-            StatsLine(turns = 3, steps = 12, llmMs = 2100, ttftMs = 420, tokPerSec = 18.4)
         }
     }
 }

@@ -45,13 +45,36 @@ data class HostConfig(
     val relayDeviceId: String? = null,
     /** Epoch millis the device token expires, as the relay reported it at pairing. */
     val relayTokenExpiresAt: Long = 0L,
+    /**
+     * URL scheme, `http` or `https`. Defaults keep hosts saved by older builds decoding as the
+     * plain-HTTP endpoints they were. Normalize through [normalizeScheme] before storing.
+     */
+    val scheme: String = "http",
+    /**
+     * Optional `Authorization: Bearer` value, for a bearer-gated proxy in front of the harness.
+     * Stored app-private like the address itself; only ever sent when set.
+     */
+    val authToken: String? = null,
+    /** Cloudflare Access service-token Client ID, sent as `CF-Access-Client-Id`. */
+    val cfClientId: String? = null,
+    /** Cloudflare Access service-token Client Secret, sent as `CF-Access-Client-Secret`. */
+    val cfClientSecret: String? = null,
+    /** True once the user confirmed connecting to this remote (off-LAN) endpoint. */
+    val remoteConfirmed: Boolean = false,
 ) {
     /** Bare `host:port` — the identity key and display form, deliberately scheme-free. */
     val authority: String get() = "$host:$port"
-    val baseUrl: String get() = harnessBaseUrl(host, port, useTls)
+    val baseUrl: String get() = "$scheme://$authority"
 
     /** What a card prints: the authority, scheme-qualified only when it is not the plain default. */
-    val displayAddress: String get() = if (useTls) "https://$authority" else authority
+    val displayAddress: String get() = if (scheme == "https") "$scheme://$authority" else authority
+
+    /**
+     * The extra headers an edge proxy in front of the harness needs, or empty for a plain LAN
+     * endpoint. This is the single place auth values become wire headers — the transport applies
+     * the map verbatim to every POST, download and WebSocket upgrade.
+     */
+    val authHeaders: Map<String, String> get() = HostConfig.authHeaders(authToken, cfClientId, cfClientSecret)
 
     /**
      * Whether this endpoint is a paired relay.
@@ -63,7 +86,21 @@ data class HostConfig(
     val isRelay: Boolean get() = relayDeviceId != null
 
     /** Whether traffic to this endpoint travels in the clear. */
-    val isPlaintext: Boolean get() = !useTls
+    val isPlaintext: Boolean get() = scheme == "http"
+
+    companion object {
+        /** Coerce any input to the two schemes the wire understands. */
+        fun normalizeScheme(value: String?): String =
+            if (value.equals("https", ignoreCase = true)) "https" else "http"
+
+        /** Compose the wire headers for the three optional auth values; empty when none is set. */
+        fun authHeaders(token: String?, cfClientId: String?, cfClientSecret: String?): Map<String, String> =
+            buildMap {
+                token?.takeIf { it.isNotBlank() }?.let { put("Authorization", "Bearer $it") }
+                cfClientId?.takeIf { it.isNotBlank() }?.let { put("CF-Access-Client-Id", it) }
+                cfClientSecret?.takeIf { it.isNotBlank() }?.let { put("CF-Access-Client-Secret", it) }
+            }
+    }
 }
 
 /**
@@ -129,6 +166,8 @@ data class AppSettings(
      */
     val connectMode: String = ConnectMode.LAN,
     val themePreference: String = "system", // light | dark | system
+    /** Android 12+ dynamic color (Material You). Below API 31 this is a no-op. */
+    val dynamicColor: Boolean = false,
     val localeOverride: String? = null, // null = system
     val knownPorts: List<Int> = listOf(3080),
     /**

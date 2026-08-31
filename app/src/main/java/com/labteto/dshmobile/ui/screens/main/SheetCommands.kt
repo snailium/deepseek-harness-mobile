@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -34,11 +32,13 @@ import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsPill
-import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.DsSegment
+import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /**
  * The `+` sheet: everything you can add to a message that is not the message.
@@ -47,6 +47,9 @@ import com.labteto.dshmobile.ui.theme.DsType
  * which commands exist depends on the deployment and on the session's agent preset. When the
  * harness exposes no catalog the section says so instead of inventing entries — a menu that offers
  * a command the host will reject is worse than a menu that admits it does not know.
+ *
+ * Commands and skills are two tabs over one scrolling, searchable list — a tabbed catalog rather
+ * than two fixed-height lists pasted together.
  */
 @Composable
 internal fun CommandSheet(
@@ -64,16 +67,18 @@ internal fun CommandSheet(
 ) {
     val colors = DsTheme.colors
     var query by remember { mutableStateOf("") }
+    // Which catalog is shown: commands or skills.
+    var tab by remember { mutableStateOf(CommandSheetTab.Commands) }
     val filteredCommands = remember(commands, query) { commands.filterByQuery(query) { it.name to it.description } }
     val filteredSkills = remember(skills, query) { skills.filterByQuery(query) { it.name to it.description } }
     val searchable = commands.size + skills.size > 12
 
     DsBottomSheet(title = stringResource(R.string.chat_composer_commands), onDismiss = onDismiss) {
-        // Attach ------------------------------------------------------------
+        // ---- Header rows: attach + send mode (the non-catalog actions) ----
         SheetRow(
             leading = {
                 Icon(
-                    Icons.Filled.Image,
+                    FeatherIcons.Image,
                     contentDescription = null,
                     tint = colors.labelSecondary,
                     modifier = Modifier.size(20.dp),
@@ -88,9 +93,17 @@ internal fun CommandSheet(
             },
         )
 
-        // Send mode ---------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_mode))
-        Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+        ) {
+            Text(
+                stringResource(R.string.chat_composer_mode),
+                style = DsType.m3LabelLarge,
+                color = colors.labelSecondary,
+            )
+            Spacer(Modifier.weight(1f))
             DsPill(
                 text = stringResource(R.string.chat_composer_queue),
                 selected = mode != "steer",
@@ -112,8 +125,21 @@ internal fun CommandSheet(
                     else -> R.string.chat_composer_mode_queue_hint
                 },
             ),
-            style = DsType.caption11,
+            style = DsType.m3LabelSmall,
             color = colors.labelTertiary,
+        )
+
+        // ---- Catalog tabs + search ----
+        DsSegmented(
+            segments = listOf(
+                DsSegment(TAB_COMMANDS, stringResource(R.string.chat_composer_commands)),
+                DsSegment(TAB_SKILLS, stringResource(R.string.skills_title)),
+            ),
+            selectedKey = if (tab == CommandSheetTab.Commands) TAB_COMMANDS else TAB_SKILLS,
+            onSelect = { key ->
+                tab = if (key == TAB_COMMANDS) CommandSheetTab.Commands else CommandSheetTab.Skills
+            },
+            modifier = Modifier.fillMaxWidth(),
         )
 
         if (searchable) {
@@ -127,63 +153,91 @@ internal fun CommandSheet(
             )
         }
 
-        // Commands ----------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_commands))
-        when {
-            !commandsAvailable -> Text(
-                stringResource(R.string.chat_commands_unavailable),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            filteredCommands.isEmpty() -> Text(
-                stringResource(R.string.chat_commands_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
-                items(filteredCommands, key = { it.name }) { command ->
-                    SheetRow(
-                        title = command.line,
-                        subtitle = command.description.ifBlank { null },
-                        trailing = command.input?.hint,
-                        onClick = {
-                            onDismiss()
-                            // A bare command runs immediately; one that takes an argument prefills
-                            // the composer so the argument can be typed where the hint is visible.
-                            if (command.input == null) {
-                                onRunCommand(command.line)
-                            } else {
-                                onPrefillDraft(command.draftPrefix)
-                            }
-                        },
-                    )
+        // ---- One scrolling list for the active tab ----
+        when (tab) {
+            CommandSheetTab.Commands -> when {
+                !commandsAvailable -> Text(
+                    stringResource(R.string.chat_commands_unavailable),
+                    style = DsType.m3LabelSmall,
+                    color = colors.labelTertiary,
+                )
+                filteredCommands.isEmpty() -> Text(
+                    stringResource(R.string.chat_commands_empty),
+                    style = DsType.m3LabelSmall,
+                    color = colors.labelTertiary,
+                )
+                else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(filteredCommands, key = { it.name }) { command ->
+                        SheetRow(
+                            leading = {
+                                Icon(
+                                    FeatherIcons.Terminal,
+                                    contentDescription = null,
+                                    tint = colors.labelSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            title = command.line,
+                            subtitle = command.description.ifBlank { null },
+                            trailing = command.input?.hint,
+                            onClick = {
+                                onDismiss()
+                                // A bare command runs immediately; one that takes an argument
+                                // prefills the composer so the argument can be typed where the
+                                // hint is visible.
+                                if (command.input == null) {
+                                    onRunCommand(command.line)
+                                } else {
+                                    onPrefillDraft(command.draftPrefix)
+                                }
+                            },
+                        )
+                    }
                 }
             }
-        }
 
-        // Skills ------------------------------------------------------------
-        if (filteredSkills.isNotEmpty()) {
-            SectionHeader(stringResource(R.string.skills_title))
-            LazyColumn(Modifier.heightIn(max = 220.dp)) {
-                items(filteredSkills, key = { it.name }) { skill ->
-                    SheetRow(
-                        title = "/${skill.name}",
-                        subtitle = skill.description.ifBlank { null },
-                        trailing = if (!skill.modelInvocable) {
-                            stringResource(R.string.skills_user_only)
-                        } else {
-                            null
-                        },
-                        onClick = {
-                            onDismiss()
-                            onPrefillDraft("/${skill.name} ")
-                        },
-                    )
+            CommandSheetTab.Skills -> if (filteredSkills.isEmpty()) {
+                Text(
+                    stringResource(R.string.chat_commands_empty),
+                    style = DsType.m3LabelSmall,
+                    color = colors.labelTertiary,
+                )
+            } else {
+                LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(filteredSkills, key = { it.name }) { skill ->
+                        SheetRow(
+                            leading = {
+                                Icon(
+                                    FeatherIcons.BookOpen,
+                                    contentDescription = null,
+                                    tint = colors.labelSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            title = "/" + skill.name,
+                            subtitle = skill.description.ifBlank { null },
+                            trailing = if (!skill.modelInvocable) {
+                                stringResource(R.string.skills_user_only)
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                onDismiss()
+                                onPrefillDraft("/" + skill.name + " ")
+                            },
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+/** Which catalog the + sheet is showing. */
+private enum class CommandSheetTab { Commands, Skills }
+
+private const val TAB_COMMANDS = "commands"
+private const val TAB_SKILLS = "skills"
 
 /** One tappable row of a sheet: title, optional subtitle, optional trailing hint. */
 @Composable
@@ -235,7 +289,7 @@ internal fun SheetRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 // Some hints are long enough to crowd out the description they sit beside
-                // (`/goal` advertises five alternatives), so the hint yields, not the name.
+                // (/goal advertises five alternatives), so the hint yields, not the name.
                 modifier = Modifier.widthIn(max = 120.dp),
             )
         }

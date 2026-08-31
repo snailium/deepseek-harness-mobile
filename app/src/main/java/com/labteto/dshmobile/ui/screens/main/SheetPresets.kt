@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +28,7 @@ import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import kotlinx.coroutines.launch
 
 /**
@@ -86,7 +85,7 @@ internal fun PresetsSheet(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 entry.displayName(),
-                                style = DsType.std14Strong,
+                                style = DsType.m3TitleMedium,
                                 color = when {
                                     selected -> colors.accent
                                     selectable -> colors.labelPrimary
@@ -108,12 +107,12 @@ internal fun PresetsSheet(
                             }
                         }
                         entry.displayDescription()?.let {
-                            Text(it, style = DsType.caption11, color = colors.labelTertiary)
+                            Text(it, style = DsType.m3LabelSmall, color = colors.labelTertiary)
                         }
                         entry.broken?.let {
                             Text(
                                 stringResource(R.string.presets_broken, it),
-                                style = DsType.caption11,
+                                style = DsType.m3LabelSmall,
                                 color = colors.warnLabel,
                             )
                         }
@@ -121,7 +120,7 @@ internal fun PresetsSheet(
                     if (selected) {
                         Spacer(Modifier.width(DsSpacing.small))
                         Icon(
-                            Icons.Filled.Check,
+                            FeatherIcons.Check,
                             contentDescription = stringResource(R.string.presets_current),
                             tint = colors.accent,
                             modifier = Modifier.size(16.dp),

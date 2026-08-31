@@ -15,6 +15,9 @@
     <string name="common_connected">Connected</string>
     <string name="common_reconnecting">Reconnecting…</string>
     <string name="common_offline">Offline</string>
+    <string name="common_switch_host">Switch harness</string>
+    <string name="chatlist_needs_attention">Needs your attention</string>
+    <string name="session_details_title">Session details</string>
     <string name="common_error">Something went wrong</string>
     <string name="common_close">Close</string>
     <string name="common_back">Back</string>
@@ -35,17 +38,47 @@
     <string name="time_years">%1$dy</string>
     <string name="connect_title">Connect to Harness</string>
     <string name="connect_subtitle">DSH Mobile mirrors the DeepSeek Harness running on your computer.</string>
+    <string name="onboarding_intro_title">Welcome to DSH Mobile</string>
+    <string name="onboarding_intro_body">DSH Mobile is a companion for the DeepSeek Harness running on your computer. Connect once over your Wi-Fi and drive it from your pocket.</string>
+    <string name="onboarding_step1_title">Start the harness on your computer</string>
+    <string name="onboarding_step1_body">Run the DeepSeek Harness on your computer (for example with <![CDATA[<b>dsh web</b>]]>). Both devices need to be on the same Wi-Fi network.</string>
+    <string name="onboarding_step1_learn_more">How to connect?</string>
+    <string name="onboarding_step2_title">Connect from your phone</string>
+    <string name="onboarding_step2_body">Scan for a harness on your network, or enter its address manually. When the harness is running it appears here automatically.</string>
+    <string name="onboarding_scan">Scan my network</string>
+    <string name="onboarding_manual">Enter address manually</string>
+    <string name="onboarding_back_to_connect">Back to connect</string>
     <string name="connect_manual_title">Connect manually</string>
-    <string name="connect_host_label">Host address</string>
-    <string name="connect_host_hint">192.168.1.20</string>
+    <string name="connect_address_label">Address</string>
+    <string name="connect_address_hint">ds.example.com, https://ds.example.com, or 192.168.1.20:3080</string>
+    <string name="connect_endpoint">Will connect to %1$s</string>
+    <string name="connect_advanced_title">Advanced</string>
     <string name="connect_port_label">Port</string>
+    <string name="connect_port_auto">Auto</string>
+    <string name="connect_auth_title">Authentication (optional)</string>
+    <string name="connect_auth_hint">For access-controlled endpoints — a Bearer token, or a Cloudflare Access Client ID + Secret.</string>
+    <string name="connect_help">How to connect?</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">Connect</string>
+    <string name="connect_scheme_http">HTTP</string>
+    <string name="connect_scheme_https">HTTPS</string>
+    <string name="connect_token_label">Access token (Bearer)</string>
+    <string name="connect_token_hint">Optional</string>
+    <string name="connect_token_show_hide">Show or hide</string>
+    <string name="connect_cf_id_label">Cloudflare Client ID</string>
+    <string name="connect_cf_secret_label">Cloudflare Client Secret</string>
+    <string name="connect_remote_confirm_title">Connect to a remote harness?</string>
+    <string name="connect_remote_confirm_body">%1$s is outside your local network. The harness itself has no login — only continue if this endpoint is yours (for example behind Cloudflare Access, a VPN, or another access control).</string>
+    <string name="connect_remote_confirm_continue">Continue</string>
     <string name="connect_scanning">Scanning your network…</string>
     <string name="connect_scan">Scan network</string>
     <string name="connect_discovered">Discovered harnesses</string>
     <string name="connect_discovered_hint">No harnesses found yet — make sure the harness is running and your phone is on the same Wi-Fi.</string>
     <string name="connect_remembered">Recent</string>
+    <string name="status_running">Running</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_online">Online</string>
+    <string name="status_offline">Offline</string>
     <string name="connect_same_device">This device (loopback)</string>
     <string name="connect_auto_title">Auto-connect</string>
     <string name="connect_auto_last">Reconnect to last used harness</string>
@@ -60,8 +93,7 @@
     <string name="connect_stage_verifying">Verifying the harness…</string>
     <string name="connect_stage_connected">Connected</string>
     <string name="connect_cancel">Cancel</string>
-    <string name="connect_fail_invalid">Enter the computer\'s IP address and a port between 1 and 65535.</string>
-    <string name="connect_fail_subnet">%1$s is not on this phone\'s network. This phone is on %2$s — connect both devices to the same router network. A guest or IoT Wi-Fi is usually kept separate, and Scan network only searches %2$s.</string>
+    <string name="connect_fail_invalid">Enter a host address (IP or domain) and a port between 1 and 65535 — the port can be left empty to use the default for the chosen protocol.</string>
     <string name="connect_fail_timeout">Nothing answered at %1$s. Usually the computer\'s firewall is blocking incoming connections on port %2$d — allow it and try again. Some routers also stop Wi-Fi devices from reaching wired ones.</string>
     <string name="connect_fail_refused">%1$s refused the connection. The harness only listens on the computer itself unless LAN mode is enabled — enable it and restart the harness. If you changed the port, check it matches.</string>
     <string name="connect_fail_fence_title">The harness rejected this address</string>
@@ -69,6 +101,7 @@
     <string name="connect_fail_not_harness">Something answered at %1$s, but it is not a DeepSeek Harness. Check the port the harness printed when it started.</string>
     <string name="connect_fail_tls">%1$s answered, but the secure (HTTPS) connection failed. If your proxy uses a local certificate authority, install its CA certificate on this phone — and if the address does not actually serve HTTPS, connect without https://.</string>
     <string name="connect_fail_streams">%1$s answered, but its event stream would not open. A VPN or private-DNS proxy on this phone can block WebSocket connections — turn it off and try again.</string>
+    <string name="connect_fail_access">An access service in front of %1$s rejected the request — check the access token and the Cloudflare Client ID/Secret, and that the service token is attached to the application policy.</string>
     <string name="connect_fail_other">Could not connect to %1$s. %2$s</string>
     <string name="connect_version_mismatch">Harness version %1$s may be incompatible with this app (built for %2$s).</string>
     <string name="connect_harness_home">Home %1$s</string>
@@ -91,12 +124,18 @@
     <string name="connect_never">Never connected</string>
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">Chats</string>
+    <string name="nav_active">Active</string>
+    <string name="chatlist_connected_to">Connected to %1$s</string>
+    <string name="chatlist_switch_host">Switch</string>
     <string name="chatlist_new_session">New session</string>
     <string name="chatlist_new_session_in">New session in…</string>
     <string name="chatlist_home_directory">Home directory</string>
     <string name="chatlist_filter_all">All</string>
     <string name="chatlist_no_workspaces">No workspaces yet — create one below.</string>
     <string name="chatlist_search_hint">Search sessions</string>
+    <string name="chatlist_search_clear">Clear search</string>
+    <string name="chatlist_session_actions">Session actions</string>
+    <string name="chatlist_workspace_actions">Workspace actions</string>
     <string name="chatlist_empty">No sessions yet</string>
     <string name="chatlist_empty_hint">Start a new session from the harness or from here.</string>
     <string name="chatlist_workspaces">Workspaces</string>
@@ -152,10 +191,19 @@
     <string name="chat_composer_remove_image">Remove image</string>
     <string name="chat_empty_title">Start working with your harness</string>
     <string name="chat_empty_hint">Send a message to begin a new turn.</string>
+    <string name="chat_suggest_summarize">Summarize this repo</string>
+    <string name="chat_suggest_tests">Run the test suite</string>
+    <string name="chat_suggest_diff">Explain a diff</string>
     <string name="chat_load_older">Load older messages</string>
     <string name="chat_loading_older">Loading earlier messages…</string>
     <string name="chat_load_older_retry">Couldn\'t load earlier messages — tap to retry</string>
     <string name="chat_thinking">Thinking</string>
+    <string name="chat_process_thought">Thought</string>
+    <plurals name="tool_calls_count">
+        <item quantity="one">%1$d tool call</item>
+        <item quantity="other">%1$d tool calls</item>
+    </plurals>
+    <string name="chat_typing">Assistant is typing…</string>
     <string name="chat_stopped">Stopped</string>
     <string name="chat_stopped_aborted">Turn aborted</string>
     <string name="chat_error_turn">Turn failed</string>
@@ -276,6 +324,8 @@
     <string name="settings_plugins_inventory">Plugin inventory</string>
     <string name="settings_language">Language</string>
     <string name="settings_appearance">Appearance</string>
+    <string name="settings_dynamic_color">Dynamic color</string>
+    <string name="settings_dynamic_color_hint">Uses the wallpaper colors on Android 12+.</string>
     <string name="settings_appearance_light">Light</string>
     <string name="settings_appearance_dark">Dark</string>
     <string name="settings_appearance_system">System</string>
@@ -285,6 +335,9 @@
     <string name="settings_notifications_goal">Notify when a goal completes or blocks</string>
     <string name="settings_notifications_action">Notify when your action is needed</string>
     <string name="settings_background">Keep connected in background</string>
+    <string name="settings_help">Help</string>
+    <string name="settings_help_connect">How to connect</string>
+    <string name="settings_help_issues">Report a problem</string>
     <string name="settings_about">About</string>
     <string name="settings_about_version">App version %1$s · protocol %2$s</string>
     <string name="settings_host_info">Host information</string>
@@ -437,4 +490,54 @@
     <string name="connect_relay_refused">Refuses this address</string>
     <string name="connect_relay_refused_hint">A relay is running here, but it only answers to addresses it already knows. Add %1$s to publicHostnames in the relay\'s cordis.patch.yml on that computer, then restart it.</string>
     <string name="pair_fail_host_refused">%1$s is a relay, but it refuses requests addressed this way — the code was never read. Add that address to publicHostnames in the relay\'s cordis.patch.yml and restart, or reach the relay by an address it already knows.</string>
+
+    <!-- Tool card chrome (ToolCards.kt / Markdown.kt) -->
+    <string name="tool_input">Input</string>
+    <string name="tool_output">Output</string>
+    <string name="tool_locations">Locations</string>
+    <string name="tool_running">running</string>
+    <string name="tool_killed_by">killed by %1$s</string>
+    <string name="tool_exit_code">exit %1$d</string>
+    <string name="tool_http_status">HTTP %1$d</string>
+    <string name="tool_showing_of">showing %1$d of %2$d</string>
+    <string name="tool_copy_code">Copy code</string>
+    <string name="tool_copy">copy</string>
+    <plurals name="tool_blocks">
+        <item quantity="one">%1$d block</item>
+        <item quantity="other">%1$d blocks</item>
+    </plurals>
+    <plurals name="tool_locations_count">
+        <item quantity="one">%1$d location</item>
+        <item quantity="other">%1$d locations</item>
+    </plurals>
+    <plurals name="tool_results_count">
+        <item quantity="one">%1$d result</item>
+        <item quantity="other">%1$d results</item>
+    </plurals>
+    <plurals name="tool_lines_count">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
+    <plurals name="tool_sources_count">
+        <item quantity="one">%1$d source</item>
+        <item quantity="other">%1$d sources</item>
+    </plurals>
+    <plurals name="tool_files_count">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="tool_more_count">
+        <item quantity="one">+%1$d more</item>
+        <item quantity="other">+%1$d more</item>
+    </plurals>
+    <plurals name="tool_lines_total">
+        <item quantity="one">(%1$d line)</item>
+        <item quantity="other">(%1$d lines)</item>
+    </plurals>
+    <plurals name="tool_diff_stats">
+        <item quantity="one">+%1$d -%2$d · %3$d file</item>
+        <item quantity="other">+%1$d -%2$d · %3$d files</item>
+    </plurals>
+    <string name="tool_copy_code_lang">%1$s · copy</string>
+    <string name="chat_message_actions">Message actions</string>
 </resources>

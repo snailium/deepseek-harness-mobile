@@ -19,24 +19,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,28 +42,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
+import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
 import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
 import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
 import com.labteto.dshmobile.ui.components.ContextMeter
+import com.labteto.dshmobile.ui.components.StateDot
+import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /**
  * A picked image waiting to be sent, held with its decoded preview.
@@ -89,17 +95,49 @@ internal data class PendingAttachment(
 }
 
 /**
- * The message composer, laid out like the harness's own: the `+` and the permission chip on the
- * left, the send affordance on the right.
+ * The composer's draft text, held in its own snapshot state so typing recomposes only the
+ * composer, not the whole conversation surface.
  *
- * The model selector is deliberately *not* here — it moved to the top bar, which leaves this row
- * for the two controls you change mid-conversation and keeps the composer from wrapping on a
- * narrow phone.
+ * The screen reads it back through [ComposerDraft.value] only inside event handlers (send,
+ * prefill) — never during composition of the screen itself — so a keystroke invalidates just the
+ * composer's subtree.
+ */
+@Stable
+internal class ComposerDraft internal constructor(initial: String) {
+    var value by mutableStateOf(initial)
+}
+
+private val ComposerDraftSaver = androidx.compose.runtime.saveable.Saver<ComposerDraft, String>(
+    save = { it.value },
+    restore = { ComposerDraft(it) },
+)
+
+/** A saveable [ComposerDraft]; keyed on the session so a switch starts from a clean draft. */
+@Composable
+internal fun rememberComposerDraft(sessionId: String?): ComposerDraft =
+    androidx.compose.runtime.saveable.rememberSaveable(sessionId, saver = ComposerDraftSaver) {
+        ComposerDraft("")
+    }
+
+/**
+ * The message composer.
+ *
+ * One card, two rows: the input row — `+`, the growing field, send/stop — and, only when the
+ * harness offers them, a slim second row with the permission chip and the context meter. The
+ * field is a [BasicTextField] rather than Material's `TextField`, because M3 enforces a 56dp
+ * minimum height inside its decoration box: a single-line field over a 44dp action row is what
+ * made the composer read as a slab. The send affordance pins to the field's last line as it
+ * grows (the ChatGPT/WhatsApp arrangement), so the card stays ~66dp at rest and only earns
+ * height for what is actually typed.
+ *
+ * The model selector lives here, above the input: a model choice configures the *next* turn,
+ * so it belongs at the point of action — the same reasoning that put Gemini's picker inside its
+ * prompt bar (2025 redesign) and ChatGPT's inside its composer. The header keeps identity and
+ * navigation only.
  */
 @Composable
 internal fun Composer(
-    draft: String,
-    onDraftChange: (String) -> Unit,
+    composerDraft: ComposerDraft,
     attachments: List<PendingAttachment>,
     onRemoveAttachment: (Int) -> Unit,
     permissions: PermissionSelect?,
@@ -107,6 +145,12 @@ internal fun Composer(
     onPermissionPick: (String) -> Unit,
     contextBreakdown: ContextBreakdownView?,
     contextPressure: ContextPressureView?,
+    /** The current model's display label; null hides the model chip in the config strip. */
+    modelLabel: String?,
+    /** Whether the model list is routable; a non-routable list shows a warning dot. */
+    modelsRoutable: Boolean,
+    /** Opens the model picker; the choice configures the next turn. */
+    onOpenModels: () -> Unit,
     running: Boolean,
     enabled: Boolean,
     onOpenSheet: () -> Unit,
@@ -116,81 +160,120 @@ internal fun Composer(
 ) {
     val colors = DsTheme.colors
     val haptics = LocalHapticFeedback.current
+    val draft = composerDraft.value
     val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
     val currentDraft by rememberUpdatedState(draft)
-    val currentOnDraftChange by rememberUpdatedState(onDraftChange)
     val currentOnSend by rememberUpdatedState(onSend)
+
+    fun doSend() {
+        if (!canSend || running) return
+        val text = currentDraft
+        composerDraft.value = ""
+        // The long-press feedback doubles as the send tick; the heavier long-press haptic stays
+        // on stop, the disruptive action.
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        currentOnSend(text)
+    }
+
+    // ---- Config strip: model · permission · context, above the input card ----
+    // This is the Gemini/ChatGPT arrangement: the model (and the other turn-configuration
+    // controls) live where the next turn is written, never in the title chrome.
+    val hasConfig = modelLabel != null || permissions != null || contextPressure?.usedRatio != null
+    if (hasConfig) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
+        ) {
+            if (modelLabel != null) {
+                ModelChip(
+                    label = modelLabel,
+                    routable = modelsRoutable,
+                    onClick = onOpenModels,
+                )
+            }
+            PermissionChip(
+                select = permissions,
+                pending = pendingPermission,
+                enabled = enabled,
+                onPick = onPermissionPick,
+            )
+            Spacer(Modifier.weight(1f))
+            ContextMeter(contextBreakdown, contextPressure)
+        }
+    }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small)
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall)
+            // A quiet 4dp ambient shadow: the card floats without the old 8dp slab look.
+            .shadow(4.dp, DsShapes.composer)
             .animateContentSize(),
         shape = DsShapes.composer,
         color = colors.composerCard,
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
         Column(
-            Modifier.padding(DsSpacing.medium),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
-            TextField(
-                value = draft,
-                onValueChange = onDraftChange,
-                modifier = Modifier.fillMaxWidth(),
-                enabled = enabled,
-                placeholder = {
-                    Text(
-                        stringResource(R.string.chat_composer_hint),
-                        style = DsType.std14,
-                        color = colors.labelTertiary,
-                    )
-                },
-                minLines = 1,
-                maxLines = 8,
-                textStyle = DsType.std14,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = colors.accent,
-                    focusedTextColor = colors.labelPrimary,
-                    unfocusedTextColor = colors.labelPrimary,
-                ),
-            )
-
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
                 AttachmentStrip(attachments, onRemoveAttachment)
             }
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
             ) {
                 CircleAction(
-                    icon = Icons.Filled.Add,
+                    icon = FeatherIcons.Plus,
                     contentDescription = stringResource(R.string.chat_composer_commands),
-                    size = 30,
+                    size = 36,
                     background = colors.hoverSolid,
                     tint = colors.labelPrimary,
                     enabled = enabled,
                     onClick = onOpenSheet,
+                    backgroundBrush = Brush.linearGradient(
+                        listOf(colors.accentTertiary, colors.accentTertiary),
+                    ),
                 )
 
-                PermissionChip(
-                    select = permissions,
-                    pending = pendingPermission,
-                    enabled = enabled,
-                    onPick = onPermissionPick,
+                val selectionColors = TextSelectionColors(
+                    handleColor = colors.accent,
+                    backgroundColor = colors.accent.copy(alpha = 0.4f),
                 )
-
-                Spacer(Modifier.weight(1f))
-
-                ContextMeter(contextBreakdown, contextPressure)
+                CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = { composerDraft.value = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(vertical = DsSpacing.small),
+                        enabled = enabled,
+                        textStyle = DsType.body17.copy(color = colors.labelPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        minLines = 1,
+                        maxLines = 5,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { doSend() }),
+                        decorationBox = { innerTextField ->
+                            Box {
+                                if (draft.isEmpty() && attachments.isEmpty()) {
+                                    Text(
+                                        stringResource(R.string.chat_composer_hint),
+                                        style = DsType.body17,
+                                        color = colors.labelTertiary,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                }
 
                 // Send and stop occupy the same slot: the affordance changes meaning during a turn
                 // rather than the row re-flowing around a second button appearing.
@@ -224,22 +307,23 @@ internal fun Composer(
                         }
                     } else {
                         CircleAction(
-                            icon = Icons.Filled.ArrowUpward,
+                            icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
                             size = 36,
-                            background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
+                            background = if (canSend) colors.primaryButtonGradientStart else colors.buttonPrimaryDimmed,
                             tint = if (canSend) Color.White else colors.labelTertiary,
                             enabled = canSend,
-                            onClick = {
-                                val text = currentDraft
-                                currentOnDraftChange("")
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                currentOnSend(text)
-                            },
+                            onClick = { doSend() },
+                            backgroundBrush = if (canSend) {
+                                Brush.linearGradient(
+                                    listOf(colors.primaryButtonGradientStart, colors.primaryButtonGradientEnd),
+                                )
+                            } else null,
                         )
                     }
                 }
             }
+
         }
     }
 }
@@ -275,8 +359,13 @@ private fun PermissionChip(
         Row(
             modifier = Modifier
                 .clip(DsShapes.cube)
-                .clickable(enabled = enabled && pending == null) { menuOpen = true }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .clickable(
+                    enabled = enabled && pending == null,
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.permission_preset),
+                    onClick = { menuOpen = true },
+                )
+                .padding(horizontal = 8.dp, vertical = 6.dp)
                 .then(
                     if (pending != null) {
                         Modifier.skeleton(colors.bgLayer2, colors.hover, DsShapes.cube)
@@ -288,7 +377,7 @@ private fun PermissionChip(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Icon(
-                Icons.Outlined.Shield,
+                FeatherIcons.Shield,
                 contentDescription = stringResource(R.string.permission_preset),
                 tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
                 modifier = Modifier.size(14.dp),
@@ -301,7 +390,7 @@ private fun PermissionChip(
                 overflow = TextOverflow.Ellipsis,
             )
             Icon(
-                Icons.Filled.KeyboardArrowDown,
+                FeatherIcons.ChevronDown,
                 contentDescription = null,
                 tint = colors.labelTertiary,
                 modifier = Modifier.size(12.dp),
@@ -362,18 +451,29 @@ private fun AttachmentStrip(attachments: List<PendingAttachment>, onRemove: (Int
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .size(18.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
-                        .background(colors.toastBg)
-                        .clickable { onRemove(index) },
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.chat_composer_remove_image),
+                            onClick = { onRemove(index) },
+                        ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.chat_composer_remove_image),
-                        tint = Color.White,
-                        modifier = Modifier.size(12.dp),
-                    )
+                    Box(
+                        Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .background(colors.toastBg),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            FeatherIcons.X,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
                 }
             }
         }
@@ -393,25 +493,25 @@ private fun CircleAction(
     tint: Color,
     enabled: Boolean,
     onClick: () -> Unit,
+    backgroundBrush: Brush? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.size(size.dp),
-        enabled = enabled,
-        shape = CircleShape,
-        color = background,
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(if (backgroundBrush != null) backgroundBrush else Brush.linearGradient(listOf(background, background)))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-            when {
-                content != null -> content()
-                icon != null -> Icon(
-                    icon,
-                    contentDescription = contentDescription,
-                    tint = tint,
-                    modifier = Modifier.size((size * 0.46f).dp),
-                )
-            }
+        when {
+            content != null -> content()
+            icon != null -> Icon(
+                icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size((size * 0.46f).dp),
+            )
         }
     }
 }

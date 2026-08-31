@@ -154,6 +154,7 @@ class ConnectionManager @Inject constructor(
         }
     }
 
+
     val connectedApi: DshApiClient? get() = api
 
     /**

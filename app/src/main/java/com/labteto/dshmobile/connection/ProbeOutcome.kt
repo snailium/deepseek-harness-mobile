@@ -21,6 +21,13 @@ sealed interface ProbeOutcome {
      */
     data class Reachable(val description: HostDescription?) : ProbeOutcome
 
+    /**
+     * An edge proxy (Cloudflare Access or similar) refused the request — reachable, but the
+     * credentials it carries were missing or rejected. The fix is on the client (Client ID/Secret,
+     * bearer token), unlike [TrustFence] which is a harness-side `--trusted-host`.
+     */
+    data object AccessDenied : ProbeOutcome
+
     /** HTTP 403 — the harness is there and its `Host` trust fence refused this address. */
     data object TrustFence : ProbeOutcome
 

@@ -1,13 +1,17 @@
 package com.labteto.dshmobile.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 /** Theme preference, mirroring the harness Appearance row (light|dark|system). */
 enum class ThemePreference { LIGHT, DARK, SYSTEM }
@@ -15,6 +19,8 @@ enum class ThemePreference { LIGHT, DARK, SYSTEM }
 /** Full DeepSeek Harness semantic palette for one scheme. */
 data class DsColors(
     val bgBase: Color,
+    /** The chat canvas: white in light, black in dark — the one surface that stays calm. */
+    val bgChat: Color,
     val bgLayer1: Color,
     val bgLayer2: Color,
     val bgLayer3: Color,
@@ -43,6 +49,7 @@ data class DsColors(
     val buttonInfoFill: Color,
     val buttonInfoHover: Color,
     val error: Color,
+    val errorFill: Color,
     val errorSecondary: Color,
     val errorTertiary: Color,
     val success: Color,
@@ -56,9 +63,12 @@ data class DsColors(
     val tooltipBg: Color,
     val userBubble: Color,
     val userBubbleHighlight: Color,
+    val assistantBubble: Color,
     val composerCard: Color,
     val sidebar: Color,
-    val sidebarNavActive: Color,
+    val selection: Color,
+    /** M3 tonal overlay for the selected list row: a brand-tinted wash. */
+    val selectionTonal: Color,
     val sidebarNavAccent: Color,
     val sidebarNavHover: Color,
     val tipSurface: Color,
@@ -68,11 +78,30 @@ data class DsColors(
     val citation: Color,
     val markdownTag: Color,
     val overlayMask: Color,
+    /** Gradient hero fill (empty states, onboarding, connect). */
+    val gradientStart: Color,
+    val gradientEnd: Color,
+    /** The elevated-card canvas / fill: cards that float with a real shadow. */
+    val surfaceRaised: Color,
+    /** One step down from surfaceRaised: the sunken well inside an elevated card. */
+    val surfaceSunken: Color,
+    /** Gradient fill for primary CTA buttons. */
+    val primaryButtonGradientStart: Color,
+    val primaryButtonGradientEnd: Color,
+    /** Soft tint behind assistant message cards. */
+    val assistantCard: Color,
+    /** Note/hint surface (replaces unused tipSurface). */
+    val noteSurface: Color,
+    /** Compact chip fill used across the app. */
+    val chipSurface: Color,
+    /** Explicit hairline hierarchy. */
+    val dividerStrong: Color,
+    val dividerSoft: Color,
 )
 
 object DsThemeTokens {
     val light = DsColors(
-        bgBase = DsLight.bgBase, bgLayer1 = DsLight.bgLayer1, bgLayer2 = DsLight.bgLayer2,
+        bgBase = DsLight.bgBase, bgChat = DsLight.bgChat, bgLayer1 = DsLight.bgLayer1, bgLayer2 = DsLight.bgLayer2,
         bgLayer3 = DsLight.bgLayer3, bgModulePlatform = DsLight.bgModulePlatform,
         borderL1 = DsLight.borderL1, borderL2 = DsLight.borderL2, borderL3 = DsLight.borderL3,
         brandPrimary = DsLight.brandPrimary, onBrandPrimary = DsLight.onBrandPrimary,
@@ -85,24 +114,34 @@ object DsThemeTokens {
         active = DsLight.active, dangerHover = DsLight.dangerHover,
         buttonPrimaryHover = DsLight.buttonPrimaryHover, buttonPrimaryDimmed = DsLight.buttonPrimaryDimmed,
         buttonInfoFill = DsLight.buttonInfoFill, buttonInfoHover = DsLight.buttonInfoHover,
-        error = DsLight.error, errorSecondary = DsLight.errorSecondary, errorTertiary = DsLight.errorTertiary,
+        error = DsLight.error, errorFill = DsLight.errorFill,
+        errorSecondary = DsLight.errorSecondary, errorTertiary = DsLight.errorTertiary,
         success = DsLight.success, successSecondary = DsLight.successSecondary,
         successTertiary = DsLight.successTertiary,
         warnLabel = DsLight.warnLabel, warn = DsLight.warn, warnSecondary = DsLight.warnSecondary,
         warnTertiary = DsLight.warnTertiary,
         toastBg = DsLight.toastBg, tooltipBg = DsLight.tooltipBg,
         userBubble = DsLight.userBubble, userBubbleHighlight = DsLight.userBubbleHighlight,
+        assistantBubble = DsLight.assistantBubble,
         composerCard = DsLight.composerCard,
-        sidebar = DsLight.sidebar, sidebarNavActive = DsLight.sidebarNavActive,
+        sidebar = DsLight.sidebar, selection = DsLight.selection,
+        selectionTonal = DsLight.selectionTonal,
         sidebarNavAccent = DsLight.sidebarNavAccent, sidebarNavHover = DsLight.sidebarNavHover,
         tipSurface = DsLight.tipSurface,
         codeBlockBg = DsLight.codeBlockBg, codeBlockBanner = DsLight.codeBlockBanner,
         inlineCode = DsLight.inlineCode, citation = DsLight.citation,
         markdownTag = DsLight.markdownTag, overlayMask = DsLight.overlayMask,
+        gradientStart = DsLight.gradientStart, gradientEnd = DsLight.gradientEnd,
+        surfaceRaised = DsLight.surfaceRaised, surfaceSunken = DsLight.surfaceSunken,
+        primaryButtonGradientStart = DsLight.primaryButtonGradientStart,
+        primaryButtonGradientEnd = DsLight.primaryButtonGradientEnd,
+        assistantCard = DsLight.assistantCard, noteSurface = DsLight.noteSurface,
+        chipSurface = DsLight.chipSurface,
+        dividerStrong = DsLight.dividerStrong, dividerSoft = DsLight.dividerSoft,
     )
 
     val dark = DsColors(
-        bgBase = DsDark.bgBase, bgLayer1 = DsDark.bgLayer1, bgLayer2 = DsDark.bgLayer2,
+        bgBase = DsDark.bgBase, bgChat = DsDark.bgChat, bgLayer1 = DsDark.bgLayer1, bgLayer2 = DsDark.bgLayer2,
         bgLayer3 = DsDark.bgLayer3, bgModulePlatform = DsDark.bgModulePlatform,
         borderL1 = DsDark.borderL1, borderL2 = DsDark.borderL2, borderL3 = DsDark.borderL3,
         brandPrimary = DsDark.brandPrimary, onBrandPrimary = DsDark.onBrandPrimary,
@@ -115,20 +154,30 @@ object DsThemeTokens {
         active = DsDark.active, dangerHover = DsDark.dangerHover,
         buttonPrimaryHover = DsDark.buttonPrimaryHover, buttonPrimaryDimmed = DsDark.buttonPrimaryDimmed,
         buttonInfoFill = DsDark.buttonInfoFill, buttonInfoHover = DsDark.buttonInfoHover,
-        error = DsDark.error, errorSecondary = DsDark.errorSecondary, errorTertiary = DsDark.errorTertiary,
+        error = DsDark.error, errorFill = DsDark.errorFill,
+        errorSecondary = DsDark.errorSecondary, errorTertiary = DsDark.errorTertiary,
         success = DsDark.success, successSecondary = DsDark.successSecondary,
         successTertiary = DsDark.successTertiary,
         warnLabel = DsDark.warnLabel, warn = DsDark.warn, warnSecondary = DsDark.warnSecondary,
         warnTertiary = DsDark.warnTertiary,
         toastBg = DsDark.toastBg, tooltipBg = DsDark.tooltipBg,
         userBubble = DsDark.userBubble, userBubbleHighlight = DsDark.userBubbleHighlight,
+        assistantBubble = DsDark.assistantBubble,
         composerCard = DsDark.composerCard,
-        sidebar = DsDark.sidebar, sidebarNavActive = DsDark.sidebarNavActive,
+        sidebar = DsDark.sidebar, selection = DsDark.selection,
+        selectionTonal = DsDark.selectionTonal,
         sidebarNavAccent = DsDark.sidebarNavAccent, sidebarNavHover = DsDark.sidebarNavHover,
         tipSurface = DsDark.tipSurface,
         codeBlockBg = DsDark.codeBlockBg, codeBlockBanner = DsDark.codeBlockBanner,
         inlineCode = DsDark.inlineCode, citation = DsDark.citation,
         markdownTag = DsDark.markdownTag, overlayMask = DsDark.overlayMask,
+        gradientStart = DsDark.gradientStart, gradientEnd = DsDark.gradientEnd,
+        surfaceRaised = DsDark.surfaceRaised, surfaceSunken = DsDark.surfaceSunken,
+        primaryButtonGradientStart = DsDark.primaryButtonGradientStart,
+        primaryButtonGradientEnd = DsDark.primaryButtonGradientEnd,
+        assistantCard = DsDark.assistantCard, noteSurface = DsDark.noteSurface,
+        chipSurface = DsDark.chipSurface,
+        dividerStrong = DsDark.dividerStrong, dividerSoft = DsDark.dividerSoft,
     )
 }
 
@@ -143,46 +192,98 @@ object DsTheme {
 private fun materialLightScheme(c: DsColors) = lightColorScheme(
     primary = c.accent,
     onPrimary = c.onAccent,
+    primaryContainer = c.accentTertiary,
+    onPrimaryContainer = c.accent,
+    inversePrimary = c.accentHover,
     secondary = c.labelSecondary,
     onSecondary = c.bgBase,
+    secondaryContainer = c.bgModulePlatform,
+    onSecondaryContainer = c.labelSecondary,
     tertiary = c.warn,
+    onTertiary = Color.White,
+    tertiaryContainer = c.warnTertiary,
+    onTertiaryContainer = c.warnLabel,
     background = c.bgBase,
     onBackground = c.labelPrimary,
     surface = c.bgLayer1,
     onSurface = c.labelPrimary,
     surfaceVariant = c.bgModulePlatform,
     onSurfaceVariant = c.labelSecondary,
-    outline = c.borderL2,
-    outlineVariant = c.borderL1,
+    surfaceTint = c.accent,
+    inverseSurface = c.toastBg,
+    inverseOnSurface = Color.White,
     error = c.error,
     onError = Color.White,
+    errorContainer = c.errorTertiary,
+    onErrorContainer = c.error,
+    outline = c.borderL2,
+    outlineVariant = c.borderL1,
+    scrim = c.overlayMask,
+    surfaceBright = c.bgLayer1,
+    surfaceDim = c.bgModulePlatform,
+    surfaceContainer = c.surfaceRaised,
+    surfaceContainerHigh = c.bgLayer2,
+    surfaceContainerHighest = c.bgLayer3,
+    surfaceContainerLow = c.bgBase,
+    surfaceContainerLowest = c.bgChat,
 )
 
 private fun materialDarkScheme(c: DsColors) = darkColorScheme(
     primary = c.accent,
     onPrimary = c.onAccent,
+    primaryContainer = c.accentTertiary,
+    onPrimaryContainer = c.labelPrimary,
+    inversePrimary = c.accentHover,
     secondary = c.labelSecondary,
     onSecondary = c.bgBase,
+    secondaryContainer = c.bgModulePlatform,
+    onSecondaryContainer = c.labelSecondary,
     tertiary = c.warn,
+    onTertiary = Color.White,
+    tertiaryContainer = c.warnTertiary,
+    onTertiaryContainer = c.warnLabel,
     background = c.bgBase,
     onBackground = c.labelPrimary,
     surface = c.bgLayer1,
     onSurface = c.labelPrimary,
     surfaceVariant = c.bgModulePlatform,
     onSurfaceVariant = c.labelSecondary,
-    outline = c.borderL2,
-    outlineVariant = c.borderL1,
+    surfaceTint = c.accent,
+    inverseSurface = c.toastBg,
+    inverseOnSurface = Color.White,
     error = c.error,
     onError = Color.White,
+    errorContainer = c.errorTertiary,
+    onErrorContainer = c.error,
+    outline = c.borderL2,
+    outlineVariant = c.borderL1,
+    scrim = c.overlayMask,
+    surfaceBright = c.bgLayer1,
+    surfaceDim = c.bgModulePlatform,
+    surfaceContainer = c.surfaceRaised,
+    surfaceContainerHigh = c.bgLayer2,
+    surfaceContainerHighest = c.bgLayer3,
+    surfaceContainerLow = c.bgBase,
+    surfaceContainerLowest = c.bgChat,
 )
 
 /**
- * The DeepSeek Harness theme. Honors the app's theme preference
- * (light | dark | system) and always uses the DSH token palette.
+ * The DeepSeek Harness theme. Honors the app's theme preference (light | dark | system) and, when
+ * [dynamicColor] is on and the device supports it (Android 12+), hands the Material color scheme to
+ * Material You's wallpaper-derived palette. The custom DSH token palette ([LocalDsColors]) stays
+ * brand-seeded either way, so content components (bubbles, tool cards, markdown) keep their color.
+ *
+ * Without dynamic color the *stock* M3 palette is fully re-mapped onto the Ds tokens (see
+ * [materialLightScheme]/[materialDarkScheme]) so every Material component — app bars, sheets,
+ * dialogs, switches, tabs, chips, the bottom navigation bar — inherits the DeepSeek look instead
+ * of the default purple-scaled palette. This is what lets the app standardize on Material 3
+ * chrome without drifting off-brand; dynamic color continues to override only the Material
+ * chrome, never the content tokens.
  */
 @Composable
 fun DshTheme(
     preference: ThemePreference = ThemePreference.SYSTEM,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val dark = when (preference) {
@@ -190,8 +291,15 @@ fun DshTheme(
         ThemePreference.DARK -> true
         ThemePreference.SYSTEM -> isSystemInDarkTheme()
     }
+    val useDynamic = dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    val context = LocalContext.current
     val ds = if (dark) DsThemeTokens.dark else DsThemeTokens.light
-    val scheme = if (dark) materialDarkScheme(ds) else materialLightScheme(ds)
+    val scheme = when {
+        useDynamic && dark -> dynamicDarkColorScheme(context)
+        useDynamic -> dynamicLightColorScheme(context)
+        dark -> materialDarkScheme(ds)
+        else -> materialLightScheme(ds)
+    }
     CompositionLocalProvider(LocalDsColors provides ds) {
         MaterialTheme(
             colorScheme = scheme,

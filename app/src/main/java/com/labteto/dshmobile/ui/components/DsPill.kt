@@ -77,7 +77,8 @@ fun DsPill(
     Surface(
         onClick = onClick ?: {},
         modifier = modifier
-            .height(24.dp)
+            // A trigger grows to 32dp so a thumb can hit it; a badge stays compact.
+            .height(if (onClick != null) 32.dp else 24.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

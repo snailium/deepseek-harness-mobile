@@ -69,6 +69,12 @@ sealed interface ConnectFailure {
     /** The TLS handshake failed — an untrusted certificate, or `https://` to a plain-HTTP server. */
     data object TlsFailure : ConnectFailure
 
+    /**
+     * An edge proxy (Cloudflare Access or similar) in front of the harness refused the request —
+     * the endpoint is reachable, but the credentials it carries were missing or rejected.
+     */
+    data object AccessDenied : ConnectFailure
+
     /** The API answered but the event streams would not open. */
     data object StreamsBlocked : ConnectFailure
 
@@ -97,6 +103,7 @@ sealed interface ConnectFailure {
             // No route is a different-network problem; the subnet pre-check catches most of these
             // first, and when it does not, "nothing answered" is the honest reading.
             ProbeOutcome.Unreachable -> Timeout
+            ProbeOutcome.AccessDenied -> AccessDenied
             ProbeOutcome.NotAHarness -> NotAHarness
             ProbeOutcome.TlsFailure -> TlsFailure
             is ProbeOutcome.Other -> Other(outcome.detail)
@@ -125,6 +132,7 @@ sealed interface ConnectFailure {
             TransportFailure.CERTIFICATE_PIN -> CertificateChanged
             TransportFailure.TRUST_FENCE -> if (relay) PairingRequired else TrustFence
             TransportFailure.UNAUTHENTICATED -> if (relay) PairingRequired else Unauthenticated
+            TransportFailure.ACCESS_DENIED -> AccessDenied
             TransportFailure.REFUSED -> Refused
             TransportFailure.TIMEOUT, TransportFailure.UNREACHABLE -> Timeout
             TransportFailure.DNS -> DnsFailure

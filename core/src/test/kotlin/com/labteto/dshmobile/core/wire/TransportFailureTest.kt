@@ -22,6 +22,38 @@ class TransportFailureTest {
         assertEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.classify(RpcTransportException(500, "no")))
     }
 
+    /**
+     * An edge proxy in front of the harness refuses with a redirect or a challenge header; both
+     * are credentials problems, not harness problems — and a 403 that names a challenge is not the
+     * trust fence (which never sends WWW-Authenticate).
+     */
+    @Test
+    fun `edge-proxy challenges classify as access denied`() {
+        assertEquals(
+            TransportFailure.ACCESS_DENIED,
+            TransportFailures.classify(RpcTransportException(302, "redirect to login")),
+        )
+        assertEquals(
+            TransportFailure.ACCESS_DENIED,
+            TransportFailures.classify(RpcTransportException(401, "unauthorized")),
+        )
+        assertEquals(
+            TransportFailure.ACCESS_DENIED,
+            TransportFailures.classify(
+                RpcTransportException(
+                    403,
+                    "forbidden",
+                    authChallenge = "Cloudflare-Access resource_metadata=\"https://ds.example.com/\"",
+                ),
+            ),
+        )
+        // The trust fence's 403 carries no challenge, so it keeps its own kind.
+        assertEquals(
+            TransportFailure.TRUST_FENCE,
+            TransportFailures.classify(RpcTransportException(403, "forbidden")),
+        )
+    }
+
     @Test
     fun `status zero falls through to the io cause`() {
         val refused = RpcTransportException(0, "transport failure", ConnectException("Connection refused"))

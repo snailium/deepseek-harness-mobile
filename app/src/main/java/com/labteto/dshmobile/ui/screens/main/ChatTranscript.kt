@@ -24,9 +24,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -84,16 +87,27 @@ internal fun ChatTranscript(
     context: ChatNodeContext,
     listState: LazyListState,
     onLoadOlder: () -> Unit,
+    onSuggest: (String) -> Unit = {},
     modifier: Modifier = Modifier,
+    /** Observes user scrolls (e.g. to fold the chrome); null keeps the list plain. */
+    scrollConnection: NestedScrollConnection? = null,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
     // worth of structural events stacks those gaps into a blank band under the chrome.
     val nodes = remember(conversation?.nodes) {
         conversation?.nodes.orEmpty().filter { it.rendersContent() }
     }
+    // Then fold consecutive reasoning messages and tool calls into process rows, so one disclosure
+    // covers a whole stretch of agentic work instead of a chevron per block (see ChatTurnGrouping).
+    val rows = remember(nodes) { groupTranscriptItems(nodes) }
     val hasMore = conversation?.hasMore == true
-    val itemCount = nodes.size + if (hasMore) 1 else 0
+    val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
+
+    // The streaming tail re-keys/re-derives every row while a turn streams; animating each item
+    // on every tick is what made the transcript feel rubbery. Only the *settled* state earns the
+    // layout animation — the moment the turn stops, rows animate into place once.
+    val streaming = conversation?.running == true
 
     // Both keyed on the session so a freshly opened one starts from a clean assumption rather than
     // inheriting the previous transcript's position — and so the collector always writes to the
@@ -101,10 +115,12 @@ internal fun ChatTranscript(
     var wasNearBottom by remember(sessionId) { mutableStateOf(true) }
     LaunchedEffect(listState, sessionId) {
         snapshotFlow {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
-            val total = info.totalItemsCount
-            total == 0 || last >= total - 2
+            derivedStateOf {
+                val info = listState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                val total = info.totalItemsCount
+                total == 0 || last >= total - 2
+            }.value
         }.collect { wasNearBottom = it }
     }
 
@@ -161,11 +177,21 @@ internal fun ChatTranscript(
 
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .then(
+                if (scrollConnection != null) {
+                    Modifier.nestedScroll(scrollConnection)
+                } else {
+                    Modifier
+                },
+            ),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         // Bottom-anchored: a transcript shorter than the viewport belongs above the composer, not
-        // pinned under the tab strip with the empty half below it.
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        // pinned under the tab strip with the empty half below it. 10dp between rows gives the
+        // message cards room to breathe — 4dp was tuned for flat text and reads cramped around
+        // bubbles.
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
     ) {
         if (hasMore) {
             // Present whenever there is more to fetch, so index 0 stays stable across pages.
@@ -180,15 +206,35 @@ internal fun ChatTranscript(
         }
         if (nodes.isEmpty()) {
             item(key = "empty") {
+                // A blank session should say what it is for: the chips prefill the composer, so a
+                // first-time user gets a concrete next step instead of an empty page.
                 EmptyHero(
                     headline = stringResource(R.string.chat_empty_title),
                     subtitle = stringResource(R.string.chat_empty_hint),
+                    chips = listOf(
+                        stringResource(R.string.chat_suggest_summarize),
+                        stringResource(R.string.chat_suggest_tests),
+                        stringResource(R.string.chat_suggest_diff),
+                    ),
+                    onChipClick = onSuggest,
                 )
             }
         } else {
-            items(nodes, key = { it.seq }) { node ->
-                Column(Modifier.animateItem()) {
-                    ChatNodeItem(node = node, context = context)
+            items(rows, key = { it.key }) { item ->
+                Column(if (streaming) Modifier else Modifier.animateItem()) {
+                    when (item) {
+                        is NodeItem -> ChatNodeItem(node = item.node, context = context)
+                        is ProcessItem -> ProcessGroupItem(
+                            item = item,
+                            context = context,
+                            // The group is live while it is the tail of a running turn: reasoning
+                            // and calls stream in, results are folded into their cards, and the
+                            // moment the tail moves past the group (final text, a new turn) it
+                            // collapses to its summary unless the reader opened it by hand.
+                            live = conversation?.running == true &&
+                                item.lastSeq == nodes.lastOrNull()?.seq,
+                        )
+                    }
                 }
             }
         }

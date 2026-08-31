@@ -18,6 +18,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -28,11 +30,17 @@ import com.labteto.dshmobile.ui.theme.DshTheme
 /** Harness tool run states. */
 enum class StateDotState { Idle, Running, Done, Warning, Error }
 
-/** Small status dot; [Running] shows a 3x3 pixel-matrix chase with discrete 1s steps. */
+/**
+ * Small status dot; [Running] shows a 3x3 pixel-matrix chase with discrete 1s steps.
+ *
+ * [contentDescription] names the state for assistive tech: the dot is color-only, and a TalkBack
+ * user would otherwise get a nameless blob.
+ */
 @Composable
 fun StateDot(
     state: StateDotState,
     size: Dp = 8.dp,
+    contentDescription: String? = null,
 ) {
     val color = when (state) {
         StateDotState.Idle -> DsTheme.colors.labelCaption
@@ -40,6 +48,11 @@ fun StateDot(
         StateDotState.Done -> DsTheme.colors.success
         StateDotState.Warning -> DsTheme.colors.warn
         StateDotState.Error -> DsTheme.colors.error
+    }
+    val canvasModifier = if (contentDescription != null) {
+        Modifier.size(size).semantics { this.contentDescription = contentDescription }
+    } else {
+        Modifier.size(size)
     }
     if (state == StateDotState.Running) {
         val transition = rememberInfiniteTransition(label = "stateDot")
@@ -64,12 +77,12 @@ fun StateDot(
             ),
             label = "chase",
         )
-        Canvas(modifier = Modifier.size(size)) {
+        Canvas(modifier = canvasModifier) {
             drawHalo(color)
             drawPixelChase(color, chase.toInt().coerceIn(0, 8))
         }
     } else {
-        Canvas(modifier = Modifier.size(size)) {
+        Canvas(modifier = canvasModifier) {
             drawHalo(color)
             drawCircle(color, radius = this.size.minDimension / 2f)
         }

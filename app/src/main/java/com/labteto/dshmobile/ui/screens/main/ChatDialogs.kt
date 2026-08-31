@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.ui.components.DsAlert
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
@@ -57,7 +58,7 @@ internal fun RenameDialog(
     }
 }
 
-/** A destructive confirmation with an explanatory body. */
+/** A destructive confirmation with an explanatory body, as an M3 alert. */
 @Composable
 internal fun ConfirmDialog(
     title: String,
@@ -66,16 +67,12 @@ internal fun ConfirmDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    DsDialog(title = title, onDismiss = onDismiss) {
-        Text(body, style = DsType.std14, color = DsTheme.colors.labelSecondary)
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            DsButton(
-                text = stringResource(R.string.common_cancel),
-                onClick = onDismiss,
-                variant = DsButtonVariant.Ghost,
-            )
-            Spacer(Modifier.width(DsSpacing.small))
-            DsButton(text = confirmLabel, onClick = onConfirm, variant = DsButtonVariant.Danger)
-        }
-    }
+    DsAlert(
+        title = title,
+        message = body,
+        confirmLabel = confirmLabel,
+        destructive = true,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+    )
 }

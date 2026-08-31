@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +35,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import kotlinx.coroutines.launch
 
 /**
@@ -80,7 +79,7 @@ internal fun ModelsSheet(
                 // At the section weight this used the group read as loud as its own contents.
                 Text(
                     group.name,
-                    style = DsType.xsmall12,
+                    style = DsType.m3LabelLarge,
                     color = colors.labelTertiary,
                     modifier = Modifier.padding(
                         start = DsSpacing.small,
@@ -155,7 +154,7 @@ private fun ModelRow(
                 Column(Modifier.weight(1f)) {
                     Text(
                         model.name,
-                        style = DsType.std14Strong,
+                        style = DsType.m3TitleMedium,
                         color = if (selected) colors.accent else colors.labelPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -163,7 +162,7 @@ private fun ModelRow(
                     model.description?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             it,
-                            style = DsType.caption11,
+                            style = DsType.m3LabelSmall,
                             color = colors.labelTertiary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -173,7 +172,7 @@ private fun ModelRow(
                 if (selected) {
                     Spacer(Modifier.width(DsSpacing.small))
                     Icon(
-                        Icons.Filled.Check,
+                        FeatherIcons.Check,
                         contentDescription = stringResource(R.string.models_current),
                         tint = colors.accent,
                         modifier = Modifier.size(16.dp),

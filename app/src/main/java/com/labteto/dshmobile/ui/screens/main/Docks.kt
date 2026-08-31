@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -139,7 +137,7 @@ internal fun GoalBar(goal: GoalSnapshot, store: SessionStore, modifier: Modifier
         DsMenu(
             anchor = {
                 Icon(
-                    Icons.Filled.MoreVert,
+                    FeatherIcons.MoreVertical,
                     contentDescription = stringResource(R.string.goal_edit),
                     tint = colors.labelTertiary,
                     modifier = Modifier.size(20.dp),
@@ -233,7 +231,7 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
                 DsMenu(
                     anchor = {
                         Icon(
-                            Icons.Filled.MoreVert,
+                            FeatherIcons.MoreVertical,
                             contentDescription = stringResource(R.string.chat_queue_edit),
                             tint = colors.labelTertiary,
                             modifier = Modifier.size(18.dp),
@@ -285,82 +283,3 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
     }
 }
 
-/**
- * The run statistics line under the transcript.
- *
- * Two of these numbers are aggregates on the wire, not averages: `ttftMs` is a *sum* across
- * `ttftSteps`, and there is no throughput field at all — it comes from decoded tokens over decode
- * milliseconds. Printing them raw would have shown a time-to-first-token of several minutes.
- */
-@Composable
-internal fun StatsFooter(
-    stats: SessionStatsView?,
-    usage: TokenUsageView?,
-    modifier: Modifier = Modifier,
-) {
-    if (stats == null && usage == null) return
-    val colors = DsTheme.colors
-    var expanded by remember { mutableStateOf(false) }
-    val parts = buildList {
-        stats?.let {
-            add(stringResource(R.string.chat_stats_turns, it.turns, it.steps))
-            add(
-                stringResource(
-                    R.string.chat_stats_speed,
-                    formatDurationMs(it.meanTtftMs),
-                    it.tokensPerSecond?.let { rate -> String.format(java.util.Locale.US, "%.0f", rate) } ?: "—",
-                ),
-            )
-        }
-        usage?.cacheHitRatio?.let { add(stringResource(R.string.chat_stats_cache, (it * 100).toInt())) }
-    }
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-    ) {
-        Text(
-            parts.joinToString(" · "),
-            style = DsType.statsText,
-            color = colors.labelCaption,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(vertical = 2.dp),
-        )
-        if (expanded) {
-            stats?.let {
-                DetailLine(
-                    stringResource(
-                        R.string.chat_stats_timing,
-                        formatDurationMs(it.llmMs),
-                        formatDurationMs(it.toolMs),
-                    ),
-                )
-            }
-            usage?.let {
-                DetailLine(
-                    stringResource(
-                        R.string.chat_stats_tokens,
-                        formatTokens(it.inputTokens),
-                        formatTokens(it.outputTokens),
-                    ),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DetailLine(text: String) {
-    Text(
-        text,
-        style = DsType.statsText,
-        color = DsTheme.colors.labelCaption,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth(),
-    )
-}

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -26,7 +27,7 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
- * The app's sheet surface, themed to the harness tokens.
+ * The app's sheet surface, themed to the harness tokens — a Material 3 modal bottom sheet.
  *
  * Sheets rather than dialogs for pickers: they arrive from the thumb's end of the screen, size
  * themselves to their content, and let a long list scroll without fighting a fixed-height plate.
@@ -48,10 +49,12 @@ fun DsBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
         modifier = modifier,
-        shape = DsShapes.dialog,
+        // M3 sheets round the top corners only — the plate sits on the screen edge.
+        shape = DsShapes.sheetTop,
         containerColor = colors.bgLayer2,
         scrimColor = colors.overlayMask,
-        dragHandle = null,
+        // The M3 platform drag handle: standard Android sheet affordance.
+        dragHandle = {},
         contentWindowInsets = { WindowInsets.navigationBars },
     ) {
         Column(
@@ -60,26 +63,15 @@ fun DsBottomSheet(
                 .padding(horizontal = DsSpacing.large, vertical = DsSpacing.comfortable),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            // A short grabber stands in for the platform drag handle so the sheet still reads as
-            // draggable without the default's heavy vertical padding.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                Spacer(
-                    Modifier
-                        .fillMaxWidth(0.12f)
-                        .height(4.dp)
-                        .clip(DsShapes.pillFull)
-                        .background(colors.borderL3),
-                )
-            }
             if (title != null) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = DsSpacing.small),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = DsType.large20, color = colors.labelPrimary)
+                        Text(title, style = DsType.m3TitleLarge, color = colors.labelPrimary)
                         if (subtitle != null) {
-                            Text(subtitle, style = DsType.caption11, color = colors.labelTertiary)
+                            Text(subtitle, style = DsType.m3LabelSmall, color = colors.labelTertiary)
                         }
                     }
                     trailing?.invoke()

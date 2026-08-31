@@ -99,6 +99,10 @@ class DiscoveryEngine @Inject constructor(
      * and wrong for a host someone named — pass [ProbeTimeouts.Manual] for those. (Until the
      * transport learned to honour these, every probe silently used 30s, so a named host was
      * accidentally patient and a sweep accidentally slow.)
+     *
+     * [scheme] and [headers] let a remembered remote host be probed exactly as it will be
+     * connected: `https` through a proxy that needs the same auth headers on the probe as on the
+     * live connection. The sweep never passes them — a LAN harness is plain HTTP with no proxy.
      */
     suspend fun probe(
         host: String,
@@ -109,6 +113,10 @@ class DiscoveryEngine @Inject constructor(
     ): HostDescription? = (
         probeOutcome(host, port, timeouts, useTls = useTls, config = config) as? ProbeOutcome.Reachable
         )?.description
+
+    /** Probe a remembered [config] with its own scheme and auth headers. */
+    suspend fun probeConfig(config: HostConfig, timeouts: ProbeTimeouts): HostDescription? =
+        probe(config.host, config.port, timeouts, useTls = (config.scheme == "https"), config = config)
 
     /**
      * Probe one authority and keep the reason it failed.
@@ -160,6 +168,7 @@ class DiscoveryEngine @Inject constructor(
                     if (relay) ProbeOutcome.PairingRequired else ProbeOutcome.TrustFence
                 TransportFailure.UNAUTHENTICATED ->
                     if (relay) ProbeOutcome.PairingRequired else ProbeOutcome.Unauthenticated
+                TransportFailure.ACCESS_DENIED -> ProbeOutcome.AccessDenied
                 TransportFailure.CERTIFICATE_PIN -> ProbeOutcome.CertificateChanged
                 TransportFailure.REFUSED -> ProbeOutcome.Refused
                 TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
@@ -282,6 +291,24 @@ class DiscoveryEngine @Inject constructor(
      */
     suspend fun isOnLocalSubnet(host: String): Boolean =
         withContext(Dispatchers.IO) { sameSubnet(host, localIpv4s()) }
+
+    /**
+     * Whether [host] is *definitely* on this device's own local network: an IPv4 literal inside one
+     * of its /24s.
+     *
+     * Unlike [isOnLocalSubnet] (whose `sameSubnet` says "cannot judge" and passes for hostnames),
+     * anything that is not a local-subnet IPv4 literal is treated as remote here. That is the
+     * predicate behind the remote-connect confirmation: a LAN IP needs no warning, while a domain
+     * like `ds.yeasin.tech` or a public IP does.
+     */
+    suspend fun isDefinitelyLocal(host: String): Boolean = withContext(Dispatchers.IO) {
+        val parts = host.split('.')
+        if (parts.size != 4 || parts.any { it.toIntOrNull()?.takeIf { n -> n in 0..255 } == null }) {
+            false
+        } else {
+            sameSubnet(host, localIpv4s())
+        }
+    }
 
     /** This device's own /24 as a label, e.g. `192.168.1.x`; null when it has no IPv4. */
     suspend fun localSubnetLabel(): String? = withContext(Dispatchers.IO) {

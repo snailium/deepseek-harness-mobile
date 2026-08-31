@@ -67,8 +67,9 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
   readiness handshake), remembers hosts and probes them for liveness on the way in, supports
   manual `host:port` entry, loopback for same-device setups, and auto-connect toggles
   (last used / LAN / same device).
-- **Discord-style navigation** — swipe right from the left edge to open the workspace-grouped
-  chat list, swipe left to close it, swipe left from the right edge for the session details panel.
+- **Bottom-navigation shell** — a Material 3 bottom bar (Chats · Settings) with a flat,
+  recency-sorted session list as the landing screen; tap a session to push its conversation,
+  open subagents in place, and reach workspace actions from the app bar.
 - **Full chat experience** — streamed turns with reasoning disclosure, markdown,
   terminal/diff/read/search/web tool cards, queue dock (edit / remove / steer), history paging,
   image attachments.
@@ -136,6 +137,41 @@ a [feature tour](https://github.com/sorsama/deepseek-harness-mobile/wiki/Feature
 If a connect attempt fails, the app names the cause; the wiki's
 [Troubleshooting](https://github.com/sorsama/deepseek-harness-mobile/wiki/Troubleshooting) page is
 keyed on that exact sentence.
+
+### Connect to a remote harness (VPS / anywhere)
+
+The manual connect screen takes **one address field** — `ds.example.com`,
+`https://ds.example.com:8443`, or a bare IP like `192.168.1.20` — and derives
+scheme and port from what you type (a domain means HTTPS on 443, a bare IP
+means the harness's own http on 3080; an **Advanced** section overrides
+either). Below it, an **Authentication (optional)** section holds the access
+token and the optional **Cloudflare Access** credentials. The first connect to
+an address outside your local network asks for a confirmation once, then
+behaves exactly like a LAN connection. With a remembered host, the screen
+leads with a one-tap **Resume** card, and each Recent entry can be **edited**
+to fix a mistyped credential without deleting the host.
+
+The safe way to publish a harness is to keep the port closed and put an
+authenticating edge in front of it, e.g. **Cloudflare Tunnel + Cloudflare
+Access**:
+
+1. Run the harness bound to `127.0.0.1` (its default) with the public hostname
+   trusted: `dsh web --trusted-host your-domain.example`.
+2. Point a Cloudflare Tunnel hostname at `http://localhost:3080`.
+3. In the Cloudflare Zero Trust dashboard, create an **Access application** for
+   that hostname. Browsers will sign in through the Access login page.
+4. For the app, create a **service token** (Zero Trust → Access → Service Auth →
+   Service tokens) and add it to the application's policy under **Service Auth**.
+   A service token is a Client ID + Client Secret pair.
+5. In the app: address `your-domain.example` (it defaults to HTTPS on 443), and
+   paste the **Client ID** and **Client Secret** into the two Cloudflare
+   fields. The app sends them as `CF-Access-Client-Id` /
+   `CF-Access-Client-Secret` on every request and WebSocket upgrade.
+
+A bearer-gated proxy instead? Fill only the **Access token** field; it is sent
+as `Authorization: Bearer …`. If the edge refuses the credentials, the app says
+so explicitly ("the access service rejected the request") rather than blaming
+the network.
 
 ## Compatibility & security
 

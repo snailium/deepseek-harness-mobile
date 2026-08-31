@@ -35,6 +35,13 @@ class RpcTransportException(
     val status: Int,
     message: String,
     cause: Throwable? = null,
+    /**
+     * The `WWW-Authenticate` challenge from a refused response, when the server sent one.
+     *
+     * Lets classification tell an edge-proxy refusal (Cloudflare Access, basic auth…) apart from
+     * the harness's own trust-fence 403, which carries no challenge header.
+     */
+    val authChallenge: String? = null,
 ) : IOException(message, cause)
 
 /** The HTTP carrier for unary RPCs: one `POST /api/<path>` exchange. */
@@ -86,6 +93,14 @@ class OkHttpRpcTransport(
     writeTimeoutMs: Long = 30_000,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * Extra headers applied to every exchange (POST and download).
+     *
+     * The seam an edge proxy uses: a Cloudflare Access service token travels as
+     * `CF-Access-Client-Id` / `CF-Access-Client-Secret`, any bearer-gated proxy as
+     * `Authorization: Bearer …`. Never sent when empty — the LAN profile is unchanged.
+     */
+    extraHeaders: Map<String, String> = emptyMap(),
 ) : RpcTransport {
 
     private val base: HttpUrl = baseUrl.toHttpUrl()
@@ -97,6 +112,8 @@ class OkHttpRpcTransport(
         }
         if (base.port == defaultPort) base.host else "${base.host}:${base.port}"
     }
+    // A plain constructor parameter is not visible in methods, only in initializers — capture it.
+    private val requestHeaders: Map<String, String> = extraHeaders
     private val httpClient: OkHttpClient = client.newBuilder()
         .connectTimeout(connectTimeoutMs, TimeUnit.MILLISECONDS)
         .readTimeout(readTimeoutMs, TimeUnit.MILLISECONDS)
@@ -113,6 +130,7 @@ class OkHttpRpcTransport(
                 .header("Content-Type", "application/json")
                 .authorized(authorization)
                 .cookied(cookie)
+                .apply { requestHeaders.forEach { header(it.key, it.value) } }
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             val call = httpClient.newCall(request)
@@ -133,7 +151,11 @@ class OkHttpRpcTransport(
                             continuation.resume(RpcHttpResponse(resp.code, responseBody))
                         } else {
                             continuation.resumeWithException(
-                                RpcTransportException(resp.code, carrierMessage(resp.code)),
+                                RpcTransportException(
+                                    resp.code,
+                                    carrierMessage(resp.code),
+                                    authChallenge = resp.header("WWW-Authenticate"),
+                                ),
                             )
                         }
                     }
@@ -160,6 +182,7 @@ class OkHttpRpcTransport(
             .header("Host", hostHeader)
             .authorized(authorization)
             .cookied(cookie)
+            .apply { requestHeaders.forEach { header(it.key, it.value) } }
             .get()
             .build()
         val response = try {
@@ -168,7 +191,13 @@ class OkHttpRpcTransport(
             throw RpcTransportException(0, "transport failure: ${e.message}", e)
         }
         response.use { resp ->
-            if (!resp.isSuccessful) throw RpcTransportException(resp.code, carrierMessage(resp.code))
+            if (!resp.isSuccessful) {
+                throw RpcTransportException(
+                    resp.code,
+                    carrierMessage(resp.code),
+                    authChallenge = resp.header("WWW-Authenticate"),
+                )
+            }
             val body = resp.body
                 ?: throw RpcTransportException(resp.code, "download carried no body")
             consume(
@@ -277,6 +306,12 @@ open class WsChannel(
     private val sink: WsChannelSink,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * Extra headers on the upgrade request, so an edge proxy in front of the harness
+     * (Cloudflare Access service token, bearer-gated proxy) authenticates the stream the same way
+     * it authenticates a POST.
+     */
+    private val extraHeaders: Map<String, String> = emptyMap(),
 ) {
     @Volatile
     private var webSocket: WebSocket? = null
@@ -303,9 +338,15 @@ open class WsChannel(
             // classify without reading English. Re-wrap so a trust-fence rejection of the stream
             // reads the same as one on a POST — and so 401 (no browser session) stays tellable
             // apart from 403 (Host/Origin refused), which now mean different things.
+            // An edge-proxy challenge is preserved via authChallenge.
             sink.onClosed(
                 if (response != null) {
-                    RpcTransportException(response.code, carrierMessage(response.code), t)
+                    RpcTransportException(
+                        response.code,
+                        carrierMessage(response.code),
+                        t,
+                        authChallenge = response.header("WWW-Authenticate"),
+                    )
                 } else {
                     t
                 },
@@ -321,6 +362,7 @@ open class WsChannel(
             .url(url)
             .authorized(authorization)
             .cookied(cookie)
+            .apply { extraHeaders.forEach { header(it.key, it.value) } }
             .build()
         webSocket = client.newWebSocket(request, listener)
     }

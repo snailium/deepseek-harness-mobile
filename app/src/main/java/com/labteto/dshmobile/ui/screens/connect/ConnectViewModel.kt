@@ -1,10 +1,7 @@
 package com.labteto.dshmobile.ui.screens.connect
 
-import com.labteto.dshmobile.core.wire.SessionExchange
-import com.labteto.dshmobile.connection.HarnessSessionStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.labteto.dshmobile.connection.ConnectMode
 import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.ConnectionPhase
@@ -12,10 +9,8 @@ import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.DiscoveryEngine
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.connection.HostsStore
-import com.labteto.dshmobile.connection.MdnsDiscovery
 import com.labteto.dshmobile.connection.ProbeOutcome
 import com.labteto.dshmobile.connection.ProbeTimeouts
-import com.labteto.dshmobile.connection.parseHostInput
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CompletableDeferred
@@ -50,27 +45,25 @@ sealed interface HostProbe {
 /** How far the subnet sweep has got, so the UI can show more than a spinner. */
 data class ScanProgress(val probed: Int, val total: Int)
 
-/** Why a launch-token exchange did not produce a browser session. */
-enum class SignInError {
-    /** The screen has no remembered host to sign in to — nothing was attempted yet. */
-    NoHost,
-
-    /** The harness answered and issued no session; the token is not the current process's. */
-    Refused,
-
-    /** The exchange never reached a harness. */
-    Unreachable,
-}
+/**
+ * A manual-connect attempt held at the remote-confirmation step: the address is outside this
+ * phone's local network, and the user has not confirmed this endpoint yet. Everything the attempt
+ * needs is carried here so confirming (or dismissing) does not depend on the fields still holding
+ * the same text.
+ */
+data class PendingRemoteConnect(
+    val host: String,
+    val port: Int,
+    val scheme: String,
+    val token: String?,
+    val cfClientId: String?,
+    val cfClientSecret: String?,
+    val isLoopback: Boolean,
+    val authority: String,
+    val label: String,
+)
 
 data class ConnectUiState(
-    /**
-     * Which way the user chose to connect: [ConnectMode.LAN] or [ConnectMode.RELAY].
-     *
-     * A choice, never a detection. The two paths have different trust models and different
-     * discovery, and nothing in the app connects a way the user did not pick — including
-     * auto-connect, which is scoped to this.
-     */
-    val mode: String = ConnectMode.LAN,
     val remembered: List<HostConfig> = emptyList(),
     /** Liveness per remembered host, keyed by `host:port`. Absent = not probed yet. */
     val recentStatus: Map<String, HostProbe> = emptyMap(),
@@ -85,21 +78,9 @@ data class ConnectUiState(
     val attempted: String? = null,
     /** The loop is still retrying in the background, so a cancel is worth offering. */
     val retrying: Boolean = false,
-    /** The launch-token prompt is showing. */
-    val signInOpen: Boolean = false,
-    /** An exchange is in flight. */
-    val signingIn: Boolean = false,
-    /** Why the last exchange did not produce a session, or null. */
-    val signInError: SignInError? = null,
-    val autoConnectLast: Boolean = true,
-    val autoConnectLan: Boolean = false,
-    val autoConnectLoopback: Boolean = true,
-    val autoConnectRelay: Boolean = false,
-    val showAdvanced: Boolean = false,
+    /** A remote (off-LAN) manual attempt awaiting the user's confirmation. */
+    val pendingRemoteConfirm: PendingRemoteConnect? = null,
 ) {
-    /** Remembered endpoints belonging to the selected mode. */
-    val visibleHosts: List<HostConfig>
-        get() = remembered.filter { it.isRelay == (mode == ConnectMode.RELAY) }
     /**
      * Derived, never stored.
      *
@@ -122,29 +103,13 @@ data class ConnectUiState(
             val known = remembered.map { it.authority }.toSet()
             return discovered.filterNot { it.authority in known }
         }
-
-    /** Whether the endpoint currently being attempted is a paired relay. */
-    val attemptingRelay: Boolean
-        get() = remembered.firstOrNull { it.authority == attempted }?.isRelay == true
-
-    /**
-     * Origin of the endpoint being attempted, for a "pair again" that lands prefilled.
-     *
-     * Read off the remembered record rather than rebuilt from [attempted], because the scheme is
-     * exactly the part an authority does not carry — and sending someone to `http://` for an
-     * `https://` relay would fail in a way that looks like the relay is down.
-     */
-    val attemptedBaseUrl: String?
-        get() = remembered.firstOrNull { it.authority == attempted }?.baseUrl
 }
 
 @HiltViewModel
 class ConnectViewModel @Inject constructor(
     private val connectionManager: ConnectionManager,
     private val discoveryEngine: DiscoveryEngine,
-    private val mdnsDiscovery: MdnsDiscovery,
     private val hostsStore: HostsStore,
-    private val harnessSessions: HarnessSessionStore,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ConnectUiState())
@@ -163,50 +128,6 @@ class ConnectViewModel @Inject constructor(
     /** The sweep in flight, so a second tap cannot start a rival one and Cancel has something to stop. */
     private var scanJob: Job? = null
 
-    /**
-     * Exchange a harness launch token for a browser session, then retry the connection.
-     *
-     * Harness 0.1.2 authenticates its whole `/api` surface, so a direct connection to a harness
-     * this device has never signed in to is refused before any method runs. The token is printed
-     * once per harness process and is only accepted on the index route, which is why this is a
-     * separate step rather than something a connection attempt could do on its own.
-     *
-     * [input] may be the bare token, the `?token=…` URL, or the whole startup line.
-     */
-    fun signIn(input: String) {
-        val host = _state.value.let { current ->
-            current.remembered.firstOrNull { it.authority == current.attempted }
-        }
-        if (host == null) {
-            _state.update { it.copy(signInError = SignInError.NoHost) }
-            return
-        }
-        _state.update { it.copy(signingIn = true, signInError = null) }
-        viewModelScope.launch {
-            val outcome = harnessSessions.pair(host.id, host.baseUrl, input)
-            _state.update { current ->
-                current.copy(
-                    signingIn = false,
-                    signInError = when (outcome) {
-                        is SessionExchange.Granted -> null
-                        // Almost always a token from an earlier harness process: it rotates on
-                        // every start and is never persisted.
-                        is SessionExchange.Refused -> SignInError.Refused
-                        is SessionExchange.Unreachable -> SignInError.Unreachable
-                    },
-                    // The dialog closes on success; a failure keeps it open with the reason.
-                    signInOpen = outcome !is SessionExchange.Granted,
-                )
-            }
-            if (outcome is SessionExchange.Granted) connectTo(host)
-        }
-    }
-
-    /** Open or close the launch-token prompt. */
-    fun setSignInOpen(open: Boolean) {
-        _state.update { it.copy(signInOpen = open, signInError = null) }
-    }
-
     init {
         viewModelScope.launch {
             connectionManager.state.collect { conn ->
@@ -220,10 +141,6 @@ class ConnectViewModel @Inject constructor(
                             owned -> current.failure
                             else -> conn.failure
                         },
-                        // Whoever started the attempt owns this normally, but pairing connects
-                        // through the manager directly — so a failure after pairing arrived with
-                        // no address at all, and the message read "Something answered at , but…".
-                        attempted = current.attempted ?: conn.host?.authority,
                         retrying = !owned && !connected && conn.attempts > 0,
                         // The Recent card's liveness dot used to be greyed by the failure callback
                         // that no longer exists; without this a dead entry keeps looking healthy.
@@ -239,16 +156,6 @@ class ConnectViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val settings = hostsStore.settingsOnce()
-            _state.update {
-                it.copy(
-                    mode = settings.connectMode,
-                    autoConnectLast = settings.autoConnectLast,
-                    autoConnectLan = settings.autoConnectLan,
-                    autoConnectLoopback = settings.autoConnectLoopback,
-                    autoConnectRelay = settings.autoConnectRelay,
-                )
-            }
             hostsStore.hosts.collect { hosts ->
                 _state.update { it.copy(remembered = hosts) }
             }
@@ -267,8 +174,6 @@ class ConnectViewModel @Inject constructor(
     private suspend fun probeRemembered() {
         val hosts = hostsStore.hosts.first()
         if (hosts.isEmpty()) return
-        // A paired relay is probed *with* its credential: unauthenticated it can only ever answer
-        // 403, which would grey out every relay card the moment it was drawn.
         _state.update { current ->
             current.copy(recentStatus = hosts.associate { it.authority to HostProbe.Probing })
         }
@@ -276,8 +181,10 @@ class ConnectViewModel @Inject constructor(
             hosts.map { host ->
                 async {
                     val description = runCatching {
-                        // A remembered host is named, not swept — worth waiting for.
-                        discoveryEngine.probe(host.host, host.port, ProbeTimeouts.Manual, config = host)
+                        // A remembered host is named, not swept — worth waiting for. The probe uses
+                        // the host's own scheme and auth headers, so a remote https endpoint behind
+                        // Cloudflare Access reports live with the same credentials it connects with.
+                        discoveryEngine.probeConfig(host, ProbeTimeouts.Manual)
                     }.getOrNull()
                     _state.update { current ->
                         current.copy(
@@ -301,43 +208,18 @@ class ConnectViewModel @Inject constructor(
         viewModelScope.launch { probeRemembered() }
     }
 
-    /**
-     * Connect without being asked, but only the way the user chose.
-     *
-     * The mode gate is the whole point of the branch. LAN and relay are not two routes to the same
-     * place: one talks to an unauthenticated harness on the local network, the other presents a
-     * credential to a relay. Auto-connecting the *other* way would make the choice on the connect
-     * screen a suggestion, and would do it before the user had a chance to look at it.
-     */
     private suspend fun autoConnect() {
         val settings = hostsStore.settingsOnce()
-        val relayMode = settings.connectMode == ConnectMode.RELAY
-        // 1. Last used host — of this mode. A relay and a bare harness can be the same machine, and
-        //    the most recent entry overall is often the one the user just switched away from.
+        // 1. Last used host.
         if (settings.autoConnectLast) {
-            val last = hostsStore.hosts.first().firstOrNull { it.isRelay == relayMode }
+            val last = hostsStore.hosts.first().firstOrNull()
             if (last != null) {
-                val desc = discoveryEngine.probe(last.host, last.port, ProbeTimeouts.Manual, config = last)
+                val desc = discoveryEngine.probeConfig(last, ProbeTimeouts.Manual)
                 if (desc != null) {
                     connectTo(last)
                     return
                 }
             }
-        }
-        if (relayMode) {
-            // 2r. A relay this device has already paired with, found by its advertisement. There is
-            //     deliberately no sweep here and no "first relay wins": an unpaired relay cannot be
-            //     connected to without the user typing a code, so auto-connect has nothing to do
-            //     with one.
-            if (settings.autoConnectRelay) {
-                val known = hostsStore.hosts.first().filter { it.isRelay }
-                if (known.isNotEmpty()) {
-                    val advertised = mdnsDiscovery.browse().map { it.authority }.toSet()
-                    val match = known.firstOrNull { it.authority in advertised }
-                    if (match != null) connectTo(match)
-                }
-            }
-            return
         }
         // 2. LAN discovery.
         if (settings.autoConnectLan) {
@@ -406,10 +288,6 @@ class ConnectViewModel @Inject constructor(
         scanJob = viewModelScope.launch {
             val settings = hostsStore.settingsOnce()
             try {
-                if (settings.connectMode == ConnectMode.RELAY) {
-                    scanForRelays()
-                    return@launch
-                }
                 discoveryEngine.scan(
                     ports = settings.knownPorts,
                     onProgress = { probed, total ->
@@ -429,94 +307,164 @@ class ConnectViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Relay discovery: the advertisement first, the sweep only if it turned nothing up.
-     *
-     * A relay publishes `_dsh._tcp` with its port, its TLS posture and its key, so a browse answers
-     * in a second or two and finds relays a /24 sweep would never look at. Nothing depends on it
-     * arriving, though — multicast is filtered on plenty of networks and the relay's `mdns` flag can
-     * be off — so a quiet browse falls through to knocking the two ports a relay actually uses,
-     * which is far cheaper than the harness sweep.
-     */
-    private suspend fun scanForRelays() {
-        val report: (DiscoveredHost) -> Unit = { found ->
-            _state.update { state ->
-                if (state.discovered.any { it.authority == found.authority }) state
-                else state.copy(discovered = state.discovered + found)
-            }
-        }
-        val advertised = mdnsDiscovery.browse(onFound = report)
-        if (advertised.isEmpty()) discoveryEngine.scanForRelays(onFound = report)
-    }
-
     /** Stop a sweep in flight, keeping anything it has already turned up. */
     fun cancelScan() {
         scanJob?.cancel()
         scanJob = null
     }
 
-    fun connectManual(host: String, port: String) {
-        // The field takes what people actually have — a pasted URL as readily as a bare address.
-        // A port named inside it was typed as part of this address, so it outranks the port field,
-        // which may still hold the default from a different harness.
-        val input = parseHostInput(host)
-        val portInt = input?.port ?: port.trim().toIntOrNull()
-        if (input == null || portInt == null || portInt !in 1..65535) {
+    fun connectManual(
+        host: String,
+        port: String,
+        scheme: String,
+        token: String,
+        cfClientId: String,
+        cfClientSecret: String,
+    ) {
+        // A pasted full URL lands in the host field; its scheme wins over the toggle.
+        val pasted = host.trim()
+        val pastedPrefix = pasted.substringBefore("://", "").lowercase()
+        val schemeValue = if (pastedPrefix == "http" || pastedPrefix == "https") {
+            pastedPrefix
+        } else {
+            HostConfig.normalizeScheme(scheme)
+        }
+        val hostValue = if (pastedPrefix == "http" || pastedPrefix == "https") {
+            pasted.substringAfter("://")
+        } else {
+            pasted
+        }
+        val portText = port.trim()
+        val portInt = if (portText.isBlank()) {
+            if (schemeValue == "https") DEFAULT_HTTPS_PORT else DEFAULT_HTTP_PORT
+        } else {
+            portText.toIntOrNull()
+        }
+        if (hostValue.isBlank() || portInt == null || portInt !in 1..65535) {
             fail(ConnectFailure.InvalidInput, attempted = null)
             return
         }
-        // An explicit scheme decides; otherwise port 443 means a TLS reverse proxy — the harness
-        // itself never serves there, and plaintext to a TLS port yields an answer no one can read.
-        val useTls = input.useTls ?: (portInt == 443)
-        val authority = "${input.host}:$portInt"
-        val isLoopback = input.host == LOOPBACK || input.host == "localhost"
+        val authority = "$hostValue:$portInt"
+        val isLoopback = hostValue == LOOPBACK || hostValue == "localhost"
+        val tokenValue = token.trim().takeIf { it.isNotBlank() }
+        val cfIdValue = cfClientId.trim().takeIf { it.isNotBlank() }
+        val cfSecretValue = cfClientSecret.trim().takeIf { it.isNotBlank() }
 
         localStage = ConnectStage.Validating
         _state.update { it.copy(stage = ConnectStage.Validating, failure = null, attempted = authority) }
 
         viewModelScope.launch {
-            val paired = hostsStore.hosts.first().firstOrNull { it.authority == authority && it.isRelay }
-            // Cheap and decisive: the sweep only ever looks at this phone's own /24, so an address
-            // outside it can never be reached from here and can never be found by scanning either.
-            // Saying so now beats a four-second timeout that blames the firewall.
-            //
-            // A paired relay is the exception, and the only one. It holds a real credential rather
-            // than relying on being on the same wire, and reaching one through a forwarded port or a
-            // VPN is the reason the relay exists — so for those the guard would be refusing the
-            // supported case with a confident, wrong explanation.
-            if (!isLoopback && paired == null && !discoveryEngine.isOnLocalSubnet(input.host)) {
-                fail(ConnectFailure.DifferentSubnet(discoveryEngine.localSubnetLabel()), authority)
-                return@launch
+            // Anything that is not a local-subnet IPv4 literal counts as remote — a public IP or a
+            // domain like ds.yeasin.tech. Confirm once (unless this endpoint was confirmed before),
+            // then the attempt proceeds exactly like a LAN one.
+            val remote = !isLoopback && !discoveryEngine.isDefinitelyLocal(hostValue)
+            if (remote) {
+                val alreadyConfirmed = hostsStore.hosts.first()
+                    .any { it.host == hostValue && it.port == portInt && it.remoteConfirmed }
+                if (!alreadyConfirmed) {
+                    _state.update {
+                        it.copy(
+                            pendingRemoteConfirm = PendingRemoteConnect(
+                                host = hostValue,
+                                port = portInt,
+                                scheme = schemeValue,
+                                token = tokenValue,
+                                cfClientId = cfIdValue,
+                                cfClientSecret = cfSecretValue,
+                                isLoopback = isLoopback,
+                                authority = authority,
+                                label = hostLabel(hostValue),
+                            ),
+                        )
+                    }
+                    return@launch
+                }
             }
-            localStage = ConnectStage.Reaching
-            _state.update { it.copy(stage = ConnectStage.Reaching) }
-            val outcome = discoveryEngine.probeOutcome(
-                host = input.host,
+            attemptConnect(
+                host = hostValue,
                 port = portInt,
-                timeouts = ProbeTimeouts.Manual,
-                preflight = true,
-                useTls = useTls,
-                config = paired,
-            )
-            if (outcome !is ProbeOutcome.Reachable) {
-                fail(ConnectFailure.from(outcome, relay = paired != null), authority)
-                return@launch
-            }
-            if (paired != null) {
-                connectTo(paired)
-                return@launch
-            }
-            hostsStore.addKnownPort(portInt)
-            val config = hostsStore.rememberHost(
-                name = hostLabel(input.host),
-                host = input.host,
-                port = portInt,
+                scheme = schemeValue,
+                token = tokenValue,
+                cfClientId = cfIdValue,
+                cfClientSecret = cfSecretValue,
                 isLoopback = isLoopback,
-                useTls = useTls,
-                description = outcome.description,
+                authority = authority,
+                remoteConfirmed = remote,
             )
-            connectTo(config)
         }
+    }
+
+    /** The user accepted the remote-connect confirmation; run the held attempt. */
+    fun confirmRemote() {
+        val pending = _state.value.pendingRemoteConfirm ?: return
+        _state.update { it.copy(pendingRemoteConfirm = null) }
+        viewModelScope.launch {
+            attemptConnect(
+                host = pending.host,
+                port = pending.port,
+                scheme = pending.scheme,
+                token = pending.token,
+                cfClientId = pending.cfClientId,
+                cfClientSecret = pending.cfClientSecret,
+                isLoopback = pending.isLoopback,
+                authority = pending.authority,
+                remoteConfirmed = true,
+            )
+        }
+    }
+
+    /** The user declined the remote-connect confirmation; drop the attempt. */
+    fun dismissRemoteConfirm() {
+        localStage = ConnectStage.Idle
+        _state.update {
+            it.copy(pendingRemoteConfirm = null, stage = ConnectStage.Idle, failure = null)
+        }
+    }
+
+    /**
+     * Probe, remember and connect one endpoint with the scheme and auth headers it will be reached
+     * by. Shared by the LAN manual path and the remote path after confirmation, so both speak the
+     * same wire and fail with the same diagnosis.
+     */
+    private suspend fun attemptConnect(
+        host: String,
+        port: Int,
+        scheme: String,
+        token: String?,
+        cfClientId: String?,
+        cfClientSecret: String?,
+        isLoopback: Boolean,
+        authority: String,
+        remoteConfirmed: Boolean,
+    ) {
+        localStage = ConnectStage.Reaching
+        _state.update { it.copy(stage = ConnectStage.Reaching) }
+        val outcome = discoveryEngine.probeOutcome(
+            host = host,
+            port = port,
+            timeouts = ProbeTimeouts.Manual,
+            preflight = true,
+            scheme = scheme,
+            headers = HostConfig.authHeaders(token, cfClientId, cfClientSecret),
+        )
+        if (outcome !is ProbeOutcome.Reachable) {
+            fail(ConnectFailure.from(outcome), authority)
+            return
+        }
+        hostsStore.addKnownPort(port)
+        val config = hostsStore.rememberHost(
+            name = hostLabel(host),
+            host = host,
+            port = port,
+            isLoopback = isLoopback,
+            description = outcome.description,
+            scheme = scheme,
+            authToken = token,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+            remoteConfirmed = remoteConfirmed,
+        )
+        connectTo(config)
     }
 
     /** Stop a connect attempt that the loop would otherwise keep retrying every few seconds. */
@@ -587,53 +535,6 @@ class ConnectViewModel @Inject constructor(
         viewModelScope.launch { hostsStore.removeHost(host.id) }
     }
 
-    fun setAuto(key: String, value: Boolean) {
-        viewModelScope.launch {
-            hostsStore.setSetting { current ->
-                when (key) {
-                    "last" -> current.copy(autoConnectLast = value)
-                    "lan" -> current.copy(autoConnectLan = value)
-                    "relay" -> current.copy(autoConnectRelay = value)
-                    else -> current.copy(autoConnectLoopback = value)
-                }
-            }
-            refreshSettings()
-        }
-    }
-
-    /**
-     * Switch between reaching a harness over the LAN and reaching one through a relay.
-     *
-     * Anything in flight is dropped rather than carried across: a sweep for harnesses has nothing to
-     * say about relays, and a failure from the other mode would be read against the wrong trust
-     * model — a 403 means "add a trusted host" on one side and "pair again" on the other.
-     */
-    fun setMode(mode: String) {
-        val next = ConnectMode.of(mode)
-        if (next == _state.value.mode) return
-        cancelScan()
-        _state.update {
-            it.copy(mode = next, discovered = emptyList(), scanning = false, scanProgress = null, failure = null)
-        }
-        viewModelScope.launch {
-            hostsStore.setSetting { it.copy(connectMode = next) }
-            refreshSettings()
-        }
-    }
-
-    private suspend fun refreshSettings() {
-        val settings = hostsStore.settingsOnce()
-        _state.update {
-            it.copy(
-                mode = settings.connectMode,
-                autoConnectLast = settings.autoConnectLast,
-                autoConnectLan = settings.autoConnectLan,
-                autoConnectLoopback = settings.autoConnectLoopback,
-                autoConnectRelay = settings.autoConnectRelay,
-            )
-        }
-    }
-
     fun clearError() = _state.update { it.copy(failure = null) }
 
     /**
@@ -650,5 +551,7 @@ class ConnectViewModel @Inject constructor(
     private companion object {
         const val LOOPBACK = "127.0.0.1"
         const val DEFAULT_PORT = 3080
+        const val DEFAULT_HTTP_PORT = 80
+        const val DEFAULT_HTTPS_PORT = 443
     }
 }

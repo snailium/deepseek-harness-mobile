@@ -78,7 +78,7 @@ fun DisclosureRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 24.dp)
+                .heightIn(min = 32.dp)
                 .then(
                     if (onToggle != null) {
                         Modifier
@@ -93,7 +93,7 @@ fun DisclosureRow(
                         Modifier
                     },
                 )
-                .padding(horizontal = 4.dp, vertical = 4.dp),
+                .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // The chevron is always visible when the row can expand. It used to be revealed by
@@ -110,7 +110,8 @@ fun DisclosureRow(
                     tint = if (hovered) colors.labelSecondary else colors.labelTertiary,
                     modifier = Modifier
                         .size(14.dp)
-                        .graphicsLayer { rotationZ = rotation },
+                        .graphicsLayer { rotationZ = rotation }
+                        .autoMirrorDirectional(),
                 )
                 Spacer(Modifier.width(4.dp))
             }
@@ -136,7 +137,7 @@ fun DisclosureRow(
             val titleModifier = if (running) Modifier.shimmer(runningBrush(colors)) else Modifier
             Text(
                 title,
-                style = DsType.std14,
+                style = DsType.base16Strong,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -148,7 +149,7 @@ fun DisclosureRow(
                 Spacer(Modifier.width(6.dp))
                 Text(
                     summary,
-                    style = DsType.std14,
+                    style = DsType.footnote,
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

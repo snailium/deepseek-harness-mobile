@@ -38,6 +38,11 @@ class EventFold(private val sessionId: String) {
     /**
      * Incremental folding with the snapshot as the accumulator.
      * Streaming callers keep the previous snapshot and re-render on change.
+     *
+     * The incremental driver intentionally does *not* re-seed from [initial]'s nodes on every
+     * apply — the caller is expected to hold one [Incremental] for the life of the session and
+     * call [apply] with each arriving event. The fold state is carried across calls, so a stream
+     * of deltas stays O(delta) instead of O(history).
      */
     class Incremental(initial: ConversationSnapshot, private val sessionId: String) {
         private val state = FoldState(sessionId)
@@ -49,8 +54,17 @@ class EventFold(private val sessionId: String) {
             state.nodes.addAll(initial.nodes)
             state.running = initial.running
             state.hasMore = initial.hasMore
+            state.gap = initial.gap
+            state.lastSeq = initial.lastSeq
+            state.changed = false
+            state.nodeView()
         }
 
+        /**
+         * Fold [event] into the carried state. Returns the new snapshot, or null when the event
+         * was a duplicate/already-folded. The snapshot's `nodes` identity is stable unless the
+         * event changed the rendered transcript.
+         */
         fun apply(event: SessionEventEnvelope): ConversationSnapshot? {
             if (event.seq <= folded) return null // duplicate or already-folded
             state.apply(event)
@@ -62,13 +76,27 @@ class EventFold(private val sessionId: String) {
     }
 }
 
-private class FoldState(private val sessionId: String) {
+/**
+ * The fold's accumulator. [internal] so the incremental driver ([IncrementalFold]) can hold one
+ * across events instead of re-folding the whole log on every rebuild.
+ *
+ * [changed] is set whenever the *rendered* state mutated (a node was added or replaced, the gap
+ * flag flipped). Chunk deltas merge into the open accumulator without touching [nodes], so they
+ * do not mark it. [nodeView] caches the materialized node list and returns the same instance while
+ * [changed] is false — that is what lets a streaming tail publish snapshots whose `nodes` identity
+ * is stable, so `remember(conversation?.nodes)` and the transcript's row derivation skip the work
+ * when nothing renderable changed.
+ */
+internal class FoldState(private val sessionId: String) {
     val nodes = mutableListOf<ChatNode>()
     var blank = true
     var running = false
     var hasMore = false
     var lastSeq = -1L
     var gap = false
+    var changed = true
+
+    private var cachedNodes: List<ChatNode>? = null
 
     /** Open assistant per (turn, step), built from chunk deltas. */
     private data class OpenAssistant(
@@ -88,9 +116,22 @@ private class FoldState(private val sessionId: String) {
 
     private val openByKey = linkedMapOf<String, OpenAssistant>()
 
+    /**
+     * The node list as an immutable view. The same instance is returned until a structural change
+     * invalidates it, so callers can compare identities to know whether the transcript moved.
+     */
+    fun nodeView(): List<ChatNode> {
+        val cached = cachedNodes
+        if (!changed && cached != null) return cached
+        val fresh = nodes.toList()
+        cachedNodes = fresh
+        changed = false
+        return fresh
+    }
+
     fun snapshot(): ConversationSnapshot = ConversationSnapshot(
         sessionId = sessionId,
-        nodes = nodes.toList(),
+        nodes = nodeView(),
         running = running,
         blank = blank,
         hasMore = hasMore,
@@ -98,14 +139,22 @@ private class FoldState(private val sessionId: String) {
         gap = gap,
     )
 
+    private fun addNode(node: ChatNode) {
+        nodes.add(node)
+        changed = true
+    }
+
     fun apply(event: SessionEventEnvelope) {
-        if (event.seq > lastSeq + 1 && lastSeq >= 0 && !gap) gap = true
+        if (event.seq > lastSeq + 1 && lastSeq >= 0 && !gap) {
+            gap = true
+            changed = true
+        }
         lastSeq = maxOf(lastSeq, event.seq)
         val data = event.data
         when (event.type) {
             "turn/start" -> {
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
-                nodes.add(TurnStartNode(event.seq, turn))
+                addNode(TurnStartNode(event.seq, turn))
                 running = true
             }
 
@@ -113,7 +162,7 @@ private class FoldState(private val sessionId: String) {
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 val reason = data.jsonObject["reason"]?.jsonObject
                 val kind = reason?.get("kind")?.jsonPrimitive?.contentOrNull ?: "completed"
-                nodes.add(TurnEndNode(event.seq, turn, kind, reason?.get("reason")))
+                addNode(TurnEndNode(event.seq, turn, kind, reason?.get("reason")))
                 if (kind == "interrupted" || kind == "aborted" || kind == "error") {
                     markInterrupted(turn)
                 }
@@ -124,7 +173,7 @@ private class FoldState(private val sessionId: String) {
                 blank = false
                 val messageId = data.jsonObject["id"]?.jsonPrimitive?.contentOrNull
                 val sourceKind = (data.jsonObject["source"] as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull
-                nodes.add(UserMessageNode(event.seq, messageId, parseBlocks(data.jsonObject["content"]), sourceKind))
+                addNode(UserMessageNode(event.seq, messageId, parseBlocks(data.jsonObject["content"]), sourceKind))
             }
 
             "assistant/chunk" -> {
@@ -153,7 +202,7 @@ private class FoldState(private val sessionId: String) {
                 }
                 openByKey.remove(key)
                 if (nodes.none { it is AssistantMessageNode && it.seq == event.seq }) {
-                    nodes.add(
+                    addNode(
                         AssistantMessageNode(event.seq, messageId, turn, step, blocks, usage, interrupted),
                     )
                 }
@@ -165,7 +214,7 @@ private class FoldState(private val sessionId: String) {
                 val args = data.jsonObject["arguments"]?.jsonPrimitive?.contentOrNull ?: ""
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 val step = data.jsonObject["step"]?.jsonPrimitive?.intOrNull ?: 0
-                nodes.add(ToolCallNode(event.seq, callId, name, args, turn, step))
+                addNode(ToolCallNode(event.seq, callId, name, args, turn, step))
             }
 
             "tool/result" -> {
@@ -177,31 +226,31 @@ private class FoldState(private val sessionId: String) {
                     ?.jsonPrimitive?.booleanOrNull ?: false
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 val step = data.jsonObject["step"]?.jsonPrimitive?.intOrNull ?: 0
-                nodes.add(ToolResultNode(event.seq, toolCallId.orEmpty(), content, isError, turn, step, data.jsonObject["meta"]))
+                addNode(ToolResultNode(event.seq, toolCallId.orEmpty(), content, isError, turn, step, data.jsonObject["meta"]))
             }
 
-            "todo/write" -> nodes.add(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
+            "todo/write" -> addNode(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
 
-            "goal/change" -> nodes.add(GoalNode(event.seq, data))
+            "goal/change" -> addNode(GoalNode(event.seq, data))
 
-            "plan/mode" -> nodes.add(PlanModeNode(event.seq, data.jsonObject["active"]?.jsonPrimitive?.booleanOrNull ?: false))
+            "plan/mode" -> addNode(PlanModeNode(event.seq, data.jsonObject["active"]?.jsonPrimitive?.booleanOrNull ?: false))
 
-            "compaction/start", "compaction/end", "compaction/prune" -> nodes.add(CompactionNode(event.seq, event.type, data))
-            "compaction/summary" -> nodes.add(CompactionNode(event.seq, event.type, data))
+            "compaction/start", "compaction/end", "compaction/prune" -> addNode(CompactionNode(event.seq, event.type, data))
+            "compaction/summary" -> addNode(CompactionNode(event.seq, event.type, data))
 
-            "llm/retry", "llm/retry-started" -> nodes.add(RetryNode(event.seq, event.type, data))
+            "llm/retry", "llm/retry-started" -> addNode(RetryNode(event.seq, event.type, data))
 
-            "command/run", "command/done" -> nodes.add(CommandNode(event.seq, event.type, data))
+            "command/run", "command/done" -> addNode(CommandNode(event.seq, event.type, data))
 
             "session/title" -> {
                 val title = data.jsonObject["title"]?.jsonPrimitive?.contentOrNull ?: return
-                nodes.add(TitleNode(event.seq, title))
+                addNode(TitleNode(event.seq, title))
             }
 
             "tool-workflow/run-start", "tool-workflow/run-end", "tool-workflow/agent-start", "tool-workflow/agent-end" ->
-                nodes.add(WorkflowNode(event.seq, event.type, data))
+                addNode(WorkflowNode(event.seq, event.type, data))
 
-            "subagent/descriptor" -> nodes.add(SubagentNode(event.seq, data))
+            "subagent/descriptor" -> addNode(SubagentNode(event.seq, data))
 
             "request/header", "request/context", "session/end-seed", "approval/asked", "approval/decided",
             "approval/policy", "permission/preset", "sandbox/mode", "schedule/change", "feedback/record",
@@ -212,7 +261,7 @@ private class FoldState(private val sessionId: String) {
                 // Log-only metadata: not chat-renderable; deliberately skipped.
             }
 
-            else -> nodes.add(OtherNode(event.seq, event.type, data))
+            else -> addNode(OtherNode(event.seq, event.type, data))
         }
     }
 
@@ -330,7 +379,10 @@ private class FoldState(private val sessionId: String) {
         val index = nodes.indexOfLast { it is AssistantMessageNode && it.turn == turn }
         if (index >= 0) {
             val node = nodes[index] as AssistantMessageNode
-            nodes[index] = node.copy(interrupted = true)
+            if (!node.interrupted) {
+                nodes[index] = node.copy(interrupted = true)
+                changed = true
+            }
         }
     }
 }

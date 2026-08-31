@@ -1,7 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.annotation.StringRes
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
@@ -10,9 +9,10 @@ import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
 import com.labteto.dshmobile.core.wire.dto.AgentPresetTrust
 import com.labteto.dshmobile.core.wire.dto.GoalPhase
 import com.labteto.dshmobile.core.wire.dto.JobStatus
+import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
 import com.labteto.dshmobile.ui.components.StateDotState
-import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.components.dsTextFieldColors
 
 /** Shared label and status mappings for the chat surface. */
 
@@ -133,14 +133,22 @@ internal fun AgentPresetEntry.displayDescription(): String? =
         ?: description?.takeIf { it.isNotBlank() }
 
 // ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+/**
+ * The current model's display name, from the wire catalog rather than the wire id; null when the
+ * harness exposes no model list at all.
+ */
+internal fun currentModelLabel(models: SessionModelsValue?): String? {
+    if (models == null) return null
+    val group = models.groups.firstOrNull { it.id == models.current.provider }
+    return group?.models?.firstOrNull { it.id == models.current.model }?.name ?: models.current.model
+}
+
+// ---------------------------------------------------------------------------
 // Shared field styling
 // ---------------------------------------------------------------------------
 
 @Composable
-internal fun dialogTextFieldColors() = TextFieldDefaults.colors(
-    focusedContainerColor = DsTheme.colors.bgLayer1,
-    unfocusedContainerColor = DsTheme.colors.bgLayer1,
-    focusedIndicatorColor = DsTheme.colors.accent,
-    unfocusedIndicatorColor = DsTheme.colors.borderL2,
-    cursorColor = DsTheme.colors.accent,
-)
+internal fun dialogTextFieldColors() = dsTextFieldColors()

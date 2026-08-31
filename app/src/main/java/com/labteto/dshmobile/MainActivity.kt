@@ -1,5 +1,6 @@
 package com.labteto.dshmobile
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
@@ -13,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import com.labteto.dshmobile.connection.HostsStore
 import com.labteto.dshmobile.notify.DshNotifications
 import com.labteto.dshmobile.ui.AppRoot
+import com.labteto.dshmobile.ui.navigation.SessionDeepLink
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,6 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var hostsStore: HostsStore
     @Inject lateinit var notifications: DshNotifications
+    @Inject lateinit var sessionDeepLink: SessionDeepLink
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -32,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         notifications.ensureChannels()
+        handleDeepLink(intent)
         if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
 
         // Apply the persisted in-app language (11 locales, incl. Thai/RTL).
@@ -66,6 +70,18 @@ class MainActivity : AppCompatActivity() {
         setContent {
             AppRoot()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    /** A notification tap carries the session id it was about; hand it to the navigation shell. */
+    private fun handleDeepLink(intent: Intent?) {
+        val sessionId = intent?.getStringExtra(DshNotifications.EXTRA_SESSION_ID)
+        if (sessionId != null) sessionDeepLink.request(sessionId)
     }
 
     /**

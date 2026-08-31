@@ -39,6 +39,7 @@ class HostsStore @Inject constructor(
         val NOTIFY_GOAL = booleanPreferencesKey("notify_goal")
         val NOTIFY_ACTION = booleanPreferencesKey("notify_action")
         val THEME = stringPreferencesKey("theme")
+        val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val LOCALE = stringPreferencesKey("locale")
         val PORTS = stringPreferencesKey("ports_json")
         val LAST_SESSIONS = stringPreferencesKey("last_sessions_json")
@@ -74,6 +75,7 @@ class HostsStore @Inject constructor(
             notifyGoal = prefs[Keys.NOTIFY_GOAL] ?: true,
             notifyNeedsAction = prefs[Keys.NOTIFY_ACTION] ?: true,
             themePreference = prefs[Keys.THEME] ?: "system",
+            dynamicColor = prefs[Keys.DYNAMIC_COLOR] ?: false,
             localeOverride = prefs[Keys.LOCALE],
             knownPorts = ports,
             updateCheckEnabled = prefs[Keys.UPDATE_CHECK] ?: true,
@@ -113,6 +115,11 @@ class HostsStore @Inject constructor(
         useTls: Boolean = false,
         description: HostDescription? = null,
         relay: RelayIdentity? = null,
+        scheme: String = "http",
+        authToken: String? = null,
+        cfClientId: String? = null,
+        cfClientSecret: String? = null,
+        remoteConfirmed: Boolean = false,
     ): HostConfig {
         val existing = hosts.first().firstOrNull { it.host == host && it.port == port }
         val config = HostConfig(
@@ -132,9 +139,25 @@ class HostsStore @Inject constructor(
             relayFingerprint = relay?.fingerprint ?: existing?.relayFingerprint,
             relayDeviceId = relay?.deviceId ?: existing?.relayDeviceId,
             relayTokenExpiresAt = relay?.tokenExpiresAt ?: existing?.relayTokenExpiresAt ?: 0L,
+            scheme = HostConfig.normalizeScheme(scheme),
+            authToken = authToken,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+            remoteConfirmed = remoteConfirmed,
         )
         upsertHost(config)
         return config
+    }
+
+    /** Record that the user confirmed connecting to this remote (off-LAN) endpoint. */
+    suspend fun markRemoteConfirmed(host: String, port: Int) {
+        val current = hosts.first()
+        if (current.none { it.host == host && it.port == port }) return
+        persist(
+            current.map {
+                if (it.host == host && it.port == port) it.copy(remoteConfirmed = true) else it
+            },
+        )
     }
 
     /** Fold a fresh host description into the remembered entry without touching its recency. */
@@ -190,8 +213,8 @@ class HostsStore @Inject constructor(
         return runCatching { WireJson.decodeFromString(lastSessionsSerializer, raw) }.getOrDefault(emptyMap())
     }
 
-    /** Drawer session ordering: `"manual"` follows the workspace order, `"updated"` sorts by recency. */
-    val sessionSort: Flow<String> = dataStore.data.map { it[Keys.SESSION_SORT] ?: "manual" }
+    /** Drawer session ordering: `"updated"` sorts by recency (the default), `"manual"` follows registration order. */
+    val sessionSort: Flow<String> = dataStore.data.map { it[Keys.SESSION_SORT] ?: "updated" }
 
     suspend fun setSessionSort(value: String) {
         dataStore.edit { it[Keys.SESSION_SORT] = value }
@@ -224,6 +247,7 @@ class HostsStore @Inject constructor(
             prefs[Keys.NOTIFY_GOAL] = next.notifyGoal
             prefs[Keys.NOTIFY_ACTION] = next.notifyNeedsAction
             prefs[Keys.THEME] = next.themePreference
+            prefs[Keys.DYNAMIC_COLOR] = next.dynamicColor
             prefs[Keys.UPDATE_CHECK] = next.updateCheckEnabled
             next.localeOverride?.let { prefs[Keys.LOCALE] = it } ?: prefs.remove(Keys.LOCALE)
         }

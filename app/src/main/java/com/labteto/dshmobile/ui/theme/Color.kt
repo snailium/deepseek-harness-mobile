@@ -44,6 +44,14 @@ object Ds {
     val Deepseek800 = Color(0xFF34415B)
     val Deepseek900 = Color(0xFF283142)
 
+    // Brand gradient stops (light): a slightly brighter top-left to the core blue.
+    val GradientStart = Color(0xFF7CA8FF)
+    val GradientEnd = Color(0xFF4176E6)
+
+    // Brand gradient stops (dark): deeper, lower-chroma so the hero does not glare at night.
+    val GradientStartDark = Color(0xFF6A9BF5)
+    val GradientEndDark = Color(0xFF3159C4)
+
     // Semantic
     val Green100 = Color(0xFFE6FAED)
     val Green400 = Color(0xFF4ED17E)
@@ -79,12 +87,17 @@ object Ds {
 
 /** Semantic alias tokens for the light theme. */
 object DsLight {
-    val bgBase = Ds.Bluish00
+    /**
+     * The M3 surface-variant canvas for support surfaces — connect, drawer, settings — so cards
+     * read as white plates on gray. The chat keeps its own white canvas via bgChat.
+     */
+    val bgBase = Color(0xFFF2F2F7)
+    val bgChat = Color(0xFFFFFFFF)
     val bgLayer1 = Color(0xFFFFFFFF)
     val bgLayer2 = Color(0xFFFFFFFF)
     val bgLayer3 = Color(0xFFFFFFFF)
     val bgModulePlatform = Ds.Bluish60
-    val borderL1 = Color(0x0A000000) // rgba(0,0,0,.04)
+    val borderL1 = Color(0x0F000000) // rgba(0,0,0,.06) — reads on the gray canvas
     val borderL2 = Color(0x1A000000) // rgba(0,0,0,.10)
     val borderL3 = Color(0x1F000000) // rgba(0,0,0,.12)
     val brandPrimary = Ds.Bluish1000 // ink button fill
@@ -92,7 +105,14 @@ object DsLight {
     val labelPrimary = Ds.Bluish1000
     val labelSecondary = Ds.Bluish700
     val labelTertiary = Ds.Bluish600
-    val labelCaption = Ds.Bluish400
+    /**
+     * One step darker than the harness's own `--dsw-label-caption` (`Bluish400`).
+     *
+     * The web value sits at ~2.4:1 against white — legible on a desk monitor at a full 748px
+     * column, invisible in an 11sp caption on a phone held at arm's length. Same reasoning as
+     * `userBubble`: the mobile app steps one rung down the scale for phone readability.
+     */
+    val labelCaption = Ds.Bluish500
     val labelDimmed = Ds.Bluish200
     val accent = Ds.Deepseek500
     val onAccent = Color(0xFFFFFFFF)
@@ -108,6 +128,11 @@ object DsLight {
     val buttonInfoFill = Ds.Deepseek500
     val buttonInfoHover = Ds.Deepseek400
     val error = Ds.Red600
+    /**
+     * Fill for danger surfaces (Danger buttons, the error banner). `error` at `#EC1313` with
+     * white 14sp text measures ~3.9:1 — below WCAG AA — so the fill steps darker than the label.
+     */
+    val errorFill = Color(0xFFC81010)
     val errorSecondary = Ds.Red400
     val errorTertiary = Ds.Red50
     val success = Ds.Green500
@@ -128,26 +153,56 @@ object DsLight {
      * shape stopped reading, and a message you cannot tell apart from the assistant's is a worse
      * failure than a fill that is a shade off the reference.
      */
-    val userBubble = Ds.Deepseek100
-    val userBubbleHighlight = Ds.Deepseek200
+    /** Solid brand blue, iMessage-style: the user's side is a filled bubble with white text. */
+    val userBubble = Ds.Deepseek500
+    val userBubbleHighlight = Ds.Deepseek400
+    /**
+     * The assistant's card fill. The harness web UI renders assistant turns container-less, and this
+     * app used to copy that — which left the transcript as plain text on white and the user bubble
+     * as the only thing saying who said what. On a phone that reads as a console log, not a chat,
+     * so the mobile app diverges the same way it already does for `userBubble`: a soft card that
+     * mirrors the bubble on the other side of the conversation.
+     */
+    val assistantBubble = Ds.Bluish75
     val composerCard = Color(0xFFFFFFFF)
-    val sidebar = Ds.Bluish50
-    val sidebarNavActive = Ds.Bluish100
+    val sidebar = Color(0xFFF2F2F7)
+    /**
+     * Legacy list-selection gray, superseded by selectionTonal (the M3 tonal wash). Kept for
+     * any remaining call site that expects a neutral selected-row fill.
+     */
+    val selection = Color(0xFFE5E5EA)
+    /** M3 selected-row wash: Deepseek50 on the white row — the accent tint that says "current". */
+    val selectionTonal = Ds.Deepseek50
     val sidebarNavAccent = Ds.Deepseek100
     val sidebarNavHover = Ds.Bluish75
     val tipSurface = Ds.Bluish60
-    val codeBlockBg = Ds.Bluish50
-    val codeBlockBanner = Ds.Bluish50
-    val inlineCode = Ds.Bluish100
+    val codeBlockBg = Ds.Bluish75
+    val codeBlockBanner = Ds.Bluish75
+    val inlineCode = Ds.Deepseek50
     val citation = Ds.Bluish100
-    val markdownTag = Ds.Bluish75
+    val markdownTag = Ds.Deepseek50
     val overlayMask = Color(0x3D000000) // rgba(0,0,0,.24)
+
+    // ---- Redesign tokens (light) ----
+    val gradientStart = Ds.GradientStart
+    val gradientEnd = Ds.GradientEnd
+    val surfaceRaised = Color(0xFFFFFFFF)
+    val surfaceSunken = Ds.Bluish60
+    val primaryButtonGradientStart = Ds.Deepseek500
+    val primaryButtonGradientEnd = Ds.Deepseek600
+    val assistantCard = Ds.Bluish75
+    val noteSurface = Ds.Bluish60
+    val chipSurface = Color(0xFFFFFFFF)
+    val dividerStrong = Color(0x1F000000) // rgba(0,0,0,.12)
+    val dividerSoft = Ds.Bluish200
 }
 
 /** Semantic alias tokens for the dark theme. */
 object DsDark {
-    val bgBase = Ds.Bluish950
-    val bgLayer1 = Ds.Bluish875
+    /** M3 surface-variant canvas: near-black, with #1C1C1E plates on top. */
+    val bgBase = Color(0xFF000000)
+    val bgChat = Color(0xFF000000)
+    val bgLayer1 = Color(0xFF1C1C1E)
     val bgLayer2 = Ds.Bluish850
     val bgLayer3 = Ds.Bluish800
     val bgModulePlatform = Ds.Bluish800
@@ -175,6 +230,7 @@ object DsDark {
     val buttonInfoFill = Ds.Deepseek400
     val buttonInfoHover = Ds.Deepseek500
     val error = Ds.Red400
+    val errorFill = Ds.Red400
     val errorSecondary = Ds.Red400
     val errorTertiary = Ds.Red900
     val success = Ds.Green500
@@ -186,18 +242,36 @@ object DsDark {
     val warnTertiary = Ds.Amber900
     val toastBg = Ds.Bluish750
     val tooltipBg = Ds.Bluish750
-    val userBubble = Ds.Bluish850
-    val userBubbleHighlight = Ds.Bluish750
-    val composerCard = Ds.Bluish850
-    val sidebar = Ds.Bluish900
-    val sidebarNavActive = Ds.Bluish750
+    val userBubble = Ds.Deepseek500
+    val userBubbleHighlight = Ds.Deepseek450
+    /** One step off the transcript background, so the card edge reads without a bright border. */
+    val assistantBubble = Color(0xFF1C1C1E)
+    val composerCard = Color(0xFF1C1C1E)
+    val sidebar = Color(0xFF000000)
+    /** Legacy selection gray, superseded by selectionTonal in dark mode. */
+    val selection = Color(0xFF2C2C2E)
+    /** M3 selected-row wash: Deepseek800 on the black row. */
+    val selectionTonal = Ds.Deepseek800
     val sidebarNavAccent = Ds.Bluish800
     val sidebarNavHover = Ds.Bluish850
     val tipSurface = Ds.Bluish800
     val codeBlockBg = Ds.Bluish900
     val codeBlockBanner = Ds.Bluish875
-    val inlineCode = Ds.Bluish850
+    val inlineCode = Ds.Deepseek800
     val citation = Ds.Bluish800
-    val markdownTag = Ds.Bluish850
+    val markdownTag = Ds.Deepseek800
     val overlayMask = Color(0x80000000) // rgba(0,0,0,.5)
+
+    // ---- Redesign tokens (dark) ----
+    val gradientStart = Ds.GradientStartDark
+    val gradientEnd = Ds.GradientEndDark
+    val surfaceRaised = Color(0xFF1C1C1E)
+    val surfaceSunken = Ds.Bluish900
+    val primaryButtonGradientStart = Ds.Deepseek400
+    val primaryButtonGradientEnd = Ds.Deepseek500
+    val assistantCard = Ds.Bluish850
+    val noteSurface = Ds.Bluish800
+    val chipSurface = Ds.Bluish850
+    val dividerStrong = Color(0x29FFFFFF) // rgba(255,255,255,.16)
+    val dividerSoft = Ds.Bluish750
 }
