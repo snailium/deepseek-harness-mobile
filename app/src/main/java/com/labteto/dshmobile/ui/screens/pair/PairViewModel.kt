@@ -28,7 +28,7 @@ import okhttp3.OkHttpClient
 import javax.inject.Inject
 
 /** How far the pairing attempt has got. */
-enum class PairStage { Idle, Claiming, Paired }
+enum class PairStage { Idle, Claiming, Connecting, Paired }
 
 /**
  * How the relay's identity was established.
@@ -67,7 +67,11 @@ data class PairUiState(
      */
     val paired: HostConfig? = null,
 ) {
+    /** The claim is running — the only phase where input must be locked out. */
     val busy: Boolean get() = stage == PairStage.Claiming
+
+    /** Enrolment finished; the connect it started is in flight. */
+    val connecting: Boolean get() = stage == PairStage.Connecting
 }
 
 /** Why a pairing attempt did not produce a credential. */
@@ -262,8 +266,13 @@ class PairViewModel @Inject constructor(
             ),
         )
         credentials.put(config.id, response.token)
-        _state.update { it.copy(stage = PairStage.Paired, paired = config, failure = null) }
+        // The enrolment is done; what follows is a connect that can take a moment behind a tunnel.
+        // Saying "connecting" keeps the button from reading as dead while it runs — and the
+        // screen stays open until the connection has either landed (AppRoot switches to home) or
+        // failed (the connect screen shows why), so this is the last thing pairing itself reports.
+        _state.update { it.copy(stage = PairStage.Connecting, failure = null) }
         connectionManager.connect(config)
+        _state.update { it.copy(stage = PairStage.Paired, paired = config) }
     }
 
     /**

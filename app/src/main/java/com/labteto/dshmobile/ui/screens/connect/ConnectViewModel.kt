@@ -622,16 +622,42 @@ class ConnectViewModel @Inject constructor(
      * attempt instead of looking like an inert button.
      */
     fun connectTo(host: HostConfig) {
-        localStage = null
-        _state.update {
-            it.copy(
-                stage = ConnectStage.OpeningStreams,
-                failure = null,
-                attempted = host.authority,
-                retrying = false,
-            )
+        // A paired relay is reached through its own record — pin and bearer together. The
+        // pre-flight probe exists for a bare address, whose scheme the caller had to guess;
+        // running it here would spend a request proving what pairing already established, and
+        // against a tunnel it can stall long enough that the tap reads as a dead button.
+        if (host.isRelay) {
+            localStage = null
+            _state.update {
+                it.copy(
+                    stage = ConnectStage.OpeningStreams,
+                    failure = null,
+                    attempted = host.authority,
+                    retrying = false,
+                )
+            }
+            viewModelScope.launch { connectionManager.connect(host) }
+            return
         }
-        viewModelScope.launch { connectionManager.connect(host) }
+        localStage = ConnectStage.Reaching
+        _state.update { it.copy(stage = ConnectStage.Reaching, failure = null, attempted = host.authority) }
+        viewModelScope.launch {
+            val outcome = discoveryEngine.probeOutcome(
+                host = host.host,
+                port = host.port,
+                timeouts = ProbeTimeouts.Manual,
+                preflight = true,
+                useTls = (host.scheme == "https"),
+                config = host,
+            )
+            if (outcome !is ProbeOutcome.Reachable) {
+                fail(ConnectFailure.from(outcome), host.authority)
+                return@launch
+            }
+            localStage = null
+            _state.update { it.copy(stage = ConnectStage.OpeningStreams) }
+            connectionManager.connect(host)
+        }
     }
 
     fun connectDiscovered(discovered: DiscoveredHost) {

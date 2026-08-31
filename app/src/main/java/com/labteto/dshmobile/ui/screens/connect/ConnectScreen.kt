@@ -461,16 +461,6 @@ fun ConnectScreen(
                     variant = DsButtonVariant.Info,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
-                state.failure?.let { failure ->
-                    ConnectFailureBlock(
-                        failure = failure,
-                        attempted = state.attempted,
-                        retrying = state.retrying,
-                        onCancel = viewModel::cancelConnect,
-                        onPair = { url -> onPair(url ?: state.attemptedBaseUrl) },
-                    )
-                }
                 // The wiki is the user guide; a caption link keeps the form self-servicing.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     DsButton(
@@ -483,6 +473,21 @@ fun ConnectScreen(
                     )
                 }
             }
+            }
+
+            // ---- Attempt progress -------------------------------------------
+            // Outside the manual form on purpose: in relay mode there is no form, and a connect
+            // that dies here (a revoked or expired credential, a changed key) would otherwise end
+            // as nothing at all — the card just stops looking like it did anything.
+            if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
+            state.failure?.let { failure ->
+                ConnectFailureBlock(
+                    failure = failure,
+                    attempted = state.attempted,
+                    retrying = state.retrying,
+                    onCancel = viewModel::cancelConnect,
+                    onPair = { url -> onPair(url ?: state.attemptedBaseUrl) },
+                )
             }
 
             // ---- Pairing ----------------------------------------------------

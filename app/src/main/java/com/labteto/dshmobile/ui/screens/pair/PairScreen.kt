@@ -167,9 +167,15 @@ fun PairScreen(
                     colors = pairFieldColors(),
                 )
                 DsButton(
-                    text = stringResource(if (state.busy) R.string.pair_working else R.string.pair_submit),
+                    text = stringResource(
+                        when {
+                            state.connecting -> R.string.pair_connecting
+                            state.busy -> R.string.pair_working
+                            else -> R.string.pair_submit
+                        },
+                    ),
                     onClick = viewModel::submit,
-                    enabled = !state.busy,
+                    enabled = !state.busy && !state.connecting,
                     variant = DsButtonVariant.Primary,
                     modifier = Modifier.fillMaxWidth(),
                 )

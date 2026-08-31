@@ -474,6 +474,7 @@
     <string name="pair_name_label">Name for this device</string>
     <string name="pair_submit">Pair</string>
     <string name="pair_working">Pairing…</string>
+    <string name="pair_connecting">Connecting…</string>
     <string name="pair_key_verified">The scanned code carries this relay\'s key, so it is checked before anything is sent.</string>
     <string name="pair_key_first_use">A typed address carries no key, so this trusts whatever answers the first time. Scanning the QR code checks it instead.</string>
     <string name="pair_key_plaintext">This address is not encrypted, so the token and everything you send travel in the clear.</string>
