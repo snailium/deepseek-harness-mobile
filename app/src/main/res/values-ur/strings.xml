@@ -27,8 +27,6 @@
     <string name="connect_title">Harness سے منسلک ہوں</string>
     <string name="connect_subtitle">DSH Mobile آپ کے کمپیوٹر پر چلنے والے DeepSeek Harness کی عکاسی کرتا ہے۔</string>
     <string name="connect_manual_title">دستی طور پر منسلک ہوں</string>
-    <string name="connect_host_label">میزبان کا پتہ</string>
-    <string name="connect_host_hint">192.168.1.20</string>
     <string name="connect_port_label">پورٹ</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">منسلک ہوں</string>

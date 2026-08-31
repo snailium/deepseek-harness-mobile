@@ -27,8 +27,6 @@
     <string name="connect_title">Harness-এ সংযুক্ত হোন</string>
     <string name="connect_subtitle">DSH Mobile আপনার কম্পিউটারে চলমান DeepSeek Harness-কে মিরর করে।</string>
     <string name="connect_manual_title">ম্যানুয়ালি সংযুক্ত হোন</string>
-    <string name="connect_host_label">হোস্ট ঠিকানা</string>
-    <string name="connect_host_hint">192.168.1.20</string>
     <string name="connect_port_label">পোর্ট</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">সংযুক্ত হোন</string>

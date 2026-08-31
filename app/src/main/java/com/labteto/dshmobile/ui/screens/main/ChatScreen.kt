@@ -206,7 +206,7 @@ fun ConversationScreen(
                 height = pick.height,
             )
             if (rejection != null) {
-                toast.second(imageRejectionText(context, rejection, limits))
+                toast.second(imageRejectionText(context, rejection, limits), ToastTone.Error)
                 return@launch
             }
             attachments.add(
@@ -233,12 +233,12 @@ fun ConversationScreen(
                 // Nothing is sent and nothing is dropped. The composer clears the draft on its way
                 // here, so put it back, and leave the images alone — a refusal the user cannot act
                 // on without re-picking every attachment is not much of a refusal.
-                draft = text
+                composerDraft.value = text
                 val message = when (submission.reason) {
                     RefusalReason.COMMAND_TAKES_NO_IMAGES -> R.string.err_command_no_images
                     RefusalReason.HOST_TOO_OLD -> R.string.err_command_images_host
                 }
-                toast.second(context.getString(message, submission.command))
+                toast.second(context.getString(message, submission.command), ToastTone.Error)
             }
 
             is Submission.Command -> {
@@ -253,7 +253,7 @@ fun ConversationScreen(
                     // The restore only lands in a composer nobody has touched meanwhile — the call
                     // is in flight while the user can still type and pick.
                     if (images.isNotEmpty() && outcome is CommandOutcome.Failed) {
-                        if (draft.isBlank()) draft = text
+                        if (composerDraft.value.isBlank()) composerDraft.value = text
                         if (attachments.isEmpty()) attachments.addAll(pending)
                     }
                     report(outcome)
@@ -273,10 +273,11 @@ fun ConversationScreen(
                         store.promptWithImages(text, mode, pending.map { it.encoded() })
                     }
                     if (outcome is PromptOutcome.Rejected) {
-                        if (draft.isBlank()) draft = text
+                        if (composerDraft.value.isBlank()) composerDraft.value = text
                         if (attachments.isEmpty()) attachments.addAll(pending)
                         toast.second(
                             imageRejectionText(context, outcome.rejection, imageLimits, outcome.reason),
+                            ToastTone.Error,
                         )
                     }
                 }
@@ -506,7 +507,7 @@ fun ConversationScreen(
                     toast.second(context.getString(R.string.err_command_no_images, name), ToastTone.Error)
                 }
             },
-            onPrefillDraft = { prefix -> draft = prefix },
+            onPrefillDraft = { prefix -> composerDraft.value = prefix },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })

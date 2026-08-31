@@ -34,7 +34,7 @@ class TransportFailureTest {
             TransportFailures.classify(RpcTransportException(302, "redirect to login")),
         )
         assertEquals(
-            TransportFailure.ACCESS_DENIED,
+            TransportFailure.UNAUTHENTICATED,
             TransportFailures.classify(RpcTransportException(401, "unauthorized")),
         )
         assertEquals(

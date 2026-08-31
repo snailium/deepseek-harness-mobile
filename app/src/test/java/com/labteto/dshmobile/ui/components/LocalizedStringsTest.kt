@@ -40,6 +40,11 @@ class LocalizedStringsTest {
         "^([\\\\t ]*)([-*+])\\\\s+(.*)$",
         "^([\\\\t ]*)\\\\d+\\\\.\\\\s+(.*)$",
         " to Regex(",
+        // ToolCardMapping.kt exit-status regexes — protocol markers, not user-facing copy.
+        "\\\\n\\\\[killed by signal: ([^\\\\]\\\\n]+)]$",
+        "\\\\n\\\\[exit code: (\\\\d+)]$",
+        // PairViewModel.kt fallback device name — shown only when Build.MODEL is blank.
+        "Android device",
     )
 
     @Test

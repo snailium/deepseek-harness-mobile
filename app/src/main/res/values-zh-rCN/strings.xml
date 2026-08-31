@@ -27,8 +27,6 @@
     <string name="connect_title">连接到 Harness</string>
     <string name="connect_subtitle">DSH Mobile 会镜像运行在你电脑上的 DeepSeek Harness。</string>
     <string name="connect_manual_title">手动连接</string>
-    <string name="connect_host_label">主机地址</string>
-    <string name="connect_host_hint">192.168.1.20</string>
     <string name="connect_port_label">端口</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">连接</string>

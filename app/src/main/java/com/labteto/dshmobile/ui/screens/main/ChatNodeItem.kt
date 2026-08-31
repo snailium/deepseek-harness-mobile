@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -467,5 +469,50 @@ private fun WorkflowRow(
             }
         }
         Spacer(Modifier.height(2.dp))
+    }
+}
+
+/**
+ * A collapsed group of reasoning-bearing assistant messages and their tool calls. While the
+ * group is the live tail of a running turn it stays open so the reader watches the work happen;
+ * the moment the tail moves past it (final text, a new turn) it folds to its summary unless the
+ * reader opened it by hand.
+ */
+@Composable
+internal fun ProcessGroupItem(
+    item: ProcessItem,
+    context: ChatNodeContext,
+    live: Boolean,
+) {
+    var touched by remember(item.key) { mutableStateOf(false) }
+    var expanded by remember(item.key) { mutableStateOf(live) }
+    LaunchedEffect(live) {
+        if (!live && !touched) expanded = false
+    }
+    val toolLabel = pluralStringResource(R.plurals.tool_calls_count, item.tools.size, item.tools.size)
+    val title = when {
+        live -> stringResource(R.string.chat_thinking)
+        item.messages.isNotEmpty() -> stringResource(R.string.chat_process_thought)
+        else -> toolLabel
+    }
+    DisclosureRow(
+        title = title,
+        summary = if (item.tools.isNotEmpty()) toolLabel else null,
+        icon = FeatherIcons.Loader,
+        state = if (live) DisclosureState.Running else DisclosureState.Idle,
+        expanded = expanded,
+        onToggle = {
+            touched = true
+            expanded = !expanded
+        },
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            item.messages.forEach { message ->
+                AssistantMessage(message, context)
+            }
+            item.tools.forEach { call ->
+                ToolCallRow(call, context)
+            }
+        }
     }
 }

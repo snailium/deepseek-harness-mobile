@@ -489,6 +489,9 @@ class SessionStore @Inject constructor(
         }
     }
 
+    /** Ask the connection manager to reconnect if it is not already connected. */
+    fun retryConnection() = connectionManager.reconnectIfNeeded()
+
     // ------------------------------------------------------------------ connection lifecycle
     private fun observeConnection() {
         scope.launch {

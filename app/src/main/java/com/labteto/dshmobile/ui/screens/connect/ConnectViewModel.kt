@@ -439,13 +439,26 @@ class ConnectViewModel @Inject constructor(
     ) {
         localStage = ConnectStage.Reaching
         _state.update { it.copy(stage = ConnectStage.Reaching) }
+        val probeConfig = HostConfig(
+            id = "temp-${hostLabel(host)}",
+            name = hostLabel(host),
+            host = host,
+            port = port,
+            isLoopback = isLoopback,
+            useTls = (scheme == "https"),
+            scheme = scheme,
+            authToken = token,
+            cfClientId = cfClientId,
+            cfClientSecret = cfClientSecret,
+            remoteConfirmed = remoteConfirmed,
+        )
         val outcome = discoveryEngine.probeOutcome(
             host = host,
             port = port,
             timeouts = ProbeTimeouts.Manual,
             preflight = true,
-            scheme = scheme,
-            headers = HostConfig.authHeaders(token, cfClientId, cfClientSecret),
+            useTls = (scheme == "https"),
+            config = probeConfig,
         )
         if (outcome !is ProbeOutcome.Reachable) {
             fail(ConnectFailure.from(outcome), authority)

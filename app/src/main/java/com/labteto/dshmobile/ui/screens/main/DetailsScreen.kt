@@ -677,16 +677,11 @@ private fun HostCard(hostInfo: HostDescription?, sessionKey: String? = null) {
     if (hostInfo == null) return
     Card(
         title = stringResource(R.string.settings_host_info),
-        summary = hostInfo.version,
+        summary = hostInfo.home,
         sessionKey = sessionKey,
     ) {
         Text(
-            stringResource(R.string.connect_harness_version, hostInfo.version, hostInfo.cwd),
-            style = DsType.caption11,
-            color = colors.labelCaption,
-        )
-        Text(
-            stringResource(R.string.connect_attached_sessions, hostInfo.attachedSessions),
+            basename(hostInfo.home).takeIf { it.isNotBlank() }.orEmpty(),
             style = DsType.caption11,
             color = colors.labelCaption,
         )

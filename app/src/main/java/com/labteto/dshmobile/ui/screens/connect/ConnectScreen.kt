@@ -234,9 +234,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             // primary. First-time users see no card here and the manual form below is the top.
             state.remembered.firstOrNull()?.let { last ->
                 val probe = state.recentStatus[last.authority]
-                val reachable = probe as? HostProbe.Reachable
-                val version = reachable?.description?.version ?: last.lastVersion
-                val sessions = reachable?.description?.attachedSessions ?: last.lastSessions
+                val home = (probe as? HostProbe.Reachable)?.description?.home
                 DsCard(onClick = { viewModel.connectTo(last) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         StateDot(
@@ -263,13 +261,15 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(
-                                statusLine(probe, version, sessions),
-                                style = DsType.caption11,
-                                color = colors.labelTertiary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            if (home != null) {
+                                Text(
+                                    stringResource(R.string.connect_harness_home, basename(home)),
+                                    style = DsType.caption11,
+                                    color = colors.labelTertiary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                         DsButton(
                             text = stringResource(R.string.connect_button),
@@ -580,9 +580,7 @@ private fun RecentHarnessCard(
     val colors = DsTheme.colors
     val reachable = probe as? HostProbe.Reachable
     val title = if (host.isLoopback) stringResource(R.string.connect_same_device) else host.name
-    val version = reachable?.description?.version ?: host.lastVersion
-    val cwd = reachable?.description?.cwd ?: host.lastCwd
-    val sessions = reachable?.description?.attachedSessions ?: host.lastSessions
+    val home = reachable?.description?.home
 
     DsCard(onClick = onConnect) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -623,7 +621,11 @@ private fun RecentHarnessCard(
             )
         }
         Text(
-            listOfNotNull(host.displayAddress, cwd?.let { basename(it) }).joinToString(" · "),
+            if (home != null) {
+                listOfNotNull(host.displayAddress, basename(home)).joinToString(" · ")
+            } else {
+                host.displayAddress
+            },
             style = DsType.caption11,
             color = colors.labelTertiary,
             maxLines = 1,
@@ -631,7 +633,7 @@ private fun RecentHarnessCard(
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                statusLine(probe, version, sessions),
+                statusLine(probe, null, null),
                 style = DsType.caption11,
                 color = if (probe is HostProbe.Unreachable) colors.labelCaption else colors.labelTertiary,
                 maxLines = 1,
@@ -710,11 +712,7 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
         }
         if (description != null) {
             Text(
-                listOfNotNull(
-                    stringResource(R.string.connect_harness_version_only, description.version),
-                    basename(description.cwd).takeIf { it.isNotBlank() },
-                    stringResource(R.string.connect_sessions_short, description.attachedSessions),
-                ).joinToString(" · "),
+                basename(description.home).takeIf { it.isNotBlank() }.orEmpty(),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
                 maxLines = 1,
@@ -794,12 +792,21 @@ private fun ConnectFailureBlock(
     }
     val body = when (failure) {
         ConnectFailure.InvalidInput -> stringResource(R.string.connect_fail_invalid)
+        is ConnectFailure.DifferentSubnet -> stringResource(
+            R.string.connect_fail_subnet,
+            authority,
+            failure.localPrefix ?: stringResource(R.string.connect_unreachable),
+        )
         ConnectFailure.AccessDenied -> stringResource(R.string.connect_fail_access, authority)
         ConnectFailure.Timeout -> stringResource(R.string.connect_fail_timeout, authority, port)
         ConnectFailure.Refused -> stringResource(R.string.connect_fail_refused, authority)
         ConnectFailure.TrustFence -> stringResource(R.string.connect_failed_fence)
+        ConnectFailure.Unauthenticated -> stringResource(R.string.connect_fail_unauthenticated, authority)
+        ConnectFailure.PairingRequired -> stringResource(R.string.connect_fail_pairing)
+        ConnectFailure.CertificateChanged -> stringResource(R.string.connect_fail_certificate, authority)
         ConnectFailure.DnsFailure -> stringResource(R.string.connect_fail_dns, authority)
         ConnectFailure.NotAHarness -> stringResource(R.string.connect_fail_not_harness, authority)
+        ConnectFailure.TlsFailure -> stringResource(R.string.connect_fail_tls, authority)
         ConnectFailure.StreamsBlocked -> stringResource(R.string.connect_fail_streams, authority)
         is ConnectFailure.Other -> stringResource(R.string.connect_fail_other, authority, failure.detail)
     }

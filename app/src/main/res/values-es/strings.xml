@@ -27,8 +27,6 @@
     <string name="connect_title">Conectar con Harness</string>
     <string name="connect_subtitle">DSH Mobile refleja el DeepSeek Harness que se ejecuta en tu ordenador.</string>
     <string name="connect_manual_title">Conectar manualmente</string>
-    <string name="connect_host_label">Dirección del host</string>
-    <string name="connect_host_hint">192.168.1.20</string>
     <string name="connect_port_label">Puerto</string>
     <string name="connect_port_hint">3080</string>
     <string name="connect_button">Conectar</string>

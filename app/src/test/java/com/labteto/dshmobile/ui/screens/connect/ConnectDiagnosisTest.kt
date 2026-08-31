@@ -56,7 +56,7 @@ class ConnectDiagnosisTest {
         )
         assertEquals(
             ConnectFailure.AccessDenied,
-            ConnectFailure.from(GenerationFailure.StreamFailed(TransportFailure.ACCESS_DENIED, "302")),
+            ConnectFailure.from(GenerationFailure.MuxFailed(TransportFailure.ACCESS_DENIED, "302")),
         )
         assertEquals(
             ConnectFailure.Refused,
@@ -94,7 +94,7 @@ class ConnectDiagnosisTest {
             message = "carrier returned HTTP 302",
             details = TransportFailures.details(TransportFailure.ACCESS_DENIED, 302),
         )
-        assertEquals(ConnectFailure.AccessDenied, ConnectFailure.from(GenerationFailure.DescribeFailed(denied)))
+        assertEquals(ConnectFailure.AccessDenied, ConnectFailure.from(GenerationFailure.ReadyFailed(denied)))
 
         val notHarness = RpcError(
             code = "internal",
