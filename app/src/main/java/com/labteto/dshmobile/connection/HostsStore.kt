@@ -139,7 +139,17 @@ class HostsStore @Inject constructor(
             relayFingerprint = relay?.fingerprint ?: existing?.relayFingerprint,
             relayDeviceId = relay?.deviceId ?: existing?.relayDeviceId,
             relayTokenExpiresAt = relay?.tokenExpiresAt ?: existing?.relayTokenExpiresAt ?: 0L,
-            scheme = HostConfig.normalizeScheme(scheme),
+            // The scheme must match the TLS posture: a relay paired over https (e.g. behind a
+            // Cloudflare tunnel on :443) would otherwise be remembered as http://host:443 and
+            // every probe or mux open would speak plaintext to a port that expects a handshake,
+            // surfacing as "something answered but not a DeepSeek Harness". For relays the
+            // pairing decides the transport, so it also decides the scheme; for direct hosts the
+            // caller's choice stands.
+            scheme = if (relay != null) {
+                HostConfig.normalizeScheme(if (relay.useTls) "https" else "http")
+            } else {
+                HostConfig.normalizeScheme(scheme)
+            },
             authToken = authToken,
             cfClientId = cfClientId,
             cfClientSecret = cfClientSecret,
