@@ -81,6 +81,7 @@ class HarnessClientFactory @Inject constructor(
                 readTimeoutMs = timeouts?.readMs ?: DEFAULT_TIMEOUT_MS,
                 authorization = authorization,
                 cookie = cookieFor(config),
+                extraHeaders = config.authHeaders,
             ),
         )
     }
@@ -98,7 +99,7 @@ class HarnessClientFactory @Inject constructor(
         val base = config.baseUrl
         val cookie = cookieFor(config)
         return RemoteStreamMux { sink ->
-            WsChannel("$base$REMOTE_STREAM_MUX_PATH", http, sink, authorization, cookie)
+            WsChannel("$base$REMOTE_STREAM_MUX_PATH", http, sink, authorization, cookie, extraHeaders = config.authHeaders)
         }
     }
 
