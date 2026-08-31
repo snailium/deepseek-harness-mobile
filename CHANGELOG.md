@@ -3,6 +3,32 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [Unreleased]
+
+### Added
+
+- **Markdown rendering in the chat UI.** The old renderer handled only bold,
+  italic and inline code — everything else was displayed as raw text. Tables
+  appeared as pipe-separated strings, nested lists lost their indentation,
+  horizontal rules showed up as three dashes, strikethrough was invisible, and
+  links were not clickable.
+
+  A new `core/markdown` module parses the full GFM subset that an agent is
+  likely to emit: fenced code blocks (verbatim), headings (`#`–`####`), nested
+  bullet and ordered lists, blockquotes, horizontal rules, and tables with
+  per-column alignment (`:---`, `:---:`, `---:`). Inline formatting supports
+  bold, italic, strikethrough, inline code, and `[text](url)` links.
+
+  The Compose renderer draws each block type natively: tables are bordered
+  grids that scroll horizontally when they overflow the screen; lists indent
+  by nesting depth; code blocks keep their language tag; and links open in the
+  system browser on tap. All existing `MarkdownText` call sites compile
+  unchanged — the public signature is identical.
+
+  Twelve unit tests cover the parser (headings, nested lists, tables with
+  alignment, short-row padding, fenced code, blockquotes, HRs, inline
+  segments, and literal fallback for unmatched markers).
+
 ## [0.9.3] - 2026-08-29
 
 ### Fixed
