@@ -173,7 +173,8 @@ internal class FoldState(private val sessionId: String) {
                 blank = false
                 val messageId = data.jsonObject["id"]?.jsonPrimitive?.contentOrNull
                 val sourceKind = (data.jsonObject["source"] as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull
-                addNode(UserMessageNode(event.seq, messageId, parseBlocks(data.jsonObject["content"]), sourceKind))
+                val role = data.jsonObject["role"]?.jsonPrimitive?.contentOrNull
+                addNode(UserMessageNode(event.seq, messageId, parseBlocks(data.jsonObject["content"]), sourceKind, role))
             }
 
             "assistant/chunk" -> {

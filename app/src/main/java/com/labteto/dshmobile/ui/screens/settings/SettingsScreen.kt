@@ -188,6 +188,14 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                     ) { viewModel.set { it.copy(keepConnectedInBackground = !it.keepConnectedInBackground) } }
                 }
 
+                SettingsCard(stringResource(R.string.settings_composer)) {
+                    ToggleRow(
+                        stringResource(R.string.settings_enter_to_send),
+                        settings.enterToSend,
+                        stringResource(R.string.settings_enter_to_send_hint),
+                    ) { viewModel.set { it.copy(enterToSend = !it.enterToSend) } }
+                }
+
                 SettingsCard(stringResource(R.string.settings_harness)) {
                     connectionState.description?.let { host ->
                         // Only the home directory survives from `host.describe`; the version and

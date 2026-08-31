@@ -39,9 +39,15 @@ data class UserMessageNode(
     val messageId: String?,
     val blocks: List<ChatBlock>,
     val sourceKind: String?,
+    /** Provider-neutral conversation role ('system' | 'user' | 'assistant'). */
+    val role: String? = null,
 ) : ChatNode {
     val previewText: String
         get() = blocks.firstOrNull { it.kind == "text" }?.text?.take(120) ?: ""
+
+    /** True when this message is a system prompt or harness-injected context, not a user turn. */
+    val isSystem: Boolean
+        get() = role == "system" || sourceKind == "system"
 }
 
 data class AssistantMessageNode(

@@ -180,6 +180,13 @@ data class AppSettings(
     val updateCheckEnabled: Boolean = true,
     /** A release the user has already declined, so it is offered once rather than every launch. */
     val dismissedUpdate: String? = null,
+    /**
+     * Whether the composer's enter key sends the message or inserts a newline.
+     *
+     * Defaults to `true` (newline) because multi-line prompts are the common case on a phone;
+     * the send button is always available as the one-tap alternative.
+     */
+    val enterToSend: Boolean = false,
 )
 
 /** The two ways the app can reach a harness. Persisted as [AppSettings.connectMode]. */

@@ -56,6 +56,8 @@ import com.labteto.dshmobile.ui.components.planReviewOf
 import com.labteto.dshmobile.ui.components.QuestionsPanel
 import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.components.rememberDsToast
+import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.ui.rememberHostsStore
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -79,6 +81,10 @@ fun ConversationScreen(
     onOpenDetails: (() -> Unit)? = null,
 ) {
     val store = rememberSessionStore()
+    val hostsStore = rememberHostsStore()
+    val settingsFlow by hostsStore.settings.collectAsStateWithLifecycle(
+        initialValue = AppSettings(),
+    )
     val scope = rememberCoroutineScope()
     val colors = DsTheme.colors
     // The route names the session to show; open it once on entry (idempotent if already current).
@@ -480,6 +486,7 @@ fun ConversationScreen(
                 onOpenSheet = { sheet = ChatSheet.Commands },
                 onSend = ::send,
                 onStop = { scope.launch { store.cancelTurn() } },
+                enterToSend = settingsFlow.enterToSend,
             )
 
         }

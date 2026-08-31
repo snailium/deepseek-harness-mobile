@@ -95,19 +95,36 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
         // Turn boundaries are structure, not content — the transcript shows the work, not the frame.
         is TurnStartNode -> Unit
 
-        is UserMessageNode -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            node.blocks.filter { it.kind == "image" }.forEach { block ->
-                parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
-                        attachmentId = ref.attachmentId,
-                        intrinsicWidth = ref.width,
-                        intrinsicHeight = ref.height,
-                        contentDescription = ref.name,
-                    )
-                }
+        is UserMessageNode -> if (node.isSystem) {
+            // System prompts and harness-injected context are not user turns: they render as a
+            // collapsed disclosure row, the same treatment tool calls get, so the transcript reads
+            // as conversation rather than a wall of configuration text.
+            var expanded by remember(node.seq) { mutableStateOf(false) }
+            DisclosureRow(
+                title = stringResource(R.string.chat_system_prompt),
+                summary = node.previewText.takeIf { it.isNotBlank() },
+                icon = FeatherIcons.Shield,
+                expanded = expanded,
+                onToggle = { expanded = !expanded },
+            ) {
+                val text = node.displayText()
+                if (text.isNotBlank()) MarkdownText(text)
             }
-            val text = node.displayText()
-            if (text.isNotBlank()) UserBubble(text)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                node.blocks.filter { it.kind == "image" }.forEach { block ->
+                    parseImageRef(block)?.let { ref ->
+                        AttachmentImage(
+                            attachmentId = ref.attachmentId,
+                            intrinsicWidth = ref.width,
+                            intrinsicHeight = ref.height,
+                            contentDescription = ref.name,
+                        )
+                    }
+                }
+                val text = node.displayText()
+                if (text.isNotBlank()) UserBubble(text)
+            }
         }
 
         is AssistantMessageNode -> AssistantMessage(node, context)

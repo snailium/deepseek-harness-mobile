@@ -228,6 +228,7 @@
     <string name="chat_context_messages">Messages</string>
     <string name="chat_compaction">Compacted</string>
     <string name="chat_compaction_summary">Summary</string>
+    <string name="chat_system_prompt">System prompt</string>
     <string name="chat_details_title">Details</string>
     <string name="chat_details_empty">Select a tool row in the chat to inspect its input and output.</string>
     <string name="chat_input_placeholder">Input</string>
@@ -349,6 +350,9 @@
     <string name="settings_connection_disconnect_confirm">Disconnect from harness?</string>
     <string name="settings_connection_disconnect_message">You will return to the connection screen.</string>
     <string name="settings_language_system">System default</string>
+    <string name="settings_composer">Composer</string>
+    <string name="settings_enter_to_send">Enter key sends message</string>
+    <string name="settings_enter_to_send_hint">When off, the enter key inserts a newline and the send button submits.</string>
     <string name="settings_harness">Harness</string>
     <string name="settings_data">Data</string>
     <string name="settings_forget_hosts">Forget remembered harnesses</string>

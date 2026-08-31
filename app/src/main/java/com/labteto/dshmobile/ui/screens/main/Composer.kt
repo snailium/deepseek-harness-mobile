@@ -156,6 +156,8 @@ internal fun Composer(
     onOpenSheet: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    /** Whether the enter key sends the message; when false it inserts a newline. */
+    enterToSend: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -258,8 +260,16 @@ internal fun Composer(
                         cursorBrush = SolidColor(colors.accent),
                         minLines = 1,
                         maxLines = 5,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { doSend() }),
+                        keyboardOptions = if (enterToSend) {
+                            KeyboardOptions(imeAction = ImeAction.Send)
+                        } else {
+                            KeyboardOptions(imeAction = ImeAction.None)
+                        },
+                        keyboardActions = if (enterToSend) {
+                            KeyboardActions(onSend = { doSend() })
+                        } else {
+                            KeyboardActions()
+                        },
                         decorationBox = { innerTextField ->
                             Box {
                                 if (draft.isEmpty() && attachments.isEmpty()) {
