@@ -30,9 +30,11 @@ import com.labteto.dshmobile.ui.navigation.ConnectRoute
 import com.labteto.dshmobile.ui.navigation.DetailsRoute
 import com.labteto.dshmobile.ui.navigation.HomeRoute
 import com.labteto.dshmobile.ui.navigation.HomeScreen
+import com.labteto.dshmobile.ui.navigation.PairRoute
 import com.labteto.dshmobile.ui.navigation.SessionRoute
 import com.labteto.dshmobile.ui.navigation.SettingsRoute
 import com.labteto.dshmobile.ui.screens.connect.ConnectScreen
+import com.labteto.dshmobile.ui.screens.pair.PairScreen
 import com.labteto.dshmobile.ui.screens.main.ActiveScreen
 import com.labteto.dshmobile.ui.screens.main.ConversationScreen
 import com.labteto.dshmobile.ui.screens.settings.SettingsScreen
@@ -124,7 +126,19 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
                 )
             }
             composable<ConnectRoute> {
-                ConnectScreen(onOpenSettings = { navController.navigate(SettingsRoute) })
+                ConnectScreen(
+                    onOpenSettings = { navController.navigate(SettingsRoute) },
+                    // Pairing is pushed over the connect screen, so it keeps the user's place; on
+                    // success PairScreen connects and pops itself back here.
+                    onPair = { url -> navController.navigate(PairRoute(url)) },
+                )
+            }
+            composable<PairRoute> { entry ->
+                val route = entry.toRoute<PairRoute>()
+                PairScreen(
+                    prefillUrl = route.prefillUrl,
+                    onClose = { navController.popBackStack() },
+                )
             }
             composable<SessionRoute> { entry ->
                 val route = entry.toRoute<SessionRoute>()

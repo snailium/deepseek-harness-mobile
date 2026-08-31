@@ -28,3 +28,11 @@ data class SessionRoute(val sessionId: String)
  */
 @Serializable
 data object DetailsRoute
+
+/**
+ * The dsh-relay pairing screen: QR scan or manual code entry against [prefillUrl] when one was
+ * given (a discovered relay, or an endpoint that just answered with a 403 fence). Pushed over the
+ * connect screen; on success it connects and pops itself.
+ */
+@Serializable
+data class PairRoute(val prefillUrl: String? = null)

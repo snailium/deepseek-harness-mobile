@@ -2,6 +2,7 @@ package com.labteto.dshmobile.ui.screens.connect
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.labteto.dshmobile.connection.ConnectMode
 import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.ConnectionPhase
@@ -9,6 +10,7 @@ import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.DiscoveryEngine
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.connection.MdnsDiscovery
 import com.labteto.dshmobile.connection.ProbeOutcome
 import com.labteto.dshmobile.connection.ProbeTimeouts
 import com.labteto.dshmobile.core.wire.dto.HostDescription
@@ -64,6 +66,14 @@ data class PendingRemoteConnect(
 )
 
 data class ConnectUiState(
+    /**
+     * Which way the user chose to connect: [ConnectMode.LAN] or [ConnectMode.RELAY].
+     *
+     * A choice, never a detection. The two paths have different trust models and different
+     * discovery, and nothing in the app connects a way the user did not pick — including
+     * auto-connect, which is scoped to this.
+     */
+    val mode: String = ConnectMode.LAN,
     val remembered: List<HostConfig> = emptyList(),
     /** Liveness per remembered host, keyed by `host:port`. Absent = not probed yet. */
     val recentStatus: Map<String, HostProbe> = emptyMap(),
@@ -103,12 +113,31 @@ data class ConnectUiState(
             val known = remembered.map { it.authority }.toSet()
             return discovered.filterNot { it.authority in known }
         }
+
+    /** Remembered endpoints belonging to the selected mode. */
+    val visibleHosts: List<HostConfig>
+        get() = remembered.filter { it.isRelay == (mode == ConnectMode.RELAY) }
+
+    /** Whether the endpoint currently being attempted is a paired relay. */
+    val attemptingRelay: Boolean
+        get() = remembered.firstOrNull { it.authority == attempted }?.isRelay == true
+
+    /**
+     * Origin of the endpoint being attempted, for a "pair again" that lands prefilled.
+     *
+     * Read off the remembered record rather than rebuilt from [attempted], because the scheme is
+     * exactly the part an authority does not carry — and sending someone to `http://` for an
+     * `https://` relay would fail in a way that looks like the relay is down.
+     */
+    val attemptedBaseUrl: String?
+        get() = remembered.firstOrNull { it.authority == attempted }?.baseUrl
 }
 
 @HiltViewModel
 class ConnectViewModel @Inject constructor(
     private val connectionManager: ConnectionManager,
     private val discoveryEngine: DiscoveryEngine,
+    private val mdnsDiscovery: MdnsDiscovery,
     private val hostsStore: HostsStore,
 ) : ViewModel() {
 
@@ -160,8 +189,19 @@ class ConnectViewModel @Inject constructor(
                 _state.update { it.copy(remembered = hosts) }
             }
         }
+        // The mode the user last picked is persisted; the screen reflects it from the first frame.
+        viewModelScope.launch {
+            _state.update { it.copy(mode = ConnectMode.of(hostsStore.settingsOnce().connectMode)) }
+        }
         viewModelScope.launch { autoConnect() }
         viewModelScope.launch { probeRemembered() }
+    }
+
+    /** Switch between the two connection paths; the choice is persisted. */
+    fun setMode(mode: String) {
+        if (mode == _state.value.mode) return
+        _state.update { it.copy(mode = mode, failure = null, discovered = emptyList(), scanning = false) }
+        viewModelScope.launch { hostsStore.setSetting { it.copy(connectMode = mode) } }
     }
 
     /**
@@ -210,10 +250,26 @@ class ConnectViewModel @Inject constructor(
 
     private suspend fun autoConnect() {
         val settings = hostsStore.settingsOnce()
+        val relayMode = ConnectMode.of(settings.connectMode) == ConnectMode.RELAY
+        if (relayMode) {
+            // A relay this device has already paired with, found by its advertisement. There is
+            // deliberately no sweep here and no "first relay wins": an unpaired relay cannot be
+            // connected to without the user typing a code, so auto-connect has nothing to do
+            // with one.
+            if (settings.autoConnectRelay) {
+                val known = hostsStore.hosts.first().filter { it.isRelay }
+                if (known.isNotEmpty()) {
+                    val advertised = mdnsDiscovery.browse().map { it.authority }.toSet()
+                    val match = known.firstOrNull { it.authority in advertised }
+                    if (match != null) connectTo(match)
+                }
+            }
+            return
+        }
         // 1. Last used host.
         if (settings.autoConnectLast) {
             val last = hostsStore.hosts.first().firstOrNull()
-            if (last != null) {
+            if (last != null && !last.isRelay) {
                 val desc = discoveryEngine.probeConfig(last, ProbeTimeouts.Manual)
                 if (desc != null) {
                     connectTo(last)
@@ -288,6 +344,10 @@ class ConnectViewModel @Inject constructor(
         scanJob = viewModelScope.launch {
             val settings = hostsStore.settingsOnce()
             try {
+                if (ConnectMode.of(settings.connectMode) == ConnectMode.RELAY) {
+                    scanForRelays()
+                    return@launch
+                }
                 discoveryEngine.scan(
                     ports = settings.knownPorts,
                     onProgress = { probed, total ->
@@ -311,6 +371,25 @@ class ConnectViewModel @Inject constructor(
     fun cancelScan() {
         scanJob?.cancel()
         scanJob = null
+    }
+
+    /**
+     * Relay discovery: the advertisement first, the sweep only if it turned nothing up.
+     *
+     * A relay publishes `_dsh._tcp` with its port, its TLS posture and its key, so a browse answers
+     * in a second or two and finds relays a /24 sweep would never look at. Nothing depends on it
+     * arriving, though — multicast is filtered on plenty of networks and the relay's `mdns: false`
+     * turns it off outright — which is why the sweep remains as the fallback.
+     */
+    private suspend fun scanForRelays() {
+        val report: (DiscoveredHost) -> Unit = { found ->
+            _state.update { state ->
+                if (state.discovered.any { it.authority == found.authority }) state
+                else state.copy(discovered = state.discovered + found)
+            }
+        }
+        val advertised = mdnsDiscovery.browse(onFound = report)
+        if (advertised.isEmpty()) discoveryEngine.scanForRelays(onFound = report)
     }
 
     fun connectManual(
@@ -354,6 +433,24 @@ class ConnectViewModel @Inject constructor(
         _state.update { it.copy(stage = ConnectStage.Validating, failure = null, attempted = authority) }
 
         viewModelScope.launch {
+            // A relay reached through a tunnel, a forwarded port or a VPN is the reason relays
+            // exist — it holds a real credential rather than relying on being on the same wire.
+            val paired = hostsStore.hosts.first().firstOrNull { it.authority == authority && it.isRelay }
+            if (paired != null) {
+                attemptConnect(
+                    host = hostValue,
+                    port = portInt,
+                    scheme = schemeValue,
+                    token = tokenValue,
+                    cfClientId = cfIdValue,
+                    cfClientSecret = cfSecretValue,
+                    isLoopback = isLoopback,
+                    authority = authority,
+                    remoteConfirmed = true,
+                    pairedRelay = paired,
+                )
+                return@launch
+            }
             // Anything that is not a local-subnet IPv4 literal counts as remote — a public IP or a
             // domain like ds.yeasin.tech. Confirm once (unless this endpoint was confirmed before),
             // then the attempt proceeds exactly like a LAN one.
@@ -436,10 +533,14 @@ class ConnectViewModel @Inject constructor(
         isLoopback: Boolean,
         authority: String,
         remoteConfirmed: Boolean,
+        pairedRelay: HostConfig? = null,
     ) {
         localStage = ConnectStage.Reaching
         _state.update { it.copy(stage = ConnectStage.Reaching) }
-        val probeConfig = HostConfig(
+        // A paired relay is probed through its own record, which carries the pin and the bearer
+        // credential together; a bare address has only the scheme the caller inferred. Without
+        // this the probe reaches the relay's passcode page instead of the harness behind it.
+        val probeConfig = pairedRelay ?: HostConfig(
             id = "temp-${hostLabel(host)}",
             name = hostLabel(host),
             host = host,
@@ -461,7 +562,11 @@ class ConnectViewModel @Inject constructor(
             config = probeConfig,
         )
         if (outcome !is ProbeOutcome.Reachable) {
-            fail(ConnectFailure.from(outcome), authority)
+            fail(ConnectFailure.from(outcome, relay = pairedRelay != null), authority)
+            return
+        }
+        if (pairedRelay != null) {
+            connectTo(pairedRelay)
             return
         }
         hostsStore.addKnownPort(port)
@@ -530,6 +635,10 @@ class ConnectViewModel @Inject constructor(
     }
 
     fun connectDiscovered(discovered: DiscoveredHost) {
+        // A relay will not answer `/api` to a device it has never seen, so "Connect" on one of
+        // these cards could only ever produce a 403. The caller routes relays to pairing instead;
+        // this is the harness path and remembers the endpoint like any other manual connect.
+        check(!discovered.isRelay) { "a discovered relay must be routed to pairing, not connected" }
         _state.update { it.copy(failure = null, attempted = discovered.authority) }
         viewModelScope.launch {
             hostsStore.addKnownPort(discovered.port)

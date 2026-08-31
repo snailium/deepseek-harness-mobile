@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.connection.ConnectMode
 import com.labteto.dshmobile.connection.ConnectStage
 import com.labteto.dshmobile.connection.DiscoveredHost
 import com.labteto.dshmobile.connection.HostConfig
@@ -76,7 +77,11 @@ import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.launch
 
 @Composable
-fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hiltViewModel()) {
+fun ConnectScreen(
+    onOpenSettings: () -> Unit,
+    onPair: (prefillUrl: String?) -> Unit,
+    viewModel: ConnectViewModel = hiltViewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
     val scrollState = rememberScrollState()
@@ -100,6 +105,9 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
     // Where the manual form sits in the scroll, so Edit can bring it into view.
     var manualTop by remember { mutableStateOf(0) }
 
+    // The mode chooser is the first decision on the screen: local network talks straight to a
+    // harness that has no authentication at all, relay talks to dsh-relay with a device token.
+    val relayMode = state.mode == ConnectMode.RELAY
     val parsed = remember(address) { parseAddress(address) }
     val effectiveScheme = if (advancedTouched) scheme else (parsed?.scheme ?: scheme)
     val effectivePortText =
@@ -169,6 +177,40 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                 )
             }
 
+            // ---- How to connect ----------------------------------------------
+            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                SectionHeader(stringResource(R.string.connect_mode_title))
+                DsSegmented(
+                    segments = listOf(
+                        DsSegment(ConnectMode.LAN, stringResource(R.string.connect_mode_lan)),
+                        DsSegment(ConnectMode.RELAY, stringResource(R.string.connect_mode_relay)),
+                    ),
+                    selectedKey = state.mode,
+                    onSelect = viewModel::setMode,
+                    // Two halves of one decision, so each gets half the track. Hugging their labels
+                    // left a third of a full-width pill empty and made the thing look unfinished.
+                    stretch = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                // One notice, not two: what the mode is and what it costs are the same thought,
+                // and the tint carries the difference — local network is a warning, relay is a
+                // statement of fact.
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = DsShapes.alert,
+                    color = if (relayMode) colors.accentTertiary else colors.warnTertiary,
+                ) {
+                    Text(
+                        stringResource(
+                            if (relayMode) R.string.connect_mode_relay_hint else R.string.connect_mode_lan_hint,
+                        ),
+                        style = DsType.small13,
+                        color = if (relayMode) colors.labelSecondary else colors.warnLabel,
+                        modifier = Modifier.padding(DsSpacing.medium),
+                    )
+                }
+            }
+
             // First-run vs returning: a fresh install gets a short explainer of what DSH Mobile
             // is and the three options below; a returning user just wants the compact hero and the
             // Resume card underneath.
@@ -232,7 +274,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             // ---- Resume -----------------------------------------------------
             // The one-tap path back for a returning user: the most recent harness, big and
             // primary. First-time users see no card here and the manual form below is the top.
-            state.remembered.firstOrNull()?.let { last ->
+            state.visibleHosts.firstOrNull()?.let { last ->
                 val probe = state.recentStatus[last.authority]
                 val home = (probe as? HostProbe.Reachable)?.description?.home
                 DsCard(onClick = { viewModel.connectTo(last) }) {
@@ -282,6 +324,11 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             }
 
             // ---- Manual -----------------------------------------------------
+            // Relay mode replaces the form with the pairing card: a relay cannot be connected to
+            // before it has issued this device a token, so there is nothing to type. The form's
+            // endpoint reading and disclosures are meaningless against a relay and would only
+            // read as noise.
+            if (!relayMode) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -421,6 +468,7 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                         attempted = state.attempted,
                         retrying = state.retrying,
                         onCancel = viewModel::cancelConnect,
+                        onPair = { url -> onPair(url ?: state.attemptedBaseUrl) },
                     )
                 }
                 // The wiki is the user guide; a caption link keeps the form self-servicing.
@@ -435,18 +483,37 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     )
                 }
             }
+            }
+
+            // ---- Pairing ----------------------------------------------------
+            // The one thing relay mode exists to offer, weighted by whether it has been done yet:
+            // with nothing paired it is the primary action and carries the instruction, because a
+            // relay cannot be discovered into existence — someone has to open a page on the
+            // computer. Once a relay is paired it steps back to a ghost button: still reachable,
+            // no longer the point.
+            if (relayMode) {
+                PairCallToAction(hasPaired = state.visibleHosts.isNotEmpty()) { onPair(null) }
+            }
 
             // ---- Recent -----------------------------------------------------
+            // Hidden entirely when empty in relay mode: the pairing card above already says there
+            // is nothing here, and saying it twice is what made the screen read as dead ends.
+            if (state.visibleHosts.isNotEmpty() || !relayMode) {
             Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                SectionHeader(stringResource(R.string.connect_remembered))
-                if (state.remembered.isEmpty()) {
+                SectionHeader(
+                    stringResource(
+                        if (relayMode) R.string.connect_relay_remembered else R.string.connect_remembered,
+                    ),
+                )
+                val paired = state.visibleHosts
+                if (paired.isEmpty()) {
                     Text(
                         stringResource(R.string.connect_remembered_empty),
                         style = DsType.std14,
                         color = colors.labelCaption,
                     )
                 } else {
-                    state.remembered.forEach { saved ->
+                    paired.forEach { saved ->
                         RecentHarnessCard(
                             host = saved,
                             probe = state.recentStatus[saved.authority],
@@ -457,12 +524,17 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     }
                 }
             }
+            }
 
             // ---- Discovered --------------------------------------------------
             Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
                 SectionHeader(
-                    title = stringResource(R.string.connect_discovered),
-                    action = stringResource(R.string.connect_scan),
+                    title = stringResource(
+                        if (relayMode) R.string.connect_relay_discovered else R.string.connect_discovered,
+                    ),
+                    action = stringResource(
+                        if (relayMode) R.string.connect_relay_scan else R.string.connect_scan,
+                    ),
                     onAction = { viewModel.scan() },
                 )
                 val unknown = state.unknownDiscovered
@@ -472,7 +544,9 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     ScanProgressRow(state.scanProgress) { viewModel.cancelScan() }
                 }
                 if (unknown.isEmpty()) {
-                    if (!state.scanning) {
+                    // In relay mode the pairing card carries the instruction, so the empty line
+                    // here would only be a third way of saying the same thing.
+                    if (!state.scanning && !relayMode) {
                         Text(
                             stringResource(R.string.connect_discovered_hint),
                             style = DsType.std14,
@@ -481,7 +555,12 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     }
                 } else {
                     unknown.forEach { found ->
-                        DiscoveredHarnessCard(found) { viewModel.connectDiscovered(found) }
+                        DiscoveredHarnessCard(found) {
+                            // A relay will not answer `/api` to a device it has never seen, so
+                            // "Connect" on one of these cards could only ever produce a 403. It
+                            // carries the address into pairing instead.
+                            if (found.isRelay) onPair(found.baseUrl) else viewModel.connectDiscovered(found)
+                        }
                     }
                 }
             }
@@ -682,12 +761,19 @@ private fun statusLine(probe: HostProbe?, version: String?, sessions: Int?): Str
 private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) {
     val colors = DsTheme.colors
     val description = found.description
-    DsCard(onClick = if (description != null) onConnect else null) {
+    // A relay is always a pairing invitation, never a Connect button — it refuses `/api` to a
+    // device it has not seen, so the card offers the one thing that works.
+    val clickable = found.isRelay || description != null
+    DsCard(onClick = if (clickable) onConnect else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 FeatherIcons.Globe,
                 contentDescription = null,
-                tint = if (description != null) colors.accent else colors.warn,
+                tint = when {
+                    found.isRelay -> colors.accent
+                    description != null -> colors.accent
+                    else -> colors.warn
+                },
                 modifier = Modifier.width(14.dp),
             )
             Spacer(Modifier.width(DsSpacing.compact))
@@ -699,32 +785,89 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (description != null) {
-                DsButton(
+            when {
+                found.isRelay -> DsButton(
+                    text = stringResource(R.string.connect_relay_pair_this),
+                    onClick = onConnect,
+                    variant = DsButtonVariant.Info,
+                    size = DsButtonSize.Small,
+                )
+
+                description != null -> DsButton(
                     text = stringResource(R.string.connect_button),
                     onClick = onConnect,
                     variant = DsButtonVariant.Info,
                     size = DsButtonSize.Small,
                 )
-            } else {
-                DsPill(text = stringResource(R.string.connect_found_untrusted), warn = true)
+
+                else -> DsPill(text = stringResource(R.string.connect_found_untrusted), warn = true)
             }
         }
-        if (description != null) {
-            Text(
+        when {
+            found.isRelay -> Text(
+                if (found.hostRefused) {
+                    stringResource(R.string.connect_relay_refused_hint, found.authority)
+                } else {
+                    stringResource(R.string.connect_relay_unpaired)
+                },
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+
+            description != null -> Text(
                 basename(description.home).takeIf { it.isNotBlank() }.orEmpty(),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        } else {
-            Text(
+
+            else -> Text(
                 stringResource(R.string.connect_found_untrusted_hint),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
             )
         }
+    }
+}
+
+/**
+ * The one thing the connect screen exists to offer in relay mode, weighted by whether it has been
+ * done yet.
+ *
+ * With nothing paired it is the primary action and carries the instruction, because a relay cannot
+ * be discovered into existence — someone has to open a page on the computer. Once a relay is
+ * paired it steps back to a ghost button: still reachable, no longer the point.
+ */
+@Composable
+private fun PairCallToAction(hasPaired: Boolean, onPair: () -> Unit) {
+    val colors = DsTheme.colors
+    if (hasPaired) {
+        DsButton(
+            text = stringResource(R.string.connect_relay_pair_another),
+            onClick = onPair,
+            variant = DsButtonVariant.Ghost,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        return
+    }
+    DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+        Text(
+            stringResource(R.string.connect_relay_pair_title),
+            style = DsType.std14Strong,
+            color = colors.labelPrimary,
+        )
+        Text(
+            stringResource(R.string.connect_relay_pair_hint),
+            style = DsType.small13,
+            color = colors.labelTertiary,
+        )
+        DsButton(
+            text = stringResource(R.string.connect_relay_pair_action),
+            onClick = onPair,
+            variant = DsButtonVariant.Info,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -774,6 +917,7 @@ private fun ConnectFailureBlock(
     attempted: String?,
     retrying: Boolean,
     onCancel: () -> Unit,
+    onPair: ((String?) -> Unit)? = null,
 ) {
     val colors = DsTheme.colors
     val authority = attempted.orEmpty()
@@ -830,18 +974,33 @@ private fun ConnectFailureBlock(
             }
             // With no headline the body has already been shown beside the dot.
             if (title != null) Text(body, style = DsType.small13, color = colors.warnLabel)
-            // The loop backs off and retries forever; without this there is no way to stop it.
-            if (retrying) {
-                DsButton(
-                    text = stringResource(R.string.connect_cancel),
-                    onClick = onCancel,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
+                // The relay's own 403 and the harness's `Host` fence are indistinguishable by
+                // status; what separates them is that one has a repair in this app — pairing
+                // again — so it gets its own button, prefilled with the endpoint just tried.
+                if (failure is ConnectFailure.PairingRequired && onPair != null) {
+                    DsButton(
+                        text = stringResource(R.string.connect_pair_again),
+                        onClick = { onPair(null) },
+                        variant = DsButtonVariant.Info,
+                        size = DsButtonSize.Small,
+                    )
+                }
+                // The loop backs off and retries forever; without this there is no way to stop it.
+                if (retrying) {
+                    DsButton(
+                        text = stringResource(R.string.connect_cancel),
+                        onClick = onCancel,
+                        variant = DsButtonVariant.Ghost,
+                        size = DsButtonSize.Small,
+                    )
+                }
             }
         }
     }
 }
+
+
 
 /** Determinate sweep feedback: a /24 takes long enough that a static label reads as a hang. */
 @Composable
