@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.components
 
+import com.labteto.dshmobile.core.markdown.safeHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
