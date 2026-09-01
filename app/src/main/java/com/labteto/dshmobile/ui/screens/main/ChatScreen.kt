@@ -318,6 +318,8 @@ fun ConversationScreen(
                 onSwitchHost = onSwitchHost,
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
+                promptMode = mode,
+                onPromptModeChange = { mode = it },
             )
 
             // The two connection notices are different messages: a hard failure earns the red
@@ -486,6 +488,7 @@ fun ConversationScreen(
                 onOpenSheet = { sheet = ChatSheet.Commands },
                 onSend = ::send,
                 onStop = { scope.launch { store.cancelTurn() } },
+                promptMode = mode,
                 enterToSend = settingsFlow.enterToSend,
             )
 

@@ -83,6 +83,9 @@ internal fun ChatTopBar(
     onSwitchHost: () -> Unit,
     onOpenDetails: (() -> Unit)? = null,
     onTabChange: (ChatTab) -> Unit,
+    /** Current prompt mode for queue/steer; toggled from the overflow menu. */
+    promptMode: String = "queue",
+    onPromptModeChange: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -127,6 +130,13 @@ internal fun ChatTopBar(
                     )
                 },
                 items = buildList {
+                    if (onPromptModeChange != null) {
+                        add(
+                            MenuItem(
+                                if (promptMode == "steer") "Switch to Queue" else "Switch to Steer",
+                            ) { onPromptModeChange(if (promptMode == "steer") "queue" else "steer") },
+                        )
+                    }
                     add(MenuItem(stringResource(R.string.presets_title)) { onOpenPresets() })
                     add(MenuItem(stringResource(R.string.subagents_title)) { onOpenSubagents() })
                     if (onOpenDetails != null) {

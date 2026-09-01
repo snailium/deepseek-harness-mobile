@@ -156,6 +156,8 @@ internal fun Composer(
     onOpenSheet: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    /** Prompt mode for queue/steer while a turn is running. */
+    promptMode: String = "queue",
     /** Whether the enter key sends the message; when false it inserts a newline. */
     enterToSend: Boolean = false,
     modifier: Modifier = Modifier,
@@ -173,6 +175,14 @@ internal fun Composer(
         composerDraft.value = ""
         // The long-press feedback doubles as the send tick; the heavier long-press haptic stays
         // on stop, the disruptive action.
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        currentOnSend(text)
+    }
+
+    fun doQueueOrSteer() {
+        if (!canSend || !running) return
+        val text = currentDraft
+        composerDraft.value = ""
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         currentOnSend(text)
     }
@@ -285,18 +295,18 @@ internal fun Composer(
                     )
                 }
 
-                // Send and stop occupy the same slot: the affordance changes meaning during a turn
-                // rather than the row re-flowing around a second button appearing.
+                // Three states: not running → Send; running + empty draft → Stop;
+                // running + non-empty draft → Queue/Steer (per promptMode).
                 AnimatedContent(
-                    targetState = running,
+                    targetState = if (!running) 0 else if (draft.isNotBlank() || attachments.isNotEmpty()) 1 else 2,
                     transitionSpec = {
                         (fadeIn(DsAnimations.fade) + scaleIn(initialScale = 0.85f))
                             .togetherWith(fadeOut(DsAnimations.fade) + scaleOut(targetScale = 0.85f))
                     },
-                    label = "sendStop",
-                ) { isRunning ->
-                    if (isRunning) {
-                        CircleAction(
+                    label = "sendStopQueue",
+                ) { state ->
+                    when (state) {
+                        2 -> CircleAction(
                             icon = null,
                             contentDescription = stringResource(R.string.chat_composer_stop),
                             size = 36,
@@ -315,8 +325,21 @@ internal fun Composer(
                                     .background(Color.White),
                             )
                         }
-                    } else {
-                        CircleAction(
+                        1 -> CircleAction(
+                            icon = FeatherIcons.ArrowUp,
+                            contentDescription = stringResource(
+                                if (promptMode == "steer") R.string.chat_composer_steer else R.string.chat_composer_queue,
+                            ),
+                            size = 36,
+                            background = colors.primaryButtonGradientStart,
+                            tint = Color.White,
+                            enabled = true,
+                            onClick = { doQueueOrSteer() },
+                            backgroundBrush = Brush.linearGradient(
+                                listOf(colors.primaryButtonGradientStart, colors.primaryButtonGradientEnd),
+                            ),
+                        )
+                        else -> CircleAction(
                             icon = FeatherIcons.ArrowUp,
                             contentDescription = stringResource(R.string.chat_composer_send),
                             size = 36,

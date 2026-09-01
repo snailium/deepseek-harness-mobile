@@ -1049,7 +1049,10 @@ class SessionStore @Inject constructor(
         val events = currentEvents.toList()
         val snapshot = EventFold(sid).fold(events)
         val blank = if (events.isEmpty()) currentBlank else snapshot.blank
-        val running = runningBySession[sid] ?: snapshot.running
+        // When the event buffer carries turn events, the fold's running flag is authoritative:
+        // it reflects the last turn/start or turn/end in the window. The per-session cache is
+        // only a fallback for an empty buffer (session list row before follow opens).
+        val running = if (events.isNotEmpty()) snapshot.running else (runningBySession[sid] ?: false)
         val merged = snapshot.copy(
             blank = blank,
             running = running,
