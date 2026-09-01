@@ -6,6 +6,7 @@ import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.connection.ConnectionManager
 import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.notify.NotificationObserver
 import com.labteto.dshmobile.ui.navigation.SessionDeepLink
 import com.labteto.dshmobile.update.AvailableUpdate
 import com.labteto.dshmobile.update.UpdateChecker
@@ -22,7 +23,13 @@ class AppViewModel @Inject constructor(
     private val connectionManager: ConnectionManager,
     private val updateChecker: UpdateChecker,
     private val sessionDeepLink: SessionDeepLink,
+    private val notificationObserver: NotificationObserver,
 ) : ViewModel() {
+
+    /** Set by the UI layer when the activity becomes foreground/background. */
+    fun setForeground(foreground: Boolean) {
+        notificationObserver.isForeground = foreground
+    }
 
     val settings: StateFlow<AppSettings> = hostsStore.settings.stateIn(
         viewModelScope,

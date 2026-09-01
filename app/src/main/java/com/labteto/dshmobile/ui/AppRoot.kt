@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,9 +13,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +27,7 @@ import androidx.navigation.toRoute
 import com.labteto.dshmobile.BuildConfig
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.connection.ConnectionPhase
+import com.labteto.dshmobile.notify.NotificationObserver
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
@@ -66,6 +71,20 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
     val update by viewModel.availableUpdate.collectAsStateWithLifecycle()
     val pendingSession by viewModel.pendingSession.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { viewModel.checkForUpdate(BuildConfig.VERSION_NAME) }
+
+    // Track app foreground state for turn-complete notifications (haptic vs. push).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { source, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> viewModel.setForeground(true)
+                Lifecycle.Event.ON_STOP -> viewModel.setForeground(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DshTheme(preference = themePreference, dynamicColor = settings.dynamicColor) {
         val navController = rememberNavController()

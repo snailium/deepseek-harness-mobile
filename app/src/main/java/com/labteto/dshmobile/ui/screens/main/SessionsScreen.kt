@@ -730,7 +730,7 @@ private fun WorkspaceGroupHeader(
         Spacer(Modifier.width(DsSpacing.xsmall))
         Text(
             title,
-            style = DsType.m3LabelLarge,
+            style = DsType.m3TitleMedium,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

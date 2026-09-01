@@ -53,6 +53,10 @@ class NotificationObserver @Inject constructor(
     @Volatile
     private var started = false
 
+    /** Whether the app is in the foreground; set by the UI layer. */
+    @Volatile
+    var isForeground: Boolean = false
+
     fun start() {
         if (started) return
         started = true
@@ -106,9 +110,22 @@ class NotificationObserver @Inject constructor(
         val spec = when (event) {
             is CompletionEvent.TurnComplete -> {
                 if (!settings.notifyTurnComplete) return
+                // Foreground: short haptic instead of a notification.
+                if (isForeground) {
+                    val vibrator = context.getSystemService(android.os.Vibrator::class.java)
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator.vibrate(android.os.VibrationEffect.createOneShot(30, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator.vibrate(30)
+                    }
+                    return
+                }
+                val preview = lastAssistantPreview(event.sessionId)
                 Spec(
                     channel = DshNotifications.CHANNEL_COMPLETIONS,
-                    title = context.getString(R.string.notif_turn_complete, sessionTitle(event.sessionId).orEmpty()),
+                    title = sessionTitle(event.sessionId).orEmpty(),
+                    text = preview,
                 )
             }
             is CompletionEvent.GoalComplete -> {
@@ -151,14 +168,25 @@ class NotificationObserver @Inject constructor(
 
         if (isDuplicate(event.dedupKey)) return
 
-        val text = context.getString(R.string.notif_open)
+        val body = spec.text ?: context.getString(R.string.notif_open)
         val id = notificationId(event.sessionId, spec.channel)
-        notifications.postSession(spec.channel, id, spec.title, text, event.sessionId, spec.actionLabel)
+        notifications.postSession(spec.channel, id, spec.title, body, event.sessionId, spec.actionLabel)
+    }
+
+    /** First 20 chars of the last assistant message in the session, for notification body. */
+    private fun lastAssistantPreview(sessionId: String): String {
+        val conv = store.currentConversation.value ?: return ""
+        if (conv.sessionId != sessionId) return ""
+        val last = conv.nodes.lastOrNull { it is com.labteto.dshmobile.core.session.AssistantMessageNode }
+            as? com.labteto.dshmobile.core.session.AssistantMessageNode ?: return ""
+        val text = last.plainText.replace(Regex("\\s+"), " ").trim()
+        return if (text.length > 20) text.take(20) + "…" else text
     }
 
     private data class Spec(
         val channel: String,
         val title: String,
+        val text: String? = null,
         val actionLabel: String? = null,
     )
 
