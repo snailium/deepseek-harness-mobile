@@ -1004,7 +1004,7 @@ private fun SessionRowItem(
                         },
                         onLongClickLabel = stringResource(R.string.chatlist_session_actions),
                     )
-                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
+                    .padding(start = 6.dp, end = 12.dp, top = DsSpacing.xsmall, bottom = DsSpacing.xsmall),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
             // The chevron is its own tap target: opening a session and looking at what it spawned

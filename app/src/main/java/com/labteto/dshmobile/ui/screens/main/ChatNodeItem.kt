@@ -239,7 +239,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 8.dp)
             .clickable(enabled = !streaming) { actionsVisible = !actionsVisible },
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
