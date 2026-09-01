@@ -157,6 +157,7 @@
     <string name="chatlist_workspace_delete">Remove workspace</string>
     <string name="chatlist_workspace_delete_confirm">Remove this workspace from the harness? The folder and its session logs are left untouched.</string>
     <string name="chatlist_workspace_new_session">New session here</string>
+    <string name="chatlist_ungrouped">Ungrouped</string>
     <string name="chatlist_needs_action">Needs you</string>
     <string name="chatlist_sort_title">Order</string>
     <string name="chat_composer_hint">Message the agent</string>

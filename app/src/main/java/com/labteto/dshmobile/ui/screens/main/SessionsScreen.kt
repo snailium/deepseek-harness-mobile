@@ -477,21 +477,38 @@ fun ChatsScreen(
                             }
                         }
                     } else {
-                        // Ungrouped sessions (no matching workspace).
-                        for ((session, depth) in group.sessions.flatMap { subtree(it) }) {
-                            item(key = session.sessionId) {
-                                Box(Modifier.animateItem()) {
-                                    SessionRowItem(
-                                        session = session,
-                                        isCurrent = session.sessionId == currentSessionId,
-                                        store = store,
-                                        scope = scope,
-                                        onOpenSession = onOpenSession,
-                                        depth = depth,
-                                        childCount = childrenByParent[session.sessionId].orEmpty().size,
-                                        childrenExpanded = isExpanded(session.sessionId),
-                                        onToggleChildren = { toggleChildren(session.sessionId) },
-                                    )
+                        // Ungrouped sessions: shown under a collapsible "Ungrouped" header.
+                        item(key = "ws_ungrouped") {
+                            WorkspaceGroupHeader(
+                                title = stringResource(R.string.chatlist_ungrouped),
+                                path = "",
+                                sessionCount = group.sessions.size,
+                                expanded = isWsExpanded("ungrouped"),
+                                onToggle = { toggleWs("ungrouped") },
+                                onNewSession = {
+                                    scope.launch {
+                                        store.createSession()
+                                        store.currentSessionId.value?.let(onOpenSession)
+                                    }
+                                },
+                            )
+                        }
+                        if (isWsExpanded("ungrouped")) {
+                            for ((session, depth) in group.sessions.flatMap { subtree(it) }) {
+                                item(key = session.sessionId) {
+                                    Box(Modifier.animateItem()) {
+                                        SessionRowItem(
+                                            session = session,
+                                            isCurrent = session.sessionId == currentSessionId,
+                                            store = store,
+                                            scope = scope,
+                                            onOpenSession = onOpenSession,
+                                            depth = depth + 1,
+                                            childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                            childrenExpanded = isExpanded(session.sessionId),
+                                            onToggleChildren = { toggleChildren(session.sessionId) },
+                                        )
+                                    }
                                 }
                             }
                         }
