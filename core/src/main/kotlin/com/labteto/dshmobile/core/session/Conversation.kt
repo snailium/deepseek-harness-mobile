@@ -45,9 +45,17 @@ data class UserMessageNode(
     val previewText: String
         get() = blocks.firstOrNull { it.kind == "text" }?.text?.take(120) ?: ""
 
-    /** True when this message is a system prompt or harness-injected context, not a user turn. */
+    /** True when this message is a system prompt or harness-injected context, not a user turn.
+     *  The harness tags genuine user prompts with `source.kind: 'user'` (RPC) or `'user-rpc'`
+     *  (browser). Every other kind — `agent-instructions`, `plugin`, `skill-invocation`,
+     *  `goal`, `team-message`, `session-reference`, etc. — is injected context and should be
+     *  rendered as a collapsed disclosure row, not a blue user bubble. */
     val isSystem: Boolean
-        get() = role == "system" || sourceKind == "system"
+        get() = role == "system" || (sourceKind != null && sourceKind !in USER_SOURCE_KINDS)
+
+    private companion object {
+        val USER_SOURCE_KINDS = setOf("user", "user-rpc")
+    }
 }
 
 data class AssistantMessageNode(

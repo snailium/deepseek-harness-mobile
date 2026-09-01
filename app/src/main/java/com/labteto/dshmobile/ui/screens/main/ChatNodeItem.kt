@@ -101,7 +101,7 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
             // as conversation rather than a wall of configuration text.
             var expanded by remember(node.seq) { mutableStateOf(false) }
             DisclosureRow(
-                title = stringResource(R.string.chat_system_prompt),
+                title = stringResource(R.string.chat_context_title),
                 summary = node.previewText.takeIf { it.isNotBlank() },
                 icon = FeatherIcons.Shield,
                 expanded = expanded,
