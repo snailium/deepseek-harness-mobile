@@ -567,6 +567,7 @@ class SessionStore @Inject constructor(
         // complete baseline, and the list is what their increments are applied on top of.
         startHostStreams()
         _hostInfo.value = connectionManager.generation?.description
+        refreshWorkspaces()
         refreshSessions()
         // Host-scoped and needed before anything is tapped: the chat bar names the session's preset
         // as soon as it renders, and without the roster it could only show the raw wire id.
@@ -1133,14 +1134,36 @@ class SessionStore @Inject constructor(
     }
 
     /**
+     * Fetch the complete workspace registry from the host. Called during baseline to populate
+     * [workspaceRows] immediately, rather than waiting for the `workspace/follow` stream's
+     * baseline frame which may arrive late or not at all on some harness versions.
+     */
+    private suspend fun refreshWorkspaces() {
+        val api = apiOrNull() ?: return
+        when (val r = api.workspaceList()) {
+            is RpcResult.Ok -> synchronized(lock) {
+                workspaceRows.clear()
+                workspaceOrder.clear()
+                for (w in r.value.items) workspaceRows[w.workspaceId] = w.toRow()
+                workspaceOrder.addAll(r.value.items.map { it.workspaceId })
+                if (r.value.archivedSessionIds.isNotEmpty()) {
+                    archived = r.value.archivedSessionIds.toSet()
+                    _archivedSessionIds.value = archived
+                }
+                emitWorkspacesLocked()
+            }
+            is RpcResult.Err -> log("workspace/list failed: ${r.error.message}")
+        }
+    }
+
+    /**
      * Apply one workspace mutation's own answer immediately.
      *
-     * `workspace.list` no longer exists; the registry is a stream, and a mutation answers with the
-     * value it produced. Applying it here keeps the UI responsive without waiting for the stream
-     * to commit, and the stream's next frame — which is authoritative — corrects anything this
-     * guessed. Deleting is the one case that must not be optimistic in reverse: a delayed upsert
-     * could otherwise resurrect a row, which is why removal goes through the same path as the
-     * stream's own.
+     * A mutation answers with the value it produced. Applying it here keeps the UI responsive
+     * without waiting for the stream to commit, and the stream's next frame — which is
+     * authoritative — corrects anything this guessed. Deleting is the one case that must not be
+     * optimistic in reverse: a delayed upsert could otherwise resurrect a row, which is why
+     * removal goes through the same path as the stream's own.
      */
     private fun applyWorkspaceValue(value: WorkspaceValue) = upsertWorkspace(value.workspace)
 

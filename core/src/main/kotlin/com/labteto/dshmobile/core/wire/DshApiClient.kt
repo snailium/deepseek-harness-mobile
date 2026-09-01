@@ -62,6 +62,7 @@ import com.labteto.dshmobile.core.wire.dto.WorkspaceDeleteValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceInsertBeforeRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceInsertSessionBeforeRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceOrderValue
+import com.labteto.dshmobile.core.wire.dto.WorkspaceListValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceRenameRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceValue
 import java.io.IOException
@@ -388,6 +389,9 @@ class DshApiClient(
     suspend fun workspaceArchiveSession(
         request: WorkspaceArchiveSessionRequest,
     ): RpcResult<WorkspaceArchiveValue> = callRequest("workspace/archiveSession", request)
+
+    /** `workspace/list` — returns the complete workspace registry with display order. */
+    suspend fun workspaceList(): RpcResult<WorkspaceListValue> = callEmpty("workspace/list")
 
     // ------------------------------------------------------------------ skills
 
