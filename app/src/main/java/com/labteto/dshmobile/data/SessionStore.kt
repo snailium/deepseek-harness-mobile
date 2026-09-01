@@ -780,9 +780,9 @@ class SessionStore @Inject constructor(
             is WorkspaceFollowFrame.Baseline -> synchronized(lock) {
                 workspaceRows.clear()
                 workspaceOrder.clear()
-                for (w in frame.workspaces) workspaceRows[w.workspaceId] = w.toRow()
-                workspaceOrder.addAll(frame.workspaceIds.ifEmpty { frame.workspaces.map { it.workspaceId } })
-                archived = frame.archivedSessionIds.toSet()
+                for (w in frame.allWorkspaces) workspaceRows[w.workspaceId] = w.toRow()
+                workspaceOrder.addAll(frame.allWorkspaceIds)
+                archived = frame.allArchivedSessionIds.toSet()
                 _archivedSessionIds.value = archived
                 emitWorkspacesLocked()
             }

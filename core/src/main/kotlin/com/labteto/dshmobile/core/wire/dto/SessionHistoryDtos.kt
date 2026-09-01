@@ -369,10 +369,28 @@ sealed class WorkspaceFollowFrame {
     @Serializable
     data class Baseline(
         @SerialName("type") override val type: String = "baseline",
+        // Harness sends { value: { items, archivedSessionIds } }; mobile expects flat fields.
+        @SerialName("value") val value: BaselineValue? = null,
         @SerialName("workspaces") val workspaces: List<WorkspaceView> = emptyList(),
         @SerialName("workspaceIds") val workspaceIds: List<String> = emptyList(),
         @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
-    ) : WorkspaceFollowFrame()
+    ) : WorkspaceFollowFrame() {
+        /** All workspaces, preferring the harness `value.items` shape. */
+        val allWorkspaces: List<WorkspaceView> get() = value?.items ?: workspaces
+        /** Ordered workspace IDs, preferring the harness `value.items` order. */
+        val allWorkspaceIds: List<String> get() =
+            if (workspaceIds.isNotEmpty()) workspaceIds else allWorkspaces.map { it.workspaceId }
+        /** Archived session IDs from either shape. */
+        val allArchivedSessionIds: List<String> get() =
+            if (archivedSessionIds.isNotEmpty()) archivedSessionIds else value?.archivedSessionIds ?: emptyList()
+    }
+
+    /** The harness wire shape for the baseline payload. */
+    @Serializable
+    data class BaselineValue(
+        @SerialName("items") val items: List<WorkspaceView> = emptyList(),
+        @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
+    )
 
     /** One workspace was added or changed. */
     @Serializable
