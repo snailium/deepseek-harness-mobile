@@ -222,13 +222,46 @@ fun ChatsScreen(
         return out
     }
 
-    // ---- The flat list: every top-level session once, in one order. ----
-    // Top-level = sessions that are not nested under another session's subagent tree. Ordering is
-    // recency by default; "manual" falls back to the harness's registration order, which is the
-    // only meaningful manual order once workspace groups are gone.
-    val topLevel = remember(listable, nestedIds, sortByRecency) {
+    // ---- Workspace grouping: sessions are grouped under their workspace, collapsible. ----
+    val topLevelSessions = remember(listable, nestedIds, sortByRecency) {
         orderTopLevel(listable, nestedIds, sortByRecency)
     }
+
+    // Map each top-level session to its workspace via cwd basename matching.
+    data class WsGroup(val workspace: WorkspaceRow?, val sessions: List<SessionRow>)
+    val workspaceGroups = remember(topLevelSessions, workspaces) {
+        val wsByBasename = workspaces.associateBy { basename(it.path).lowercase() }
+        val grouped = mutableMapOf<String, MutableList<SessionRow>>()
+        val ungrouped = mutableListOf<SessionRow>()
+        for (s in topLevelSessions) {
+            val key = s.cwd?.let { basename(it).lowercase() } ?: ""
+            if (key.isNotBlank() && wsByBasename.containsKey(key)) {
+                grouped.getOrPut(key) { mutableListOf() }.add(s)
+            } else {
+                ungrouped.add(s)
+            }
+        }
+        val groups = mutableListOf<WsGroup>()
+        // Workspaces with sessions, in the harness's registration order.
+        for (ws in workspaces) {
+            val key = basename(ws.path).lowercase()
+            val sess = grouped.remove(key) ?: continue
+            groups.add(WsGroup(ws, sess))
+        }
+        // Any workspace that has no matching sessions still appears (empty group).
+        for (ws in workspaces) {
+            if (groups.none { it.workspace?.workspaceId == ws.workspaceId }) {
+                groups.add(WsGroup(ws, emptyList()))
+            }
+        }
+        if (ungrouped.isNotEmpty()) groups.add(WsGroup(null, ungrouped))
+        groups
+    }
+
+    // Workspace collapse state: default expanded.
+    val wsCollapsed = remember { mutableStateMapOf<String, Boolean>() }
+    fun isWsExpanded(wsId: String): Boolean = wsCollapsed[wsId]?.not() ?: true
+    fun toggleWs(wsId: String) { wsCollapsed[wsId] = isWsExpanded(wsId) }
 
     Column(
         modifier = Modifier
@@ -390,11 +423,8 @@ fun ChatsScreen(
                 }
             }
 
-            if (topLevel.isEmpty() && archivedSessions.isEmpty()) {
+            if (workspaceGroups.isEmpty() && archivedSessions.isEmpty()) {
                 item(key = "empty") {
-                    // The FAB is at the bottom corner; a first-time user staring at an empty list
-                    // should not have to discover it to start. The same create-session action the
-                    // FAB runs is one tap away from the empty state itself.
                     EmptyHero(
                         headline = stringResource(R.string.chatlist_empty),
                         subtitle = stringResource(R.string.chatlist_empty_hint),
@@ -408,22 +438,63 @@ fun ChatsScreen(
                     )
                 }
             } else {
-                // One flat list of sessions. Each top-level row carries its subagent subtree; the
-                // section headers are gone with the workspace grouping.
-                val flat = topLevel.flatMap { subtree(it) }
-                items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(
-                            session = session,
-                            isCurrent = session.sessionId == currentSessionId,
-                            store = store,
-                            scope = scope,
-                            onOpenSession = onOpenSession,
-                            depth = depth,
-                            childCount = childrenByParent[session.sessionId].orEmpty().size,
-                            childrenExpanded = isExpanded(session.sessionId),
-                            onToggleChildren = { toggleChildren(session.sessionId) },
-                        )
+                // Sessions grouped under workspaces; each workspace is a collapsible section.
+                for (group in workspaceGroups) {
+                    if (group.workspace != null) {
+                        val ws = group.workspace
+                        item(key = "ws_${ws.workspaceId}") {
+                            WorkspaceGroupHeader(
+                                title = ws.title,
+                                path = ws.path,
+                                sessionCount = group.sessions.size,
+                                expanded = isWsExpanded(ws.workspaceId),
+                                onToggle = { toggleWs(ws.workspaceId) },
+                                onNewSession = {
+                                    scope.launch {
+                                        store.createSession(workspaceId = ws.workspaceId)
+                                        store.currentSessionId.value?.let(onOpenSession)
+                                    }
+                                },
+                            )
+                        }
+                        if (isWsExpanded(ws.workspaceId)) {
+                            for ((session, depth) in group.sessions.flatMap { subtree(it) }) {
+                                item(key = session.sessionId) {
+                                    Box(Modifier.animateItem()) {
+                                        SessionRowItem(
+                                            session = session,
+                                            isCurrent = session.sessionId == currentSessionId,
+                                            store = store,
+                                            scope = scope,
+                                            onOpenSession = onOpenSession,
+                                            depth = depth + 1,
+                                            childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                            childrenExpanded = isExpanded(session.sessionId),
+                                            onToggleChildren = { toggleChildren(session.sessionId) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Ungrouped sessions (no matching workspace).
+                        for ((session, depth) in group.sessions.flatMap { subtree(it) }) {
+                            item(key = session.sessionId) {
+                                Box(Modifier.animateItem()) {
+                                    SessionRowItem(
+                                        session = session,
+                                        isCurrent = session.sessionId == currentSessionId,
+                                        store = store,
+                                        scope = scope,
+                                        onOpenSession = onOpenSession,
+                                        depth = depth,
+                                        childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                        childrenExpanded = isExpanded(session.sessionId),
+                                        onToggleChildren = { toggleChildren(session.sessionId) },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -544,6 +615,73 @@ fun ChatsScreen(
                 }
             },
         )
+    }
+}
+
+/**
+ * A workspace group header: collapsible triangle on the left, workspace name and path in the
+ * middle, session count and a "+" button on the right.
+ */
+@Composable
+private fun WorkspaceGroupHeader(
+    title: String,
+    path: String,
+    sessionCount: Int,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onNewSession: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(role = Role.Button, onClick = onToggle)
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Collapse triangle.
+        Icon(
+            if (expanded) FeatherIcons.ChevronDown else FeatherIcons.ChevronRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(DsSpacing.xsmall))
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = DsType.m3LabelLarge,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                path,
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // Session count.
+        if (sessionCount > 0) {
+            Text(
+                sessionCount.toString(),
+                style = DsType.caption11,
+                color = colors.labelCaption,
+                modifier = Modifier.padding(horizontal = DsSpacing.xsmall),
+            )
+        }
+        // "+" button: new session in this workspace.
+        IconButton(onClick = onNewSession, modifier = Modifier.size(28.dp)) {
+            Icon(
+                FeatherIcons.Plus,
+                contentDescription = stringResource(R.string.chatlist_workspace_new_session),
+                tint = colors.accent,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
