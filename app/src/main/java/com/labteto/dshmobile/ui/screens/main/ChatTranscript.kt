@@ -20,10 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -42,34 +40,6 @@ import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
-
-/**
- * How close to the top a reader must get before the next page is fetched.
- *
- * Deliberately not zero. Item keys are stable, so the list re-anchors the viewport on the key that
- * was first visible when older items are prepended — which only holds a reader's place if that
- * anchor is a message row that moves down with the rest. The paging row sits at index 0 and stays
- * there, so if it is the anchor the prepended page pushes everything being read below the fold.
- * Firing a couple of rows early keeps a `seq`-keyed message as the anchor.
- */
-private const val LOAD_OLDER_THRESHOLD = 2
-
-/**
- * How many pages the transcript may fetch on its own before it needs to be asked.
- *
- * Paging used to be automatic without limit while the transcript was shorter than the screen. That
- * reads as reasonable and is not: a page is counted in *events*, and most events — chunk deltas,
- * tool traffic, turn boundaries — render nothing at all. A session whose log is mostly machinery
- * therefore never fills the screen however much is loaded, so the fill loop pulled the entire
- * history in, four thousand events at a time, re-folding everything already held on each pass until
- * the heap gave out.
- *
- * One extra page is the whole of what the fill is for. A page carries up to sixty messages, which
- * is several screens' worth already; if it still does not reach the bottom of the viewport then the
- * session's log is mostly machinery, and pulling more of it is buying thousands more events for a
- * row or two. Past that the reader asks, via the row at the head of the list.
- */
-private const val MAX_AUTO_PAGES = 1
 
 /**
  * The conversation itself.
@@ -140,36 +110,6 @@ internal fun ChatTranscript(
         else if (wasNearBottom) listState.animateScrollToItem(itemCount - 1)
     }
 
-    // Reaching the top pulls the next page. The guard matters: this effect sits above the `loading`
-    // early return, so without it the trigger would fire against an empty list and race the initial
-    // history fetch. It also re-arms once a page lands, which is what fills the first screen when a
-    // session opens on fewer messages than the viewport holds.
-    //
-    // Two different things want a page, and only one of them is safe to repeat without limit.
-    // Scrolling to the top is the reader asking, and can page as far back as they care to go.
-    // Filling a screen that the transcript does not yet cover is the app asking, and is bounded by
-    // MAX_AUTO_PAGES — a page that adds thousands of events and no visible rows would otherwise
-    // keep the app asking forever.
-    var autoPages by rememberSaveable(sessionId) { mutableIntStateOf(0) }
-    val canPage = hasMore && !loading && !loadingOlder && !loadOlderFailed
-    val autoPagingExhausted = hasMore && !loading && autoPages >= MAX_AUTO_PAGES
-    LaunchedEffect(listState, sessionId, canPage) {
-        if (!canPage) return@LaunchedEffect
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val covered = info.visibleItemsInfo.sumOf { it.size }
-            val viewport = info.viewportEndOffset - info.viewportStartOffset
-            listState.firstVisibleItemIndex to (viewport > 0 && covered >= viewport)
-        }.collect { (firstVisible, fillsViewport) ->
-            if (firstVisible > LOAD_OLDER_THRESHOLD) return@collect
-            if (!fillsViewport) {
-                if (autoPages >= MAX_AUTO_PAGES) return@collect
-                autoPages++
-            }
-            onLoadOlder()
-        }
-    }
-
     if (loading) {
         TranscriptSkeleton(modifier)
         return
@@ -194,12 +134,10 @@ internal fun ChatTranscript(
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
     ) {
         if (hasMore) {
-            // Present whenever there is more to fetch, so index 0 stays stable across pages.
             item(key = "load-older") {
                 LoadOlderRow(
                     loading = loadingOlder,
                     failed = loadOlderFailed,
-                    offerManual = autoPagingExhausted,
                     onRetry = onLoadOlder,
                 )
             }
@@ -242,41 +180,17 @@ internal fun ChatTranscript(
 }
 
 /**
- * Head of the transcript while more history exists.
- *
- * Silent by default — paging is automatic, so an affordance would only invite a tap that does
- * nothing. It speaks up while fetching, and offers a retry when a page failed, because the scroll
- * trigger will not fire again on its own until the reader moves.
- *
- * [offerManual] is the third case: automatic paging has spent its budget on a session whose events
- * are mostly not messages, so the list may still be too short to scroll. Without a button there
- * would be nothing left to trigger a page, and the rest of the history would be unreachable.
+ * Head of the transcript while more history exists. Shows a "Load more" button that the reader
+ * taps to fetch the next page; no automatic paging is triggered by scrolling.
  */
 @Composable
 private fun LoadOlderRow(
     loading: Boolean,
     failed: Boolean,
-    offerManual: Boolean,
     onRetry: () -> Unit,
 ) {
     val colors = DsTheme.colors
     when {
-        failed -> DsButton(
-            text = stringResource(R.string.chat_load_older_retry),
-            onClick = onRetry,
-            variant = DsButtonVariant.Ghost,
-            size = DsButtonSize.Small,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        offerManual && !loading -> DsButton(
-            text = stringResource(R.string.chat_load_older),
-            onClick = onRetry,
-            variant = DsButtonVariant.Ghost,
-            size = DsButtonSize.Small,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         loading -> Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.Center,
@@ -295,7 +209,13 @@ private fun LoadOlderRow(
             )
         }
 
-        else -> Spacer(Modifier.height(1.dp))
+        else -> DsButton(
+            text = if (failed) stringResource(R.string.chat_load_older_retry) else stringResource(R.string.chat_load_older),
+            onClick = onRetry,
+            variant = DsButtonVariant.Ghost,
+            size = DsButtonSize.Small,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

@@ -728,22 +728,14 @@ private fun WorkspaceGroupHeader(
             modifier = Modifier.size(16.dp),
         )
         Spacer(Modifier.width(DsSpacing.xsmall))
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                style = DsType.m3LabelLarge,
-                color = colors.labelPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                path,
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            title,
+            style = DsType.m3LabelLarge,
+            color = colors.labelPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
         // Session count.
         if (sessionCount > 0) {
             Text(
