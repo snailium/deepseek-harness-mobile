@@ -13,6 +13,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -263,6 +266,9 @@ fun ChatsScreen(
     fun isWsExpanded(wsId: String): Boolean = wsCollapsed[wsId]?.not() ?: true
     fun toggleWs(wsId: String) { wsCollapsed[wsId] = isWsExpanded(wsId) }
 
+    // ---- DEBUG: long-press title to show workspace/session data for diagnosis ----
+    var showDebugInfo by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -315,6 +321,17 @@ fun ChatsScreen(
                     Icon(
                         FeatherIcons.Search,
                         contentDescription = stringResource(R.string.common_search),
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                IconButton(
+                    onClick = { showDebugInfo = true },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        FeatherIcons.Info,
+                        contentDescription = "Debug",
                         tint = colors.labelSecondary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -530,6 +547,52 @@ fun ChatsScreen(
                             SessionRowItem(session, false, store, scope, onOpenSession)
                         }
                     }
+                }
+            }
+        }
+
+        // ---- DEBUG: workspace/session data dialog for diagnosis ----
+        if (showDebugInfo) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val debugText = buildString {
+                appendLine("=== Workspaces (${workspaces.size}) ===")
+                workspaces.forEach { ws ->
+                    appendLine("  [${ws.workspaceId}] path=${ws.path} title=${ws.title} sessions=${ws.sessionIds}")
+                }
+                if (workspaces.isEmpty()) appendLine("  (none)")
+                appendLine()
+                appendLine("=== Sessions (${topLevelSessions.size} top-level) ===")
+                topLevelSessions.forEach { s ->
+                    appendLine("  [${s.sessionId}] cwd=${s.cwd} title=${s.title}")
+                }
+                if (topLevelSessions.isEmpty()) appendLine("  (none)")
+                appendLine()
+                appendLine("=== Groups (${workspaceGroups.size}) ===")
+                workspaceGroups.forEach { g ->
+                    val label = g.workspace?.let { "${it.title} (${it.path})" } ?: "ungrouped"
+                    appendLine("  $label → ${g.sessions.size} sessions: ${g.sessions.map { it.sessionId.take(8) }}")
+                }
+            }
+            DsDialog(title = "Debug Info", onDismiss = { showDebugInfo = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .heightIn(max = 400.dp),
+                ) {
+                    Text(
+                        debugText,
+                        style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.height(DsSpacing.compact))
+                Row(horizontalArrangement = Arrangement.End) {
+                    DsButton(text = "Copy", onClick = {
+                        val clip = android.content.ClipData.newPlainText("debug", debugText)
+                        (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.setPrimaryClip(clip)
+                        showDebugInfo = false
+                    })
                 }
             }
         }
