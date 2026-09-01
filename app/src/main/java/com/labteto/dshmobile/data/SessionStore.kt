@@ -1128,6 +1128,7 @@ class SessionStore @Inject constructor(
                     }
                     emitSessionsLocked()
                 }
+                log("refreshSessions: ${r.value.items.size} sessions, cwds=${r.value.items.map { it.cwd }}")
             }
             is RpcResult.Err -> setConnectionError(r.error.message)
         }
@@ -1141,16 +1142,19 @@ class SessionStore @Inject constructor(
     private suspend fun refreshWorkspaces() {
         val api = apiOrNull() ?: return
         when (val r = api.workspaceList()) {
-            is RpcResult.Ok -> synchronized(lock) {
-                workspaceRows.clear()
-                workspaceOrder.clear()
-                for (w in r.value.items) workspaceRows[w.workspaceId] = w.toRow()
-                workspaceOrder.addAll(r.value.items.map { it.workspaceId })
-                if (r.value.archivedSessionIds.isNotEmpty()) {
-                    archived = r.value.archivedSessionIds.toSet()
-                    _archivedSessionIds.value = archived
+            is RpcResult.Ok -> {
+                synchronized(lock) {
+                    workspaceRows.clear()
+                    workspaceOrder.clear()
+                    for (w in r.value.items) workspaceRows[w.workspaceId] = w.toRow()
+                    workspaceOrder.addAll(r.value.items.map { it.workspaceId })
+                    if (r.value.archivedSessionIds.isNotEmpty()) {
+                        archived = r.value.archivedSessionIds.toSet()
+                        _archivedSessionIds.value = archived
+                    }
+                    emitWorkspacesLocked()
                 }
-                emitWorkspacesLocked()
+                log("refreshWorkspaces: ${r.value.items.size} workspaces, paths=${r.value.items.map { it.path }}")
             }
             is RpcResult.Err -> log("workspace/list failed: ${r.error.message}")
         }
