@@ -1284,7 +1284,10 @@ class SessionStore @Inject constructor(
         if (!_loadingOlder.compareAndSet(expect = false, update = true)) return@withContext
         try {
             val (oldestSeq, cursor) = synchronized(lock) {
-                currentEvents.firstOrNull()?.seq to followCursor
+                // Use the minimum seq actually present, not just the first event's own seq: a
+                // packed run's header seq is lower than its members', so `first().seq` can leave
+                // a gap that makes the next page re-deliver events already in memory.
+                currentEvents.minOfOrNull { it.seq } to followCursor
             }
             // A page is pinned to the follow generation's log cut, and there is no page without
             // one. Before the opening snapshot lands there is nothing to pin to, so this waits
@@ -1310,13 +1313,28 @@ class SessionStore @Inject constructor(
                     val overDelivered = envelopes.size > page.size
                     synchronized(lock) {
                         if (currentId != sid) return@synchronized
+                        // Build the existing-seq set once before filtering; a packed run's header
+                        // seq is lower than its members', so `minOfOrNull` on the *envelope* list
+                        // after adding fresh events would understate the true oldest seq and
+                        // re-request an overlapping page on the next scroll.
                         val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
                         val fresh = page.filter { it.seq !in existingSeqs }
                         if (fresh.isNotEmpty()) {
                             currentEvents.addAll(fresh)
                             currentEvents.sortBy { it.seq }
                         }
-                        currentHasMore = nextHasMore(fresh.size, r.value.hasMore, overDelivered)
+                        // The host's own hasMore is the authoritative signal: if it says there is
+                        // no more history, stop paging regardless of what we got this round. A
+                        // page that delivered nothing new AND the host still claims more is the
+                        // only case where we should keep the door open (the reader may scroll
+                        // again). This prevents the infinite loop where a duplicate-delivering
+                        // page keeps `hasMore` true forever.
+                        currentHasMore = if (!r.value.hasMore) {
+                            false
+                        } else {
+                            fresh.isNotEmpty() || overDelivered
+                        }
+                        log("page $sid: got=${envelopes.size} kept=${page.size} fresh=${fresh.size} hostHasMore=${r.value.hasMore} → hasMore=$currentHasMore")
                         rebuildCurrentLocked()
                     }
                 }
