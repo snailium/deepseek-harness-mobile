@@ -1033,7 +1033,7 @@ private fun SessionRowItem(
                     )
                 }
             } else {
-                Spacer(Modifier.width(32.dp))
+                Spacer(Modifier.width(16.dp))
             }
             Spacer(Modifier.width(DsSpacing.tiny))
             // Leading status tile: a filled circle that reads at a glance — running (brand
@@ -1089,11 +1089,11 @@ private fun SessionRowItem(
             )
             }
             // Plain hairline separator, aligned to the title's leading edge so it never runs
-            // under the leading icons (12dp inset + 32dp chevron slot + 4dp + 36dp tile + 8dp gap).
+            // under the leading icons.
             HorizontalDivider(
                 thickness = 1.dp,
                 color = colors.borderL1,
-                modifier = Modifier.padding(start = (92 + depth * 16).dp),
+                modifier = Modifier.padding(start = (76 + depth * 16).dp),
             )
             }
         }
