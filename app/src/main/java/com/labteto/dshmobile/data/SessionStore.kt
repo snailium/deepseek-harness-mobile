@@ -343,6 +343,24 @@ class SessionStore @Inject constructor(
     private val _pendingPermission = MutableStateFlow<String?>(null)
     val pendingPermission: StateFlow<String?> = _pendingPermission.asStateFlow()
 
+    /**
+     * Per-session prompt-mode override (Steer / Queue), set from the chat's 3-dot menu.
+     *
+     * A null entry means "no explicit choice" — the effective mode falls back to the global
+     * `AppSettings.defaultPromptMode`. Toggling in the menu writes the opposite of the current
+     * effective value, so the first toggle always records a real preference.
+     */
+    private val _promptModeBySession = MutableStateFlow<Map<String, String>>(emptyMap())
+    val promptModeBySession: StateFlow<Map<String, String>> = _promptModeBySession.asStateFlow()
+
+    /** Set (or clear) the per-session prompt-mode override. `null` removes the override. */
+    fun setPromptMode(sessionId: String?, mode: String?) {
+        if (sessionId == null) return
+        val updated = _promptModeBySession.value.toMutableMap()
+        if (mode == null) updated.remove(sessionId) else updated[sessionId] = mode
+        _promptModeBySession.value = updated
+    }
+
     // ------------------------------------------------------------------ projection views
     // These are folds of `currentConversation.projections`, not separate fetches: the harness
     // already pushes every one of them on `session/projection` frames and in the history tail, so

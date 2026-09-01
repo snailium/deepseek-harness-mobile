@@ -47,6 +47,7 @@ class HostsStore @Inject constructor(
         val UPDATE_CHECK = booleanPreferencesKey("update_check")
         val DISMISSED_UPDATE = stringPreferencesKey("dismissed_update")
         val ENTER_TO_SEND = booleanPreferencesKey("enter_to_send")
+        val DEFAULT_PROMPT_MODE = stringPreferencesKey("default_prompt_mode")
     }
 
     private val hostsSerializer = ListSerializer(HostConfig.serializer())
@@ -82,6 +83,7 @@ class HostsStore @Inject constructor(
             updateCheckEnabled = prefs[Keys.UPDATE_CHECK] ?: true,
             dismissedUpdate = prefs[Keys.DISMISSED_UPDATE],
             enterToSend = prefs[Keys.ENTER_TO_SEND] ?: false,
+            defaultPromptMode = prefs[Keys.DEFAULT_PROMPT_MODE] ?: "steer",
         )
     }
 

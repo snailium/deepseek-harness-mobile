@@ -187,6 +187,13 @@ data class AppSettings(
      * the send button is always available as the one-tap alternative.
      */
     val enterToSend: Boolean = false,
+    /**
+     * Global default for the composer's busy-state button: `steer` or `queue`.
+     *
+     * A per-session override (set from the chat's 3-dot menu) takes precedence; this value is
+     * the fallback for new sessions and any session that has not been explicitly configured.
+     */
+    val defaultPromptMode: String = "steer",
 )
 
 /** The two ways the app can reach a harness. Persisted as [AppSettings.connectMode]. */

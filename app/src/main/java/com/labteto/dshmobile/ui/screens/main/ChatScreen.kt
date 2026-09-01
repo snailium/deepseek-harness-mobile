@@ -122,7 +122,10 @@ fun ConversationScreen(
         ?: currentSessionId.orEmpty()
 
     val composerDraft = rememberComposerDraft(currentSessionId)
-    var mode by rememberSaveable(currentSessionId) { mutableStateOf("queue") }
+    // The effective prompt mode: per-session override (from the 3-dot menu) wins, otherwise the
+    // global default from app settings. New sessions have no override, so they inherit the global.
+    val sessionPromptMode by store.promptModeBySession.collectAsStateWithLifecycle()
+    val effectiveMode = sessionPromptMode[currentSessionId] ?: settingsFlow.defaultPromptMode
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
     val attachments = remember(currentSessionId) { mutableStateListOf<PendingAttachment>() }
 
@@ -274,9 +277,9 @@ fun ConversationScreen(
                     // bounds are measured against — sending one image per call made a single
                     // message into several and put both limits permanently out of reach.
                     val outcome = if (pending.isEmpty()) {
-                        store.prompt(text, mode)
+                        store.prompt(text, effectiveMode)
                     } else {
-                        store.promptWithImages(text, mode, pending.map { it.encoded() })
+                        store.promptWithImages(text, effectiveMode, pending.map { it.encoded() })
                     }
                     if (outcome is PromptOutcome.Rejected) {
                         if (composerDraft.value.isBlank()) composerDraft.value = text
@@ -318,8 +321,8 @@ fun ConversationScreen(
                 onSwitchHost = onSwitchHost,
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
-                promptMode = mode,
-                onPromptModeChange = { mode = it },
+                promptMode = effectiveMode,
+                onPromptModeChange = { scope.launch { store.setPromptMode(currentSessionId, it) } },
             )
 
             // The two connection notices are different messages: a hard failure earns the red
@@ -488,7 +491,7 @@ fun ConversationScreen(
                 onOpenSheet = { sheet = ChatSheet.Commands },
                 onSend = ::send,
                 onStop = { scope.launch { store.cancelTurn() } },
-                promptMode = mode,
+                promptMode = effectiveMode,
                 enterToSend = settingsFlow.enterToSend,
             )
 
@@ -501,10 +504,10 @@ fun ConversationScreen(
             commands = commands,
             commandsAvailable = commandsAvailable,
             skills = skills,
-            mode = mode,
+            mode = effectiveMode,
             running = conversation?.running == true,
             canAttach = currentSessionId != null,
-            onModeChange = { mode = it },
+            onModeChange = { scope.launch { store.setPromptMode(currentSessionId, it) } },
             onAttach = { imagePicker.launch("image/*") },
             // The sheet only auto-runs commands that take no input at all, and a command that
             // takes no input takes no images either — so a pending attachment refuses here for

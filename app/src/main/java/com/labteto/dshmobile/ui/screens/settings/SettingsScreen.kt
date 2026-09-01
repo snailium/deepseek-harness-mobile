@@ -194,6 +194,7 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                         settings.enterToSend,
                         stringResource(R.string.settings_enter_to_send_hint),
                     ) { viewModel.set { it.copy(enterToSend = !it.enterToSend) } }
+                    PromptModeRow(settings) { mode -> viewModel.set { it.copy(defaultPromptMode = mode) } }
                 }
 
                 SettingsCard(stringResource(R.string.settings_harness)) {
@@ -620,6 +621,61 @@ private fun LanguageRow(settings: AppSettings, onSelect: (String?) -> Unit) {
                     text = labels[option].orEmpty(),
                     icon = FeatherIcons.Check.takeIf { option.tag == settings.localeOverride },
                 ) { onSelect(option.tag) }
+            },
+        )
+    }
+}
+
+/** Global default for the composer's busy-state button (Steer / Queue). */
+@Composable
+private fun PromptModeRow(settings: AppSettings, onSelect: (String) -> Unit) {
+    val colors = DsTheme.colors
+    val options = listOf(
+        "steer" to stringResource(R.string.settings_prompt_mode_steer),
+        "queue" to stringResource(R.string.settings_prompt_mode_queue),
+    )
+    val currentLabel = options.firstOrNull { it.first == settings.defaultPromptMode }?.second
+        ?: options[0].second
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.settings_enter_behavior_busy),
+            style = DsType.std14,
+            color = colors.labelSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        DsMenu(
+            anchor = {
+                Row(
+                    modifier = Modifier
+                        .clip(DsShapes.pillFull)
+                        .background(colors.hoverSolid)
+                        .border(1.dp, colors.borderL2, DsShapes.pillFull)
+                        .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                ) {
+                    Text(
+                        currentLabel,
+                        style = DsType.small13,
+                        color = colors.labelPrimary,
+                        maxLines = 1,
+                    )
+                    Icon(
+                        FeatherIcons.ChevronDown,
+                        contentDescription = null,
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            },
+            items = options.map { (value, label) ->
+                MenuItem(
+                    text = label,
+                    icon = FeatherIcons.Check.takeIf { value == settings.defaultPromptMode },
+                ) { onSelect(value) }
             },
         )
     }

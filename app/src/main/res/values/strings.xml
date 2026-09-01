@@ -354,6 +354,10 @@
     <string name="settings_composer">Composer</string>
     <string name="settings_enter_to_send">Enter key sends message</string>
     <string name="settings_enter_to_send_hint">When off, the enter key inserts a newline and the send button submits.</string>
+    <string name="settings_enter_behavior_busy">Enter behavior while busy</string>
+    <string name="settings_enter_behavior_busy_hint">Default action when the agent is working and you press enter with text in the composer. Can be overridden per session from the chat menu.</string>
+    <string name="settings_prompt_mode_steer">Steer</string>
+    <string name="settings_prompt_mode_queue">Queue</string>
     <string name="settings_harness">Harness</string>
     <string name="settings_data">Data</string>
     <string name="settings_forget_hosts">Forget remembered harnesses</string>
