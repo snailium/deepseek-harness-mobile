@@ -32,8 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FloatingActionButtonDefaults
+
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -376,8 +375,7 @@ fun ChatsScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            // Room for the floating compose button at the trailing bottom corner.
-            contentPadding = PaddingValues(top = DsSpacing.xsmall, bottom = 96.dp),
+            contentPadding = PaddingValues(top = DsSpacing.xsmall, bottom = DsSpacing.large),
         ) {
             if (query.isNotBlank()) {
                 item(key = "search-header") {
@@ -597,32 +595,6 @@ fun ChatsScreen(
             }
         }
 
-        // M3 extended FAB: the one primary compose action on the list. Tapping it starts a session
-        // in the harness home directory immediately — the fast path. Workspaces are managed from
-        // the app-bar folder button, not from here.
-        ExtendedFloatingActionButton(
-            onClick = {
-                scope.launch {
-                    store.createSession()
-                    store.currentSessionId.value?.let(onOpenSession)
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = DsSpacing.large, bottom = DsSpacing.large),
-            containerColor = colors.primaryButtonGradientStart,
-            contentColor = Color.White,
-            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
-            shape = DsShapes.pillFull,
-        ) {
-            Icon(
-                FeatherIcons.Plus,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(DsSpacing.small))
-            Text(stringResource(R.string.chatlist_new_session), style = DsType.std14Strong)
-        }
         }
     }
 
@@ -745,12 +717,19 @@ private fun WorkspaceGroupHeader(
                 modifier = Modifier.padding(horizontal = DsSpacing.xsmall),
             )
         }
-        // "+" button: new session in this workspace.
-        IconButton(onClick = onNewSession, modifier = Modifier.size(28.dp)) {
+        // Filled circle with "+": new session in this workspace.
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(colors.accent)
+                .clickable(onClick = onNewSession),
+            contentAlignment = Alignment.Center,
+        ) {
             Icon(
                 FeatherIcons.Plus,
                 contentDescription = stringResource(R.string.chatlist_workspace_new_session),
-                tint = colors.accent,
+                tint = Color.White,
                 modifier = Modifier.size(16.dp),
             )
         }
