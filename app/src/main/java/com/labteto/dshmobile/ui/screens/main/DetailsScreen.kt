@@ -164,7 +164,7 @@ fun ActiveScreen(
     }
 
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().safeDrawingPadding(),
         // The screen sits on the grouped gray like every support surface; its cards are the
         // white plates, so it reads as a stack of groups rather than a white slab.
         color = colors.bgBase,
