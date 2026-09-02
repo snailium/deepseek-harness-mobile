@@ -69,6 +69,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.ConnectionUiState
+import com.labteto.dshmobile.core.session.AssistantMessageNode
+import com.labteto.dshmobile.core.session.UserMessageNode
 import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
@@ -569,6 +571,26 @@ fun ChatsScreen(
                 workspaceGroups.forEach { g ->
                     val label = g.workspace?.let { "${it.title} (${it.path})" } ?: "ungrouped"
                     appendLine("  $label → ${g.sessions.size} sessions: ${g.sessions.map { it.sessionId.take(8) }}")
+                }
+                appendLine()
+                val conv = store.currentConversation.value
+                if (conv != null) {
+                    appendLine("=== Transcript nodes (${conv.nodes.size}) hasMore=${conv.hasMore} ===")
+                    conv.nodes.forEach { node ->
+                        when (node) {
+                            is UserMessageNode -> {
+                                val kind = node.sourceKind ?: "(none)"
+                                val role = node.role ?: "(none)"
+                                appendLine("  [${node.seq}] user msg: source=$kind role=$role isSystem=${node.isSystem} text=\"${node.previewText.take(60)}\"")
+                            }
+                            is AssistantMessageNode -> {
+                                appendLine("  [${node.seq}] assistant msg (turn ${node.turn})")
+                            }
+                            else -> appendLine("  [${node.seq}] ${node::class.simpleName}")
+                        }
+                    }
+                } else {
+                    appendLine("=== Transcript: no session open ===")
                 }
             }
             DsDialog(title = "Debug Info", onDismiss = { showDebugInfo = false }) {
