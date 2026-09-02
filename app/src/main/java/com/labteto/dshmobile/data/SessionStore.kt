@@ -1418,15 +1418,18 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Whether the given envelopes contain a genuine user prompt — one tagged with
-     * `source.kind` of "user" or "user-rpc", as opposed to harness-injected context
-     * (agent-instructions, skill-invocation, goal, etc.).
+     * Whether the given envelopes contain a genuine user prompt — one that is not harness-injected
+     * context (agent-instructions, skill-invocation, goal, etc.). Mirrors [UserMessageNode.isSystem]:
+     * a message is "real" when its role is not "system" and its source.kind is either absent or
+     * one of the user-tagged kinds ("user", "user-rpc").
      */
     private fun hasRealUserPrompt(envelopes: List<SessionEventEnvelope>): Boolean =
         envelopes.any { e ->
-            e.type == "user/message" &&
-                ((e.data as? JsonObject)?.get("source") as? JsonObject)
-                    ?.get("kind")?.jsonPrimitive?.contentOrNull in setOf("user", "user-rpc")
+            if (e.type != "user/message") return@any false
+            val obj = e.data as? JsonObject ?: return@any false
+            val role = obj["role"]?.jsonPrimitive?.contentOrNull
+            val sourceKind = (obj["source"] as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull
+            role != "system" && (sourceKind == null || sourceKind in setOf("user", "user-rpc"))
         }
 
     suspend fun createSession(cwd: String? = null, workspaceId: String? = null) {
