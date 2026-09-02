@@ -1280,6 +1280,7 @@ class SessionStore @Inject constructor(
         val envelopes = expandRecords(frame.records)
         val page = historyTail(envelopes)
         val overDelivered = envelopes.size > page.size
+        var shouldAutoPage = false
         synchronized(lock) {
             if (currentId != sessionId) return@synchronized
             followCursor = frame.cursor
@@ -1287,11 +1288,25 @@ class SessionStore @Inject constructor(
             currentEvents.addAll(page)
             currentEvents.sortBy { it.seq }
             currentHasMore = frame.hasMore || overDelivered
+            shouldAutoPage = currentHasMore && !hasRealUserPrompt(page)
             val asOf = frame.projections["asOfSeq"]?.jsonPrimitive?.intOrNull ?: frame.cursor
             (frame.projections["values"] as? JsonObject)?.forEach { (key, value) ->
                 mergeProjectionLocked(key, asOf, value)
             }
             rebuildCurrentLocked()
+        }
+        // The opening window did not reach a user prompt: keep paging backwards in the background
+        // until it does, so the reader sees history starting from their last message.
+        if (shouldAutoPage) {
+            scope.launch {
+                val api = apiOrNull() ?: return@launch
+                if (!_loadingOlder.compareAndSet(expect = false, update = true)) return@launch
+                try {
+                    pageBackToUserPrompt(sessionId, api)
+                } finally {
+                    _loadingOlder.value = false
+                }
+            }
         }
     }
 
@@ -1319,30 +1334,39 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Page one screen further back.
+     * Page further back, repeatedly, until the window reaches a genuine user prompt.
      *
-     * Called from the transcript's scroll position, so it has to be safe to call repeatedly: the
-     * in-flight flag collapses a burst of scroll emissions into one request, and a page that adds
-     * nothing new ends the paging rather than leaving `hasMore` set for the trigger to fire on
-     * again.
+     * Called from the transcript's "Load older" button or automatically after the opening snapshot
+     * when it does not yet contain a user prompt. The in-flight flag collapses concurrent callers
+     * into one run; a page that adds nothing new ends the paging rather than looping forever.
      */
     suspend fun loadOlder() = withContext(Dispatchers.Default) {
         val sid = currentSessionId.value ?: return@withContext
         val api = apiOrNull() ?: return@withContext
         if (!_loadingOlder.compareAndSet(expect = false, update = true)) return@withContext
         try {
+            pageBackToUserPrompt(sid, api)
+        } finally {
+            _loadingOlder.value = false
+        }
+    }
+
+    /**
+     * Pull pages backwards until the freshly-loaded events contain a real user prompt
+     * (`source.kind ∈ {user, user-rpc}`), the host reports no more history, or a page delivers
+     * nothing new (duplicate-delivery guard).
+     */
+    private suspend fun pageBackToUserPrompt(sid: String, api: DshApiClient) {
+        while (true) {
             val (oldestSeq, cursor) = synchronized(lock) {
-                // Use the minimum seq actually present, not just the first event's own seq: a
-                // packed run's header seq is lower than its members', so `first().seq` can leave
-                // a gap that makes the next page re-deliver events already in memory.
+                if (currentId != sid) return
                 currentEvents.minOfOrNull { it.seq } to followCursor
             }
             // A page is pinned to the follow generation's log cut, and there is no page without
-            // one. Before the opening snapshot lands there is nothing to pin to, so this waits
-            // for the next scroll rather than guessing a cut the host would reject.
+            // one. Before the opening snapshot lands there is nothing to pin to.
             if (cursor == null) {
                 log("cannot page $sid: no follow cursor yet")
-                return@withContext
+                return
             }
             val request = SessionPageRequest(
                 address = SessionAddress.Session(sessionId = sid),
@@ -1354,46 +1378,52 @@ class SessionStore @Inject constructor(
                 is RpcResult.Ok -> {
                     clearConnectionError()
                     _loadOlderFailed.value = false
-                    // Same guard as the opening window, so paging backwards stays bounded instead
-                    // of pulling the whole log at once.
                     val envelopes = expandRecords(r.value.records)
                     val page = historyTail(envelopes)
                     val overDelivered = envelopes.size > page.size
+                    var reachedUserPrompt = false
                     synchronized(lock) {
-                        if (currentId != sid) return@synchronized
-                        // Build the existing-seq set once before filtering; a packed run's header
-                        // seq is lower than its members', so `minOfOrNull` on the *envelope* list
-                        // after adding fresh events would understate the true oldest seq and
-                        // re-request an overlapping page on the next scroll.
+                        if (currentId != sid) return
                         val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
                         val fresh = page.filter { it.seq !in existingSeqs }
                         if (fresh.isNotEmpty()) {
                             currentEvents.addAll(fresh)
                             currentEvents.sortBy { it.seq }
                         }
-                        // The host's own hasMore is the authoritative signal: if it says there is
-                        // no more history, stop paging regardless of what we got this round. A
-                        // page that delivered nothing new AND the host still claims more is the
-                        // only case where we should keep the door open (the reader may scroll
-                        // again). This prevents the infinite loop where a duplicate-delivering
-                        // page keeps `hasMore` true forever.
-                        currentHasMore = if (!r.value.hasMore) {
-                            false
-                        } else {
-                            fresh.isNotEmpty() || overDelivered
-                        }
-                        log("page $sid: got=${envelopes.size} kept=${page.size} fresh=${fresh.size} hostHasMore=${r.value.hasMore} → hasMore=$currentHasMore")
+                        reachedUserPrompt = hasRealUserPrompt(page)
+                        currentHasMore = r.value.hasMore &&
+                            (fresh.isNotEmpty() || overDelivered) &&
+                            !reachedUserPrompt
+                        log("page $sid: got=${envelopes.size} kept=${page.size} fresh=${fresh.size} hostHasMore=${r.value.hasMore} userPrompt=$reachedUserPrompt → hasMore=$currentHasMore")
                         rebuildCurrentLocked()
                     }
+                    // Stop conditions: no more history, hit a user prompt, or nothing new arrived.
+                    if (!r.value.hasMore || reachedUserPrompt) return
+                    val freshCount = page.count { it.seq !in currentEvents.mapTo(HashSet()) { e -> e.seq } }
+                    if (freshCount == 0) {
+                        log("page $sid: no new events, stopping")
+                        return
+                    }
                 }
-                // Not a connection fault: the session is healthy and the tail still streams, so this
-                // offers a retry in the transcript rather than raising a connection banner over it.
-                is RpcResult.Err -> _loadOlderFailed.value = true
+                is RpcResult.Err -> {
+                    _loadOlderFailed.value = true
+                    return
+                }
             }
-        } finally {
-            _loadingOlder.value = false
         }
     }
+
+    /**
+     * Whether the given envelopes contain a genuine user prompt — one tagged with
+     * `source.kind` of "user" or "user-rpc", as opposed to harness-injected context
+     * (agent-instructions, skill-invocation, goal, etc.).
+     */
+    private fun hasRealUserPrompt(envelopes: List<SessionEventEnvelope>): Boolean =
+        envelopes.any { e ->
+            e.type == "user/message" &&
+                ((e.data as? JsonObject)?.get("source") as? JsonObject)
+                    ?.get("kind")?.jsonPrimitive?.contentOrNull in setOf("user", "user-rpc")
+        }
 
     suspend fun createSession(cwd: String? = null, workspaceId: String? = null) {
         // Reuse the workspace's existing blank session instead of leaving another empty one behind
