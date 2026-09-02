@@ -124,8 +124,10 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         text = result,
         modifier = modifier,
         style = style,
-    ) { annotation ->
-        val index = try { annotation.toInt() } catch (e: NumberFormatException) { -1 }
+    ) { offset ->
+        val index = result.getStringAnnotations("link", offset, offset).firstOrNull()
+            ?.item?.toIntOrNull()
+            ?: -1
         val url = links.getOrNull(index) ?: return@ClickableText
         runCatching { uriHandler.openUri(url) }
     }
