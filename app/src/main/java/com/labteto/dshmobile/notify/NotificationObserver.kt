@@ -61,6 +61,9 @@ class NotificationObserver @Inject constructor(
         if (started) return
         started = true
         notifications.ensureChannels()
+        // Wire the session-event sink: SessionStore owns per-session follow streams and
+        // forwards turn/start, turn/end, goal/change through this hook.
+        store.notificationSink = { sessionId, envelope -> onSessionEvent(sessionId, envelope) }
         scope.launch {
             hostsStore.settings.collect { settings = it }
         }
