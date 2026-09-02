@@ -1296,7 +1296,9 @@ class SessionStore @Inject constructor(
             rebuildCurrentLocked()
         }
         // The opening window did not reach a user prompt: keep paging backwards in the background
-        // until it does, so the reader sees history starting from their last message.
+        // until it does, so the reader sees history starting from their last message. While this
+        // runs the button is hidden (loadingOlder == true); once it stops at the prompt the flag
+        // resets and the button reappears for further manual paging.
         if (shouldAutoPage) {
             scope.launch {
                 val api = apiOrNull() ?: return@launch
@@ -1391,9 +1393,11 @@ class SessionStore @Inject constructor(
                             currentEvents.sortBy { it.seq }
                         }
                         reachedUserPrompt = hasRealUserPrompt(page)
-                        currentHasMore = r.value.hasMore &&
-                            (fresh.isNotEmpty() || overDelivered) &&
-                            !reachedUserPrompt
+                        // Keep the door open (button visible) whenever the host still has more
+                        // history, even if this run stopped at a user prompt — the reader may want
+                        // to go further back. The loop itself is bounded by the stop conditions
+                        // above; the flag only controls whether the button shows.
+                        currentHasMore = r.value.hasMore && (fresh.isNotEmpty() || overDelivered)
                         log("page $sid: got=${envelopes.size} kept=${page.size} fresh=${fresh.size} hostHasMore=${r.value.hasMore} userPrompt=$reachedUserPrompt → hasMore=$currentHasMore")
                         rebuildCurrentLocked()
                     }
