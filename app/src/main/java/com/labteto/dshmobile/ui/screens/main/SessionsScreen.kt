@@ -69,8 +69,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.ConnectionUiState
-import com.labteto.dshmobile.core.session.AssistantMessageNode
-import com.labteto.dshmobile.core.session.UserMessageNode
 import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.data.WorkspaceRow
@@ -267,9 +265,6 @@ fun ChatsScreen(
     fun isWsExpanded(wsId: String): Boolean = wsCollapsed[wsId]?.not() ?: true
     fun toggleWs(wsId: String) { wsCollapsed[wsId] = isWsExpanded(wsId) }
 
-    // ---- DEBUG: long-press title to show workspace/session data for diagnosis ----
-    var showDebugInfo by remember { mutableStateOf(false) }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -322,17 +317,6 @@ fun ChatsScreen(
                     Icon(
                         FeatherIcons.Search,
                         contentDescription = stringResource(R.string.common_search),
-                        tint = colors.labelSecondary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                IconButton(
-                    onClick = { showDebugInfo = true },
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Icon(
-                        FeatherIcons.Info,
-                        contentDescription = "Debug",
                         tint = colors.labelSecondary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -547,72 +531,6 @@ fun ChatsScreen(
                             SessionRowItem(session, false, store, scope, onOpenSession)
                         }
                     }
-                }
-            }
-        }
-
-        // ---- DEBUG: workspace/session data dialog for diagnosis ----
-        if (showDebugInfo) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
-            val debugText = buildString {
-                appendLine("=== Workspaces (${workspaces.size}) ===")
-                workspaces.forEach { ws ->
-                    appendLine("  [${ws.workspaceId}] path=${ws.path} title=${ws.title} sessions=${ws.sessionIds}")
-                }
-                if (workspaces.isEmpty()) appendLine("  (none)")
-                appendLine()
-                appendLine("=== Sessions (${topLevelSessions.size} top-level) ===")
-                topLevelSessions.forEach { s ->
-                    appendLine("  [${s.sessionId}] cwd=${s.cwd} title=${s.title}")
-                }
-                if (topLevelSessions.isEmpty()) appendLine("  (none)")
-                appendLine()
-                appendLine("=== Groups (${workspaceGroups.size}) ===")
-                workspaceGroups.forEach { g ->
-                    val label = g.workspace?.let { "${it.title} (${it.path})" } ?: "ungrouped"
-                    appendLine("  $label → ${g.sessions.size} sessions: ${g.sessions.map { it.sessionId.take(8) }}")
-                }
-                appendLine()
-                val conv = store.currentConversation.value
-                if (conv != null) {
-                    appendLine("=== Transcript nodes (${conv.nodes.size}) hasMore=${conv.hasMore} ===")
-                    conv.nodes.forEach { node ->
-                        when (node) {
-                            is UserMessageNode -> {
-                                val kind = node.sourceKind ?: "(none)"
-                                val role = node.role ?: "(none)"
-                                appendLine("  [${node.seq}] user msg: source=$kind role=$role isSystem=${node.isSystem} text=\"${node.previewText.take(60)}\"")
-                            }
-                            is AssistantMessageNode -> {
-                                appendLine("  [${node.seq}] assistant msg (turn ${node.turn})")
-                            }
-                            else -> appendLine("  [${node.seq}] ${node::class.simpleName}")
-                        }
-                    }
-                } else {
-                    appendLine("=== Transcript: no session open ===")
-                }
-            }
-            DsDialog(title = "Debug Info", onDismiss = { showDebugInfo = false }) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .heightIn(max = 400.dp),
-                ) {
-                    Text(
-                        debugText,
-                        style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Spacer(Modifier.height(DsSpacing.compact))
-                Row(horizontalArrangement = Arrangement.End) {
-                    DsButton(text = "Copy", onClick = {
-                        val clip = android.content.ClipData.newPlainText("debug", debugText)
-                        (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.setPrimaryClip(clip)
-                        showDebugInfo = false
-                    })
                 }
             }
         }
