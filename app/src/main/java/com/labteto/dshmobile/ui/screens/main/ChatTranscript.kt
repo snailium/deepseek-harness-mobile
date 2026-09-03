@@ -101,9 +101,12 @@ internal fun ChatTranscript(
         snapshotFlow {
             derivedStateOf {
                 val info = listState.layoutInfo
-                val last = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
                 val total = info.totalItemsCount
-                total == 0 || last >= total - 2
+                if (total == 0) return@derivedStateOf true
+                // At the very bottom: the last item is fully scrolled into view — its offset
+                // plus size reaches or exceeds the viewport height, meaning no content remains below.
+                last.index == total - 1 && last.offset + last.size >= info.viewportSize.height
             }.value
         }.collect { wasNearBottom = it }
     }
