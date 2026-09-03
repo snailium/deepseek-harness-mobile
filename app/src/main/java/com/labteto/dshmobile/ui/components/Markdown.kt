@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
@@ -242,13 +243,12 @@ private fun MarkdownTable(block: MdBlock.Table) {
     val colors = DsTheme.colors
     Column(
         Modifier
-            .fillMaxWidth()
             .clip(DsShapes.block)
             .border(1.dp, colors.borderL1, DsShapes.block)
             .horizontalScroll(rememberScrollState()),
     ) {
         TableRow(block.header, header = true, alignments = block.alignments)
-        Box(Modifier.fillMaxWidth().height(1.dp).background(colors.borderL1))
+        Box(Modifier.width(400.dp).height(1.dp).background(colors.borderL1))
         block.rows.forEach { row ->
             TableRow(row, header = false, alignments = block.alignments)
         }
@@ -258,17 +258,12 @@ private fun MarkdownTable(block: MdBlock.Table) {
 @Composable
 private fun TableRow(cells: List<String>, header: Boolean, alignments: List<MdBlock.Alignment>) {
     val colors = DsTheme.colors
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Row(Modifier.padding(vertical = 6.dp)) {
         cells.forEachIndexed { index, cell ->
             val alignment = alignments.getOrNull(index) ?: MdBlock.Alignment.LEFT
-            val textAlign = when (alignment) {
-                MdBlock.Alignment.LEFT -> TextAlign.Start
-                MdBlock.Alignment.CENTER -> TextAlign.Center
-                MdBlock.Alignment.RIGHT -> TextAlign.End
-            }
             Box(
                 Modifier
-                    .weight(1f)
+                    .widthIn(min = 60.dp, max = 240.dp)
                     .padding(horizontal = 10.dp),
                 contentAlignment = when (alignment) {
                     MdBlock.Alignment.LEFT -> Alignment.CenterStart
