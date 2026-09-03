@@ -209,7 +209,7 @@ internal fun ChatTranscript(
                     .background(colors.bgLayer3)
                     .border(1.dp, colors.borderL1)
                     .clickable {
-                        scope.launch { listState.animateScrollToItem(itemCount - 1) }
+                        scope.launch { listState.scrollToItem(itemCount - 1, Int.MAX_VALUE) }
                     },
                 contentAlignment = Alignment.Center,
             ) {
