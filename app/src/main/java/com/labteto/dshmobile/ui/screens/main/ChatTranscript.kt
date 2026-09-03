@@ -1,5 +1,11 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,12 +33,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
@@ -115,65 +129,96 @@ internal fun ChatTranscript(
         return
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxSize()
-            .then(
-                if (scrollConnection != null) {
-                    Modifier.nestedScroll(scrollConnection)
-                } else {
-                    Modifier
-                },
-            ),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-        // Bottom-anchored: a transcript shorter than the viewport belongs above the composer, not
-        // pinned under the tab strip with the empty half below it. 10dp between rows gives the
-        // message cards room to breathe — 4dp was tuned for flat text and reads cramped around
-        // bubbles.
-        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
-    ) {
-        if (hasMore) {
-            item(key = "load-older") {
-                LoadOlderRow(
-                    loading = loadingOlder,
-                    failed = loadOlderFailed,
-                    onRetry = onLoadOlder,
-                )
+    val colors = DsTheme.colors
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (scrollConnection != null) {
+                        Modifier.nestedScroll(scrollConnection)
+                    } else {
+                        Modifier
+                    },
+                ),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            // Bottom-anchored: a transcript shorter than the viewport belongs above the composer, not
+            // pinned under the tab strip with the empty half below it. 10dp between rows gives the
+            // message cards room to breathe — 4dp was tuned for flat text and reads cramped around
+            // bubbles.
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
+        ) {
+            if (hasMore) {
+                item(key = "load-older") {
+                    LoadOlderRow(
+                        loading = loadingOlder,
+                        failed = loadOlderFailed,
+                        onRetry = onLoadOlder,
+                    )
+                }
             }
-        }
-        if (nodes.isEmpty()) {
-            item(key = "empty") {
-                // A blank session should say what it is for: the chips prefill the composer, so a
-                // first-time user gets a concrete next step instead of an empty page.
-                EmptyHero(
-                    headline = stringResource(R.string.chat_empty_title),
-                    subtitle = stringResource(R.string.chat_empty_hint),
-                    chips = listOf(
-                        stringResource(R.string.chat_suggest_summarize),
-                        stringResource(R.string.chat_suggest_tests),
-                        stringResource(R.string.chat_suggest_diff),
-                    ),
-                    onChipClick = onSuggest,
-                )
-            }
-        } else {
-            items(rows, key = { it.key }) { item ->
-                Column(if (streaming) Modifier else Modifier.animateItem()) {
-                    when (item) {
-                        is NodeItem -> ChatNodeItem(node = item.node, context = context)
-                        is ProcessItem -> ProcessGroupItem(
-                            item = item,
-                            context = context,
-                            // The group is live while it is the tail of a running turn: reasoning
-                            // and calls stream in, results are folded into their cards, and the
-                            // moment the tail moves past the group (final text, a new turn) it
-                            // collapses to its summary unless the reader opened it by hand.
-                            live = conversation?.running == true &&
-                                item.lastSeq == nodes.lastOrNull()?.seq,
-                        )
+            if (nodes.isEmpty()) {
+                item(key = "empty") {
+                    // A blank session should say what it is for: the chips prefill the composer, so a
+                    // first-time user gets a concrete next step instead of an empty page.
+                    EmptyHero(
+                        headline = stringResource(R.string.chat_empty_title),
+                        subtitle = stringResource(R.string.chat_empty_hint),
+                        chips = listOf(
+                            stringResource(R.string.chat_suggest_summarize),
+                            stringResource(R.string.chat_suggest_tests),
+                            stringResource(R.string.chat_suggest_diff),
+                        ),
+                        onChipClick = onSuggest,
+                    )
+                }
+            } else {
+                items(rows, key = { it.key }) { item ->
+                    Column(if (streaming) Modifier else Modifier.animateItem()) {
+                        when (item) {
+                            is NodeItem -> ChatNodeItem(node = item.node, context = context)
+                            is ProcessItem -> ProcessGroupItem(
+                                item = item,
+                                context = context,
+                                // The group is live while it is the tail of a running turn: reasoning
+                                // and calls stream in, results are folded into their cards, and the
+                                // moment the tail moves past the group (final text, a new turn) it
+                                // collapses to its summary unless the reader opened it by hand.
+                                live = conversation?.running == true &&
+                                    item.lastSeq == nodes.lastOrNull()?.seq,
+                            )
+                        }
                     }
                 }
+            }
+        }
+
+        // Floating "scroll to bottom" button: visible when the reader is not at the tail.
+        val scope = rememberCoroutineScope()
+        AnimatedVisibility(
+            visible = !wasNearBottom && rows.isNotEmpty(),
+            enter = fadeIn() + androidx.compose.animation.slideInVertically { it / 4 },
+            exit = fadeOut() + androidx.compose.animation.slideOutVertically { it / 4 },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.bgLayer3)
+                    .border(1.dp, colors.borderL1)
+                    .clickable {
+                        scope.launch { listState.animateScrollToItem(itemCount - 1) }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = colors.labelPrimary,
+                    modifier = Modifier.size(24.dp),
+                )
             }
         }
     }
