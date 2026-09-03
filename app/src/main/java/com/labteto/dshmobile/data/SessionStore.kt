@@ -309,6 +309,11 @@ class SessionStore @Inject constructor(
     private val _loadOlderFailed = MutableStateFlow(false)
     val loadOlderFailed: StateFlow<Boolean> = _loadOlderFailed.asStateFlow()
 
+    /** Last paging stop reason, for the debug dialog. */
+    @Volatile
+    var lastPageStopReason: String? = null
+        private set
+
     private val _subagents = MutableStateFlow<List<SubagentListEntry>>(emptyList())
     val subagents: StateFlow<List<SubagentListEntry>> = _subagents.asStateFlow()
 
@@ -1368,6 +1373,7 @@ class SessionStore @Inject constructor(
             // one. Before the opening snapshot lands there is nothing to pin to.
             if (cursor == null) {
                 log("cannot page $sid: no follow cursor yet")
+                lastPageStopReason = "no-follow-cursor"
                 return
             }
             val request = SessionPageRequest(
@@ -1402,15 +1408,20 @@ class SessionStore @Inject constructor(
                         rebuildCurrentLocked()
                     }
                     // Stop conditions: no more history, hit a user prompt, or nothing new arrived.
-                    if (!r.value.hasMore || reachedUserPrompt) return
+                    if (!r.value.hasMore || reachedUserPrompt) {
+                        lastPageStopReason = if (reachedUserPrompt) "reached-user-prompt" else "no-more-history"
+                        return
+                    }
                     val freshCount = page.count { it.seq !in currentEvents.mapTo(HashSet()) { e -> e.seq } }
                     if (freshCount == 0) {
                         log("page $sid: no new events, stopping")
+                        lastPageStopReason = "no-new-events"
                         return
                     }
                 }
                 is RpcResult.Err -> {
                     _loadOlderFailed.value = true
+                    lastPageStopReason = "rpc-error: ${r.error.code} ${r.error.message}"
                     return
                 }
             }

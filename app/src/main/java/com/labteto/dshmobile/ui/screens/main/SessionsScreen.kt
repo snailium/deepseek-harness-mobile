@@ -555,6 +555,10 @@ fun ChatsScreen(
         if (showDebugInfo) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
             val debugText = buildString {
+                appendLine("=== Paging state ===")
+                appendLine("loadingOlder=${store.loadingOlder.value} failed=${store.loadOlderFailed.value}")
+                appendLine("lastStop=${store.lastPageStopReason ?: "(never paged)"}")
+                appendLine()
                 appendLine("=== Transcript nodes ===")
                 val conv = store.currentConversation.value
                 if (conv != null) {
