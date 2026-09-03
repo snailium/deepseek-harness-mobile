@@ -76,6 +76,8 @@ import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
+import com.labteto.dshmobile.core.session.AssistantMessageNode
+import com.labteto.dshmobile.core.session.UserMessageNode
 import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
@@ -265,6 +267,9 @@ fun ChatsScreen(
     fun isWsExpanded(wsId: String): Boolean = wsCollapsed[wsId]?.not() ?: true
     fun toggleWs(wsId: String) { wsCollapsed[wsId] = isWsExpanded(wsId) }
 
+    // ---- DEBUG: long-press title to show session data for diagnosis ----
+    var showDebugInfo by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -317,6 +322,17 @@ fun ChatsScreen(
                     Icon(
                         FeatherIcons.Search,
                         contentDescription = stringResource(R.string.common_search),
+                        tint = colors.labelSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                IconButton(
+                    onClick = { showDebugInfo = true },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        FeatherIcons.Info,
+                        contentDescription = "Debug",
                         tint = colors.labelSecondary,
                         modifier = Modifier.size(18.dp),
                     )
@@ -531,6 +547,55 @@ fun ChatsScreen(
                             SessionRowItem(session, false, store, scope, onOpenSession)
                         }
                     }
+                }
+            }
+        }
+
+        // ---- DEBUG: session/transcript data dialog for diagnosis ----
+        if (showDebugInfo) {
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            val debugText = buildString {
+                appendLine("=== Transcript nodes ===")
+                val conv = store.currentConversation.value
+                if (conv != null) {
+                    appendLine("(count=${conv.nodes.size} hasMore=${conv.hasMore})")
+                    conv.nodes.forEach { node ->
+                        when (node) {
+                            is UserMessageNode -> {
+                                val kind = node.sourceKind ?: "(none)"
+                                val role = node.role ?: "(none)"
+                                appendLine("  [${node.seq}] user msg: source=$kind role=$role isSystem=${node.isSystem} text=\"${node.previewText.take(60)}\"")
+                            }
+                            is AssistantMessageNode -> {
+                                appendLine("  [${node.seq}] assistant msg (turn ${node.turn})")
+                            }
+                            else -> appendLine("  [${node.seq}] ${node::class.simpleName}")
+                        }
+                    }
+                } else {
+                    appendLine("(no session open)")
+                }
+            }
+            DsDialog(title = "Debug Info", onDismiss = { showDebugInfo = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .heightIn(max = 400.dp),
+                ) {
+                    Text(
+                        debugText,
+                        style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.height(DsSpacing.compact))
+                Row(horizontalArrangement = Arrangement.End) {
+                    DsButton(text = "Copy", onClick = {
+                        val clip = android.content.ClipData.newPlainText("debug", debugText)
+                        (ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.setPrimaryClip(clip)
+                        showDebugInfo = false
+                    })
                 }
             }
         }
