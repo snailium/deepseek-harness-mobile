@@ -1289,11 +1289,11 @@ class SessionStore @Inject constructor(
         synchronized(lock) {
             if (currentId != sessionId) return@synchronized
             followCursor = frame.cursor
+            val trimmed = trimBeforeFirstUserPrompt(page)
             currentEvents.clear()
-            currentEvents.addAll(page)
-            currentEvents.sortBy { it.seq }
-            currentHasMore = frame.hasMore || overDelivered
-            shouldAutoPage = currentHasMore && !hasRealUserPrompt(page)
+            currentEvents.addAll(trimmed)
+            currentHasMore = frame.hasMore || overDelivered || trimmed.size < page.size
+            shouldAutoPage = currentHasMore && !hasRealUserPrompt(trimmed)
             val asOf = frame.projections["asOfSeq"]?.jsonPrimitive?.intOrNull ?: frame.cursor
             (frame.projections["values"] as? JsonObject)?.forEach { (key, value) ->
                 mergeProjectionLocked(key, asOf, value)
@@ -1392,18 +1392,20 @@ class SessionStore @Inject constructor(
                     var reachedUserPrompt = false
                     synchronized(lock) {
                         if (currentId != sid) return
+                        val trimmed = trimBeforeFirstUserPrompt(page)
                         val existingSeqs = currentEvents.mapTo(HashSet()) { it.seq }
-                        val fresh = page.filter { it.seq !in existingSeqs }
+                        val fresh = trimmed.filter { it.seq !in existingSeqs }
                         if (fresh.isNotEmpty()) {
                             currentEvents.addAll(fresh)
                             currentEvents.sortBy { it.seq }
                         }
-                        reachedUserPrompt = hasRealUserPrompt(page)
+                        reachedUserPrompt = hasRealUserPrompt(trimmed)
                         // Keep the door open (button visible) whenever the host still has more
                         // history, even if this run stopped at a user prompt — the reader may want
                         // to go further back. The loop itself is bounded by the stop conditions
                         // above; the flag only controls whether the button shows.
-                        currentHasMore = r.value.hasMore && (fresh.isNotEmpty() || overDelivered)
+                        val trimmedAway = page.size - trimmed.size
+                        currentHasMore = r.value.hasMore && (fresh.isNotEmpty() || overDelivered || trimmedAway > 0)
                         log("page $sid: got=${envelopes.size} kept=${page.size} fresh=${fresh.size} hostHasMore=${r.value.hasMore} userPrompt=$reachedUserPrompt → hasMore=$currentHasMore")
                         rebuildCurrentLocked()
                     }
@@ -1412,7 +1414,9 @@ class SessionStore @Inject constructor(
                         lastPageStopReason = if (reachedUserPrompt) "reached-user-prompt" else "no-more-history"
                         return
                     }
-                    val freshCount = page.count { it.seq !in currentEvents.mapTo(HashSet()) { e -> e.seq } }
+                    val pageTrimmed = trimBeforeFirstUserPrompt(page)
+                    val existingSeqs2 = synchronized(lock) { if (currentId != sid) return; currentEvents.mapTo(HashSet()) { it.seq } }
+                    val freshCount = pageTrimmed.count { it.seq !in existingSeqs2 }
                     if (freshCount == 0) {
                         log("page $sid: no new events, stopping")
                         lastPageStopReason = "no-new-events"
@@ -1429,18 +1433,34 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Whether the given envelopes contain a genuine user prompt — one tagged with
+     * Whether this envelope is a genuine user prompt — one tagged with
      * `source.kind` of "user" or "user-rpc", as opposed to harness-injected context
      * (agent-instructions, skill-invocation, goal, etc.). This is deliberately stricter
      * than [UserMessageNode.isSystem]: the stop condition must not trigger on untagged
      * user-role messages that are actually system continuations.
      */
+    private fun isRealUserPrompt(e: SessionEventEnvelope): Boolean =
+        e.type == "user/message" &&
+            ((e.data as? JsonObject)?.get("source") as? JsonObject)
+                ?.get("kind")?.jsonPrimitive?.contentOrNull in setOf("user", "user-rpc")
+
+    /**
+     * Whether the given envelopes contain a genuine user prompt.
+     */
     private fun hasRealUserPrompt(envelopes: List<SessionEventEnvelope>): Boolean =
-        envelopes.any { e ->
-            e.type == "user/message" &&
-                ((e.data as? JsonObject)?.get("source") as? JsonObject)
-                    ?.get("kind")?.jsonPrimitive?.contentOrNull in setOf("user", "user-rpc")
-        }
+        envelopes.any { isRealUserPrompt(it) }
+
+    /**
+     * Drop every event strictly before the first (oldest-seq) real user prompt in [envelopes].
+     * The prompt itself and everything after it are kept. If no prompt exists the list is
+     * returned unchanged. Used to make the transcript start at the reader's last message
+     * instead of mid-tool-call-loop.
+     */
+    private fun trimBeforeFirstUserPrompt(envelopes: List<SessionEventEnvelope>): List<SessionEventEnvelope> {
+        val sorted = envelopes.sortedBy { it.seq }
+        val idx = sorted.indexOfFirst { isRealUserPrompt(it) }
+        return if (idx < 0) sorted else sorted.subList(idx, sorted.size)
+    }
 
     suspend fun createSession(cwd: String? = null, workspaceId: String? = null) {
         // Reuse the workspace's existing blank session instead of leaving another empty one behind
