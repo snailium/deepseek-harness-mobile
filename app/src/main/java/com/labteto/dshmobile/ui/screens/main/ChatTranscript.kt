@@ -99,15 +99,14 @@ internal fun ChatTranscript(
     var wasNearBottom by remember(sessionId) { mutableStateOf(true) }
     LaunchedEffect(listState, sessionId) {
         snapshotFlow {
-            derivedStateOf {
-                val info = listState.layoutInfo
-                val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
-                val total = info.totalItemsCount
-                if (total == 0) return@derivedStateOf true
-                // At the very bottom: the last item is fully scrolled into view — its offset
-                // plus size reaches or exceeds the viewport height, meaning no content remains below.
-                last.index == total - 1 && last.offset + last.size >= info.viewportSize.height
-            }.value
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@snapshotFlow true
+            val total = info.totalItemsCount
+            if (total == 0) return@snapshotFlow true
+            // At the very bottom: the last item is fully scrolled into view — its offset
+            // plus size reaches or exceeds the viewport height, meaning no content remains below.
+            // A small tolerance (2px) absorbs rounding in Compose's layout measurements.
+            last.index == total - 1 && last.offset + last.size >= info.viewportSize.height - 2
         }.collect { wasNearBottom = it }
     }
 
