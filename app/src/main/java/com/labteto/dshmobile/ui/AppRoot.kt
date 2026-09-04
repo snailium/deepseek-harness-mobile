@@ -1,13 +1,21 @@
 package com.labteto.dshmobile.ui
 
+import android.app.NotificationManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -106,6 +115,21 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         if (Build.VERSION.SDK_INT >= 33 && !notifications.canPost()) {
             notifDenied = true
         }
+    }
+
+    // Re-check permission when the app returns to the foreground (e.g. after the user grants it
+    // in system settings via the banner button).
+    val lifecycleOwner2 = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner2) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && notifDenied) {
+                if (Build.VERSION.SDK_INT < 33 || notifications.canPost()) {
+                    notifDenied = false
+                }
+            }
+        }
+        lifecycleOwner2.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner2.lifecycle.removeObserver(observer) }
     }
 
     DshTheme(preference = themePreference, dynamicColor = settings.dynamicColor) {
@@ -206,9 +230,18 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         if (notifDenied) {
             NotifPermissionBanner(
                 onOpenSettings = {
-                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
-                    })
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        })
+                    }.onFailure {
+                        // Fallback: open the app's detail settings page
+                        runCatching {
+                            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = Uri.fromParts("package", context.packageName, null)
+                            })
+                        }
+                    }
                 },
                 onDismiss = { notifDenied = false },
             )
@@ -216,31 +249,38 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
     }
 }
 
-/** Slim top banner: notification permission was denied — tap to open the app's notification settings. */
+/** Bottom banner: notification permission was denied — tap to open the app's notification settings. */
 @Composable
 private fun NotifPermissionBanner(onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
     val colors = DsTheme.colors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp).padding(top = 8.dp),
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.BottomCenter,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.bgLayer3)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
-            Text(
-                stringResource(R.string.notif_permission_denied),
-                style = DsType.std14,
-                color = colors.labelSecondary,
-                modifier = Modifier.weight(1f),
-            )
-            DsButton(
-                text = stringResource(R.string.notif_permission_open),
-                onClick = { onOpenSettings(); onDismiss() },
-                variant = DsButtonVariant.Info,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    stringResource(R.string.notif_permission_denied),
+                    style = DsType.std14,
+                    color = colors.labelSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+                DsButton(
+                    text = stringResource(R.string.notif_permission_open),
+                    onClick = { onOpenSettings(); onDismiss() },
+                    variant = DsButtonVariant.Info,
+                )
+            }
         }
     }
 }
