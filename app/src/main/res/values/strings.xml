@@ -368,6 +368,8 @@
     <string name="settings_notifications_goal_hint">A goal completing or getting blocked</string>
     <string name="settings_notifications_action_hint">An approval, question, or plan waiting on you</string>
     <string name="settings_background_hint">Keeps the connection alive when you switch to another app (shows a persistent notification)</string>
+    <string name="notif_permission_denied">Notifications are blocked — turn-complete alerts and the background-connection indicator won\'t appear</string>
+    <string name="notif_permission_open">Open settings</string>
     <string name="notif_channel_completions">Completions</string>
     <string name="notif_channel_action">Needs your action</string>
     <string name="notif_channel_connection">Connection status</string>

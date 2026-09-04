@@ -1,7 +1,13 @@
 package com.labteto.dshmobile.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,6 +19,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
@@ -27,10 +35,13 @@ import androidx.navigation.toRoute
 import com.labteto.dshmobile.BuildConfig
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.connection.ConnectionPhase
+import com.labteto.dshmobile.notify.DshNotifications
 import com.labteto.dshmobile.notify.NotificationObserver
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
+import com.labteto.dshmobile.ui.components.rememberDsToast
+import com.labteto.dshmobile.ui.components.ToastTone
 import com.labteto.dshmobile.ui.navigation.ConnectRoute
 import com.labteto.dshmobile.ui.navigation.DetailsRoute
 import com.labteto.dshmobile.ui.navigation.HomeRoute
@@ -84,6 +95,17 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Notification permission: request on first launch (already handled by the activity's
+    // permission contract); if it was denied, surface a banner with a button into system settings.
+    val context = LocalContext.current
+    val notifications = remember { DshNotifications(context) }
+    var notifDenied by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= 33 && !notifications.canPost()) {
+            notifDenied = true
+        }
     }
 
     DshTheme(preference = themePreference, dynamicColor = settings.dynamicColor) {
@@ -180,6 +202,46 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         // Offered over whatever is on screen, and only once per release: dismissing records the
         // version, so the next launch is quiet until there is a newer one.
         update?.let { UpdateDialog(it, onDismiss = { viewModel.dismissUpdate(it.version) }) }
+
+        if (notifDenied) {
+            NotifPermissionBanner(
+                onOpenSettings = {
+                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        data = Uri.fromParts("package", context.packageName, null)
+                    })
+                },
+                onDismiss = { notifDenied = false },
+            )
+        }
+    }
+}
+
+/** Slim top banner: notification permission was denied — tap to open the app's notification settings. */
+@Composable
+private fun NotifPermissionBanner(onOpenSettings: () -> Unit, onDismiss: () -> Unit) {
+    val colors = DsTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp).padding(top = 8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                stringResource(R.string.notif_permission_denied),
+                style = DsType.std14,
+                color = colors.labelSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            DsButton(
+                text = stringResource(R.string.notif_permission_open),
+                onClick = { onOpenSettings(); onDismiss() },
+                variant = DsButtonVariant.Info,
+            )
+        }
     }
 }
 
