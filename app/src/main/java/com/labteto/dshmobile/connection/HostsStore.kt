@@ -72,7 +72,7 @@ class HostsStore @Inject constructor(
             autoConnectLoopback = prefs[Keys.AUTO_LOOPBACK] ?: true,
             autoConnectRelay = prefs[Keys.AUTO_RELAY] ?: false,
             connectMode = ConnectMode.of(prefs[Keys.CONNECT_MODE]),
-            keepConnectedInBackground = prefs[Keys.BACKGROUND] ?: false,
+            keepConnectedInBackground = prefs[Keys.BACKGROUND] ?: true,
             notifyTurnComplete = prefs[Keys.NOTIFY_TURN] ?: true,
             notifyGoal = prefs[Keys.NOTIFY_GOAL] ?: true,
             notifyNeedsAction = prefs[Keys.NOTIFY_ACTION] ?: true,

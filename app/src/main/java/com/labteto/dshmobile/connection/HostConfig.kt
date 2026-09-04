@@ -152,7 +152,7 @@ data class AppSettings(
     val autoConnectLoopback: Boolean = true,
     /** Relay mode's counterpart to [autoConnectLan]: connect to a paired relay that mDNS finds. */
     val autoConnectRelay: Boolean = false,
-    val keepConnectedInBackground: Boolean = false,
+    val keepConnectedInBackground: Boolean = true,
     val notifyTurnComplete: Boolean = true,
     val notifyGoal: Boolean = true,
     val notifyNeedsAction: Boolean = true,
