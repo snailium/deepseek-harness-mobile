@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -11,7 +12,10 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +32,18 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,6 +77,7 @@ import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.core.wire.dto.ContextPressureView
 import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
+import com.labteto.dshmobile.core.wire.dto.FileAttachmentRef
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
 import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
 import com.labteto.dshmobile.ui.components.ContextMeter
@@ -75,23 +92,61 @@ import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /**
- * A picked image waiting to be sent, held with its decoded preview.
+ * Something picked and waiting to be sent with the next message.
  *
- * [bytes], [width] and [height] are the encoded size and intrinsic dimensions the picker already
- * had to learn to admit the image; keeping them means the *next* pick can be measured against the
- * message's running totals without decoding everything already attached a second time.
+ * Two kinds, because the harness carries them two ways. An [Image] rides the prompt as bytes,
+ * so it is held here fully encoded. A [File] is uploaded the moment it is picked — harness
+ * 0.1.3 streams it to the host verbatim — and what the prompt carries is the receipt that upload
+ * answered with, so the chip tracks the upload rather than the bytes.
  */
-internal data class PendingAttachment(
-    val mediaType: String,
-    val base64: String,
-    val preview: ImageBitmap?,
-    val bytes: Int,
-    val width: Int,
-    val height: Int,
-    val name: String? = null,
-) {
-    /** The wire form `session.prompt` and `commands/execute` both carry. */
-    fun encoded(): EncodedImageAttachment = EncodedImageAttachment(mediaType, base64, name)
+internal sealed interface PendingAttachment {
+    /** Display name, when the picker had one. */
+    val name: String?
+
+    /**
+     * A picked image, held with its decoded preview.
+     *
+     * [bytes], [width] and [height] are the encoded size and intrinsic dimensions the picker already
+     * had to learn to admit the image; keeping them means the *next* pick can be measured against
+     * the message's running totals without decoding everything already attached a second time.
+     */
+    data class Image(
+        val mediaType: String,
+        val base64: String,
+        val preview: ImageBitmap?,
+        val bytes: Int,
+        val width: Int,
+        val height: Int,
+        override val name: String? = null,
+    ) : PendingAttachment {
+        /** The wire form `session/prompt` carries. */
+        fun encoded(): EncodedImageAttachment = EncodedImageAttachment(mediaType, base64, name)
+    }
+
+    /** A picked file and the state of its upload. [id] is what a progress callback keys on. */
+    data class File(
+        val id: String,
+        val uri: Uri,
+        override val name: String,
+        /** Size as the provider reported it; `-1` when it would not say. */
+        val size: Long,
+        val state: FileUploadState,
+    ) : PendingAttachment {
+        /** The receipt to cite, once the upload has one. */
+        val receiptId: String? get() = (state as? FileUploadState.Ready)?.receiptId
+    }
+}
+
+/** Where one file's upload stands. */
+internal sealed interface FileUploadState {
+    /** Bytes are still going up; [sent] is the running count. */
+    data class Uploading(val sent: Long) : FileUploadState
+
+    /** The host holds the file and minted a receipt for it. */
+    data class Ready(val receiptId: String, val file: FileAttachmentRef) : FileUploadState
+
+    /** The upload did not complete; the chip offers a retry. */
+    data class Failed(val message: String) : FileUploadState
 }
 
 /**
@@ -140,6 +195,7 @@ internal fun Composer(
     composerDraft: ComposerDraft,
     attachments: List<PendingAttachment>,
     onRemoveAttachment: (Int) -> Unit,
+    onRetryAttachment: (Int) -> Unit,
     permissions: PermissionSelect?,
     pendingPermission: String?,
     onPermissionPick: (String) -> Unit,
@@ -164,8 +220,10 @@ internal fun Composer(
 ) {
     val colors = DsTheme.colors
     val haptics = LocalHapticFeedback.current
-    val draft = composerDraft.value
-    val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty())
+    // A file that is still uploading has no receipt to cite yet, and one that failed never will;
+    // the send affordance waits for the chips rather than sending a message that names neither.
+    val attachmentsSettled = attachments.none { it is PendingAttachment.File && it.state !is FileUploadState.Ready }
+    val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty()) && attachmentsSettled
     val currentDraft by rememberUpdatedState(draft)
     val currentOnSend by rememberUpdatedState(onSend)
 
@@ -233,7 +291,7 @@ internal fun Composer(
             verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
-                AttachmentStrip(attachments, onRemoveAttachment)
+                AttachmentStrip(attachments, onRemoveAttachment, onRetryAttachment)
             }
 
             Row(
@@ -461,25 +519,35 @@ private fun PermissionChip(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun AttachmentStrip(attachments: List<PendingAttachment>, onRemove: (Int) -> Unit) {
+private fun AttachmentStrip(
+    attachments: List<PendingAttachment>,
+    onRemove: (Int) -> Unit,
+    onRetry: (Int) -> Unit,
+) {
     val colors = DsTheme.colors
-    Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+    ) {
         attachments.forEachIndexed { index, attachment ->
             Box {
-                Box(
-                    Modifier
-                        .size(56.dp)
-                        .clip(DsShapes.block)
-                        .background(colors.bgModulePlatform),
-                ) {
-                    attachment.preview?.let {
-                        Image(
-                            bitmap = it,
-                            contentDescription = attachment.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                when (attachment) {
+                    is PendingAttachment.Image -> Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(DsShapes.block)
+                            .background(colors.bgModulePlatform),
+                    ) {
+                        attachment.preview?.let {
+                            Image(
+                                bitmap = it,
+                                contentDescription = attachment.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
+                    is PendingAttachment.File -> FileAttachmentChip(attachment, onRetry = { onRetry(index) })
                 }
                 Box(
                     Modifier
@@ -493,22 +561,79 @@ private fun AttachmentStrip(attachments: List<PendingAttachment>, onRemove: (Int
                         ),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        Modifier
-                            .size(18.dp)
-                            .clip(CircleShape)
-                            .background(colors.toastBg),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            FeatherIcons.X,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp),
-                        )
-                    }
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(
+                            if (attachment is PendingAttachment.File) R.string.chat_composer_remove_file
+                            else R.string.chat_composer_remove_image,
+                        ),
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp),
+                    )
                 }
             }
+        }
+    }
+}
+
+/**
+ * One file in the strip: name, then either its size, its upload progress, or the failure.
+ *
+ * The chip is the same height as an image tile so the strip does not step. A failed upload is
+ * retried by tapping the chip itself — the remove affordance stays where it is on every kind.
+ */
+@Composable
+private fun FileAttachmentChip(file: PendingAttachment.File, onRetry: () -> Unit) {
+    val colors = DsTheme.colors
+    val failed = file.state is FileUploadState.Failed
+    Row(
+        modifier = Modifier
+            .height(56.dp)
+            .widthIn(min = 120.dp, max = 200.dp)
+            .clip(DsShapes.block)
+            .background(colors.bgModulePlatform)
+            .border(1.dp, if (failed) colors.error else colors.borderL3, DsShapes.block)
+            .clickable(enabled = failed, onClick = onRetry)
+            .padding(start = 10.dp, end = 22.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (val state = file.state) {
+            is FileUploadState.Uploading -> CircularProgressIndicator(
+                progress = {
+                    if (file.size > 0) (state.sent.toFloat() / file.size).coerceIn(0f, 1f) else 0f
+                },
+                modifier = Modifier.size(18.dp),
+                color = colors.accent,
+                trackColor = colors.borderL3,
+                strokeWidth = 2.dp,
+            )
+            else -> Icon(
+                Icons.Outlined.Description,
+                contentDescription = null,
+                tint = if (failed) colors.error else colors.labelSecondary,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Column {
+            Text(
+                file.name,
+                style = DsType.small13,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                when (val state = file.state) {
+                    is FileUploadState.Uploading -> stringResource(R.string.chat_attachment_uploading)
+                    is FileUploadState.Ready -> fileSizeText(state.file.bytes)
+                    is FileUploadState.Failed -> stringResource(R.string.chat_attachment_upload_failed)
+                },
+                style = DsType.caption11,
+                color = if (failed) colors.error else colors.labelTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
