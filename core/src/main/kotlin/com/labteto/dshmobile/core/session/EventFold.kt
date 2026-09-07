@@ -181,6 +181,11 @@ internal class FoldState(private val sessionId: String) {
         else -> raw != null
     }
 
+    private fun addNode(node: ChatNode) {
+        nodes.add(node)
+        changed = true
+    }
+
     /** Apply one transient chunk of the attempt being written. Never moves the cursor. */
     fun applyTransient(event: SessionEventEnvelope) {
         if (event.type != "assistant/chunk") return

@@ -98,24 +98,28 @@ class IncrementalFoldLoadTest {
         val all = syntheticSession(50)
         val driver = EventFold.Incremental(EventFold("s1").fold(emptyList()), "s1")
 
-        // Feed the full session; after the last message of each turn the view changes, but
-        // between two messages it is stable.
+        // Feed the full session; after the last message of each turn a new durable node lands.
+        // Chunk deltas only re-derive the provisional row for the open attempt, so the durable
+        // prefix of the view stays stable across them.
         var priorView: List<ChatNode>? = null
         var last: ConversationSnapshot? = null
         for (event in all) {
             val snapshot = driver.apply(event)!!
             val view = snapshot.nodes
             if (event.type == "assistant/message") {
-                assertTrue("a new message node must invalidate the view", view !== priorView)
-            } else if (event.type == "assistant/chunk" || event.type == "turn/start" ||
-                event.type == "user/message" || event.type == "turn/end"
-            ) {
-                // turn/start and turn/end add nodes; chunk deltas merge. For the structural
-                // claim we only assert chunk deltas keep identity (turn boundaries legitimately
-                // add nodes).
-                if (event.type == "assistant/chunk" && priorView != null) {
-                    assertEquals("chunk delta must not change the node view", priorView, view)
-                }
+                // The provisional row for the open attempt is replaced by the durable node; a
+                // settled turn's view therefore holds exactly one more durable node than the
+                // previous turn's.
+                val durableCount = view.count { it !is AssistantMessageNode || !it.streaming }
+                assertEquals("a new message node must extend the durable prefix",
+                    (priorView?.count { it !is AssistantMessageNode || !it.streaming }) ?: 0,
+                    durableCount - 1)
+            } else if (event.type == "assistant/chunk" && priorView != null) {
+                // The provisional row for the open attempt is re-derived each snapshot; compare
+                // the durable prefix, which a merge-only delta must not touch.
+                val durable = view.filterNot { it is AssistantMessageNode && it.streaming }
+                val priorDurable = priorView.filterNot { it is AssistantMessageNode && it.streaming }
+                assertEquals("chunk delta must not change the durable node prefix", priorDurable, durable)
             }
             priorView = view
             last = snapshot

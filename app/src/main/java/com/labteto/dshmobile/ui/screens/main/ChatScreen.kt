@@ -272,7 +272,7 @@ fun ConversationScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         val (name, size) = describeDocument(context.contentResolver, uri)
         if (name == null) {
-            toast.second(context.getString(R.string.err_file_read_failed))
+            toast.second(context.getString(R.string.err_file_read_failed), ToastTone.Error)
             return@rememberLauncherForActivityResult
         }
         val file = PendingAttachment.File(
@@ -294,12 +294,13 @@ fun ConversationScreen(
         // A file without a receipt cannot be cited. The send affordance already waits for the
         // chips, but a keyboard send lands here too.
         if (files.any { it.state !is FileUploadState.Ready }) {
-            draft = text
+            composerDraft.value = text
             toast.second(
                 context.getString(
                     if (files.any { it.state is FileUploadState.Failed }) R.string.chat_attachment_upload_failed
                     else R.string.chat_attachment_still_uploading,
                 ),
+                ToastTone.Error,
             )
             return
         }
@@ -312,7 +313,7 @@ fun ConversationScreen(
                 // Nothing is sent and nothing is dropped. The composer clears the draft on its way
                 // here, so put it back, and leave the attachments alone — a refusal the user cannot
                 // act on without re-picking every one is not much of a refusal.
-                draft = text
+                composerDraft.value = text
                 val message = when (submission.reason) {
                     RefusalReason.COMMAND_TAKES_NO_ATTACHMENTS -> R.string.err_command_no_images
                     RefusalReason.HOST_TOO_OLD -> R.string.err_command_images_host
@@ -333,7 +334,7 @@ fun ConversationScreen(
                     // the line. The restore only lands in a composer nobody has touched meanwhile —
                     // the call is in flight while the user can still type and pick.
                     if (submitted.isNotEmpty() && outcome is CommandOutcome.Failed) {
-                        if (draft.isBlank()) draft = text
+                        if (composerDraft.value.isBlank()) composerDraft.value = text
                         if (attachments.isEmpty()) attachments.addAll(pending)
                     }
                     report(outcome)
@@ -352,7 +353,7 @@ fun ConversationScreen(
                     val outcome = if (pending.isEmpty()) {
                         store.prompt(text, effectiveMode)
                     } else {
-                        store.promptWithAttachments(text, mode, images.map { it.encoded() }, receipts)
+                        store.promptWithAttachments(text, effectiveMode, images.map { it.encoded() }, receipts)
                     }
                     if (outcome is PromptOutcome.Rejected) {
                         if (composerDraft.value.isBlank()) composerDraft.value = text

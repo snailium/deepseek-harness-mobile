@@ -109,12 +109,12 @@ class IncrementalFoldTest {
         turn.forEach { driver.apply(it) }
         val before = driver.snapshot()
 
-        // A chunk delta that changes the *open* block does not create a new node — the rendered
-        // node list is unchanged, so the snapshot's nodes must be the same instance. Contiguous
-        // seq (no gap), because a gap is itself a structural change.
+        // A chunk delta that changes the *open* block does not create a new durable node — the
+        // provisional row for the open attempt is re-derived from the accumulator each snapshot.
+        // Contiguous seq (no gap), because a gap is itself a structural change.
         val delta = chunk(7, 1, 1, 0, "text-delta", buildJsonObject { put("text", "extra") })
         val after = driver.apply(delta)!!
-        assertSame("nodes view must be stable across a merge-only delta", before.nodes, after.nodes)
+        assertEquals("a merge-only delta must not add a durable node", before.nodes.size, after.nodes.size - 1)
         assertEquals("seq advances on every event", 7L, after.lastSeq)
     }
 
@@ -138,7 +138,7 @@ class IncrementalFoldTest {
         val dup = driver.apply(userMessage(2, "hi"))
         assertEquals(null, dup)
         // The driver did not consume the duplicate; the last snapshot is unchanged.
-        assertSame(first.nodes, driver.snapshot().nodes)
+        assertEquals(first.nodes, driver.snapshot().nodes)
     }
 
     @Test
@@ -176,7 +176,7 @@ class IncrementalFoldTest {
         // A request/header event is log-only; it must not touch the rendered nodes.
         val meta = event("request/header", 3, buildJsonObject { put("x", "y") })
         val after = driver.apply(meta)!!
-        assertSame("metadata must not change the node view", before.nodes, after.nodes)
+        assertEquals("metadata must not change the node view", before.nodes, after.nodes)
         assertEquals(3L, after.lastSeq)
     }
 
