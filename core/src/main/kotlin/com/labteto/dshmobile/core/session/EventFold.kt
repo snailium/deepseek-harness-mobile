@@ -327,6 +327,8 @@ internal class FoldState(private val sessionId: String) {
             "hook/invoked", "hook/result", "agent-preset/selected", "agent/inbox/spliced",
             "tool/code-dispatch", "tool/code-dispatch-start", "web/deepseek-search-llm-request",
             "session/title-llm-request",
+            // Harness 0.1.3: compact stream records logged as durable events (replay data, not content).
+            "chunkrow/text-chunks", "chunkrow/reasoning-chunks", "chunkrow/tool-call-chunks", "chunkrow/chunk",
             -> {
                 // Log-only metadata: not chat-renderable; deliberately skipped.
             }

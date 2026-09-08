@@ -139,8 +139,6 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
                     }
                 }
             }
-            val text = node.displayText()
-            if (text.isNotBlank()) UserBubble(text)
         }
 
         is AssistantMessageNode -> AssistantMessage(node, context)
@@ -237,6 +235,11 @@ internal val STRUCTURAL_EVENT_TYPES = setOf(
     "assistant/chunk",
     // A model attempt that settled without a message (harness 0.1.3): replay data, not content.
     "assistant/attempt",
+    // Harness 0.1.3: compact stream records logged as durable events.
+    "chunkrow/text-chunks",
+    "chunkrow/reasoning-chunks",
+    "chunkrow/tool-call-chunks",
+    "chunkrow/chunk",
 )
 
 /**
