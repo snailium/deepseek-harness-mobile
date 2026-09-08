@@ -115,15 +115,17 @@ internal fun ChatTranscript(
     // follow, and a page of history arriving at the top, which must not — asking for older messages
     // and being thrown back to the newest one is the opposite of what the tap meant. The paging row
     // appearing and disappearing changed the count too, which moved the view for no reason at all.
-    val newestSeq = nodes.lastOrNull()?.seq
+    //
+    // The LazyColumn is bottom-anchored (Arrangement.Bottom), so new content at the tail pushes
+    // the viewport up automatically — no scroll needed. An explicit animateScrollToItem here
+    // fought that natural shift and produced a visible flash on every rebuild tick. We only jump
+    // on session switch, where the list state is stale from the previous transcript.
     var lastSession by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(newestSeq, sessionId) {
+    LaunchedEffect(sessionId) {
         if (itemCount == 0) return@LaunchedEffect
         val switched = sessionId != lastSession
         lastSession = sessionId
-        // Opening a session should land on its tail, not animate the whole list to get there.
         if (switched) listState.scrollToItem(itemCount - 1)
-        else if (wasNearBottom) listState.animateScrollToItem(itemCount - 1)
     }
 
     if (loading) {
