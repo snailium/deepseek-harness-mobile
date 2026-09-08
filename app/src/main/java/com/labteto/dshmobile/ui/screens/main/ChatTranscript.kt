@@ -56,12 +56,13 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
- * How far below the viewport bottom the last visible item may extend and still count as
- * "near bottom" (button hidden). 120px ≈ 60dp on a 2x-density device — roughly four to five
- * lines of text. A long final message no longer keeps the button hidden until the reader
- * scrolls past its top; a slight scroll-up reveals it.
+ * How far below the viewport bottom the last item's bottom edge may be and still count as "near
+ * bottom" (button hidden). A small positive value (4px) absorbs rounding in Compose's layout
+ * measurements. Any larger gap means the reader has scrolled up → button shows.
  */
-private const val NEAR_BOTTOM_THRESHOLD_PX = 120
+private const val NEAR_BOTTOM_THRESHOLD_PX = 4
+
+
 
 /**
  * The conversation itself.
@@ -108,13 +109,14 @@ internal fun ChatTranscript(
     LaunchedEffect(listState, sessionId) {
         snapshotFlow {
             val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull() ?: return@snapshotFlow true
-            if (info.totalItemsCount == 0) return@snapshotFlow true
-            // "Near bottom" means the last visible item's bottom edge is within a small threshold
-            // of the viewport bottom. A long final message used to keep the button hidden until
-            // the reader scrolled past its top; now scrolling up just a few lines (60dp ≈ 4-5
-            // lines of text) shows the button.
-            val gapBelow = last.offset + last.size - info.viewportSize.height
+            val total = info.totalItemsCount
+            if (total == 0) return@snapshotFlow true
+            // The last item in the list must be visible for us to be "near bottom." If it's not
+            // in visibleItemsInfo, we've scrolled past it → button shows. If it IS visible,
+            // check whether its bottom edge is within a small threshold of the viewport bottom.
+            val lastItem = info.visibleItemsInfo.lastOrNull { it.index == total - 1 }
+                ?: return@snapshotFlow false
+            val gapBelow = lastItem.offset + lastItem.size - info.viewportSize.height
             gapBelow <= NEAR_BOTTOM_THRESHOLD_PX
         }.collect { wasNearBottom = it }
     }
