@@ -197,10 +197,13 @@ internal class FoldState(private val sessionId: String) {
     }
 
     fun apply(event: SessionEventEnvelope) {
-        if (event.seq > lastSeq + 1 && lastSeq >= 0 && !gap) {
-            gap = true
-            changed = true
-        }
+        // The gap flag reflects only the most recent transition: a live stream that skips seqs
+        // sets it, and the next event (whether it fills the hole or continues normally) clears it.
+        // A historical discontinuity from paging does not latch — it is "older history we have not
+        // loaded," which `hasMore` already communicates.
+        val jumped = event.seq > lastSeq + 1 && lastSeq >= 0
+        if (jumped != gap) changed = true
+        gap = jumped
         lastSeq = maxOf(lastSeq, event.seq)
         val data = event.data
         when (event.type) {

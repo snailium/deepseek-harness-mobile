@@ -174,6 +174,8 @@ class ConnectionManager @Inject constructor(
             host = config,
             stage = ConnectStage.OpeningStreams,
         )
+        // Pin the process immediately so a background switch during the handshake does not kill us.
+        maybeStartService()
         api = clientFactory.clientFor(config)
         val loop = ConnectionLoop(muxFactory(config), sinks, LoopConfig())
         this.loop = loop
@@ -261,8 +263,10 @@ class ConnectionManager @Inject constructor(
     }
 
     private fun maybeStartService() {
-        val settings = runBlockingRead { hostsStore.settingsOnce() }
-        if (settings.keepConnectedInBackground) startService()
+        scope.launch {
+            val settings = hostsStore.settingsOnce()
+            if (settings.keepConnectedInBackground) startService()
+        }
     }
 
     private fun startService() {
@@ -274,6 +278,4 @@ class ConnectionManager @Inject constructor(
         context.stopService(Intent(context, ConnectionService::class.java))
     }
 
-    private fun <T> runBlockingRead(block: suspend () -> T): T =
-        kotlinx.coroutines.runBlocking { block() }
 }

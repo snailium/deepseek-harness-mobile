@@ -262,9 +262,17 @@ fun ChatsScreen(
         groups
     }
 
-    // Workspace collapse state: default expanded.
+    // Workspace collapse state: default collapsed, except the workspace holding the current session.
     val wsCollapsed = remember { mutableStateMapOf<String, Boolean>() }
-    fun isWsExpanded(wsId: String): Boolean = wsCollapsed[wsId]?.not() ?: true
+    val activeWorkspaceKey = remember(currentSessionId, sessionsById) {
+        currentSessionId?.let { sessionsById[it]?.cwd }?.let { basename(it).lowercase() }
+    }
+    fun isWsExpanded(wsId: String): Boolean {
+        wsCollapsed[wsId]?.let { return !it }
+        // No explicit choice yet: expand only the workspace that holds the session you came from.
+        val ws = workspaces.firstOrNull { it.workspaceId == wsId } ?: return false
+        return basename(ws.path).lowercase() == activeWorkspaceKey
+    }
     fun toggleWs(wsId: String) { wsCollapsed[wsId] = isWsExpanded(wsId) }
 
     // ---- DEBUG: long-press title to show session data for diagnosis ----

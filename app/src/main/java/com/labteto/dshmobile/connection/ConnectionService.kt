@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import com.labteto.dshmobile.MainActivity
 import com.labteto.dshmobile.R
@@ -17,8 +18,8 @@ import javax.inject.Inject
 /**
  * Foreground service that keeps the WebSocket connection alive while the app
  * is backgrounded (user opt-in via settings). The ConnectionManager owns the
- * actual connection; this service only pins the process with an ongoing
- * notification while it is running.
+ * actual connection; this service pins the process with an ongoing notification
+ * and a partial WakeLock so the network stack does not suspend the socket.
  */
 @AndroidEntryPoint
 class ConnectionService : Service() {
@@ -26,20 +27,39 @@ class ConnectionService : Service() {
     @Inject lateinit var connectionManager: ConnectionManager
     @Inject lateinit var notifications: DshNotifications
 
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            releaseWakeLock()
             stopSelf()
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, buildNotification())
+        acquireWakeLock()
         return START_STICKY
     }
 
     override fun onDestroy() {
         // The service dying does not tear the connection down; the manager owns it.
+        releaseWakeLock()
         super.onDestroy()
+    }
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dsh-mobile:connection").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
     }
 
     private fun buildNotification(): Notification {
