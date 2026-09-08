@@ -56,6 +56,14 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
+ * How far below the viewport bottom the last visible item may extend and still count as
+ * "near bottom" (button hidden). 120px ≈ 60dp on a 2x-density device — roughly four to five
+ * lines of text. A long final message no longer keeps the button hidden until the reader
+ * scrolls past its top; a slight scroll-up reveals it.
+ */
+private const val NEAR_BOTTOM_THRESHOLD_PX = 120
+
+/**
  * The conversation itself.
  *
  * Auto-scroll only follows the tail when the reader is already there — scrolling back through a
@@ -101,12 +109,13 @@ internal fun ChatTranscript(
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull() ?: return@snapshotFlow true
-            val total = info.totalItemsCount
-            if (total == 0) return@snapshotFlow true
-            // At the very bottom: the last item is fully scrolled into view — its offset
-            // plus size reaches or exceeds the viewport height, meaning no content remains below.
-            // A small tolerance (2px) absorbs rounding in Compose's layout measurements.
-            last.index == total - 1 && last.offset + last.size >= info.viewportSize.height - 2
+            if (info.totalItemsCount == 0) return@snapshotFlow true
+            // "Near bottom" means the last visible item's bottom edge is within a small threshold
+            // of the viewport bottom. A long final message used to keep the button hidden until
+            // the reader scrolled past its top; now scrolling up just a few lines (60dp ≈ 4-5
+            // lines of text) shows the button.
+            val gapBelow = last.offset + last.size - info.viewportSize.height
+            gapBelow <= NEAR_BOTTOM_THRESHOLD_PX
         }.collect { wasNearBottom = it }
     }
 
