@@ -652,23 +652,24 @@ class DshApiClient(
      * [sessionPrompt] does not execute a leading-slash line — it hands it to the model as text —
      * so this is the only command write path; the composer adjudicates first.
      *
-     * The third argument is named after the host method's own parameter, `submittedAttachments`,
-     * because the gateway matches args by parameter name. Through 0.1.2 it was `images` and took
-     * bare image objects; 0.1.3 renamed it when files joined, and every member now carries a
-     * `type`. It is sent unconditionally, empty or not, because the gateway refuses a missing key
-     * as readily as an unexpected one.
+     * The third argument is named after the host method's own parameter, because the gateway
+     * matches args by parameter name and refuses a missing key as readily as an unexpected one.
+     * Through 0.1.2 it was `images` and took bare image objects; 0.1.3 renamed it to
+     * [attachmentArgName] when files joined, and every member now carries a `type`. It is sent
+     * unconditionally, empty or not.
      */
     suspend fun commandsExecute(
         sessionId: String,
         line: String,
         attachments: List<CommandSubmitAttachment> = emptyList(),
+        attachmentArgName: String = "submittedAttachments",
     ): RpcResult<JsonElement> = call(
         "commands/execute",
         args {
             put("agentId", JsonPrimitive(sessionId))
             put("line", JsonPrimitive(line))
             put(
-                "submittedAttachments",
+                attachmentArgName,
                 encodeToJsonElement(ListSerializer(CommandSubmitAttachment.serializer()), attachments),
             )
         },

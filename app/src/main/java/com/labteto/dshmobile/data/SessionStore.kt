@@ -341,6 +341,19 @@ class SessionStore @Inject constructor(
     private val _commandsAvailable = MutableStateFlow(true)
     val commandsAvailable: StateFlow<Boolean> = _commandsAvailable.asStateFlow()
 
+    /**
+     * The arg key name this host's `commands/execute` declares for its attachment parameter.
+     *
+     * 0.1.3+ hosts declare `submittedAttachments`; pre-0.1.3 hosts declare `images`. The gateway
+     * matches args by parameter name and refuses a missing key as readily as an unexpected one,
+     * so the client must send exactly the name the host expects. Detection: if any command's
+     * descriptor carries the 0.1.2-style `input.images` flag (which deserializes to
+     * `attachments = false` under the 0.1.3 DTO), the host predates the rename. The value is
+     * reset on each connection and set once from the first successful catalog fetch.
+     */
+    @Volatile
+    private var commandArgKey: String = "submittedAttachments"
+
     private val _agentPresets = MutableStateFlow<AgentPresetListValue?>(null)
     val agentPresets: StateFlow<AgentPresetListValue?> = _agentPresets.asStateFlow()
 
@@ -598,6 +611,8 @@ class SessionStore @Inject constructor(
         // Whether content search works is a fact about the harness we just reached, so a fresh
         // connection re-earns the answer rather than inheriting the previous host's.
         _contentSearchAvailable.value = true
+        // The arg key name is likewise per-host: a reconnect may land on a different build.
+        commandArgKey = "submittedAttachments"
         // Before the list read: the workspace and control streams each open with their own
         // complete baseline, and the list is what their increments are applied on top of.
         startHostStreams()
@@ -2041,37 +2056,49 @@ class SessionStore @Inject constructor(
     ): CommandOutcome {
         val sid = currentSessionId.value ?: return CommandOutcome.Failed("no open session")
         val api = apiOrNull() ?: return CommandOutcome.Failed("not connected")
-        return when (val r = api.commandsExecute(sid, line, attachments)) {
+        var result = api.commandsExecute(sid, line, attachments, commandArgKey)
+        // Version-skew fallback: a pre-0.1.3 host declares the parameter `images` and refuses
+        // the 0.1.3 name `submittedAttachments` with an arguments-invalid error that names both
+        // keys. Detect it, flip the key, and retry once so the command actually runs.
+        if (result is RpcResult.Err && result.error.code == "gateway/arguments-invalid" &&
+            commandArgKey == "submittedAttachments" &&
+            result.error.message.contains("images")
+        ) {
+            log("host declares pre-0.1.3 arg key `images`; retrying commands/execute")
+            commandArgKey = "images"
+            result = api.commandsExecute(sid, line, attachments, commandArgKey)
+        }
+        return when (result) {
             is RpcResult.Ok -> {
-                val execution = r.value as? JsonObject
+                val execution = result.value as? JsonObject
                 val commandId = execution?.get("commandId")
                 if (commandId == null || commandId is JsonNull) {
                     CommandOutcome.Unknown(line)
                 } else {
-                    val result = execution["result"] as? JsonObject
-                    val text = (result?.get("text") as? JsonPrimitive)?.contentOrNull
-                    if ((result?.get("kind") as? JsonPrimitive)?.contentOrNull == "error") {
+                    val res = execution["result"] as? JsonObject
+                    val text = (res?.get("text") as? JsonPrimitive)?.contentOrNull
+                    if ((res?.get("kind") as? JsonPrimitive)?.contentOrNull == "error") {
                         CommandOutcome.Failed(text ?: "command failed")
                     } else {
                         CommandOutcome.Ok(text)
                     }
                 }
             }
-            is RpcResult.Err -> when (r.error.code) {
+            is RpcResult.Err -> when (result.error.code) {
                 // The attachments were refused, by the host or by the client's own guard. A
                 // composer problem, so it must not raise the connection banner.
-                ATTACHMENT_INVALID -> CommandOutcome.Failed(r.error.message)
+                ATTACHMENT_INVALID -> CommandOutcome.Failed(result.error.message)
                 // No command gateway in this build (404) or the trust fence refused it (403).
                 // Neither is a connection fault, so the menu retires rather than the session.
                 "capability-unavailable", "forbidden" -> {
                     _commandsAvailable.value = false
                     _commands.value = emptyList()
-                    log("commands/execute unavailable (${r.error.code}): ${r.error.message}")
-                    CommandOutcome.Failed(r.error.message)
+                    log("commands/execute unavailable (${result.error.code}): ${result.error.message}")
+                    CommandOutcome.Failed(result.error.message)
                 }
                 else -> {
-                    setConnectionError(r.error.message)
-                    CommandOutcome.Failed(r.error.message)
+                    setConnectionError(result.error.message)
+                    CommandOutcome.Failed(result.error.message)
                 }
             }
         }

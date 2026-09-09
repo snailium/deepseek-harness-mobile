@@ -172,6 +172,22 @@ class DshApiClientRemoteTest {
     }
 
     @Test
+    fun `a pre-0-1-3 host gets the images key name`() = runTest {
+        // A harness that predates the 0.1.3 rename declares its parameter `images`; the client
+        // must send that exact name or the gateway refuses the call.
+        val transport = RecordingTransport { _, body ->
+            val rpcId = Json.parseToJsonElement(body).jsonObject["rpcId"]!!.jsonPrimitive.content
+            ok(rpcId, "{}")
+        }
+        client(transport).commandsExecute("session-2", "/compact", emptyList(), attachmentArgName = "images")
+
+        val args = Json.parseToJsonElement(transport.lastBody!!)
+            .jsonObject["payload"]!!.jsonObject["args"]!!.jsonObject
+        assertEquals(setOf("agentId", "line", "images"), args.keys)
+        assertEquals(0, args["images"]!!.jsonArray.size)
+    }
+
+    @Test
     fun `a 404 becomes capability-unavailable rather than a connection failure`() = runTest {
         val transport = RecordingTransport { _, _ ->
             throw RpcTransportException(404, "carrier returned HTTP 404")
