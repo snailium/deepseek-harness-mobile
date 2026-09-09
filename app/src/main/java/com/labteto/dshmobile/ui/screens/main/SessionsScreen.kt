@@ -1004,12 +1004,12 @@ private fun SessionRowItem(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
             // The chevron is its own tap target: opening a session and looking at what it spawned
-            // are different intentions. Both branches occupy the same 32dp slot so titles stay
+            // are different intentions. Both branches occupy the same 16dp slot so titles stay
             // aligned down a column of mixed rows.
             if (childCount > 0) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(16.dp)
                         .clip(CircleShape)
                         .clickable(
                             role = Role.Button,
