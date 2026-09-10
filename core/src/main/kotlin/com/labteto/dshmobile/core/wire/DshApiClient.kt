@@ -831,8 +831,11 @@ class DshApiClient(
         payload: JsonElement,
         timeoutMs: Long = 10_000L,
     ): RpcResult<JsonElement> {
+        // [payload] is already the full args object (e.g. {clientId, eventId, outcome}).
+        // mux.open wraps its argument in another {"args": …}, so pass it directly — not
+        // pre-wrapped — to avoid a double-nested payload the gateway cannot match.
         val stream = try {
-            mux.open(endpoint, JsonObject(mapOf("args" to payload)))
+            mux.open(endpoint, payload)
         } catch (e: RemoteStreamException) {
             return RpcResult.Err(e.error)
         }
