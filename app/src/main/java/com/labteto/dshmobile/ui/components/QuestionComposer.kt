@@ -110,9 +110,11 @@ internal fun QuestionsPanel(
         busy = true
         clearFeedback()
         scope.launch {
-            // On success the latch stays closed: the card leaves when the harness resolves the
-            // request, and re-arming it here would offer a second submit the host would refuse as
-            // `not-pending`. Only a failure hands the card back.
+            // On success the latch stays closed and the card is simply left to the store, which
+            // retires the request on the receipt from this very call: an answering client is never
+            // sent the `cancel` frame for the waterfall it answered. Re-arming the latch here
+            // would offer a second submit the host refuses as `not-pending`; the store clears the
+            // request instead, which unmounts this composable. Only a refusal hands the card back.
             val refusal = block()
             if (refusal != null) {
                 busy = false

@@ -183,10 +183,22 @@ sealed interface PromptOutcome {
 }
 
 /** What the harness did with an answer to a question request, or with a dismissal of one. */
+/**
+ * The host's refusal code for "the wait you answered is already gone".
+ *
+ * A refusal rather than a success, but terminal all the same: it names the same condition the
+ * `cancel` frame reports, so [settledTheRequest] counts it as settled.
+ */
+internal const val NOT_PENDING: String = "not-pending"
+
 sealed interface QuestionOutcome {
     /**
-     * Taken. The panel leaves when the `question/resolved` frame lands rather than now — the
-     * receipt only says the response was well-formed for the wait it addressed.
+     * Taken.
+     *
+     * Nothing is deferred to a later frame: the gateway removes an answering client from a
+     * request's delivery set *before* it computes the cancellations, so the `cancel` frame that
+     * retires everyone else's copy is never sent to the client that answered. This receipt is the
+     * only notice the answerer gets, and [settledTheRequest] is what turns it into a retirement.
      */
     data object Accepted : QuestionOutcome
 
@@ -198,6 +210,23 @@ sealed interface QuestionOutcome {
 
     /** The POST never completed, so nothing is known about the wait. */
     data object Unsent : QuestionOutcome
+}
+
+/**
+ * Whether the host now considers the request settled, so the panel may retire itself.
+ *
+ * Written out per outcome rather than as "anything but [QuestionOutcome.Unsent]", because
+ * [QuestionOutcome.Refused] names two different situations and only one of them is terminal.
+ * Today [answerOutcome] mints it for `not-pending` alone, but a future refusal reason would
+ * otherwise start silently retiring a prompt whose wait is still open.
+ */
+internal fun QuestionOutcome.settledTheRequest(): Boolean = when (this) {
+    is QuestionOutcome.Accepted -> true
+    // The host is saying the wait it was asked about is already gone — the same condition the
+    // `cancel` frame would have reported, arriving as a refusal instead. Any other reason is the
+    // host declining this answer while the wait stays open, so the panel has to survive it.
+    is QuestionOutcome.Refused -> reason == NOT_PENDING
+    is QuestionOutcome.Unsent -> false
 }
 
 /** Wire workspace -> renderable row, parsing the ISO-8601 stamp once at the boundary. */
@@ -743,6 +772,11 @@ class SessionStore @Inject constructor(
      * Replaces the `approval/resolved` and `question/resolved` frames, and covers both — an
      * `eventId` identifies the request without saying which kind it was, so both registries are
      * checked.
+     *
+     * The client that answered the request never receives one of these: the gateway drops it from
+     * the delivery set *before* it computes the cancellations, so the frame only reaches the other
+     * clients holding the same prompt. An answerer learns the outcome from its own RPC reply and
+     * retires the card through [retireApproval] / [retireQuestion] instead.
      */
     private fun handleWaterfallCancelled(eventId: String) {
         val approval = synchronized(lock) { approvalRequests.remove(eventId) }
@@ -756,7 +790,34 @@ class SessionStore @Inject constructor(
         }
         val sessionId = synchronized(lock) {
             questionEventBySession.entries.firstOrNull { it.value == eventId }?.key
-        } ?: return
+        }
+        // The registry entry can be gone — an answer retires it — while the panel is somehow
+        // still showing this very request. Clearing by the id the panel holds closes that gap
+        // rather than leaving a card nothing else will ever take down.
+        if (sessionId == null) {
+            if (_pendingQuestions.value?.rpcId == eventId) _pendingQuestions.value = null
+            return
+        }
+        retireQuestion(sessionId)
+    }
+
+    /**
+     * Retire an approval this client itself just resolved.
+     *
+     * Called only after the host has taken the answer, so the request really is settled and the
+     * card would otherwise wait forever for a `cancel` frame the gateway never sends an answerer.
+     */
+    private fun retireApproval(eventId: String) {
+        val sessionId = synchronized(lock) { approvalRequests.remove(eventId)?.sessionId } ?: return
+        synchronized(lock) {
+            removePendingLocked(sessionId, "approval")
+            emitSessionsLocked()
+        }
+        if (_pendingApproval.value?.approvalId == eventId) _pendingApproval.value = null
+    }
+
+    /** Retire a question batch this client itself just resolved, for the same reason. */
+    private fun retireQuestion(sessionId: String) {
         synchronized(lock) {
             questionEventBySession.remove(sessionId)
             removePendingLocked(sessionId, "question")
@@ -1726,7 +1787,14 @@ class SessionStore @Inject constructor(
             eventId = request.eventId,
             outcome = RemoteEventOutcome.Result(value = JsonPrimitive(outcome)),
         )
-        if (result is RpcResult.Err) log("approval response failed for $approvalId: ${result.error.message}")
+        when (result) {
+            is RpcResult.Ok ->
+                // An answerer is never sent the `cancel` frame for the request it answered, so
+                // the card retires itself. Leaving it up would strand a live-looking approval on
+                // a turn that has already moved on.
+                retireApproval(request.eventId)
+            is RpcResult.Err -> log("approval response failed for $approvalId: ${result.error.message}")
+        }
     }
 
     /**
@@ -1740,7 +1808,7 @@ class SessionStore @Inject constructor(
      */
     suspend fun answerQuestions(sessionId: String, answer: AskUserQuestionAnswer): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused(NOT_PENDING)
         val generation = connectionManager.generation ?: return QuestionOutcome.Unsent
         val clientId = generation.clientId
         // The waterfall returns the answer object itself; there is no envelope around it now.
@@ -1749,6 +1817,11 @@ class SessionStore @Inject constructor(
         )
         val result = api.answerEvent(clientId, eventId, eventOutcome)
         val outcome = answerOutcome(result, "question response", sessionId)
+        // The answerer never gets a `cancel` frame — the gateway drops it from the delivery set
+        // before it computes the cancellations — so the card has to retire itself. Both an
+        // accepted answer and `not-pending` mean the host considers the request settled; only a
+        // transport failure leaves it live for the user to try again.
+        if (outcome.settledTheRequest()) retireQuestion(sessionId)
         // A transport failure (socket dead during a reconnect) means the host never saw the
         // answer. Remember it so the replayed waterfall on the next generation can be answered
         // without another round-trip through the user.
@@ -1770,7 +1843,7 @@ class SessionStore @Inject constructor(
      */
     suspend fun dismissQuestions(sessionId: String): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused(NOT_PENDING)
         val generation = connectionManager.generation ?: return QuestionOutcome.Unsent
         val clientId = generation.clientId
         // A rejection, not an empty answer, and not `next`: `next` would delegate to the host's
@@ -1783,7 +1856,10 @@ class SessionStore @Inject constructor(
             ),
         )
         val result = api.answerEvent(clientId, eventId, eventOutcome)
-        return answerOutcome(result, "question dismissal", sessionId)
+        val outcome = answerOutcome(result, "question dismissal", sessionId)
+        // Same asymmetry as an answer: the dismissing client is not told about its own dismissal.
+        if (outcome.settledTheRequest()) retireQuestion(sessionId)
+        return outcome
     }
 
     private fun pendingQuestionEvent(sessionId: String): String? {
@@ -1807,8 +1883,8 @@ class SessionStore @Inject constructor(
         is RpcResult.Ok -> QuestionOutcome.Accepted
         is RpcResult.Err -> {
             log("$what failed for $sessionId: ${result.error.message}")
-            if (result.error.code == "not-pending") {
-                QuestionOutcome.Refused("not-pending")
+            if (result.error.code == NOT_PENDING) {
+                QuestionOutcome.Refused(NOT_PENDING)
             } else {
                 QuestionOutcome.Unsent
             }
