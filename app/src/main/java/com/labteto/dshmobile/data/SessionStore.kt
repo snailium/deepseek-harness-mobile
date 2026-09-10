@@ -452,6 +452,12 @@ class SessionStore @Inject constructor(
     private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
     private val questionEventBySession = HashMap<String, String>() // sessionId -> eventId
 
+    /**
+     * The answer the user submitted but whose `$events/result` POST failed (transient disconnect).
+     * Re-sent once when the host replays the same waterfall on the next generation. Null otherwise.
+     */
+    private var pendingQuestionRetry: Pair<String, AskUserQuestionAnswer>? = null
+
     // Open-session fold state.
     private var currentId: String? = null
     private val currentEvents = ArrayList<SessionEventEnvelope>()
@@ -929,6 +935,18 @@ class SessionStore @Inject constructor(
             emitSessionsLocked()
         }
         _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
+        // The host replays pending waterfalls on a new generation. If the user already answered
+        // this question but the POST failed (transient disconnect), re-send now: the replay
+        // carries the same logical request, so the answer is still valid and no double-answer
+        // can occur (the old generation's eventId is dead).
+        val retry = pendingQuestionRetry
+        if (retry != null && retry.first == sessionId) {
+            pendingQuestionRetry = null
+            log("re-sending failed question answer for $sessionId after reconnect replay")
+            scope.launch {
+                answerQuestions(sessionId, retry.second)
+            }
+        }
     }
 
     // ------------------------------------------------------------------ session list state updates
@@ -1722,7 +1740,7 @@ class SessionStore @Inject constructor(
         val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // The waterfall returns the answer object itself; there is no envelope around it now.
-        return answerOutcome(
+        val outcome = answerOutcome(
             api.answerEvent(
                 clientId = clientId,
                 eventId = eventId,
@@ -1733,6 +1751,15 @@ class SessionStore @Inject constructor(
             "question response",
             sessionId,
         )
+        // A transport failure (socket dead during a reconnect) means the host never saw the
+        // answer. Remember it so the replayed waterfall on the next generation can be answered
+        // without another round-trip through the user.
+        if (outcome is QuestionOutcome.Unsent) {
+            pendingQuestionRetry = sessionId to answer
+        } else {
+            pendingQuestionRetry = null
+        }
+        return outcome
     }
 
     /**
