@@ -1748,12 +1748,15 @@ class SessionStore @Inject constructor(
             value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
         )
         var result = api.answerEvent(clientId, eventId, eventOutcome)
-        log("answerQuestions: HTTP result=${result::class.simpleName}, code=${(result as? RpcResult.Err)?.error?.code}")
-        // HTTP route failed (pre-0.1.3 host lacks the endpoint, or transient proxy failure).
-        // The mux is still alive — the question arrived over it — so retry through the socket.
+        val httpCode = (result as? RpcResult.Err)?.error?.code
+        log("answerQuestions: HTTP result=${result::class.simpleName}, code=$httpCode, msg=${(result as? RpcResult.Err)?.error?.message}")
+        // HTTP route failed. The mux is still alive — the question arrived over it — so retry
+        // through the socket. The gateway's openWireStream throws signature-invalid for unary
+        // endpoints (mux-unary-refused), which means the mux cannot help; in that case keep the
+        // original HTTP error rather than replacing a meaningful code with a protocol one.
         if (result is RpcResult.Err && result.error.code != "not-pending") {
             log("question answer HTTP failed (${result.error.code}), retrying via mux")
-            result = api.callViaMux(
+            val muxResult = api.callViaMux(
                 mux = generation.mux,
                 endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
                 payload = encodeToJsonElement(
@@ -1761,7 +1764,11 @@ class SessionStore @Inject constructor(
                     RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
                 ),
             )
-            log("answerQuestions: mux result=${result::class.simpleName}, code=${(result as? RpcResult.Err)?.error?.code}")
+            val muxCode = (muxResult as? RpcResult.Err)?.error?.code
+            log("answerQuestions: mux result=${muxResult::class.simpleName}, code=$muxCode, msg=${(muxResult as? RpcResult.Err)?.error?.message}")
+            if (muxCode != "mux-unary-refused") {
+                result = muxResult
+            }
         }
         val outcome = answerOutcome(result, "question response", sessionId)
         // A transport failure (socket dead during a reconnect) means the host never saw the
@@ -1798,9 +1805,11 @@ class SessionStore @Inject constructor(
             ),
         )
         var result = api.answerEvent(clientId, eventId, eventOutcome)
+        val httpCode = (result as? RpcResult.Err)?.error?.code
+        log("dismissQuestions: HTTP result=${result::class.simpleName}, code=$httpCode")
         if (result is RpcResult.Err && result.error.code != "not-pending") {
             log("question dismissal HTTP failed (${result.error.code}), retrying via mux")
-            result = api.callViaMux(
+            val muxResult = api.callViaMux(
                 mux = generation.mux,
                 endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
                 payload = encodeToJsonElement(
@@ -1808,6 +1817,11 @@ class SessionStore @Inject constructor(
                     RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
                 ),
             )
+            val muxCode = (muxResult as? RpcResult.Err)?.error?.code
+            log("dismissQuestions: mux result=${muxResult::class.simpleName}, code=$muxCode")
+            if (muxCode != "mux-unary-refused") {
+                result = muxResult
+            }
         }
         return answerOutcome(result, "question dismissal", sessionId)
     }

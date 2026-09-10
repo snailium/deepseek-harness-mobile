@@ -81,6 +81,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -812,10 +814,16 @@ class DshApiClient(
     /**
      * Fallback transport: send a unary call through the WebSocket mux instead of HTTP.
      *
-     * Opens a logical stream on [endpoint], receives the host's response (an `item` carrying the
-     * server-response envelope), and cancels the stream. Used when the HTTP route is unreachable
-     * (e.g. pre-0.1.3 hosts that lack the endpoint, or transient proxy failures) but the mux is
-     * still alive — which it must be, since the question arrived over it.
+     * Opens a logical stream on [endpoint] and reads frames until the host ends the stream or
+     * fails it. The gateway's `pump` calls `openWireStream(endpoint, payload)`, which for
+     * non-`$events` endpoints invokes `stream()` — this throws `gateway/signature-invalid` for
+     * unary endpoints (the work happens in `dispatchRpc`, not in the stream). The mux sends that
+     * error as an `error` frame; we surface it so the caller can distinguish "mux cannot help"
+     * from a real transport failure.
+     *
+     * If the host's gateway version does NOT throw (a future change or a different build), the
+     * stream may yield item frames and then end. In that case the first `ok`-bearing item is the
+     * RPC result; otherwise an empty `end` means the call was accepted.
      */
     suspend fun callViaMux(
         mux: RemoteStreamMux,
@@ -830,17 +838,43 @@ class DshApiClient(
         }
         return try {
             withTimeout(timeoutMs) {
-                val frame = stream.receive() ?: return@withTimeout RpcResult.Err(
-                    RpcError("internal", "stream ended before response"),
-                )
-                decodeServerResponse(frame.toString()).result
+                while (true) {
+                    val frame = stream.receive() ?: break
+                    // An `item` frame carrying an RPC result object.
+                    val obj = frame as? JsonObject
+                    if (obj != null && obj.containsKey("ok")) {
+                        return@withTimeout when (val ok = obj["ok"]?.jsonPrimitive?.booleanOrNull) {
+                            true -> RpcResult.Ok(obj["value"] ?: JsonObject(emptyMap()))
+                            false -> {
+                                val err = obj["error"] as? JsonObject
+                                RpcResult.Err(
+                                    RpcError(
+                                        code = err?.get("code")?.jsonPrimitive?.contentOrNull ?: "internal",
+                                        message = err?.get("message")?.jsonPrimitive?.contentOrNull ?: "unknown error",
+                                        details = err?.get("details") ?: JsonObject(emptyMap()),
+                                    ),
+                                )
+                            }
+                            null -> continue
+                        }
+                    }
+                }
+                // Stream ended cleanly without an RPC result frame. The gateway processed the
+                // call in dispatchRpc (the stream source was empty), so `end` means accepted.
+                RpcResult.Ok(JsonObject(emptyMap()))
             }
         } catch (e: CancellationException) {
             throw e
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             RpcResult.Err(RpcError("internal", "mux call timed out after ${timeoutMs}ms"))
         } catch (e: RemoteStreamException) {
-            if (e.carrier) RpcResult.Err(e.error) else RpcResult.Err(e.error)
+            if (e.error.code == "gateway/signature-invalid") {
+                // The host refused to open a stream on this unary endpoint. The HTTP path is the
+                // correct route; the caller already tried it and got a different error.
+                RpcResult.Err(RpcError("mux-unary-refused", e.error.message, e.error.details))
+            } else {
+                RpcResult.Err(e.error)
+            }
         } catch (e: Exception) {
             RpcResult.Err(RpcError("internal", "mux call failed: ${e.message}"))
         } finally {
