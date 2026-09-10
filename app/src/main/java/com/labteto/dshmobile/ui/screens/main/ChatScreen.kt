@@ -3,6 +3,7 @@ package com.labteto.dshmobile.ui.screens.main
 import android.graphics.BitmapFactory
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -291,6 +292,7 @@ fun ConversationScreen(
         if (text.isBlank() && pending.isEmpty()) return
         val images = pending.filterIsInstance<PendingAttachment.Image>()
         val files = pending.filterIsInstance<PendingAttachment.File>()
+        Log.d("DSH-Chat", "send(): text='${text.take(40)}', attachments=${pending.size}, images=${images.size}, files=${files.size}")
         // A file without a receipt cannot be cited. The send affordance already waits for the
         // chips, but a keyboard send lands here too.
         if (files.any { it.state !is FileUploadState.Ready }) {
@@ -350,6 +352,7 @@ fun ConversationScreen(
                     // message into several and put both limits permanently out of reach. Files
                     // ride the same call as receipts; a receipt the host refuses stays staged,
                     // so restoring the chips is enough to try again.
+                    Log.d("DSH-Chat", "Prompt path: pending=${pending.size}, images=${images.size}, receipts=${receipts.size}")
                     val outcome = if (pending.isEmpty()) {
                         store.prompt(text, effectiveMode)
                     } else {

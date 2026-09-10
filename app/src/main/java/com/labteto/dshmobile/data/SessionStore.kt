@@ -1667,6 +1667,7 @@ class SessionStore @Inject constructor(
             content = content,
             clientTimeZone = zone,
         )
+        log("promptContent: ${content.size} parts (${content.map { it::class.simpleName }}), text=${request.content.filterIsInstance<PromptContentPart.Text>().firstOrNull()?.text?.take(40)}")
         return when (val r = api.sessionPrompt(request)) {
             is RpcResult.Ok -> PromptOutcome.Ok
             is RpcResult.Err -> if (r.error.code == ATTACHMENT_INVALID) {
@@ -1747,6 +1748,7 @@ class SessionStore @Inject constructor(
             value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
         )
         var result = api.answerEvent(clientId, eventId, eventOutcome)
+        log("answerQuestions: HTTP result=${result::class.simpleName}, code=${(result as? RpcResult.Err)?.error?.code}")
         // HTTP route failed (pre-0.1.3 host lacks the endpoint, or transient proxy failure).
         // The mux is still alive — the question arrived over it — so retry through the socket.
         if (result is RpcResult.Err && result.error.code != "not-pending") {
@@ -1759,6 +1761,7 @@ class SessionStore @Inject constructor(
                     RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
                 ),
             )
+            log("answerQuestions: mux result=${result::class.simpleName}, code=${(result as? RpcResult.Err)?.error?.code}")
         }
         val outcome = answerOutcome(result, "question response", sessionId)
         // A transport failure (socket dead during a reconnect) means the host never saw the
