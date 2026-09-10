@@ -46,9 +46,11 @@ import com.labteto.dshmobile.core.wire.dto.ModelSelectionProjection
 import kotlinx.coroutines.flow.combine
 import com.labteto.dshmobile.core.wire.dto.ModelCatalog
 import com.labteto.dshmobile.core.wire.dto.QueuedInboxItem
+import com.labteto.dshmobile.core.wire.dto.REMOTE_EVENT_RESULT_ENDPOINT
 import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
 import com.labteto.dshmobile.core.wire.dto.RemoteEventOutcome
 import com.labteto.dshmobile.core.wire.dto.RemoteEventRejection
+import com.labteto.dshmobile.core.wire.dto.RemoteEventResult
 import com.labteto.dshmobile.core.wire.dto.SessionAddress
 import com.labteto.dshmobile.core.wire.dto.SessionAttachmentRequest
 import com.labteto.dshmobile.core.wire.dto.SessionCancelRequest
@@ -1738,19 +1740,27 @@ class SessionStore @Inject constructor(
     suspend fun answerQuestions(sessionId: String, answer: AskUserQuestionAnswer): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
         val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
-        val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
+        val generation = connectionManager.generation ?: return QuestionOutcome.Unsent
+        val clientId = generation.clientId
         // The waterfall returns the answer object itself; there is no envelope around it now.
-        val outcome = answerOutcome(
-            api.answerEvent(
-                clientId = clientId,
-                eventId = eventId,
-                outcome = RemoteEventOutcome.Result(
-                    value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
-                ),
-            ),
-            "question response",
-            sessionId,
+        val eventOutcome = RemoteEventOutcome.Result(
+            value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
         )
+        var result = api.answerEvent(clientId, eventId, eventOutcome)
+        // HTTP route failed (pre-0.1.3 host lacks the endpoint, or transient proxy failure).
+        // The mux is still alive — the question arrived over it — so retry through the socket.
+        if (result is RpcResult.Err && result.error.code != "not-pending") {
+            log("question answer HTTP failed (${result.error.code}), retrying via mux")
+            result = api.callViaMux(
+                mux = generation.mux,
+                endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
+                payload = encodeToJsonElement(
+                    RemoteEventResult.serializer(),
+                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
+                ),
+            )
+        }
+        val outcome = answerOutcome(result, "question response", sessionId)
         // A transport failure (socket dead during a reconnect) means the host never saw the
         // answer. Remember it so the replayed waterfall on the next generation can be answered
         // without another round-trip through the user.
@@ -1773,24 +1783,30 @@ class SessionStore @Inject constructor(
     suspend fun dismissQuestions(sessionId: String): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
         val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
-        val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
+        val generation = connectionManager.generation ?: return QuestionOutcome.Unsent
+        val clientId = generation.clientId
         // A rejection, not an empty answer, and not `next`: `next` would delegate to the host's
         // own later listeners, which is a different thing from the user closing the prompt.
-        return answerOutcome(
-            api.answerEvent(
-                clientId = clientId,
-                eventId = eventId,
-                outcome = RemoteEventOutcome.Rejected(
-                    error = RemoteEventRejection(
-                        name = "UserQuestionError",
-                        message = QUESTION_CANCELLED.message,
-                        code = QUESTION_CANCELLED.code,
-                    ),
-                ),
+        val eventOutcome = RemoteEventOutcome.Rejected(
+            error = RemoteEventRejection(
+                name = "UserQuestionError",
+                message = QUESTION_CANCELLED.message,
+                code = QUESTION_CANCELLED.code,
             ),
-            "question dismissal",
-            sessionId,
         )
+        var result = api.answerEvent(clientId, eventId, eventOutcome)
+        if (result is RpcResult.Err && result.error.code != "not-pending") {
+            log("question dismissal HTTP failed (${result.error.code}), retrying via mux")
+            result = api.callViaMux(
+                mux = generation.mux,
+                endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
+                payload = encodeToJsonElement(
+                    RemoteEventResult.serializer(),
+                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
+                ),
+            )
+        }
+        return answerOutcome(result, "question dismissal", sessionId)
     }
 
     private fun pendingQuestionEvent(sessionId: String): String? {

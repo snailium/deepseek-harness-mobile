@@ -71,6 +71,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
@@ -807,6 +808,45 @@ class DshApiClient(
         ),
         JsonElement.serializer(),
     )
+
+    /**
+     * Fallback transport: send a unary call through the WebSocket mux instead of HTTP.
+     *
+     * Opens a logical stream on [endpoint], receives the host's response (an `item` carrying the
+     * server-response envelope), and cancels the stream. Used when the HTTP route is unreachable
+     * (e.g. pre-0.1.3 hosts that lack the endpoint, or transient proxy failures) but the mux is
+     * still alive — which it must be, since the question arrived over it.
+     */
+    suspend fun callViaMux(
+        mux: RemoteStreamMux,
+        endpoint: String,
+        payload: JsonElement,
+        timeoutMs: Long = 10_000L,
+    ): RpcResult<JsonElement> {
+        val stream = try {
+            mux.open(endpoint, JsonObject(mapOf("args" to payload)))
+        } catch (e: RemoteStreamException) {
+            return RpcResult.Err(e.error)
+        }
+        return try {
+            withTimeout(timeoutMs) {
+                val frame = stream.receive() ?: return@withTimeout RpcResult.Err(
+                    RpcError("internal", "stream ended before response"),
+                )
+                decodeServerResponse(frame.toString()).result
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            RpcResult.Err(RpcError("internal", "mux call timed out after ${timeoutMs}ms"))
+        } catch (e: RemoteStreamException) {
+            if (e.carrier) RpcResult.Err(e.error) else RpcResult.Err(e.error)
+        } catch (e: Exception) {
+            RpcResult.Err(RpcError("internal", "mux call failed: ${e.message}"))
+        } finally {
+            stream.cancel()
+        }
+    }
 
     // ------------------------------------------------------------------ downloads
 
