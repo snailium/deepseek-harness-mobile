@@ -1747,29 +1747,7 @@ class SessionStore @Inject constructor(
         val eventOutcome = RemoteEventOutcome.Result(
             value = encodeToJsonElement(AskUserQuestionAnswer.serializer(), answer),
         )
-        var result = api.answerEvent(clientId, eventId, eventOutcome)
-        val httpCode = (result as? RpcResult.Err)?.error?.code
-        log("answerQuestions: HTTP result=${result::class.simpleName}, code=$httpCode, msg=${(result as? RpcResult.Err)?.error?.message}")
-        // HTTP route failed. The mux is still alive — the question arrived over it — so retry
-        // through the socket. The gateway's openWireStream throws signature-invalid for unary
-        // endpoints (mux-unary-refused), which means the mux cannot help; in that case keep the
-        // original HTTP error rather than replacing a meaningful code with a protocol one.
-        if (result is RpcResult.Err && result.error.code != "not-pending") {
-            log("question answer HTTP failed (${result.error.code}), retrying via mux")
-            val muxResult = api.callViaMux(
-                mux = generation.mux,
-                endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
-                payload = encodeToJsonElement(
-                    RemoteEventResult.serializer(),
-                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
-                ),
-            )
-            val muxCode = (muxResult as? RpcResult.Err)?.error?.code
-            log("answerQuestions: mux result=${muxResult::class.simpleName}, code=$muxCode, msg=${(muxResult as? RpcResult.Err)?.error?.message}")
-            if (muxCode != "mux-unary-refused") {
-                result = muxResult
-            }
-        }
+        val result = api.answerEvent(clientId, eventId, eventOutcome)
         val outcome = answerOutcome(result, "question response", sessionId)
         // A transport failure (socket dead during a reconnect) means the host never saw the
         // answer. Remember it so the replayed waterfall on the next generation can be answered
@@ -1804,25 +1782,7 @@ class SessionStore @Inject constructor(
                 code = QUESTION_CANCELLED.code,
             ),
         )
-        var result = api.answerEvent(clientId, eventId, eventOutcome)
-        val httpCode = (result as? RpcResult.Err)?.error?.code
-        log("dismissQuestions: HTTP result=${result::class.simpleName}, code=$httpCode")
-        if (result is RpcResult.Err && result.error.code != "not-pending") {
-            log("question dismissal HTTP failed (${result.error.code}), retrying via mux")
-            val muxResult = api.callViaMux(
-                mux = generation.mux,
-                endpoint = REMOTE_EVENT_RESULT_ENDPOINT,
-                payload = encodeToJsonElement(
-                    RemoteEventResult.serializer(),
-                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = eventOutcome),
-                ),
-            )
-            val muxCode = (muxResult as? RpcResult.Err)?.error?.code
-            log("dismissQuestions: mux result=${muxResult::class.simpleName}, code=$muxCode")
-            if (muxCode != "mux-unary-refused") {
-                result = muxResult
-            }
-        }
+        val result = api.answerEvent(clientId, eventId, eventOutcome)
         return answerOutcome(result, "question dismissal", sessionId)
     }
 

@@ -190,8 +190,8 @@ class MockHarnessTest {
     fun eventResultAcceptsAnAnswerForThisGeneration() {
         val rpcId = UUID.randomUUID().toString()
         val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
-            """"payload":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
-            """"outcome":{"kind":"result","value":{}}}}"""
+            """"payload":{"args":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}}"""
         val response = post("/api/${'$'}events/result", body)
         assertEquals(200, response.statusCode())
         val json = Json.parseToJsonElement(response.body()).jsonObject
@@ -205,13 +205,33 @@ class MockHarnessTest {
         // already replayed to the new one.
         val rpcId = UUID.randomUUID().toString()
         val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
-            """"payload":{"clientId":"stale","eventId":"evt-1",""" +
-            """"outcome":{"kind":"result","value":{}}}}"""
+            """"payload":{"args":{"clientId":"stale","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}}"""
         val response = post("/api/${'$'}events/result", body)
         assertEquals(200, response.statusCode())
         val result = Json.parseToJsonElement(response.body()).jsonObject["result"]!!.jsonObject
         assertEquals(false, result["ok"]!!.jsonPrimitive.boolean)
         assertEquals("stale-generation", result["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun eventResultRefusesAPayloadThatIsNotArgsFramed() {
+        // The gateway reads the result out of `payload.args` and rejects any payload with a key
+        // other than `args` — or none — before it looks at the outcome. A client that posts the
+        // bare `{clientId, eventId, outcome}` therefore fails on a perfectly healthy connection,
+        // which is what every question answer and every approval tap used to do.
+        val rpcId = UUID.randomUUID().toString()
+        val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
+            """"payload":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}"""
+        val response = post("/api/${'$'}events/result", body)
+        assertEquals(200, response.statusCode())
+        val result = Json.parseToJsonElement(response.body()).jsonObject["result"]!!.jsonObject
+        assertEquals(false, result["ok"]!!.jsonPrimitive.boolean)
+        assertEquals(
+            "event-result-not-args-framed",
+            result["error"]!!.jsonObject["code"]!!.jsonPrimitive.content,
+        )
     }
 
     @Test

@@ -562,4 +562,5 @@
     <string name="err_file_not_staged">The harness no longer holds that file. Attach it again.</string>
     <string name="err_file_subagent_unsupported">Subagent sessions do not take files.</string>
     <string name="err_file_send_failed">Sending the file failed (%1$s). Attach it again.</string>
+    <string name="debug_dialog_title">Debug info</string>
 </resources>

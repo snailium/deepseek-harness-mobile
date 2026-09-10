@@ -60,9 +60,10 @@ import java.util.concurrent.CopyOnWriteArrayList
  *    opens by name. The `$events` stream answers its `open` with a `ready` frame; everything
  *    else a test pushes rides whichever stream it names, including the `assistant-stream`
  *    frames a `session/follow` follower opted into ([pushAssistantStream]);
- *  - answers to pending waterfalls: `POST /api/$events/result` with `{clientId, eventId,
- *    outcome}`. An answer to a question this mock pushed is judged by [judgeQuestionResponse],
- *    the host's own acceptance law; anything else is acknowledged;
+ *  - answers to pending waterfalls: `POST /api/$events/result` with `{args: {clientId, eventId,
+ *    outcome}}` — the `args` frame is required, exactly as the real gateway requires it. An answer
+ *    to a question this mock pushed is judged by [judgeQuestionResponse], the host's own acceptance
+ *    law; anything else is acknowledged;
  *  - file uploads: the raw-byte route `POST /api/session/uploadFileBinary` and the
  *    `fileUploads/upload` Remote, both minting receipts a prompt can cite.
  *
@@ -589,7 +590,14 @@ class MockHarness(
      * host has since replayed.
      */
     private fun judgeEventResult(payload: JsonElement): JsonElement {
-        val body = payload as? JsonObject ?: throw MockRefusal("bad-response")
+        // The real gateway's `parseRemoteEventResultPayload` accepts a payload only when it has
+        // *exactly one* own key, `args`, with the result object inside it. Enforcing the same frame
+        // here is the point: a client that posts the bare result object is refused by the host
+        // before the outcome is ever read, and a mock that unwrapped it for the client would let
+        // that regression pass its tests while failing against every real harness.
+        val frame = payload as? JsonObject ?: throw MockRefusal("bad-response")
+        if (frame.keys != setOf("args")) throw MockRefusal("event-result-not-args-framed")
+        val body = frame["args"] as? JsonObject ?: throw MockRefusal("bad-response")
         if ((body["clientId"] as? JsonPrimitive)?.contentOrNull != clientId) {
             throw MockRefusal("stale-generation")
         }

@@ -45,6 +45,8 @@ class LocalizedStringsTest {
         "\\\\n\\\\[exit code: (\\\\d+)]$",
         // PairViewModel.kt fallback device name — shown only when Build.MODEL is blank.
         "Android device",
+        // ConnectViewModel.kt `check()` message: a programming-error assertion, never rendered.
+        "a discovered relay must be routed to pairing, not connected",
     )
 
     @Test

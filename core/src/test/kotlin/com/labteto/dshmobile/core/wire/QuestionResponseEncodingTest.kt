@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -57,6 +58,19 @@ class QuestionResponseEncodingTest {
     private fun body(transport: RecordingTransport) =
         Json.parseToJsonElement(transport.lastBody!!).jsonObject
 
+    /**
+     * Unwrap the `args` frame the way the gateway does, refusing anything else.
+     *
+     * `parseRemoteEventResultPayload` accepts a payload only when it has *exactly one* own key,
+     * `args`; the result object lives inside it. A body that posts the result at the top level is
+     * rejected before the outcome is ever read, which is what made an answer fail on a healthy
+     * connection — so the frame itself is asserted here, not just the fields inside it.
+     */
+    private fun args(transport: RecordingTransport) = body(transport)["payload"]!!.jsonObject.let {
+        assertEquals("the payload is exactly one `args` key", setOf("args"), it.keys)
+        it["args"]!!.jsonObject
+    }
+
     @Test
     fun `custom rides its own answer, not the list beside it`() = runTest {
         val transport = RecordingTransport()
@@ -76,7 +90,9 @@ class QuestionResponseEncodingTest {
         assertEquals("/api/\$events/result", transport.lastPath)
         val envelope = body(transport)
         assertEquals("client-request", envelope["type"]!!.jsonPrimitive.content)
-        val payload = envelope["payload"]!!.jsonObject
+        val payload = args(transport)
+        // `parseRemoteEventResult` matches these three keys exactly.
+        assertEquals(setOf("clientId", "eventId", "outcome"), payload.keys)
         assertEquals("client-1", payload["clientId"]!!.jsonPrimitive.content)
         assertEquals("evt-1", payload["eventId"]!!.jsonPrimitive.content)
         val outcome = payload["outcome"]!!.jsonObject
@@ -100,6 +116,24 @@ class QuestionResponseEncodingTest {
     }
 
     @Test
+    fun `an approval rides the same args frame as a question answer`() = runTest {
+        // The two waterfalls share one endpoint and one frame. An approval that skips the `args`
+        // wrapper is refused by the same validator, which is why "Approve" appeared to do nothing.
+        val transport = RecordingTransport()
+        client(transport).answerEvent(
+            "client-1",
+            "evt-3",
+            RemoteEventOutcome.Result(value = JsonPrimitive("allowed-once")),
+        )
+
+        val payload = args(transport)
+        assertEquals(setOf("clientId", "eventId", "outcome"), payload.keys)
+        val outcome = payload["outcome"]!!.jsonObject
+        assertEquals("result", outcome["kind"]!!.jsonPrimitive.content)
+        assertEquals("allowed-once", outcome["value"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun `a dismissal rejects the waterfall rather than answering it`() = runTest {
         // Answering every item with an empty selection is a valid *answer* the model reads as
         // "no preference". A dismissal has to fail the host's wait instead, so the tool call
@@ -118,7 +152,7 @@ class QuestionResponseEncodingTest {
             ),
         )
 
-        val outcome = body(transport)["payload"]!!.jsonObject["outcome"]!!.jsonObject
+        val outcome = args(transport)["outcome"]!!.jsonObject
         assertEquals("rejected", outcome["kind"]!!.jsonPrimitive.content)
         val error = outcome["error"]!!.jsonObject
         assertEquals("cancelled", error["code"]!!.jsonPrimitive.content)

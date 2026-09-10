@@ -71,7 +71,6 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.URLEncoder
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
@@ -81,8 +80,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -804,86 +801,21 @@ class DshApiClient(
         outcome: RemoteEventOutcome,
     ): RpcResult<JsonElement> = unary(
         REMOTE_EVENT_RESULT_ENDPOINT,
-        encodeToJsonElement(
-            RemoteEventResult.serializer(),
-            RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
-        ),
+        // The gateway's `parseRemoteEventResultPayload` demands a payload with *exactly one* key,
+        // `args` — the same `{args: {…}}` frame every other Remote uses. Posting the bare result
+        // object is refused before the outcome is ever read, so an approval or a question answer
+        // came back as a generic failure while the harness was perfectly reachable.
+        buildJsonObject {
+            put(
+                "args",
+                encodeToJsonElement(
+                    RemoteEventResult.serializer(),
+                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
+                ),
+            )
+        },
         JsonElement.serializer(),
     )
-
-    /**
-     * Fallback transport: send a unary call through the WebSocket mux instead of HTTP.
-     *
-     * Opens a logical stream on [endpoint] and reads frames until the host ends the stream or
-     * fails it. The gateway's `pump` calls `openWireStream(endpoint, payload)`, which for
-     * non-`$events` endpoints invokes `stream()` — this throws `gateway/signature-invalid` for
-     * unary endpoints (the work happens in `dispatchRpc`, not in the stream). The mux sends that
-     * error as an `error` frame; we surface it so the caller can distinguish "mux cannot help"
-     * from a real transport failure.
-     *
-     * If the host's gateway version does NOT throw (a future change or a different build), the
-     * stream may yield item frames and then end. In that case the first `ok`-bearing item is the
-     * RPC result; otherwise an empty `end` means the call was accepted.
-     */
-    suspend fun callViaMux(
-        mux: RemoteStreamMux,
-        endpoint: String,
-        payload: JsonElement,
-        timeoutMs: Long = 10_000L,
-    ): RpcResult<JsonElement> {
-        // [payload] is already the full args object (e.g. {clientId, eventId, outcome}).
-        // mux.open wraps its argument in another {"args": …}, so pass it directly — not
-        // pre-wrapped — to avoid a double-nested payload the gateway cannot match.
-        val stream = try {
-            mux.open(endpoint, payload)
-        } catch (e: RemoteStreamException) {
-            return RpcResult.Err(e.error)
-        }
-        return try {
-            withTimeout(timeoutMs) {
-                while (true) {
-                    val frame = stream.receive() ?: break
-                    // An `item` frame carrying an RPC result object.
-                    val obj = frame as? JsonObject
-                    if (obj != null && obj.containsKey("ok")) {
-                        return@withTimeout when (val ok = obj["ok"]?.jsonPrimitive?.booleanOrNull) {
-                            true -> RpcResult.Ok(obj["value"] ?: JsonObject(emptyMap()))
-                            false -> {
-                                val err = obj["error"] as? JsonObject
-                                RpcResult.Err(
-                                    RpcError(
-                                        code = err?.get("code")?.jsonPrimitive?.contentOrNull ?: "internal",
-                                        message = err?.get("message")?.jsonPrimitive?.contentOrNull ?: "unknown error",
-                                        details = err?.get("details") ?: JsonObject(emptyMap()),
-                                    ),
-                                )
-                            }
-                            null -> continue
-                        }
-                    }
-                }
-                // Stream ended cleanly without an RPC result frame. The gateway processed the
-                // call in dispatchRpc (the stream source was empty), so `end` means accepted.
-                RpcResult.Ok(JsonObject(emptyMap()))
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            RpcResult.Err(RpcError("internal", "mux call timed out after ${timeoutMs}ms"))
-        } catch (e: RemoteStreamException) {
-            if (e.error.code == "gateway/signature-invalid") {
-                // The host refused to open a stream on this unary endpoint. The HTTP path is the
-                // correct route; the caller already tried it and got a different error.
-                RpcResult.Err(RpcError("mux-unary-refused", e.error.message, e.error.details))
-            } else {
-                RpcResult.Err(e.error)
-            }
-        } catch (e: Exception) {
-            RpcResult.Err(RpcError("internal", "mux call failed: ${e.message}"))
-        } finally {
-            stream.cancel()
-        }
-    }
 
     // ------------------------------------------------------------------ downloads
 
