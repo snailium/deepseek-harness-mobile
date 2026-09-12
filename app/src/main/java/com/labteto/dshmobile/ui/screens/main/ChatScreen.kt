@@ -140,10 +140,9 @@ fun ConversationScreen(
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
-    // In-transcript search. The query lives above the tab swap because it belongs to the session
-    // rather than to either view, and the match cursor is a position in the hit list — stepping
-    // past the last hit wraps to the first.
-    var searchActive by remember(currentSessionId) { mutableStateOf(false) }
+    // In-transcript search. The bar is a permanent resident of the utility row, so the query and
+    // the cursor live above the tab swap: they belong to the session rather than to either view,
+    // and stepping past the last hit wraps to the first.
     var searchQuery by remember(currentSessionId) { mutableStateOf("") }
     var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
     val matches = remember(conversation?.nodes, searchQuery) {
@@ -155,16 +154,6 @@ fun ConversationScreen(
     LaunchedEffect(searchQuery) { matchCursor = 0 }
     val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
     val currentMatch = matches.getOrNull(cursor)
-    // Closing the bar drops the query with it: reopening should be a fresh search, not the last
-    // one, and a hit list kept alive behind a hidden bar would still drive the scroll.
-    fun toggleSearch() {
-        if (searchActive) {
-            searchActive = false
-            searchQuery = ""
-        } else {
-            searchActive = true
-        }
-    }
 
     // The chrome folds its session-meta row once the reader scrolls the transcript, and only
     // then: a programmatic scroll (session open, auto-paging, tail-follow) never counts, so the
@@ -426,14 +415,12 @@ fun ConversationScreen(
                 onTabChange = { tab = it },
                 promptMode = effectiveMode,
                 onPromptModeChange = { scope.launch { store.setPromptMode(currentSessionId, it) } },
-                searchActive = searchActive,
                 searchQuery = searchQuery,
                 searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
                 searchCount = matches.size,
                 onSearchQueryChange = { searchQuery = it },
                 onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
                 onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
-                onToggleSearch = ::toggleSearch,
             )
 
             // The two connection notices are different messages: a hard failure earns the red

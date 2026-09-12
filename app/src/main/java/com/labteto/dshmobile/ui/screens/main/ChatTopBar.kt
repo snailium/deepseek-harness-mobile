@@ -59,9 +59,10 @@ internal enum class ChatTab { Chat, Trajectory }
  * where it configures the next turn), the run-status dot, and the overflow menu carrying
  * Presets, Subagents, Details and Switch harness.
  *
- * Row 2 is navigation: the Chat / Trajectory view switcher (never folds) with the session's
- * agent preset and subagent chips in its trailing space — those fold away once the reader
- * scrolls, because they configure the next turn rather than navigate.
+ * Row 2 is navigation: the Chat / Trajectory view switcher (never folds), the always-present
+ * transcript search field, and the session's agent preset and subagent chips in its trailing
+ * space — those fold away once the reader scrolls, because they configure the next turn rather
+ * than navigate.
  */
 @Composable
 internal fun ChatTopBar(
@@ -87,16 +88,12 @@ internal fun ChatTopBar(
     /** Current prompt mode for queue/steer; toggled from the overflow menu. */
     promptMode: String = "queue",
     onPromptModeChange: ((String) -> Unit)? = null,
-    /** True while the in-transcript search bar is open. */
-    searchActive: Boolean = false,
     searchQuery: String = "",
     searchPosition: Int = 0,
     searchCount: Int = 0,
     onSearchQueryChange: (String) -> Unit = {},
     onSearchPrevious: () -> Unit = {},
     onSearchNext: () -> Unit = {},
-    /** Opens or closes the search bar; the magnifier beside the overflow menu drives it. */
-    onToggleSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -130,17 +127,6 @@ internal fun ChatTopBar(
                 contentDescription = stringResource(
                     if (running) R.string.status_running else R.string.status_idle,
                 ),
-            )
-            // Search sits immediately before the overflow: both act on the session as a whole,
-            // while everything to the left is what the session *is*.
-            DsIconButton(
-                icon = FeatherIcons.Search,
-                contentDescription = stringResource(
-                    if (searchActive) R.string.chat_search_close else R.string.chat_search_open,
-                ),
-                onClick = onToggleSearch,
-                tint = if (searchActive) colors.accent else colors.labelTertiary,
-                iconSize = 18.dp,
             )
             DsMenu(
                 anchor = {
@@ -183,50 +169,47 @@ internal fun ChatTopBar(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
         ) {
             ChatTabRow(tab = tab, onTabChange = onTabChange)
-            // Search takes the chips' slot rather than adding a row: mid-search the reader is
-            // looking for something specific, and the preset/subagent chips configure the *next*
-            // turn — they can come back when the bar closes. The tabs never move either way.
-            if (searchActive) {
-                TranscriptSearchBar(
-                    query = searchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    matchPosition = searchPosition,
-                    matchCount = searchCount,
-                    onPrevious = onSearchPrevious,
-                    onNext = onSearchNext,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                AnimatedVisibility(
-                    visible = !collapsed && hasChips,
-                    enter = fadeIn(DsAnimations.fade),
-                    exit = fadeOut(DsAnimations.fade),
-                    // The slot stays reserved at its weight share, so the tabs never shift when the
-                    // chips fade in or out; long chip sets scroll within their own strip.
-                    modifier = Modifier.weight(1f),
+            // The transcript search is a permanent resident of the utility row — it belongs to the
+            // session, not to either view — and the preset/subagent chips keep their slot behind
+            // it: they configure the *next* turn, so they fold away once the reader scrolls.
+            TranscriptSearchBar(
+                query = searchQuery,
+                onQueryChange = onSearchQueryChange,
+                matchPosition = searchPosition,
+                matchCount = searchCount,
+                onPrevious = onSearchPrevious,
+                onNext = onSearchNext,
+                modifier = Modifier.weight(1f),
+            )
+            AnimatedVisibility(
+                visible = !collapsed && hasChips,
+                enter = fadeIn(DsAnimations.fade),
+                exit = fadeOut(DsAnimations.fade),
+                // The slot stays reserved at its weight share, so the tabs and the search bar never
+                // shift when the chips fade in or out; long chip sets scroll within their own strip.
+                modifier = Modifier.weight(1f),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-                    ) {
-                        if (agentPresetLabel != null) {
-                            MetaChip(
-                                icon = FeatherIcons.Layout,
-                                label = agentPresetLabel,
-                                onClick = onOpenPresets,
-                            )
-                        }
-                        if (subagentCount > 0) {
-                            MetaChip(
-                                icon = FeatherIcons.Users,
-                                label = "$subagentCount",
-                                onClick = onOpenSubagents,
-                                semanticsLabel = stringResource(R.string.subagents_title),
-                            )
-                        }
+                    if (agentPresetLabel != null) {
+                        MetaChip(
+                            icon = FeatherIcons.Layout,
+                            label = agentPresetLabel,
+                            onClick = onOpenPresets,
+                        )
+                    }
+                    if (subagentCount > 0) {
+                        MetaChip(
+                            icon = FeatherIcons.Users,
+                            label = "$subagentCount",
+                            onClick = onOpenSubagents,
+                            semanticsLabel = stringResource(R.string.subagents_title),
+                        )
                     }
                 }
             }
@@ -340,6 +323,9 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
             onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
         },
         role = Role.Tab,
+        // The search bar beside it is 36dp; a 24dp track would read as a caption next to a control.
+        // A stretched segment also gets the taller hit target that matches.
+        stretch = true,
     )
 }
 

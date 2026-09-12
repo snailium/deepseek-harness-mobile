@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,9 +61,6 @@ internal fun TranscriptSearchBar(
     val colors = DsTheme.colors
     val keyboard = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
-    // The bar appears because the reader asked for it, so it takes focus on arrival: a search
-    // field that needs a second tap to start typing is a search field that looks broken.
-    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
 
     // One pill holding the whole control — magnifier, field, counter, clear, arrows — rather than
     // a field with satellites beside it: the utility row already shares its width with the view
