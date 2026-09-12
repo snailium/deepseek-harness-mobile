@@ -187,6 +187,9 @@ internal fun QuestionsPanel(
                 )
 
                 if (!minimized) {
+                    // The body scrolls; the header above it is the collapse toggle. Keeping the two
+                    // gestures on separate rows leaves long-press text selection on the question
+                    // and detail intact — a whole-card toggle would swallow that gesture.
                     QuestionBody(
                         modifier = Modifier
                             .weight(1f, fill = false)
@@ -260,44 +263,46 @@ private fun QuestionHeader(
         animationSpec = DsAnimations.chevron,
         label = "questionCollapse",
     )
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Row(
+    // The strip is the collapse toggle; the body below it carries its own scroll. Keeping the two
+    // gestures on separate rows leaves long-press text selection on the question intact.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !busy, onClickLabel = toggleLabel, onClick = onToggle),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            FeatherIcons.ChevronRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
             modifier = Modifier
-                .weight(1f)
-                .clickable(enabled = !busy, onClickLabel = toggleLabel, onClick = onToggle),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                FeatherIcons.ChevronRight,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier
-                    .size(14.dp)
-                    .graphicsLayer { rotationZ = rotation },
-            )
-            Spacer(Modifier.width(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                question.header?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, style = DsType.caption11, color = colors.labelTertiary)
-                }
-                Text(
-                    question.question,
-                    style = DsType.std14Strong,
-                    color = colors.labelPrimary,
-                    // A collapsed strip taller than the expanded card's header is not a collapse.
-                    maxLines = if (minimized) 2 else Int.MAX_VALUE,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                .size(14.dp)
+                .graphicsLayer { rotationZ = rotation },
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            question.header?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = DsType.caption11, color = colors.labelTertiary)
             }
+            Text(
+                question.question,
+                style = DsType.std14Strong,
+                color = colors.labelPrimary,
+                // A collapsed strip taller than the expanded card's header is not a collapse.
+                maxLines = if (minimized) 2 else Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         if (count > 1) {
+            Spacer(Modifier.width(4.dp))
             Text(
                 stringResource(R.string.questions_progress, index + 1, count),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
             )
-            Spacer(Modifier.width(4.dp))
         }
+        // Dismiss stays outside the toggle because it is destructive.
+        Spacer(Modifier.width(4.dp))
         DsIconButton(
             icon = FeatherIcons.X,
             contentDescription = stringResource(R.string.questions_dismiss),

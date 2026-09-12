@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -295,11 +296,12 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     val reasoningExpanded = remember(node.seq) { mutableStateMapOf<Int, Boolean>() }
     var actionsVisible by remember(node.seq) { mutableStateOf(false) }
 
+    // The tap that reveals the action row sits below the text rather than on it: a whole-column
+    // clickable would swallow the long-press the reader uses to select and copy part of the answer.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp)
-            .clickable(enabled = !streaming) { actionsVisible = !actionsVisible },
+            .padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         node.blocks.forEachIndexed { index, block ->
@@ -338,6 +340,17 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
         if (node.interrupted) {
             DsPill(text = stringResource(R.string.chat_stopped), warn = true)
         }
+        // The tap target that reveals the action row. It is its own composable so the long-press
+        // selection gesture on the text above stays unobstructed; while the row is open a tap here
+        // closes it again.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .clickable(enabled = !streaming, onClickLabel = stringResource(R.string.chat_message_actions)) {
+                    actionsVisible = !actionsVisible
+                },
+        )
         AnimatedVisibility(
             visible = actionsVisible && !streaming,
             enter = fadeIn(DsAnimations.fade),

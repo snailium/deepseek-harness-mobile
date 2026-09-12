@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
@@ -118,7 +119,10 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         buildInlineContent(text, codeStyle, colors)
     }
     if (links.isEmpty()) {
-        BasicText(result, modifier = modifier, style = style)
+        // Selectable: a reader may want to lift part of the answer out of the transcript.
+        SelectionContainer(modifier = modifier) {
+            Text(result, style = style)
+        }
         return
     }
     ClickableText(
@@ -324,11 +328,15 @@ private fun CodeBlock(lang: String?, code: String, modifier: Modifier = Modifier
             )
         }
         val highlighted = remember(code, lang) { highlightCode(code, lang) }
-        Text(
-            highlighted,
-            style = DsType.mdCode,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-        )
+        // Selectable so a partial lift works without the copy button; the banner icon stays for
+        // grabbing the whole block in one tap.
+        SelectionContainer(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                highlighted,
+                style = DsType.mdCode,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 

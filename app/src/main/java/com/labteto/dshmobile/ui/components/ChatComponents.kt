@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,10 +57,9 @@ import com.labteto.dshmobile.ui.theme.DshTheme
 fun UserBubble(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Text(
-            text,
-            style = DsType.bubbleText,
-            color = colors.onAccent,
+        // Selectable so the reader can lift part of what they sent; the bubble stays tappable for
+        // that gesture and gains nothing from a click handler of its own.
+        SelectionContainer(
             modifier = Modifier
                 .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
                 .shadow(DsSpacing.elevationQuiet, DsShapes.bubble)
@@ -68,7 +68,9 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
                     DsShapes.bubble,
                 )
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+        ) {
+            Text(text, style = DsType.bubbleText, color = colors.onAccent)
+        }
     }
 }
 
