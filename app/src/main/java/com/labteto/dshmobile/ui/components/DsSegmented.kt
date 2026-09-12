@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
@@ -65,6 +66,7 @@ fun DsSegmented(
     val colors = DsTheme.colors
     Row(
         modifier = modifier
+            .height(if (stretch) 36.dp else 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
             // Outlined as well as filled, because the fill alone cannot be trusted to show. The
@@ -122,12 +124,11 @@ private fun DsSegment(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .heightIn(min = minHeight)
             .clip(DsShapes.pillFull)
             .background(thumbFill)
             .shadow(if (selected) DsSpacing.elevationQuiet else 0.dp, DsShapes.pillFull)
             .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
+            .padding(horizontal = DsSpacing.medium),
     ) {
         Text(
             label,

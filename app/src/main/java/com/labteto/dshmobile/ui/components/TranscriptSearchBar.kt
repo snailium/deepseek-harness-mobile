@@ -67,7 +67,7 @@ internal fun TranscriptSearchBar(
     // switcher, and separate 32dp targets would leave the field about one word wide on a phone.
     Row(
         modifier = modifier
-            .height(36.dp)
+            .height(32.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
             .padding(start = DsSpacing.small, end = 2.dp),
@@ -151,7 +151,7 @@ private fun StepArrow(
     val colors = DsTheme.colors
     Box(
         modifier = Modifier
-            .size(28.dp)
+            .size(24.dp)
             .clip(CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -160,7 +160,7 @@ private fun StepArrow(
             icon,
             contentDescription = contentDescription,
             tint = if (enabled) colors.labelSecondary else colors.labelTertiary.copy(alpha = 0.4f),
-            modifier = Modifier.size(15.dp),
+            modifier = Modifier.size(13.dp),
         )
     }
 }

@@ -170,25 +170,15 @@ internal fun ChatTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
         ) {
+            // The view switcher hugs its labels and stays left; the search field takes the rest of
+            // the row (capped at 320dp) and sits at the right edge. The preset/subagent chips live
+            // in their own slot between the two — they configure the *next* turn, so they fold
+            // away once the reader scrolls.
             ChatTabRow(tab = tab, onTabChange = onTabChange)
-            // The transcript search is a permanent resident of the utility row — it belongs to the
-            // session, not to either view — and the preset/subagent chips keep their slot behind
-            // it: they configure the *next* turn, so they fold away once the reader scrolls.
-            TranscriptSearchBar(
-                query = searchQuery,
-                onQueryChange = onSearchQueryChange,
-                matchPosition = searchPosition,
-                matchCount = searchCount,
-                onPrevious = onSearchPrevious,
-                onNext = onSearchNext,
-                modifier = Modifier.weight(1f),
-            )
             AnimatedVisibility(
                 visible = !collapsed && hasChips,
                 enter = fadeIn(DsAnimations.fade),
                 exit = fadeOut(DsAnimations.fade),
-                // The slot stays reserved at its weight share, so the tabs and the search bar never
-                // shift when the chips fade in or out; long chip sets scroll within their own strip.
                 modifier = Modifier.weight(1f),
             ) {
                 Row(
@@ -215,6 +205,19 @@ internal fun ChatTopBar(
                     }
                 }
             }
+            // The transcript search is a permanent resident of the utility row — it belongs to the
+            // session, not to either view. Capped at 320dp and pushed to the right edge: on a wide
+            // screen the field does not stretch into an absurdly long pill, and the reader's eye
+            // lands on it in the same place every time.
+            TranscriptSearchBar(
+                query = searchQuery,
+                onQueryChange = onSearchQueryChange,
+                matchPosition = searchPosition,
+                matchCount = searchCount,
+                onPrevious = onSearchPrevious,
+                onNext = onSearchNext,
+                modifier = Modifier.widthIn(max = 320.dp),
+            )
         }
 
         Spacer(
@@ -325,13 +328,12 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
             onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
         },
         role = Role.Tab,
-        // The search bar beside it is 36dp; a 24dp track would read as a caption next to a control.
-        // A stretched segment also gets the taller hit target that matches. The track keeps its
-        // natural width — a stretch with no width of its own eats the whole row and leaves the
-        // search field zero pixels wide — capped at 240dp so a long "Trajectory" label can never
-        // crowd the field out on a narrow screen.
+        // The track hugs its two labels and stays left in the utility row; the search field takes
+        // the rest of the row. Capped at 150dp so a long "Trajectory" label can never crowd the
+        // field out on a narrow screen — below that cap each segment gets equal space inside the
+        // track, which is why stretch stays on.
         stretch = true,
-        modifier = Modifier.wrapContentSize().widthIn(max = 240.dp),
+        modifier = Modifier.wrapContentSize().widthIn(max = 150.dp),
     )
 }
 
