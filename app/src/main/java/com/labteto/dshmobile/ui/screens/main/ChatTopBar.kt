@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -324,8 +325,11 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
         },
         role = Role.Tab,
         // The search bar beside it is 36dp; a 24dp track would read as a caption next to a control.
-        // A stretched segment also gets the taller hit target that matches.
+        // A stretched segment also gets the taller hit target that matches. The track keeps its
+        // natural width — a stretch with no width of its own eats the whole row and leaves the
+        // search field zero pixels wide.
         stretch = true,
+        modifier = Modifier.wrapContentSize(),
     )
 }
 
