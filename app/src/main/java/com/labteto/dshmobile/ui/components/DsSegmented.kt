@@ -66,13 +66,15 @@ fun DsSegmented(
     val colors = DsTheme.colors
     Row(
         modifier = modifier
-            .height(if (stretch) 36.dp else 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
             // Outlined as well as filled, because the fill alone cannot be trusted to show. The
             // track's grey is a step off `bgLayer1`, but in dark mode it is the *same* colour as
             // `bgLayer2` — so on a sheet the fill vanishes and the control collapses back into the
-            // row of bare words this component exists to stop being.
+            // row of bare words this component exists to stop being. The 2dp inset keeps the thumb
+            // inside the border; the track itself sizes to its content, so a caller who wants a
+            // shorter outer frame passes `heightIn` through [modifier] rather than fighting the
+            // segments here.
             .border(1.dp, colors.borderL2, DsShapes.pillFull)
             .padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -124,6 +126,7 @@ private fun DsSegment(
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
+            .heightIn(min = minHeight)
             .clip(DsShapes.pillFull)
             .background(thumbFill)
             .shadow(if (selected) DsSpacing.elevationQuiet else 0.dp, DsShapes.pillFull)

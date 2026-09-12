@@ -331,9 +331,12 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
         // The track hugs its two labels and stays left in the utility row; the search field takes
         // the rest of the row. Capped at 150dp so a long "Trajectory" label can never crowd the
         // field out on a narrow screen — below that cap each segment gets equal space inside the
-        // track, which is why stretch stays on.
+        // track, which is why stretch stays on. The outer frame is capped at 32dp: the segments
+        // size themselves to their text (stretch=36dp minimum), and the 2dp inset leaves the thumb
+        // a hair shorter than the track — so the control reads as one pill rather than two stacked
+        // bars.
         stretch = true,
-        modifier = Modifier.wrapContentSize().widthIn(max = 150.dp),
+        modifier = Modifier.wrapContentSize().widthIn(max = 150.dp).heightIn(max = 32.dp),
     )
 }
 
