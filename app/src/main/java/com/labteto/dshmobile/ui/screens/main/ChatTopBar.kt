@@ -330,12 +330,14 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
         role = Role.Tab,
         // The track hugs its two labels and stays left in the utility row; the search field takes
         // the rest of the row. Capped at 150dp so a long "Trajectory" label can never crowd the
-        // field out on a narrow screen — below that cap each segment gets equal space inside the
-        // track, which is why stretch stays on. The outer frame is capped at 32dp: the segments
-        // size themselves to their text (stretch=36dp minimum), and the 2dp inset leaves the thumb
-        // a hair shorter than the track — so the control reads as one pill rather than two stacked
-        // bars.
+        // field out on a narrow screen — below that cap the segments split the space by weight,
+        // which is why stretch stays on. Chat gets 40% and Trajectory 60%: the shorter label keeps
+        // a compact hit target while the longer one has room to breathe without ellipsis. The outer
+        // frame is capped at 32dp: the segments size themselves to their text (stretch=36dp
+        // minimum), and the 2dp inset leaves the thumb a hair shorter than the track — so the
+        // control reads as one pill rather than two stacked bars.
         stretch = true,
+        weights = listOf(0.4f, 0.6f),
         modifier = Modifier.wrapContentSize().widthIn(max = 150.dp).heightIn(max = 32.dp),
     )
 }

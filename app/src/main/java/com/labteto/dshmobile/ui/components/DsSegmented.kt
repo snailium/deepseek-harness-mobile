@@ -62,6 +62,11 @@ fun DsSegmented(
     role: Role = Role.RadioButton,
     enabled: Boolean = true,
     stretch: Boolean = false,
+    /**
+     * Per-segment weight shares. Must be the same length as [segments] and contain only positive
+     * values. When null (the default) every segment gets an equal share — the historical behaviour.
+     */
+    weights: List<Float>? = null,
 ) {
     val colors = DsTheme.colors
     Row(
@@ -79,7 +84,8 @@ fun DsSegmented(
             .padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        segments.forEach { segment ->
+        segments.forEachIndexed { index, segment ->
+            val share = weights?.getOrNull(index)?.takeIf { it > 0f } ?: 1f
             DsSegment(
                 label = segment.label,
                 selected = segment.key == selectedKey,
@@ -90,7 +96,7 @@ fun DsSegmented(
                 // get a button's height. 24dp is a comfortable inline chip and an uncomfortably
                 // small thing to hit when it is the first decision on a screen.
                 minHeight = if (stretch) 36.dp else 24.dp,
-                modifier = Modifier.weight(1f, fill = stretch),
+                modifier = Modifier.weight(share, fill = stretch),
             )
         }
     }
