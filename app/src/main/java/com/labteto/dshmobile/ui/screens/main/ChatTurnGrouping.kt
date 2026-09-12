@@ -16,13 +16,24 @@ import com.labteto.dshmobile.core.session.ToolCallNode
  */
 internal sealed interface TranscriptItem {
     val key: String
+
+    /**
+     * Whether the row drawn for this item is the one containing the node [seq].
+     *
+     * Search needs this to scroll: a hit inside a process group belongs to the group's single row
+     * rather than to a row of its own, so "which row shows seq N" cannot be answered by comparing
+     * seqs alone.
+     */
+    fun holds(seq: Long): Boolean
 }
 
 /** A node that stands alone (user messages, pills, errors, plain text replies…). */
 internal data class NodeItem(
     override val key: String,
     val node: ChatNode,
-) : TranscriptItem
+) : TranscriptItem {
+    override fun holds(seq: Long): Boolean = node.seq == seq
+}
 
 /** Reasoning-bearing assistant messages plus the tool calls that follow them. */
 internal data class ProcessItem(
@@ -32,6 +43,9 @@ internal data class ProcessItem(
 ) : TranscriptItem {
     val firstSeq: Long get() = messages.firstOrNull()?.seq ?: tools.first().seq
     val lastSeq: Long get() = tools.lastOrNull()?.seq ?: messages.last().seq
+
+    override fun holds(seq: Long): Boolean =
+        messages.any { it.seq == seq } || tools.any { it.seq == seq }
 }
 
 /**

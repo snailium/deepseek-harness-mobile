@@ -41,6 +41,7 @@ import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.MenuItem
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -86,6 +87,16 @@ internal fun ChatTopBar(
     /** Current prompt mode for queue/steer; toggled from the overflow menu. */
     promptMode: String = "queue",
     onPromptModeChange: ((String) -> Unit)? = null,
+    /** True while the in-transcript search bar is open. */
+    searchActive: Boolean = false,
+    searchQuery: String = "",
+    searchPosition: Int = 0,
+    searchCount: Int = 0,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchPrevious: () -> Unit = {},
+    onSearchNext: () -> Unit = {},
+    /** Opens or closes the search bar; the magnifier beside the overflow menu drives it. */
+    onToggleSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -119,6 +130,17 @@ internal fun ChatTopBar(
                 contentDescription = stringResource(
                     if (running) R.string.status_running else R.string.status_idle,
                 ),
+            )
+            // Search sits immediately before the overflow: both act on the session as a whole,
+            // while everything to the left is what the session *is*.
+            DsIconButton(
+                icon = FeatherIcons.Search,
+                contentDescription = stringResource(
+                    if (searchActive) R.string.chat_search_close else R.string.chat_search_open,
+                ),
+                onClick = onToggleSearch,
+                tint = if (searchActive) colors.accent else colors.labelTertiary,
+                iconSize = 18.dp,
             )
             DsMenu(
                 anchor = {
@@ -161,35 +183,50 @@ internal fun ChatTopBar(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
         ) {
             ChatTabRow(tab = tab, onTabChange = onTabChange)
-            AnimatedVisibility(
-                visible = !collapsed && hasChips,
-                enter = fadeIn(DsAnimations.fade),
-                exit = fadeOut(DsAnimations.fade),
-                // The slot stays reserved at its weight share, so the tabs never shift when the
-                // chips fade in or out; long chip sets scroll within their own strip.
-                modifier = Modifier.weight(1f),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+            // Search takes the chips' slot rather than adding a row: mid-search the reader is
+            // looking for something specific, and the preset/subagent chips configure the *next*
+            // turn — they can come back when the bar closes. The tabs never move either way.
+            if (searchActive) {
+                TranscriptSearchBar(
+                    query = searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    matchPosition = searchPosition,
+                    matchCount = searchCount,
+                    onPrevious = onSearchPrevious,
+                    onNext = onSearchNext,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                AnimatedVisibility(
+                    visible = !collapsed && hasChips,
+                    enter = fadeIn(DsAnimations.fade),
+                    exit = fadeOut(DsAnimations.fade),
+                    // The slot stays reserved at its weight share, so the tabs never shift when the
+                    // chips fade in or out; long chip sets scroll within their own strip.
+                    modifier = Modifier.weight(1f),
                 ) {
-                    if (agentPresetLabel != null) {
-                        MetaChip(
-                            icon = FeatherIcons.Layout,
-                            label = agentPresetLabel,
-                            onClick = onOpenPresets,
-                        )
-                    }
-                    if (subagentCount > 0) {
-                        MetaChip(
-                            icon = FeatherIcons.Users,
-                            label = "$subagentCount",
-                            onClick = onOpenSubagents,
-                            semanticsLabel = stringResource(R.string.subagents_title),
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                    ) {
+                        if (agentPresetLabel != null) {
+                            MetaChip(
+                                icon = FeatherIcons.Layout,
+                                label = agentPresetLabel,
+                                onClick = onOpenPresets,
+                            )
+                        }
+                        if (subagentCount > 0) {
+                            MetaChip(
+                                icon = FeatherIcons.Users,
+                                label = "$subagentCount",
+                                onClick = onOpenSubagents,
+                                semanticsLabel = stringResource(R.string.subagents_title),
+                            )
+                        }
                     }
                 }
             }

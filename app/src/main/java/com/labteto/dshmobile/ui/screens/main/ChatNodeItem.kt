@@ -574,11 +574,19 @@ internal fun ProcessGroupItem(
     item: ProcessItem,
     context: ChatNodeContext,
     live: Boolean,
+    /** True while the search cursor is on a node inside this group. */
+    focused: Boolean = false,
 ) {
     var touched by remember(item.key) { mutableStateOf(false) }
     var expanded by remember(item.key) { mutableStateOf(live) }
+    // The cursor is not a manual toggle: `touched` stays false while search opens the group, so it
+    // folds again once the cursor leaves — which is what makes stepping through hits readable.
+    // Both effects guard on `focused` so neither can undo the other on first composition.
     LaunchedEffect(live) {
-        if (!live && !touched) expanded = false
+        if (!live && !touched && !focused) expanded = false
+    }
+    LaunchedEffect(focused) {
+        if (focused) expanded = true else if (!live && !touched) expanded = false
     }
     val toolLabel = pluralStringResource(R.plurals.tool_calls_count, item.tools.size, item.tools.size)
     val title = when {

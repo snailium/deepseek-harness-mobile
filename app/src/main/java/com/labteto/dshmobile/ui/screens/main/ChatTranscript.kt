@@ -85,6 +85,14 @@ internal fun ChatTranscript(
     modifier: Modifier = Modifier,
     /** Observes user scrolls (e.g. to fold the chrome); null keeps the list plain. */
     scrollConnection: NestedScrollConnection? = null,
+    /**
+     * The node the search cursor is sitting on, or null when no search is running.
+     *
+     * The seq is resolved to a row here rather than by the caller because grouping and filtering
+     * happen here: only this scope knows that a hit inside a process group lives in the row that
+     * carries the whole group.
+     */
+    focusSeq: Long? = null,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
     // worth of structural events stacks those gaps into a blank band under the chrome.
@@ -138,6 +146,22 @@ internal fun ChatTranscript(
         val switched = sessionId != lastSession
         lastSession = sessionId
         if (switched) listState.scrollToItem(itemCount - 1)
+    }
+
+    // A search hit is only reachable if its row is the one carrying the node: a hit inside a
+    // collapsed process group would scroll to a header that shows none of the matching text, so
+    // the group is told to open. The paging row sits above the transcript and shifts every index.
+    val focusRowIndex = remember(rows, focusSeq, hasMore) {
+        focusSeq?.let { seq ->
+            rows.indexOfFirst { it.holds(seq) }
+                .takeIf { it >= 0 }
+                ?.let { it + if (hasMore) 1 else 0 }
+        }
+    }
+    // Keyed on the seq as well as the row: two hits inside one process group resolve to the same
+    // row, and stepping between them should still bring the view back if the reader scrolled away.
+    LaunchedEffect(focusRowIndex, focusSeq) {
+        if (focusRowIndex != null) listState.animateScrollToItem(focusRowIndex)
     }
 
     if (loading) {
@@ -212,6 +236,9 @@ internal fun ChatTranscript(
                                 // collapses to its summary unless the reader opened it by hand.
                                 live = conversation?.running == true &&
                                     item.lastSeq == nodes.lastOrNull()?.seq,
+                                // Landing on the header of a closed group shows the reader none of
+                                // the text they searched for, so a group holding the hit opens.
+                                focused = focusSeq != null && item.holds(focusSeq),
                             )
                         }
                     }

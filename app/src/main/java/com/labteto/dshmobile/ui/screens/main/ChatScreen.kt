@@ -140,6 +140,32 @@ fun ConversationScreen(
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
+    // In-transcript search. The query lives above the tab swap because it belongs to the session
+    // rather than to either view, and the match cursor is a position in the hit list — stepping
+    // past the last hit wraps to the first.
+    var searchActive by remember(currentSessionId) { mutableStateOf(false) }
+    var searchQuery by remember(currentSessionId) { mutableStateOf("") }
+    var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
+    val matches = remember(conversation?.nodes, searchQuery) {
+        findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
+    }
+    // A new query resets the walk to the first hit; keeping the old cursor would land the reader at
+    // position 5 of a completely different result set. The cursor is also clamped on read, because
+    // the node list can shrink under it (a live turn folding, a page of history arriving).
+    LaunchedEffect(searchQuery) { matchCursor = 0 }
+    val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
+    val currentMatch = matches.getOrNull(cursor)
+    // Closing the bar drops the query with it: reopening should be a fresh search, not the last
+    // one, and a hit list kept alive behind a hidden bar would still drive the scroll.
+    fun toggleSearch() {
+        if (searchActive) {
+            searchActive = false
+            searchQuery = ""
+        } else {
+            searchActive = true
+        }
+    }
+
     // The chrome folds its session-meta row once the reader scrolls the transcript, and only
     // then: a programmatic scroll (session open, auto-paging, tail-follow) never counts, so the
     // bar stays expanded when the view moves on its own.
@@ -400,6 +426,14 @@ fun ConversationScreen(
                 onTabChange = { tab = it },
                 promptMode = effectiveMode,
                 onPromptModeChange = { scope.launch { store.setPromptMode(currentSessionId, it) } },
+                searchActive = searchActive,
+                searchQuery = searchQuery,
+                searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                searchCount = matches.size,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                onToggleSearch = ::toggleSearch,
             )
 
             // The two connection notices are different messages: a hard failure earns the red
@@ -456,6 +490,9 @@ fun ConversationScreen(
                         context = nodeContext,
                         listState = chatListState,
                         scrollConnection = scrollConnection,
+                        // One step of the cursor is one thing to look at; the transcript turns the
+                        // seq into whichever row happens to hold it.
+                        focusSeq = currentMatch?.seq,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
                         // A suggestion chip composes the message; sending stays on the explicit
                         // send button, so a tap never fires a prompt by surprise.
@@ -468,6 +505,7 @@ fun ConversationScreen(
                         cwd = currentSession?.cwd,
                         listState = trajectoryListState,
                         running = conversation?.running == true,
+                        focusSeq = currentMatch?.seq,
                     )
                 }
             }

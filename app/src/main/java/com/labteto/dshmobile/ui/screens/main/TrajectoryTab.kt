@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +59,8 @@ internal fun TrajectoryTab(
     /** Whether a turn is live right now; drives the running dot on in-flight calls. */
     running: Boolean,
     modifier: Modifier = Modifier,
+    /** The node the search cursor is sitting on; the ledger scrolls to its row. */
+    focusSeq: Long? = null,
 ) {
     val colors = DsTheme.colors
     val nodes = conversation?.nodes ?: emptyList()
@@ -68,6 +71,27 @@ internal fun TrajectoryTab(
         nodes.mapNotNull { it as? ToolResultNode }
             .filter { it.callId.isNotBlank() }
             .associateBy { it.callId }
+    }
+
+    // The ledger's rows are not one per node — each turn contributes a section header plus one row
+    // per node, and the totals block closes the list — so the flat index has to be walked out here
+    // rather than derived from the node's position.
+    val focusRowIndex = remember(groups, focusSeq) {
+        focusSeq?.let { seq ->
+            var index = if (groups.isEmpty()) 1 else 0
+            var found: Int? = null
+            for ((_, turnNodes) in groups) {
+                index++ // the turn's section header
+                for (node in turnNodes) {
+                    if (node.seq == seq) found = index
+                    index++
+                }
+            }
+            found
+        }
+    }
+    LaunchedEffect(focusRowIndex, focusSeq) {
+        if (focusRowIndex != null) listState.animateScrollToItem(focusRowIndex)
     }
 
     LazyColumn(
