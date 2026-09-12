@@ -51,6 +51,7 @@ import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.EmptyHero
+import com.labteto.dshmobile.ui.components.LocalSelectionDismiss
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -190,7 +191,16 @@ internal fun ChatTranscript(
                 }
             } else {
                 items(rows, key = { it.key }) { item ->
-                    Column(if (streaming) Modifier else Modifier.animateItem()) {
+                    // A tap on the row dismisses any active text selection: this Compose version's
+                    // SelectionContainer has no built-in "tap outside to clear", so each transcript
+                    // row opts in. Long-press is a distinct gesture and still reaches the selectable
+                    // text inside. The dismiss token is shared across all rows in the transcript.
+                    val selectionDismiss = LocalSelectionDismiss.current
+                    Column(
+                        (if (streaming) Modifier else Modifier.animateItem())
+                            .fillMaxWidth()
+                            .clickable { selectionDismiss.value++ },
+                    ) {
                         when (item) {
                             is NodeItem -> ChatNodeItem(node = item.node, context = context)
                             is ProcessItem -> ProcessGroupItem(

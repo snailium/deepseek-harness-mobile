@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,7 @@ import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
+// LocalSelectionDismiss lives in ChatComponents.kt (same package) — no import needed.
 
 /**
  * Block-level Markdown renderer: fenced code blocks (with syntax highlighting), #-#### headings,
@@ -120,8 +122,13 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     }
     if (links.isEmpty()) {
         // Selectable: a reader may want to lift part of the answer out of the transcript.
-        SelectionContainer(modifier = modifier) {
-            Text(result, style = style)
+        // Re-key on the shared dismiss token so an active selection is cleared when the reader
+        // taps elsewhere in the transcript (see ChatTranscript).
+        val dismissToken = LocalSelectionDismiss.current.value
+        key(dismissToken) {
+            SelectionContainer(modifier = modifier) {
+                Text(result, style = style)
+            }
         }
         return
     }
@@ -329,13 +336,17 @@ private fun CodeBlock(lang: String?, code: String, modifier: Modifier = Modifier
         }
         val highlighted = remember(code, lang) { highlightCode(code, lang) }
         // Selectable so a partial lift works without the copy button; the banner icon stays for
-        // grabbing the whole block in one tap.
-        SelectionContainer(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                highlighted,
-                style = DsType.mdCode,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            )
+        // grabbing the whole block in one tap. Re-key on the shared dismiss token so an active
+        // selection is cleared when the reader taps elsewhere (see ChatTranscript).
+        val dismissToken = LocalSelectionDismiss.current.value
+        key(dismissToken) {
+            SelectionContainer(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    highlighted,
+                    style = DsType.mdCode,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
         }
     }
 }

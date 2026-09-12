@@ -20,6 +20,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +45,14 @@ import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 
 /**
+ * A shared dismiss token for text selections in the transcript. Tapping any row increments it;
+ * selectable components (UserBubble, MarkdownText) observe it and clear their selection when it
+ * changes. This Compose version's SelectionContainer has no built-in "tap outside to clear", so
+ * the transcript opts in by wiring this token through every row.
+ */
+val LocalSelectionDismiss = staticCompositionLocalOf { mutableIntStateOf(0) }
+
+/**
  * Right-aligned user message bubble: solid `userBubble` fill with white text, r22, 17/25 text.
  *
  * A filled user bubble with white text and no border — the standard chat-app arrangement
@@ -56,20 +67,23 @@ import com.labteto.dshmobile.ui.theme.DshTheme
 @Composable
 fun UserBubble(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
+    // Re-key the SelectionContainer when the shared dismiss token changes so an active selection
+    // is cleared. The token is incremented by a tap on any transcript row (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        // Selectable so the reader can lift part of what they sent; the bubble stays tappable for
-        // that gesture and gains nothing from a click handler of its own.
-        SelectionContainer(
-            modifier = Modifier
-                .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                .shadow(DsSpacing.elevationQuiet, DsShapes.bubble)
-                .background(
-                    Brush.linearGradient(listOf(colors.userBubble, colors.userBubbleHighlight)),
-                    DsShapes.bubble,
-                )
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        ) {
-            Text(text, style = DsType.bubbleText, color = colors.onAccent)
+        key(dismissToken) {
+            SelectionContainer(
+                modifier = Modifier
+                    .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
+                    .shadow(DsSpacing.elevationQuiet, DsShapes.bubble)
+                    .background(
+                        Brush.linearGradient(listOf(colors.userBubble, colors.userBubbleHighlight)),
+                        DsShapes.bubble,
+                    )
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Text(text, style = DsType.bubbleText, color = colors.onAccent)
+            }
         }
     }
 }
