@@ -70,38 +70,106 @@ import com.labteto.dshmobile.ui.theme.DshTheme
  * Only http(s) URLs become tappable; all other schemes render as plain text.
  */
 @Composable
-fun MarkdownText(text: String, modifier: Modifier = Modifier) {
+fun MarkdownText(text: String, modifier: Modifier = Modifier, streaming: Boolean = false) {
     val colors = DsTheme.colors
+    // While the tail is still being written the parse result reshapes on every delta: a line that
+    // was a paragraph becomes a list item or a fenced block the moment its marker arrives. Re-keying
+    // those blocks mid-stream re-composes and re-measures them, which reads as a flash in the text.
+    // The fast path renders the still-growing tail as one plain-text run instead; settled content is
+    // parsed exactly once (the `remember` below) and never re-keyed, so it keeps its layout while
+    // the tail grows underneath.
+    if (streaming && hasUnclosedCodeFence(text)) {
+        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StreamingTextBlock(text)
+        }
+        return
+    }
     val blocks = remember(text) { parseMarkdown(text) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        blocks.forEach { block ->
-            when (block) {
-                is MdBlock.Heading -> {
-                    val style = when (block.level) {
-                        1 -> DsType.mdH1
-                        2 -> DsType.mdH2
-                        3 -> DsType.mdH3
-                        else -> DsType.mdH4
-                    }
-                    InlineMarkdown(block.text, style.copy(color = colors.labelPrimary), Modifier.padding(top = 10.dp))
-                }
-                is MdBlock.Paragraph -> InlineMarkdown(
-                    block.lines.joinToString(" "),
-                    DsType.mdBody.copy(color = colors.labelPrimary),
-                    Modifier.fillMaxWidth(),
-                )
-                is MdBlock.ListItem -> MdListItemRow(block)
-                is MdBlock.Blockquote -> MdBlockquote(block)
-                is MdBlock.Code -> CodeBlock(block.lang, block.code)
-                is MdBlock.HorizontalRule -> Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                        .height(1.dp)
-                        .background(colors.borderL1),
-                )
-                is MdBlock.Table -> MarkdownTable(block)
+        blocks.forEachIndexed { index, block ->
+            // The last block is the one a delta extends. While streaming it may still be growing into
+            // something else (a paragraph gaining a marker), so render it as plain text; every
+            // earlier block is final and keeps its parsed structure.
+            val settled = !streaming || index < blocks.lastIndex
+            if (settled) {
+                MdBlockView(block, colors)
+            } else {
+                StreamingTextBlock(block.plainText())
             }
+        }
+    }
+}
+
+/** True while a ``` fence is open: the tail is mid-code-block and its shape keeps changing. */
+private fun hasUnclosedCodeFence(text: String): Boolean {
+    val lines = text.split('\n')
+    var open = false
+    for (line in lines) {
+        if (line.trimStart().startsWith("```")) open = !open
+    }
+    return open
+}
+
+/** Plain-text stand-in for a block whose structure is not final yet. */
+private fun MdBlock.plainText(): String = when (this) {
+    is MdBlock.Heading -> text
+    is MdBlock.Paragraph -> lines.joinToString(" ")
+    is MdBlock.ListItem -> text
+    is MdBlock.Blockquote -> lines.joinToString("\n")
+    is MdBlock.Code -> code
+    is MdBlock.HorizontalRule -> "---"
+    is MdBlock.Table -> (listOf(header) + rows).joinToString("\n") { it.joinToString(" | ") }
+}
+
+/** One settled markdown block. */
+@Composable
+private fun MdBlockView(block: MdBlock, colors: DsColors) {
+    when (block) {
+        is MdBlock.Heading -> {
+            val style = when (block.level) {
+                1 -> DsType.mdH1
+                2 -> DsType.mdH2
+                3 -> DsType.mdH3
+                else -> DsType.mdH4
+            }
+            InlineMarkdown(block.text, style.copy(color = colors.labelPrimary), Modifier.padding(top = 10.dp))
+        }
+        is MdBlock.Paragraph -> InlineMarkdown(
+            block.lines.joinToString(" "),
+            DsType.mdBody.copy(color = colors.labelPrimary),
+            Modifier.fillMaxWidth(),
+        )
+        is MdBlock.ListItem -> MdListItemRow(block)
+        is MdBlock.Blockquote -> MdBlockquote(block)
+        is MdBlock.Code -> CodeBlock(block.lang, block.code)
+        is MdBlock.HorizontalRule -> Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp)
+                .height(1.dp)
+                .background(colors.borderL1),
+        )
+        is MdBlock.Table -> MarkdownTable(block)
+    }
+}
+
+/**
+ * Renders a still-growing chunk as plain, selectable text. The content string only ever grows, so
+ * the single Text node re-measures in place — no blocks are created or destroyed mid-stream and
+ * nothing can flash. It is not key-stable across the stream/settle boundary on purpose: when the
+ * text settles the parsed structure replaces this run, and that one swap is the moment a shape
+ * change (a list marker arriving) legitimately becomes visible.
+ */
+@Composable
+private fun StreamingTextBlock(text: String) {
+    val colors = DsTheme.colors
+    val dismissToken = LocalSelectionDismiss.current.value
+    key(dismissToken) {
+        SelectionContainer(Modifier.fillMaxWidth()) {
+            Text(
+                text,
+                style = DsType.mdBody.copy(color = colors.labelPrimary),
+            )
         }
     }
 }

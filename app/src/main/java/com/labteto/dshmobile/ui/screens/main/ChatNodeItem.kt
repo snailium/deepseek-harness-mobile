@@ -306,7 +306,9 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     ) {
         node.blocks.forEachIndexed { index, block ->
             when (block.kind) {
-                "text" -> MarkdownText(block.text.orEmpty())
+                // While the message is the live tail its text blocks are still being written; pass
+                // the flag down so the renderer keeps their layout stable until settlement.
+                "text" -> MarkdownText(block.text.orEmpty(), streaming = streaming)
                 "reasoning" -> {
                     val expanded = reasoningExpanded[index] ?: false
                     ThinkingRow(
@@ -317,7 +319,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                         streaming = streaming,
                     )
                     AnimatedVisibility(visible = expanded) {
-                        MarkdownText(block.text.orEmpty())
+                        MarkdownText(block.text.orEmpty(), streaming = streaming)
                     }
                 }
                 // Tool calls arrive as their own nodes and render as cards; the inline block is a
