@@ -293,6 +293,11 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     // so `running` is still true for a frame. Without this the last thing the user sees after
     // tapping stop is the answer apparently still being written.
     val streaming = context.running && isLast && !node.interrupted
+    // A message that stands alone (grouping keeps it out of the process group because it carries
+    // visible text) shows its reasoning inline under a "Thought" row. The same content inside a
+    // process group gets no inner row: the group's header already says Thought, and the reader
+    // opens the group to see both.
+    val thinkingInline = node.blocks.any { it.kind == "reasoning" } && !node.hasVisibleText()
     val reasoningExpanded = remember(node.seq) { mutableStateMapOf<Int, Boolean>() }
     var actionsVisible by remember(node.seq) { mutableStateOf(false) }
 
@@ -309,7 +314,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                 // While the message is the live tail its text blocks are still being written; pass
                 // the flag down so the renderer keeps their layout stable until settlement.
                 "text" -> MarkdownText(block.text.orEmpty(), streaming = streaming)
-                "reasoning" -> {
+                "reasoning" -> if (thinkingInline) {
                     val expanded = reasoningExpanded[index] ?: false
                     ThinkingRow(
                         summary = block.text?.lineSequence()?.firstOrNull()
@@ -321,6 +326,10 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                     AnimatedVisibility(visible = expanded) {
                         MarkdownText(block.text.orEmpty(), streaming = streaming)
                     }
+                } else {
+                    // Inside the process group: the disclosure header is the "Thought" affordance,
+                    // so the body shows the reasoning itself.
+                    MarkdownText(block.text.orEmpty(), streaming = streaming)
                 }
                 // Tool calls arrive as their own nodes and render as cards; the inline block is a
                 // duplicate reference, so it stays quiet here.

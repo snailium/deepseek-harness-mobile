@@ -37,6 +37,28 @@ class ChatTurnGroupingTest {
         blocks = listOf(ChatBlock(kind = "text", text = text)),
     )
 
+    private fun reasoningAndText(seq: Long) = AssistantMessageNode(
+        seq = seq,
+        messageId = null,
+        turn = 1,
+        step = 1,
+        blocks = listOf(
+            ChatBlock(kind = "reasoning", text = "think"),
+            ChatBlock(kind = "text", text = "the answer"),
+        ),
+    )
+
+    private fun reasoningAndBlankText(seq: Long) = AssistantMessageNode(
+        seq = seq,
+        messageId = null,
+        turn = 1,
+        step = 1,
+        blocks = listOf(
+            ChatBlock(kind = "reasoning", text = "think"),
+            ChatBlock(kind = "text", text = "   "),
+        ),
+    )
+
     private fun tool(seq: Long, callId: String = "c$seq") =
         ToolCallNode(seq = seq, callId = callId, name = "bash", arguments = "{}", turn = 1, step = 1)
 
@@ -101,6 +123,28 @@ class ChatTurnGroupingTest {
         assertEquals(listOf<Long>(1, 2), process.messages.map { it.seq })
         assertEquals(1, process.firstSeq)
         assertEquals(3, process.lastSeq)
+    }
+
+    @Test
+    fun `a reasoning message that carries the answer stands alone so the reply is not hidden`() {
+        // The DeepSeek provider ends a step with reasoning and its reply in one message. Folding it
+        // into the process group would hide the answer behind the "Thought" disclosure.
+        val items = groupTranscriptItems(listOf(reasoning(1), tool(2), reasoningAndText(3)))
+        assertEquals(2, items.size)
+        val process = items[0] as ProcessItem
+        assertEquals(listOf<Long>(1), process.messages.map { it.seq })
+        assertEquals(listOf<Long>(2), process.tools.map { it.seq })
+        val reply = items[1] as NodeItem
+        assertEquals(3, reply.node.seq)
+    }
+
+    @Test
+    fun `a reasoning message whose text is blank still joins the process`() {
+        // Blank text reveals nothing; the message belongs in the group like pure thinking.
+        val items = groupTranscriptItems(listOf(reasoningAndBlankText(1), tool(2)))
+        val process = items.single() as ProcessItem
+        assertEquals(listOf<Long>(1), process.messages.map { it.seq })
+        assertEquals(listOf<Long>(2), process.tools.map { it.seq })
     }
 
     @Test

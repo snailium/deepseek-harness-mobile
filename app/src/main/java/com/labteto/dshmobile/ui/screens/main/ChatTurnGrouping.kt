@@ -49,15 +49,28 @@ internal data class ProcessItem(
 }
 
 /**
+ * Whether an assistant message carries text the reader must see without expanding anything.
+ *
+ * A model that ends a step with its reply in the same message as its reasoning (common with the
+ * DeepSeek provider) would otherwise have the answer folded into the process group — hidden until
+ * the reader expands the "Thought" row. Blank or tool-only text does not count: there is nothing to
+ * reveal, and such a message belongs in the group like any other.
+ */
+internal fun AssistantMessageNode.hasVisibleText(): Boolean = blocks.any { block ->
+    block.kind == "text" && !block.text.isNullOrBlank()
+}
+
+/**
  * Split the transcript's renderable nodes into process groups and single rows.
  *
  * The rules:
  *  - a [ToolCallNode] opens or joins the open process — tools always belong to the process they
  *    run in, even when no reasoning message preceded them;
- *  - an [AssistantMessageNode] *with a reasoning block* opens or joins the process — its thinking
- *    is the process's first act;
- *  - a text-only assistant message, a user message, or any other node closes the open process and
- *    stands alone, because it is either a result (what the turn *produced*) or a new turn's input.
+ *  - an [AssistantMessageNode] with a reasoning block *and no visible text* opens or joins the
+ *    process — pure thinking is the process's first act;
+ *  - any other assistant message closes the open process and stands alone: its text (a reply, or a
+ *    status line that ends the step) is what the turn *produced*, and it must be readable without
+ *    expanding anything. A user message or any other node closes the process for the same reason.
  *
  * The input is expected to be the already-[rendersContent]-filtered node list; [ProcessItem] keys are derived from the first member's seq,
  * so the transcript can key lazy rows on them without colliding with plain [NodeItem] keys.
@@ -80,7 +93,7 @@ internal fun groupTranscriptItems(nodes: List<ChatNode>): List<TranscriptItem> {
         when (node) {
             is ToolCallNode -> openTools += node
             is AssistantMessageNode ->
-                if (node.blocks.any { it.kind == "reasoning" }) {
+                if (node.blocks.any { it.kind == "reasoning" } && !node.hasVisibleText()) {
                     openMessages += node
                 } else {
                     flush()
