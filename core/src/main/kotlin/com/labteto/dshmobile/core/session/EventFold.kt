@@ -81,19 +81,25 @@ class EventFold(private val sessionId: String) {
          * was a duplicate/already-folded. The snapshot's `nodes` identity is stable unless the
          * event changed the rendered transcript.
          */
+        /**
+         * Fold [event] into the carried state. Returns the new snapshot, or null when the event
+         * was a duplicate/already-folded. The snapshot's `nodes` identity is stable unless the
+         * event changed the rendered transcript.
+         */
         fun apply(event: SessionEventEnvelope): ConversationSnapshot? {
             if (event.seq <= folded) return null // duplicate or already-folded
             journal.add(event)
-            if (initialJournalAvailable) current = EventFold(sessionId).fold(journal)
-            else {
-                if (!event.isSurfaceReplacement()) state.apply(event)
-                current = state.snapshot().copy(journal = journal.toList(), effectiveSurface = effectiveSurfaceEvents(journal), lastSeq = event.seq)
-            }
+            if (!event.isSurfaceReplacement()) state.apply(event)
+            current = state.snapshot().copy(
+                journal = journal.toList(),
+                effectiveSurface = effectiveSurfaceEvents(journal),
+                lastSeq = event.seq,
+                gap = journal.zipWithNext().any { (a, b) -> b.seq > a.seq + 1 },
+            )
             folded = event.seq
             return current
         }
 
-        private val initialJournalAvailable = initial.journal.isNotEmpty()
         fun snapshot(): ConversationSnapshot = current
     }
 }
@@ -334,7 +340,7 @@ internal class FoldState(private val sessionId: String) {
 
             "subagent/descriptor" -> addNode(SubagentNode(event.seq, data))
 
-            "session/end-seed", "approval/asked", "approval/decided",
+            "request/header", "request/context", "session/end-seed", "approval/asked", "approval/decided",
             "approval/policy", "permission/preset", "sandbox/mode", "schedule/change", "feedback/record",
             "hook/invoked", "hook/result", "agent-preset/selected", "agent/inbox/spliced",
             "tool/code-dispatch", "tool/code-dispatch-start", "web/deepseek-search-llm-request",
