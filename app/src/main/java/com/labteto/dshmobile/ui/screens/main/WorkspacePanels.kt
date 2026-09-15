@@ -109,7 +109,7 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                                 ListItem(headlineContent = { Text(entry.name) },
                                     supportingContent = { Text(if (entry.type == "directory") stringResource(R.string.panel_folder) else entry.size?.let { "$it B" }.orEmpty()) },
                                     modifier = Modifier.clickable(enabled = !state.busy) {
-                                        val path = if (state.directory == ".") entry.name else "${state.directory}/${entry.name}"
+                                        val path = if (state.directory == ".") entry.name else buildString { append(state.directory); append('/'); append(entry.name) }
                                         if (entry.type == "directory") listDirectory(path) else state.open(path)
                                     })
                             }

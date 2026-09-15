@@ -241,7 +241,7 @@ fun ConversationScreen(
                                 }
                                 val resolver = context.contentResolver
                                 val mediaType = resolver.getType(uri)
-                                val bytes = (resolver.openInputStream(uri) ?: throw java.io.IOException("Unreadable image" )).use {
+                                val bytes = (resolver.openInputStream(uri) ?: throw java.io.IOException(context.getString(R.string.err_image_unreadable))).use {
                                     readImageBounded(it, limits.maxImageBytes.coerceIn(0, Int.MAX_VALUE.toLong() - 1))
                                 }
                                 if (bytes == null) {

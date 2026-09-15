@@ -402,6 +402,7 @@
     <string name="err_command_failed">Command failed: %1$s</string>
     <string name="err_attachment_failed">Could not attach that image.</string>
     <string name="err_image_unsupported_type">Only PNG, JPG, WebP and GIF images are supported.</string>
+    <string name="err_image_unreadable">Cannot read this image from the device.</string>
     <string name="err_image_too_large">Each image must be smaller than %1$s.</string>
     <string name="err_image_pixels">That image\'s resolution is too high. Compress it and try again.</string>
     <string name="err_image_dimension">Image sides must be at most %1$dpx. Downscale it and try again.</string>
