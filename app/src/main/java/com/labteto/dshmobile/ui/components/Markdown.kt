@@ -194,7 +194,6 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         buildInlineContent(text, codeStyle, colors)
     }
     val openFile = LocalFileOpener.current
-    val uriHandler = LocalUriHandler.current
     if (links.isEmpty()) {
         // Selectable: a reader may want to lift part of the answer out of the transcript.
         // Re-key on the shared dismiss token so an active selection is cleared when the reader

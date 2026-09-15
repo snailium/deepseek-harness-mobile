@@ -113,6 +113,7 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
                     // Pushed from Connect (no home shell yet) there is no Scaffold to own the
                     // status-bar inset, so the screen supplies it itself; as a tab the Home
                     // Scaffold already did.
@@ -266,27 +267,26 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                 }
             }
             DsToastHost(toast, modifier = Modifier.fillMaxWidth())
+
+            plugins?.takeIf { pluginsOpen }?.let {
+                PluginsSheet(inventory = it, onDismiss = { pluginsOpen = false })
+            }
+
+            if (showDisconnectDialog) {
+                DsAlert(
+                    title = stringResource(R.string.settings_connection_disconnect_confirm),
+                    message = stringResource(R.string.settings_connection_disconnect_message),
+                    confirmLabel = stringResource(R.string.settings_connection_disconnect),
+                    destructive = true,
+                    onConfirm = {
+                        viewModel.disconnect()
+                        showDisconnectDialog = false
+                        onClose?.invoke()
+                    },
+                    onDismiss = { showDisconnectDialog = false },
+                )
+            }
         }
-    }
-
-    plugins?.takeIf { pluginsOpen }?.let {
-        PluginsSheet(inventory = it, onDismiss = { pluginsOpen = false })
-    }
-
-    if (showDisconnectDialog) {
-        DsAlert(
-            title = stringResource(R.string.settings_connection_disconnect_confirm),
-            message = stringResource(R.string.settings_connection_disconnect_message),
-            confirmLabel = stringResource(R.string.settings_connection_disconnect),
-            destructive = true,
-            onConfirm = {
-                viewModel.disconnect()
-                showDisconnectDialog = false
-                onClose?.invoke()
-            },
-            onDismiss = { showDisconnectDialog = false },
-        )
-    }
 }
 
 /** One settings group as a raised card, so groups read as blocks rather than a running list. */

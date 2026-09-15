@@ -192,7 +192,15 @@ internal fun SubagentsSheet(
                         run {
                             DsButton(
                                 text = "",
-
+                                icon = FeatherIcons.ArrowUp,
+                                onClick = {
+                                    val text = draft
+                                    val id = childId
+                                    if (text.isNotBlank() && id != null) {
+                                        scope.launch { store.promptSubagent(id, text) }
+                                        draft = ""
+                                    }
+                                },
                                 variant = DsButtonVariant.Info,
                                 enabled = draft.isNotBlank() && childId != null && !sending && !queueOperation.value,
                             )

@@ -266,9 +266,10 @@ fun ConversationScreen(
                         selected
                     }
                     target.attachments.addAll(accepted)
-                    if (failures.isNotEmpty()) toast.second(context.getString(
-                        R.string.photos_skipped, failures.size, failures.distinct().joinToString("; "),
-                    ))
+                    if (failures.isNotEmpty()) toast.second(
+                        context.getString(R.string.photos_skipped, failures.size) + " " + failures.distinct().joinToString("; "),
+                        ToastTone.Error,
+                    )
                 } finally { target.preparing = false }
             }
         }
@@ -330,7 +331,7 @@ fun ConversationScreen(
 
     fun send(text: String) {
         if (composer.preparing || composer.submitting) { draft = text; return }
-        val delivery = mode
+        val delivery = effectiveMode
         val targetId = composer.key.sessionId
         val targetHost = composer.key.host
         val pending = attachments.toList()
@@ -341,7 +342,7 @@ fun ConversationScreen(
         // A file without a receipt cannot be cited. The send affordance already waits for the
         // chips, but a keyboard send lands here too.
         if (files.any { it.state !is FileUploadState.Ready }) {
-            composerDraft.value = text
+            composer.text = text
             toast.second(
                 context.getString(
                     if (files.any { it.state is FileUploadState.Failed }) R.string.chat_attachment_upload_failed
@@ -360,7 +361,7 @@ fun ConversationScreen(
                 // Nothing is sent and nothing is dropped. The composer clears the draft on its way
                 // here, so put it back, and leave the attachments alone — a refusal the user cannot
                 // act on without re-picking every one is not much of a refusal.
-                composerDraft.value = text
+                composer.text = text
                 val message = when (submission.reason) {
                     RefusalReason.COMMAND_TAKES_NO_ATTACHMENTS -> R.string.err_command_no_images
                     RefusalReason.HOST_TOO_OLD -> R.string.err_command_images_host
@@ -387,7 +388,7 @@ fun ConversationScreen(
                     }
                     report(outcome)
                     } catch (e: kotlinx.coroutines.CancellationException) { composer.restoreRejected(text, pending); throw e }
-                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed)) }
+                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed), ToastTone.Error) }
                     finally { composer.submitting = false }
                 }
             }
@@ -414,10 +415,11 @@ fun ConversationScreen(
                         toast.second(
                             if (outcome is PromptOutcome.Rejected) imageRejectionText(context, outcome.rejection, imageLimits, outcome.reason)
                             else (outcome as PromptOutcome.Failed).message,
+                            ToastTone.Error,
                         )
                     }
                     } catch (e: kotlinx.coroutines.CancellationException) { composer.restoreRejected(text, pending); throw e }
-                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed)) }
+                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed), ToastTone.Error) }
                     finally { composer.submitting = false }
                 }
             }
@@ -437,7 +439,7 @@ fun ConversationScreen(
             ChatTopBar(
                 title = title,
                 running = conversation?.running == true,
-                models = models,
+                hostLabel = store.activeHostKey.orEmpty().takeIf { it.isNotEmpty() },
                 agentPresetLabel = currentSession?.agentPreset?.takeIf { agentPresets?.modeSelectionEnabled != false }?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
                 tab = tab,
@@ -464,8 +466,6 @@ fun ConversationScreen(
                 onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
             )
 
-
-            }
             if (conversation?.gap == true) {
                 ConnectionBanner(
                     stringResource(R.string.common_reconnecting),
@@ -517,7 +517,7 @@ fun ConversationScreen(
                         onLoadOlder = { scope.launch { store.loadOlder() } },
                         // A suggestion chip composes the message; sending stays on the explicit
                         // send button, so a tap never fires a prompt by surprise.
-                        onSuggest = { suggestion -> composerDraft.value = suggestion },
+                        onSuggest = { suggestion -> composer.text = suggestion },
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,
@@ -594,7 +594,7 @@ fun ConversationScreen(
                         // Wanting to talk it over first is not one of the options the asker stated,
                         // so it ends the request rather than answering it with the refusal.
                         onDiscuss = {
-                            composerDraft.value = ""
+                            composer.text = ""
                             settle { store.dismissQuestions(questions.sessionId) }
                         },
                     )
@@ -611,7 +611,7 @@ fun ConversationScreen(
             }
 
             Composer(
-                composerDraft = composerDraft,
+                composer = composer,
                 attachments = attachments,
                 onRemoveAttachment = { index -> attachments.removeAt(index) },
                 onRetryAttachment = { index ->
@@ -644,12 +644,10 @@ fun ConversationScreen(
 
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
-    }
 
-    }
-    panelKey?.let { key -> WorkspacePanels(store, store.panels.get(key), onDismiss = { panelKey = null }) }
-    feedback?.let { (key, id, positive) -> FeedbackDialog(store, key, id, positive) { feedback = null } }
-    when (sheet) {
+        panelKey?.let { key -> WorkspacePanels(store, store.panels.get(key), onDismiss = { panelKey = null }) }
+        feedback?.let { (key, id, positive) -> FeedbackDialog(store, key, id, positive) { feedback = null } }
+        when (sheet) {
         ChatSheet.Commands -> CommandSheet(
             commands = commands,
             commandsAvailable = commandsAvailable,
@@ -676,7 +674,7 @@ fun ConversationScreen(
                     toast.second(context.getString(R.string.err_command_no_images, name), ToastTone.Error)
                 }
             },
-            onPrefillDraft = { prefix -> composerDraft.value = prefix },
+            onPrefillDraft = { prefix -> composer.text = prefix },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })
@@ -695,6 +693,8 @@ fun ConversationScreen(
             onDismiss = { sheet = null },
         )
         null -> Unit
+    }
+    }
     }
 }
 

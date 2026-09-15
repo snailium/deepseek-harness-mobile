@@ -177,7 +177,43 @@ internal fun CommandSheet(
             )
         }
 
-
+        // ---- One scrolling list for the active tab ----
+        when (tab) {
+            CommandSheetTab.Commands -> when {
+                !commandsAvailable -> Text(
+                    stringResource(R.string.chat_commands_unavailable),
+                    style = DsType.m3LabelSmall,
+                    color = colors.labelTertiary,
+                )
+                filteredCommands.isEmpty() -> Text(
+                    stringResource(R.string.chat_commands_empty),
+                    style = DsType.m3LabelSmall,
+                    color = colors.labelTertiary,
+                )
+                else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                    items(filteredCommands, key = { it.name }) { command ->
+                        SheetRow(
+                            leading = {
+                                Icon(
+                                    FeatherIcons.Terminal,
+                                    contentDescription = null,
+                                    tint = colors.labelSecondary,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            },
+                            title = command.line,
+                            subtitle = command.description.ifBlank { null },
+                            trailing = command.input?.hint,
+                            onClick = {
+                                onDismiss()
+                                if (command.input == null) {
+                                    onRunCommand(command.line)
+                                } else {
+                                    onPrefillDraft(command.draftPrefix)
+                                }
+                            },
+                        )
+                    }
                 }
             }
 

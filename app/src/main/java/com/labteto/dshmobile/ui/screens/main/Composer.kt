@@ -45,7 +45,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.input.key.*
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
@@ -156,23 +155,6 @@ internal sealed interface FileUploadState {
  * prefill) — never during composition of the screen itself — so a keystroke invalidates just the
  * composer's subtree.
  */
-@Stable
-internal class ComposerDraft internal constructor(initial: String) {
-    var value by mutableStateOf(initial)
-}
-
-private val ComposerDraftSaver = androidx.compose.runtime.saveable.Saver<ComposerDraft, String>(
-    save = { it.value },
-    restore = { ComposerDraft(it) },
-)
-
-/** A saveable [ComposerDraft]; keyed on the session so a switch starts from a clean draft. */
-@Composable
-internal fun rememberComposerDraft(sessionId: String?): ComposerDraft =
-    androidx.compose.runtime.saveable.rememberSaveable(sessionId, saver = ComposerDraftSaver) {
-        ComposerDraft("")
-    }
-
 /**
  * The message composer.
  *
@@ -191,7 +173,7 @@ internal fun rememberComposerDraft(sessionId: String?): ComposerDraft =
  */
 @Composable
 internal fun Composer(
-    composerDraft: ComposerDraft,
+    composer: ComposerDraft,
     attachments: List<PendingAttachment>,
     onRemoveAttachment: (Int) -> Unit,
     onRetryAttachment: (Int) -> Unit,
@@ -222,7 +204,7 @@ internal fun Composer(
     val haptics = LocalHapticFeedback.current
     // A file that is still uploading has no receipt to cite yet, and one that failed never will;
     // the send affordance waits for the chips rather than sending a message that names neither.
-    val draft = composerDraft.value
+    val draft = composer.text
     // A file that is still uploading has no receipt to cite yet, and one that failed never will;
     // the send affordance waits for the chips rather than sending a message that names neither.
     val attachmentsSettled = attachments.none { it is PendingAttachment.File && it.state !is FileUploadState.Ready }
@@ -233,7 +215,7 @@ internal fun Composer(
     fun doSend() {
         if (!canSend || running) return
         val text = currentDraft
-        composerDraft.value = ""
+        composer.text = ""
         // The long-press feedback doubles as the send tick; the heavier long-press haptic stays
         // on stop, the disruptive action.
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -243,7 +225,7 @@ internal fun Composer(
     fun doQueueOrSteer() {
         if (!canSend || !running) return
         val text = currentDraft
-        composerDraft.value = ""
+        composer.text = ""
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         currentOnSend(text)
     }
@@ -295,19 +277,19 @@ internal fun Composer(
         ) {
             TextField(
                 value = draft,
-                onValueChange = onDraftChange,
+                onValueChange = { composer.text = it },
                 modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
                     if (event.key == Key.Enter && (event.isCtrlPressed || event.isMetaPressed)) {
                         if (event.type == KeyEventType.KeyUp && canSend) {
                             val text = currentDraft
-                            currentOnDraftChange("")
+                            composer.text = ""
                             currentOnSend(text)
                         }
                         true
                     } else false
                 },
                 keyboardActions = KeyboardActions(onSend = {
-                    if (canSend) { val text = currentDraft; currentOnDraftChange(""); currentOnSend(text) }
+                    if (canSend) { val text = currentDraft; composer.text = ""; currentOnSend(text) }
                 }),
                 enabled = enabled,
                 placeholder = {
@@ -363,7 +345,7 @@ internal fun Composer(
                 CompositionLocalProvider(LocalTextSelectionColors provides selectionColors) {
                     BasicTextField(
                         value = draft,
-                        onValueChange = { composerDraft.value = it },
+                        onValueChange = { composer.text = it },
                         modifier = Modifier
                             .weight(1f)
                             .padding(vertical = DsSpacing.small),

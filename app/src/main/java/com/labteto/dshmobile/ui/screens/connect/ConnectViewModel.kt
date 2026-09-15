@@ -444,26 +444,31 @@ class ConnectViewModel @Inject constructor(
             // than relying on being on the same wire, and reaching one through a forwarded port or a
             // VPN is the reason the relay exists — so for those the guard would be refusing the
             // supported case with a confident, wrong explanation.
-            if (!isLoopback && paired == null && !discoveryEngine.isOnLocalSubnet(input.host)) {
+            if (!isLoopback && paired == null && !discoveryEngine.isOnLocalSubnet(hostValue)) {
                 fail(ConnectFailure.DifferentSubnet(discoveryEngine.localSubnetLabel()), authority)
                 return@launch
             }
             localStage = ConnectStage.Reaching
             _state.update { it.copy(stage = ConnectStage.Reaching) }
             val outcome = discoveryEngine.probeOutcome(
-                host = input.host,
+                host = hostValue,
                 port = portInt,
                 timeouts = ProbeTimeouts.Manual,
                 preflight = true,
-                useTls = useTls,
+                useTls = (schemeValue == "https"),
                 config = paired,
             )
             if (outcome !is ProbeOutcome.Reachable) {
                 // Authentication happens before a successful probe. Remember the exact attempted
                 // authority so a first-time host can exchange its launch token from the dialog.
                 if (outcome is ProbeOutcome.Unauthenticated && paired == null) {
-                    val target = hostsStore.rememberHost(name = input.host, host = input.host,
-                        port = portInt, isLoopback = isLoopback, useTls = useTls)
+                    val target = hostsStore.rememberHost(
+                        name = hostValue,
+                        host = hostValue,
+                        port = portInt,
+                        isLoopback = isLoopback,
+                        useTls = (schemeValue == "https"),
+                    )
                     _state.update { it.copy(remembered = it.remembered.filterNot { h -> h.id == target.id } + target) }
                 }
                 fail(ConnectFailure.from(outcome, relay = paired != null), authority)
