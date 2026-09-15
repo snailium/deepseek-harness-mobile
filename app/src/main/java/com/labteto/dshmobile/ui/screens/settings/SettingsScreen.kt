@@ -132,13 +132,10 @@ fun SettingsScreen(onClose: (() -> Unit)? = null, viewModel: SettingsViewModel =
                     },
                 )
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
-                    verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
-                ) {
+                SettingsCard(stringResource(R.string.archived_title)) {
+                    com.labteto.dshmobile.ui.screens.main.ArchivedSessions(store)
+                }
+
                 SettingsCard(stringResource(R.string.settings_general)) {
                     LanguageRow(settings) { tag -> viewModel.set { it.copy(localeOverride = tag) } }
                     AppearanceRow(settings) { mode -> viewModel.set { it.copy(themePreference = mode) } }

@@ -436,6 +436,39 @@ class ConnectViewModel @Inject constructor(
             // A relay reached through a tunnel, a forwarded port or a VPN is the reason relays
             // exist — it holds a real credential rather than relying on being on the same wire.
             val paired = hostsStore.hosts.first().firstOrNull { it.authority == authority && it.isRelay }
+            // Cheap and decisive: the sweep only ever looks at this phone's own /24, so an address
+            // outside it can never be reached from here and can never be found by scanning either.
+            // Saying so now beats a four-second timeout that blames the firewall.
+            //
+            // A paired relay is the exception, and the only one. It holds a real credential rather
+            // than relying on being on the same wire, and reaching one through a forwarded port or a
+            // VPN is the reason the relay exists — so for those the guard would be refusing the
+            // supported case with a confident, wrong explanation.
+            if (!isLoopback && paired == null && !discoveryEngine.isOnLocalSubnet(input.host)) {
+                fail(ConnectFailure.DifferentSubnet(discoveryEngine.localSubnetLabel()), authority)
+                return@launch
+            }
+            localStage = ConnectStage.Reaching
+            _state.update { it.copy(stage = ConnectStage.Reaching) }
+            val outcome = discoveryEngine.probeOutcome(
+                host = input.host,
+                port = portInt,
+                timeouts = ProbeTimeouts.Manual,
+                preflight = true,
+                useTls = useTls,
+                config = paired,
+            )
+            if (outcome !is ProbeOutcome.Reachable) {
+                // Authentication happens before a successful probe. Remember the exact attempted
+                // authority so a first-time host can exchange its launch token from the dialog.
+                if (outcome is ProbeOutcome.Unauthenticated && paired == null) {
+                    val target = hostsStore.rememberHost(name = input.host, host = input.host,
+                        port = portInt, isLoopback = isLoopback, useTls = useTls)
+                    _state.update { it.copy(remembered = it.remembered.filterNot { h -> h.id == target.id } + target) }
+                }
+                fail(ConnectFailure.from(outcome, relay = paired != null), authority)
+                return@launch
+            }
             if (paired != null) {
                 attemptConnect(
                     host = hostValue,

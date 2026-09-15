@@ -177,46 +177,7 @@ internal fun CommandSheet(
             )
         }
 
-        // ---- One scrolling list for the active tab ----
-        when (tab) {
-            CommandSheetTab.Commands -> when {
-                !commandsAvailable -> Text(
-                    stringResource(R.string.chat_commands_unavailable),
-                    style = DsType.m3LabelSmall,
-                    color = colors.labelTertiary,
-                )
-                filteredCommands.isEmpty() -> Text(
-                    stringResource(R.string.chat_commands_empty),
-                    style = DsType.m3LabelSmall,
-                    color = colors.labelTertiary,
-                )
-                else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    items(filteredCommands, key = { it.name }) { command ->
-                        SheetRow(
-                            leading = {
-                                Icon(
-                                    FeatherIcons.Terminal,
-                                    contentDescription = null,
-                                    tint = colors.labelSecondary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            },
-                            title = command.line,
-                            subtitle = command.description.ifBlank { null },
-                            trailing = command.input?.hint,
-                            onClick = {
-                                onDismiss()
-                                // A bare command runs immediately; one that takes an argument
-                                // prefills the composer so the argument can be typed where the
-                                // hint is visible.
-                                if (command.input == null) {
-                                    onRunCommand(command.line)
-                                } else {
-                                    onPrefillDraft(command.draftPrefix)
-                                }
-                            },
-                        )
-                    }
+
                 }
             }
 
@@ -326,6 +287,6 @@ private inline fun <T> List<T>.filterByQuery(query: String, selector: (T) -> Pai
     if (needle.isEmpty()) return this
     return filter { item ->
         val (name, description) = selector(item)
-        name.lowercase().contains(needle) || description.lowercase().contains(needle)
+        fuzzyContains(name, needle) || description.lowercase().contains(needle)
     }
 }

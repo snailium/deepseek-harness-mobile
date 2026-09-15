@@ -28,6 +28,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,8 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 // LocalSelectionDismiss lives in ChatComponents.kt (same package) — no import needed.
+
+val LocalFileOpener = staticCompositionLocalOf<(String) -> Unit> { {} }
 
 /**
  * Block-level Markdown renderer: fenced code blocks (with syntax highlighting), #-#### headings,
@@ -188,6 +193,8 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     val (result, links) = remember(text, style, codeStyle, colors) {
         buildInlineContent(text, codeStyle, colors)
     }
+    val openFile = LocalFileOpener.current
+    val uriHandler = LocalUriHandler.current
     if (links.isEmpty()) {
         // Selectable: a reader may want to lift part of the answer out of the transcript.
         // Re-key on the shared dismiss token so an active selection is cleared when the reader
@@ -209,7 +216,11 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
             ?.item?.toIntOrNull()
             ?: -1
         val url = links.getOrNull(index) ?: return@ClickableText
-        runCatching { uriHandler.openUri(url) }
+        if (url.startsWith("https://") || url.startsWith("http://")) {
+            runCatching { uriHandler.openUri(url) }
+        } else {
+            com.labteto.dshmobile.ui.screens.main.previewPath(url)?.let(openFile)
+        }
     }
 }
 

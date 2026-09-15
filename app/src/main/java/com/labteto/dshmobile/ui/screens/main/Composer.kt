@@ -42,6 +42,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.input.key.*
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Stable
@@ -212,6 +216,7 @@ internal fun Composer(
     /** Whether the enter key sends the message; when false it inserts a newline. */
     enterToSend: Boolean = false,
     modifier: Modifier = Modifier,
+    preparing: Boolean = false,
 ) {
     val colors = DsTheme.colors
     val haptics = LocalHapticFeedback.current
@@ -221,7 +226,7 @@ internal fun Composer(
     // A file that is still uploading has no receipt to cite yet, and one that failed never will;
     // the send affordance waits for the chips rather than sending a message that names neither.
     val attachmentsSettled = attachments.none { it is PendingAttachment.File && it.state !is FileUploadState.Ready }
-    val canSend = enabled && (draft.isNotBlank() || attachments.isNotEmpty()) && attachmentsSettled
+    val canSend = enabled && !preparing && (draft.isNotBlank() || attachments.isNotEmpty()) && attachmentsSettled
     val currentDraft by rememberUpdatedState(draft)
     val currentOnSend by rememberUpdatedState(onSend)
 
@@ -288,6 +293,47 @@ internal fun Composer(
             Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
+            TextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                    if (event.key == Key.Enter && (event.isCtrlPressed || event.isMetaPressed)) {
+                        if (event.type == KeyEventType.KeyUp && canSend) {
+                            val text = currentDraft
+                            currentOnDraftChange("")
+                            currentOnSend(text)
+                        }
+                        true
+                    } else false
+                },
+                keyboardActions = KeyboardActions(onSend = {
+                    if (canSend) { val text = currentDraft; currentOnDraftChange(""); currentOnSend(text) }
+                }),
+                enabled = enabled,
+                placeholder = {
+                    Text(
+                        stringResource(R.string.chat_composer_hint),
+                        style = DsType.std14,
+                        color = colors.labelTertiary,
+                    )
+                },
+                minLines = 1,
+                maxLines = 8,
+                textStyle = DsType.std14,
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
+                    cursorColor = colors.accent,
+                    focusedTextColor = colors.labelPrimary,
+                    unfocusedTextColor = colors.labelPrimary,
+                ),
+            )
+
+            if (preparing) Text(stringResource(R.string.photos_preparing), style = DsType.caption11)
             AnimatedVisibility(visible = attachments.isNotEmpty()) {
                 AttachmentStrip(attachments, onRemoveAttachment, onRetryAttachment)
             }

@@ -196,10 +196,17 @@ internal fun GoalBar(goal: GoalSnapshot, store: SessionStore, modifier: Modifier
 
 /** Pending turns, with the edit / remove / steer verbs the harness exposes. */
 @Composable
-internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Modifier = Modifier) {
+internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Modifier = Modifier, sessionId: String? = store.currentSessionId.value, blocked: Boolean = false, operationState: androidx.compose.runtime.MutableState<Boolean>? = null) {
     if (queue.isEmpty()) return
     val scope = rememberCoroutineScope()
     val colors = DsTheme.colors
+    val busyState: androidx.compose.runtime.MutableState<Boolean> = operationState ?: remember(sessionId) { mutableStateOf(false) }
+    var busy by busyState
+    fun change(id: String, action: String, text: String? = null) {
+        if (busy || blocked) return
+        busy = true
+        scope.launch { try { store.updateQueue(id, action, text, sessionId) } finally { busy = false } }
+    }
     var expanded by remember(queue.size) { mutableStateOf(false) }
     var editingId by remember { mutableStateOf<String?>(null) }
     var editText by remember { mutableStateOf("") }
@@ -211,6 +218,12 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
         onToggle = { expanded = !expanded },
         modifier = modifier,
     ) {
+        DsButton(text = stringResource(R.string.chat_queue_steer), enabled = !busy && !blocked,
+            onClick = {
+                busy = true
+                val ids = queue.map { it.id }
+                scope.launch { try { ids.forEach { store.updateQueue(it, "steer", sessionId = sessionId) } } finally { busy = false } }
+            }, variant = DsButtonVariant.Ghost)
         queue.forEach { item ->
             Row(
                 modifier = Modifier
@@ -228,7 +241,7 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
                 )
                 Spacer(Modifier.width(8.dp))
                 DsPill(text = item.placement)
-                DsMenu(
+                if (!busy && !blocked && item.placement != "steering") DsMenu(
                     anchor = {
                         Icon(
                             FeatherIcons.MoreVertical,
@@ -240,13 +253,13 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
                     items = listOf(
                         MenuItem(stringResource(R.string.chat_queue_edit)) {
                             editingId = item.id
-                            editText = item.previewText
+                            editText = (item.content as? kotlinx.serialization.json.JsonArray)?.mapNotNull { (it as? kotlinx.serialization.json.JsonObject)?.get("text").asString() }?.joinToString("\n") ?: item.previewText
                         },
                         MenuItem(stringResource(R.string.chat_queue_remove), danger = true) {
-                            scope.launch { store.updateQueue(item.id, "remove") }
+                            change(item.id, "remove")
                         },
                         MenuItem(stringResource(R.string.chat_queue_steer)) {
-                            scope.launch { store.updateQueue(item.id, "steer") }
+                            change(item.id, "steer")
                         },
                     ),
                 )
@@ -267,9 +280,13 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DsButton(
                     text = stringResource(R.string.common_ok),
+                    enabled = editText.isNotBlank() && !busy && !blocked,
                     onClick = {
-                        scope.launch { store.updateQueue(id, "edit", editText) }
-                        editingId = null
+                        busy = true
+                        scope.launch {
+                            try { if (store.updateQueue(id, "edit", editText, sessionId)) editingId = null }
+                            finally { busy = false }
+                        }
                     },
                     variant = DsButtonVariant.Info,
                 )

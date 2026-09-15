@@ -63,7 +63,12 @@ internal fun TrajectoryTab(
     focusSeq: Long? = null,
 ) {
     val colors = DsTheme.colors
-    val nodes = conversation?.nodes ?: emptyList()
+    val nodes = remember(conversation?.journal, conversation?.nodes) {
+        if (conversation?.journal.isNullOrEmpty()) conversation?.nodes.orEmpty()
+        else com.labteto.dshmobile.core.session.EventFold(conversation!!.sessionId).fold(
+            conversation.journal.map { it.copy(surfaceOp = null, surfaceIntent = null) },
+        ).nodes
+    }
     val groups = remember(nodes) { groupByTurn(nodes) }
     // Result lookup by call id, built once per snapshot instead of a filterIsInstance scan per
     // tool row per composition.
@@ -123,6 +128,17 @@ internal fun TrajectoryTab(
                 TrajectoryRow(turnNodes[index], resultsByCallId, cwd, running)
             }
         }
+        conversation?.journal?.forEach { event ->
+            item(key = "raw-${event.seq}") {
+                JsonDisclosure("#${event.seq} · ${event.type} · ${java.text.DateFormat.getTimeInstance().format(java.util.Date(event.time))}",
+                    kotlinx.serialization.json.buildJsonObject {
+                        put("data", event.data)
+                        event.surfaceIntent?.let { put("surfaceOp", it) }
+                        event.sourceEventSeqs?.let { put("sourceEventSeqs", kotlinx.serialization.json.JsonArray(it.map { seq -> kotlinx.serialization.json.JsonPrimitive(seq) })) }
+                        event.ignorable?.let { put("ignorable", kotlinx.serialization.json.JsonPrimitive(it)) }
+                    })
+            }
+        }
         if (stats != null || usage != null) {
             item(key = "totals") {
                 Spacer(Modifier.width(8.dp))
@@ -162,6 +178,7 @@ private fun TrajectoryRow(
         is ToolCallNode -> {
             ToolLedgerRow(node, resultsByCallId[node.callId], cwd, running)
         }
+        is com.labteto.dshmobile.core.session.OtherNode -> JsonDisclosure(node.type, node.data)
         else -> Unit
     }
 }
@@ -196,7 +213,7 @@ private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: Stri
         ) {
             Column(Modifier.padding(start = 28.dp, top = 2.dp)) {
                 Text(stringResource(R.string.chat_input_placeholder), style = DsType.caption11, color = colors.labelCaption)
-                Text(call.arguments, style = MonoCaption, color = colors.labelTertiary)
+                JsonDisclosure(call.name, runCatching { kotlinx.serialization.json.Json.parseToJsonElement(call.arguments) }.getOrElse { kotlinx.serialization.json.JsonPrimitive(call.arguments) })
                 result?.content?.let { content ->
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.chat_output_placeholder), style = DsType.caption11, color = colors.labelCaption)
