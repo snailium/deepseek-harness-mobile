@@ -2403,6 +2403,11 @@ class SessionStore @Inject constructor(
         permissionCatalog.value = null
         val result = api.permissionCatalog()
         if (epoch == permissionCatalogEpoch && key == activeHostKey) {
+            // 0.1.3 composes no `permissionPresets/catalog` Remote: the gateway answers with a
+            // service-unavailable error and the preset table rides on the `permissions` projection
+            // itself. Log the refusal instead of dropping it — an empty menu is otherwise
+            // indistinguishable from "the harness has no presets".
+            log("permissionPresets/catalog -> ${result::class.simpleName} ${(result as? RpcResult.Err)?.error?.message}")
             permissionCatalog.value = (result as? RpcResult.Ok)?.value
         }
     }
