@@ -47,6 +47,10 @@ class LocalizedStringsTest {
         "Android device",
         // ConnectViewModel.kt `check()` message: a programming-error assertion, never rendered.
         "a discovered relay must be routed to pairing, not connected",
+        // SessionsScreen.kt debug dialog section banner — part of the machine-readable report
+        // format (like transcriptDebugReport's banners), which is deliberately untranslated so
+        // two dumps stay comparable.
+        "=== Debug buffer ===",
     )
 
     @Test

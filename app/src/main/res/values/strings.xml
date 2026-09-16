@@ -594,6 +594,7 @@
     <string name="image_offload">Historical images omitted from request</string>
     <string name="panel_open_host">Open on host</string>
     <string name="debug_dialog_title">Debug info</string>
+    <string name="debug_buffer_empty">(empty)</string>
     <string name="chat_search_hint">Search messages</string>
     <string name="chat_search_clear">Clear search</string>
     <string name="chat_search_previous">Previous match</string>

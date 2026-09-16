@@ -601,7 +601,12 @@ class SessionStore @Inject constructor(
                     prev.phase == ConnectionPhase.RECONNECTING &&
                     state.phase == ConnectionPhase.CONNECTED
                 prev = state
-                if (initialConnect || reconnect) triggerBaseline()
+                if (initialConnect || reconnect) {
+                    // A new generation talks to a possibly different host: drop the previous
+                    // generation's diagnostics so the buffer only carries what this one said.
+                    DebugBuffer.clear()
+                    triggerBaseline()
+                }
             }
         }
     }
@@ -2407,7 +2412,8 @@ class SessionStore @Inject constructor(
             // service-unavailable error and the preset table rides on the `permissions` projection
             // itself. Log the refusal instead of dropping it — an empty menu is otherwise
             // indistinguishable from "the harness has no presets".
-            log("permissionPresets/catalog -> ${result::class.simpleName} ${(result as? RpcResult.Err)?.error?.message}")
+            val err = (result as? RpcResult.Err)?.error
+            log("permissionPresets/catalog -> ${if (err == null) "Ok" else "Err ${err.code}: ${err.message}"}")
             permissionCatalog.value = (result as? RpcResult.Ok)?.value
         }
     }
@@ -2437,6 +2443,9 @@ class SessionStore @Inject constructor(
 
     private fun log(message: String, throwable: Throwable? = null) {
         if (throwable != null) Log.w(TAG, message, throwable) else Log.w(TAG, message)
+        // The phone has no adb: the same line lands in the on-device debug buffer so the session
+        // list's debug dialog can ship it back. Keep both — logcat is for a dev box with one.
+        DebugBuffer.append("$message${throwable?.let { " (${it::class.simpleName}: ${it.message})" } ?: ""}")
     }
 
     private companion object {

@@ -563,12 +563,19 @@ fun ChatsScreen(
         // ---- DEBUG: session/transcript data dialog for diagnosis ----
         if (showDebugInfo) {
             val ctx = androidx.compose.ui.platform.LocalContext.current
-            val debugText = transcriptDebugReport(
+            val bufferText = com.labteto.dshmobile.data.DebugBuffer.snapshot()
+            val transcriptText = transcriptDebugReport(
                 loadingOlder = store.loadingOlder.value,
                 loadOlderFailed = store.loadOlderFailed.value,
                 lastPageStopReason = store.lastPageStopReason,
                 conversation = store.currentConversation.value,
             )
+            val debugText = buildString {
+                appendLine("=== Debug buffer ===")
+                appendLine(if (bufferText.isEmpty()) stringResource(R.string.debug_buffer_empty) else bufferText)
+                appendLine()
+                append(transcriptText)
+            }
             DsDialog(title = stringResource(R.string.debug_dialog_title), onDismiss = { showDebugInfo = false }) {
                 Column(
                     modifier = Modifier
