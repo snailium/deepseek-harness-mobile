@@ -53,16 +53,6 @@ class LocalizedStringsTest {
         "=== Debug buffer ===",
     )
 
-    /**
-     * Whole files exempt from the scan, and why.
-     *
-     * `PermissionPresetGlyphs.kt` is vector geometry: every literal in it is SVG path data, whose
-     * space-separated coordinates are indistinguishable from prose to a token counter. Rewriting
-     * the geometry to dodge the heuristic would corrupt it, so the file is exempt instead. It
-     * holds no user-facing strings.
-     */
-    private val filesWithoutProseLiterals = setOf("PermissionPresetGlyphs.kt")
-
     @Test
     fun uiSourcesDoNotEmbedUserFacingEnglish() {
         val uiRoot = File("src/main/java/com/labteto/dshmobile/ui")
@@ -70,7 +60,6 @@ class LocalizedStringsTest {
 
         val offenders = uiRoot.walkTopDown()
             .filter { it.isFile && it.name.endsWith(".kt") }
-            .filterNot { it.name in filesWithoutProseLiterals }
             .flatMap { file -> offendersIn(file) }
             .toList()
 
