@@ -167,6 +167,11 @@ fun ConversationScreen(
     val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
     val currentMatch = matches.getOrNull(cursor)
 
+    // The to-do bar is hidden by its close button until the agent writes a fresh list; keying the
+    // dismissal on the list itself means a later `todo/write` brings the bar back automatically.
+    val liveTodos = store.todos.collectAsStateWithLifecycle().value
+    var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
+
     // The chrome folds its session-meta row once the reader scrolls the transcript, and only
     // then: a programmatic scroll (session open, auto-paging, tail-follow) never counts, so the
     // bar stays expanded when the view moves on its own.
@@ -470,6 +475,15 @@ fun ConversationScreen(
                 ConnectionBanner(
                     stringResource(R.string.common_reconnecting),
                     tone = BannerTone.Info,
+                )
+            }
+
+            liveTodos?.let { todos ->
+                TodoBar(
+                    todos = todos,
+                    dismissed = todosDismissed,
+                    onDismiss = { todosDismissed = true },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 )
             }
 

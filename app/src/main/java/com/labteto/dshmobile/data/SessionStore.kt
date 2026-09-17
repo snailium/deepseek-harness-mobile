@@ -10,6 +10,8 @@ import com.labteto.dshmobile.core.session.ConversationSnapshot
 import com.labteto.dshmobile.core.session.EventFold
 import com.labteto.dshmobile.core.session.QueueItem
 import com.labteto.dshmobile.core.session.SessionEventEnvelope
+import com.labteto.dshmobile.core.session.TodoNode
+import com.labteto.dshmobile.core.session.TurnStartNode
 import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
@@ -70,6 +72,8 @@ import com.labteto.dshmobile.core.wire.dto.SessionPromptRequest
 import com.labteto.dshmobile.core.wire.dto.SessionRenameRequest
 import com.labteto.dshmobile.core.wire.dto.SessionSelectModelRequest
 import com.labteto.dshmobile.core.wire.dto.SessionStatsView
+import com.labteto.dshmobile.core.wire.dto.TodoItem
+import com.labteto.dshmobile.core.wire.dto.TodoWriteData
 import com.labteto.dshmobile.core.wire.dto.SessionSummary
 import com.labteto.dshmobile.core.wire.dto.SessionUpdateQueueRequest
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
@@ -451,6 +455,34 @@ class SessionStore @Inject constructor(
         projectionOf(ContextBreakdownView.serializer(), "contextBreakdown")
     val imageLimits: StateFlow<ImageLimitsView?> = projectionOf(ImageLimitsView.serializer(), "imageLimits")
     val planState: StateFlow<PlanStateView?> = projectionOf(PlanStateView.serializer(), "plan")
+
+    /**
+     * The agent's live to-do list, derived the way the web client derives it: the harness pushes
+     * no `todos` projection frame — `todo/write` rides the event stream and the client folds it.
+     * The last write before a turn boundary is the current list; a new turn clears it, which is
+     * what makes the bar hide itself again after the work is done. An empty or malformed payload
+     * reads as absent, so the UI never renders an empty bar.
+     */
+    val todos: StateFlow<List<TodoItem>?> = currentConversation
+        .map { conversation ->
+            if (conversation == null) return@map null
+            var list: List<TodoItem>? = null
+            for (node in conversation.nodes.asReversed()) {
+                when (node) {
+                    is TurnStartNode -> break
+                    is TodoNode -> {
+                        val items = runCatching {
+                            decodeFromJsonElement(TodoWriteData.serializer(), node.todos).todos
+                        }.getOrNull() ?: emptyList()
+                        list = items
+                        if (items.isNotEmpty()) break
+                    }
+                    else -> Unit
+                }
+            }
+            list?.takeIf { it.isNotEmpty() }
+        }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     /** This session's durable model choice; the catalog alone no longer carries one. */
     val modelSelection: StateFlow<ModelSelectionProjection?> =
