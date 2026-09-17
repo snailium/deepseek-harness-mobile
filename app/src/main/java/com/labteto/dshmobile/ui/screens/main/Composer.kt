@@ -451,12 +451,16 @@ private fun PermissionChip(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(
-                FeatherIcons.Shield,
-                contentDescription = stringResource(R.string.permission_preset),
-                tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
-                modifier = Modifier.size(14.dp),
-            )
+            // The design glyph for the effective preset; a host-configured name has none, and the
+            // chip then reads as plain text the way the web's trigger does.
+            permissionPresetGlyph(effective, FULL_ACCESS_PRESET)?.let { glyph ->
+                Icon(
+                    glyph,
+                    contentDescription = stringResource(R.string.permission_preset),
+                    tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
             Text(
                 label,
                 style = DsType.small13,

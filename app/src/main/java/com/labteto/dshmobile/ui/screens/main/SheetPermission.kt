@@ -56,6 +56,17 @@ internal fun PermissionMenu(
                     .padding(vertical = DsSpacing.small),
                 verticalAlignment = Alignment.Top,
             ) {
+                // Web parity: the menu row leads with the same preset glyph the chip shows.
+                permissionPresetGlyph(option.value, FULL_ACCESS_PRESET)?.let { glyph ->
+                    Icon(
+                        glyph,
+                        contentDescription = null,
+                        tint = if (selected) colors.accent else colors.labelSecondary,
+                        modifier = Modifier
+                            .padding(top = 3.dp, end = DsSpacing.small)
+                            .size(16.dp),
+                    )
+                }
                 Column(Modifier.weight(1f)) {
                     Text(
                         displayPermissionPreset(option.value, option.name),
