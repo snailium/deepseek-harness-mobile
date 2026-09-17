@@ -434,9 +434,14 @@ class SessionStore @Inject constructor(
     // deriving keeps them in lockstep with the transcript and adds no round trips. A null value
     // means the key is absent — the harness composes no such service — and callers hide the UI.
 
+    // The 0.1.3 harness composes no `permissionPresets/catalog` Remote — the gateway answers it
+    // with capability-unavailable (HTTP 404) — so a failed catalog read must NOT blank the
+    // projection's own options: `selectFor` already emits every table option plus `custom` while
+    // it is derived. Only a successful catalog overrides, which keeps pre-0.1.3 hosts on their
+    // host-wide roster.
     val permissions: StateFlow<PermissionSelect?> = combine(
         projectionOf(PermissionSelect.serializer(), "permissions"), permissionCatalog,
-    ) { selection, catalog -> selection?.copy(options = catalog?.options ?: emptyList()) }
+    ) { selection, catalog -> selection?.copy(options = catalog?.options ?: selection.options) }
         .stateIn(scope, SharingStarted.Eagerly, null)
     val sessionStats: StateFlow<SessionStatsView?> = projectionOf(SessionStatsView.serializer(), "sessionStats")
     val tokenUsage: StateFlow<TokenUsageView?> = projectionOf(TokenUsageView.serializer(), "tokenUsage")
