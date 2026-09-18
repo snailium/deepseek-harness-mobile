@@ -11,6 +11,7 @@ import com.labteto.dshmobile.core.session.ConversationSnapshot
 import com.labteto.dshmobile.core.session.EventFold
 import com.labteto.dshmobile.core.session.QueueItem
 import com.labteto.dshmobile.core.session.SessionEventEnvelope
+import com.labteto.dshmobile.core.wire.COMMAND_ATTACHMENT_ARG_LEGACY
 import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
@@ -445,6 +446,16 @@ class SessionStore @Inject constructor(
     // separate approval id.
     private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
     private val questionEventBySession = HashMap<String, String>() // sessionId -> eventId
+
+    /**
+     * An answer the user submitted whose `$events/result` POST failed, held for one retry.
+     *
+     * The host replays a still-pending waterfall on the next generation, so the same logical
+     * question comes back and the answer is still valid — and no double-answer is possible,
+     * because the old generation's eventId is dead. This is what removes the "Could not reach the
+     * harness." toast in the common case where the socket was briefly down at submit time.
+     */
+    private var pendingQuestionRetry: Pair<String, AskUserQuestionAnswer>? = null
 
     // Open-session fold state.
     private var currentId: String? = null
@@ -935,6 +946,14 @@ class SessionStore @Inject constructor(
             emitSessionsLocked()
         }
         _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
+        // The host replays pending waterfalls on a new generation. If the user already answered
+        // this question but the POST failed, re-send now rather than asking them again.
+        val retry = pendingQuestionRetry
+        if (retry != null && retry.first == sessionId) {
+            pendingQuestionRetry = null
+            log("re-sending failed question answer for $sessionId after reconnect replay")
+            scope.launch { answerQuestions(sessionId, retry.second) }
+        }
     }
 
     // ------------------------------------------------------------------ session list state updates
@@ -1318,7 +1337,9 @@ class SessionStore @Inject constructor(
     private fun applyFollowSnapshot(sessionId: String, frame: SessionFollowFrame.Snapshot) {
         clearConnectionError()
         val envelopes = expandRecords(frame.records)
-        val page = historyTail(envelopes)
+        val page = trimToUserPrompt(historyTail(envelopes))
+        // `overDelivered` drives hasMore: the window held more than we are showing, so there is
+        // more history to fetch either by trimming or by the tail window's own bound.
         val overDelivered = envelopes.size > page.size
         synchronized(lock) {
             if (currentId != sessionId) return@synchronized
@@ -1407,6 +1428,13 @@ class SessionStore @Inject constructor(
                     _loadOlderFailed.value = false
                     // Same guard as the opening window, so paging backwards stays bounded instead
                     // of pulling the whole log at once.
+                    //
+                    // Deliberately *not* anchored on a user prompt the way the opening window is:
+                    // paging back asks for the run of events just before what is already loaded,
+                    // and snapping to a prompt here would skip the tail of the previous turn —
+                    // the reasoning and tool calls the reader scrolled up to see. The prompt
+                    // anchor is a rule about where a cold open *starts*, not about what a
+                    // backwards page contains.
                     val envelopes = expandRecords(r.value.records)
                     val page = historyTail(envelopes)
                     val overDelivered = envelopes.size > page.size
@@ -1639,7 +1667,7 @@ class SessionStore @Inject constructor(
         val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // The waterfall returns the answer object itself; there is no envelope around it now.
-        return answerOutcome(
+        val outcome = answerOutcome(
             api.answerEvent(
                 clientId = clientId,
                 eventId = eventId,
@@ -1650,6 +1678,11 @@ class SessionStore @Inject constructor(
             "question response",
             sessionId,
         )
+        // A refusal means the host read the call and said no — re-sending would only refuse again.
+        // An unsent call means nothing is known about the wait, so it is worth one retry when the
+        // host replays the waterfall on the next generation.
+        if (outcome is QuestionOutcome.Unsent) pendingQuestionRetry = sessionId to answer
+        return outcome
     }
 
     /**
@@ -1985,7 +2018,8 @@ class SessionStore @Inject constructor(
     ): CommandOutcome {
         val sid = targetSessionId ?: return CommandOutcome.Failed("no open session")
         val api = apiForHost(targetHost) ?: return CommandOutcome.Failed("not connected")
-        return when (val r = api.commandsExecute(sid, line, attachments)) {
+        val r = commandsExecuteWithArgFallback(api, sid, line, attachments)
+        return when (r) {
             is RpcResult.Ok -> {
                 val execution = r.value as? JsonObject
                 val commandId = execution?.get("commandId")
@@ -2153,6 +2187,34 @@ class SessionStore @Inject constructor(
      * cannot stall the fold. Anything trimmed is reported as `hasMore`, which is what
      * "Load older" is for.
      */
+    /**
+     * Whether one envelope is a genuine user prompt rather than harness-injected context.
+     *
+     * The harness tags a real prompt with `source.kind` of `user` or `user-rpc`; everything else
+     * (`agent-instructions`, `skill-invocation`, `goal`, …) is context. Deliberately stricter than
+     * `UserMessageNode.isInjectedContext`: this decides where the transcript *starts*, and an
+     * untagged message must not be mistaken for the reader's own last turn.
+     */
+    private fun isRealUserPrompt(e: SessionEventEnvelope): Boolean =
+        e.type == "user/message" &&
+            ((e.data as? JsonObject)?.get("source") as? JsonObject)
+                ?.get("kind")?.jsonPrimitive?.contentOrNull in setOf("user", "user-rpc")
+
+    /**
+     * Drop everything strictly before the oldest real user prompt in [envelopes].
+     *
+     * The harness opens a window of a fixed number of *events*, and a tool-heavy turn is mostly
+     * events — so a session opened cold used to start mid-tool-call-loop, with the message that
+     * prompted the work somewhere above the fold. Anchoring on the reader's last prompt instead
+     * makes the first screen read as a conversation. No prompt in the window means no anchor, and
+     * the list is returned unchanged rather than emptied.
+     */
+    private fun trimToUserPrompt(envelopes: List<SessionEventEnvelope>): List<SessionEventEnvelope> {
+        val sorted = envelopes.sortedBy { it.seq }
+        val index = sorted.indexOfFirst { isRealUserPrompt(it) }
+        return if (index < 0) sorted else sorted.subList(index, sorted.size)
+    }
+
     private fun historyTail(entries: List<SessionEventEnvelope>): List<SessionEventEnvelope> {
         if (entries.size <= MAX_PAGE_EVENTS) return entries
         var messages = 0
@@ -2206,6 +2268,34 @@ class SessionStore @Inject constructor(
             is RpcResult.Ok -> { setArchived(result.value.archivedSessionIds); refreshSessions(); true }
             is RpcResult.Err -> { setConnectionError(result.error.message); false }
         }
+    }
+
+    /**
+     * Run `commands/execute`, retrying with the pre-0.1.3 attachment parameter name.
+     *
+     * The gateway matches arguments by name and refuses an unexpected key as readily as a missing
+     * one, so a 0.1.2 host rejects `submittedAttachments` outright. That refusal is indistinguishable
+     * from a genuinely malformed call by code alone, so the fallback is deliberately narrow: it
+     * runs only when the call carried attachments (a command with none is unaffected either way)
+     * and only when the host refused with `bad-request`. A second failure is reported as-is.
+     */
+    private suspend fun commandsExecuteWithArgFallback(
+        api: DshApiClient,
+        sessionId: String,
+        line: String,
+        attachments: List<CommandSubmitAttachment>,
+    ): RpcResult<JsonElement> {
+        val first = api.commandsExecute(sessionId, line, attachments)
+        if (attachments.isEmpty()) return first
+        val refused = first as? RpcResult.Err ?: return first
+        if (refused.error.code != "bad-request") return first
+        log("commands/execute refused its attachment argument; retrying as the pre-0.1.3 name")
+        return api.commandsExecute(
+            sessionId,
+            line,
+            attachments,
+            attachmentArgName = COMMAND_ATTACHMENT_ARG_LEGACY,
+        )
     }
 
     private fun apiOrNull(): DshApiClient? {

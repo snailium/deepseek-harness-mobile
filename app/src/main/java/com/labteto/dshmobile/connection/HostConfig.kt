@@ -150,6 +150,14 @@ data class AppSettings(
      * or worse, silently queueing when they meant to steer — is the failure this avoids.
      */
     val promptMode: String = PromptMode.QUEUE,
+    /**
+     * Whether the keyboard's enter key sends the message.
+     *
+     * Off by default, and that default is the point: the field is multi-line, so enter inserts a
+     * newline the way every other multi-line field does, and the send button is the affordance.
+     * On is for anyone who types short messages and wants the keyboard to submit.
+     */
+    val enterToSend: Boolean = false,
 )
 
 /**

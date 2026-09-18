@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(فارغ)</string>
     <string name="tool_copy_code">نسخ الكود</string>
     <string name="tool_copy">نسخ</string>
+    <string name="settings_composer">المحرر</string>
+    <string name="settings_enter_to_send">مفتاح الإدخال يرسل الرسالة</string>
+    <string name="settings_enter_to_send_hint">عند الإيقاف، يُدرج مفتاح الإدخال سطرًا جديدًا ويرسل زر الإرسال.</string>
 </resources>

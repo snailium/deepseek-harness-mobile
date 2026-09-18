@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(vide)</string>
     <string name="tool_copy_code">Copier le code</string>
     <string name="tool_copy">Copier</string>
+    <string name="settings_composer">Rédaction</string>
+    <string name="settings_enter_to_send">La touche Entrée envoie le message</string>
+    <string name="settings_enter_to_send_hint">Désactivé, Entrée insère un saut de ligne et le bouton envoie.</string>
 </resources>

@@ -46,6 +46,27 @@ data class UserMessageNode(
 ) : ChatNode {
     val previewText: String
         get() = blocks.firstOrNull { it.kind == "text" }?.text?.take(120) ?: ""
+
+    /**
+     * True when this message is harness-injected context rather than something the reader wrote.
+     *
+     * The harness tags a genuine prompt with `source.kind` of `user` (RPC) or `user-rpc` (browser).
+     * **Every other kind is injected** — `agent-instructions`, `plugin`, `skill-invocation`,
+     * `goal`, `team-message`, `session-reference` and the rest — and rendering those as user
+     * bubbles puts a wall of configuration text on the reader's side of the conversation, which
+     * reads as though they had typed it.
+     *
+     * The test is deliberately a denylist of the *user* kinds rather than an allowlist of injected
+     * ones: a kind this build has never heard of is far more likely to be new harness context than
+     * a new way for the user to speak.
+     */
+    val isInjectedContext: Boolean
+        get() = sourceKind != null && sourceKind !in USER_SOURCE_KINDS
+
+    private companion object {
+        /** The only two `source.kind` values that mean the reader typed this. */
+        val USER_SOURCE_KINDS = setOf("user", "user-rpc")
+    }
 }
 
 data class AssistantMessageNode(

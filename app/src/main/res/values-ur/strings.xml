@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(خالی)</string>
     <string name="tool_copy_code">کوڈ کاپی کریں</string>
     <string name="tool_copy">کاپی</string>
+    <string name="settings_composer">کمپوزر</string>
+    <string name="settings_enter_to_send">انٹر کلید پیغام بھیجتی ہے</string>
+    <string name="settings_enter_to_send_hint">بند ہونے پر انٹر کلید نئی سطر ڈالتا ہے اور بھیجیں بٹن بھیجتا ہے۔</string>
 </resources>

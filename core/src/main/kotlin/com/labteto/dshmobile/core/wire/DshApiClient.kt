@@ -114,6 +114,17 @@ const val FILE_UPLOAD_PATH: String = "/api/session/uploadFileBinary"
  * - Streams are not here. `session/follow`, `session/control` and `workspace/follow` are stream
  *   Remotes and exist only on the mux — see [RemoteStreamMux]. This class covers the unary half.
  */
+/**
+ * The `commands/execute` argument that carries attachments, per harness version.
+ *
+ * 0.1.3 renamed the parameter to [COMMAND_ATTACHMENT_ARG]; a host that predates it still declares
+ * `images` and refuses the new name outright.
+ */
+const val COMMAND_ATTACHMENT_ARG: String = "submittedAttachments"
+
+/** The pre-0.1.3 spelling, kept for a host that has not been upgraded. */
+const val COMMAND_ATTACHMENT_ARG_LEGACY: String = "images"
+
 class DshApiClient(
     private val transport: RpcTransport,
 ) {
@@ -648,23 +659,27 @@ class DshApiClient(
      * [sessionPrompt] does not execute a leading-slash line — it hands it to the model as text —
      * so this is the only command write path; the composer adjudicates first.
      *
-     * The third argument is named after the host method's own parameter, `submittedAttachments`,
-     * because the gateway matches args by parameter name. Through 0.1.2 it was `images` and took
-     * bare image objects; 0.1.3 renamed it when files joined, and every member now carries a
-     * `type`. It is sent unconditionally, empty or not, because the gateway refuses a missing key
-     * as readily as an unexpected one.
+     * The third argument is named after the host method's own parameter, because the gateway
+     * matches args by parameter name and refuses a missing key as readily as an unexpected one.
+     * Through harness 0.1.2 that parameter was `images` and took bare image objects; 0.1.3 renamed
+     * it to `submittedAttachments` when files joined, and every member now carries a `type`.
+     *
+     * [attachmentArgName] is a parameter rather than a constant because a paired host can predate
+     * 0.1.3: sending the new name to an old host is refused the same way a missing key is, which
+     * would make every command fail on that host with nothing to point at the cause.
      */
     suspend fun commandsExecute(
         sessionId: String,
         line: String,
         attachments: List<CommandSubmitAttachment> = emptyList(),
+        attachmentArgName: String = COMMAND_ATTACHMENT_ARG,
     ): RpcResult<JsonElement> = call(
         "commands/execute",
         args {
             put("agentId", JsonPrimitive(sessionId))
             put("line", JsonPrimitive(line))
             put(
-                "submittedAttachments",
+                attachmentArgName,
                 encodeToJsonElement(ListSerializer(CommandSubmitAttachment.serializer()), attachments),
             )
         },

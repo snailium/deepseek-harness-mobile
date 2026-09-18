@@ -600,6 +600,7 @@ fun ChatScreen(
                 models = models,
                 onOpenModels = { sheet = ChatSheet.Models },
                 running = conversation?.running == true,
+                enterToSend = appSettings.enterToSend,
                 enabled = currentSessionId != null && !composer.submitting,
                 preparing = composer.preparing,
                 onOpenSheet = { sheet = ChatSheet.Commands },

@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(খালি)</string>
     <string name="tool_copy_code">কোড কপি করুন</string>
     <string name="tool_copy">কপি</string>
+    <string name="settings_composer">কম্পোজার</string>
+    <string name="settings_enter_to_send">এন্টার কী বার্তা পাঠায়</string>
+    <string name="settings_enter_to_send_hint">বন্ধ থাকলে এন্টার কী নতুন লাইন যোগ করে এবং পাঠানোর বোতাম পাঠায়।</string>
 </resources>

@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(vazio)</string>
     <string name="tool_copy_code">Copiar código</string>
     <string name="tool_copy">Copiar</string>
+    <string name="settings_composer">Composição</string>
+    <string name="settings_enter_to_send">A tecla Enter envia a mensagem</string>
+    <string name="settings_enter_to_send_hint">Desativada, Enter insere uma nova linha e o botão envia.</string>
 </resources>

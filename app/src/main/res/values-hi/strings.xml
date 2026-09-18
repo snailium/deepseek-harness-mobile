@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(खाली)</string>
     <string name="tool_copy_code">कोड कॉपी करें</string>
     <string name="tool_copy">कॉपी</string>
+    <string name="settings_composer">कंपोज़र</string>
+    <string name="settings_enter_to_send">एंटर कुंजी संदेश भेजती है</string>
+    <string name="settings_enter_to_send_hint">बंद होने पर एंटर कुंजी नई पंक्ति जोड़ती है और भेजें बटन भेजता है।</string>
 </resources>

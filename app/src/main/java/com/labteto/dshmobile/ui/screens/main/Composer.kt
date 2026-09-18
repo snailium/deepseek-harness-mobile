@@ -79,6 +79,9 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import androidx.compose.ui.semantics.Role
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 
 /**
  * Something picked and waiting to be sent with the next message.
@@ -163,6 +166,11 @@ internal fun Composer(
     onOpenModels: () -> Unit = {},
     running: Boolean,
     enabled: Boolean,
+    /**
+     * Whether the enter key sends. Off, the field keeps the multi-line default and enter inserts
+     * a newline, which is what a field of this shape is expected to do.
+     */
+    enterToSend: Boolean = false,
     onOpenSheet: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
@@ -206,19 +214,38 @@ internal fun Composer(
                     .fillMaxWidth()
                     .heightIn(max = 160.dp)
                     .onPreviewKeyEvent { event ->
-                    if (event.key == Key.Enter && (event.isCtrlPressed || event.isMetaPressed)) {
+                    // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only when
+                    // the reader asked for it: the field is multi-line, so newline-by-default is
+                    // what it would otherwise do, and a stray Enter mid-message should not fire.
+                    val shortcut = event.isCtrlPressed || event.isMetaPressed
+                    if (event.key == Key.Enter && (shortcut || enterToSend)) {
                         if (event.type == KeyEventType.KeyUp && canSend) {
                             val text = currentDraft
                             currentOnDraftChange("")
                             currentOnSend(text)
                         }
+                        // Consumed either way, so the newline does not also land in the draft.
                         true
                     } else false
                 },
-                // No `keyboardActions` here. The field is multi-line, so it carries the default IME
-                // action and the on-screen return key inserts a newline — which means an
-                // `onSend` action could never fire, and the one that used to sit here never did.
-                // The send key is the button; Ctrl/Cmd+Enter above is the shortcut.
+                keyboardOptions = if (enterToSend) {
+                    KeyboardOptions(imeAction = ImeAction.Send)
+                } else {
+                    KeyboardOptions(imeAction = ImeAction.Default)
+                },
+                keyboardActions = if (enterToSend) {
+                    KeyboardActions(
+                        onSend = {
+                            if (canSend) {
+                                val text = currentDraft
+                                currentOnDraftChange("")
+                                currentOnSend(text)
+                            }
+                        },
+                    )
+                } else {
+                    KeyboardActions()
+                },
                 enabled = enabled,
                 placeholder = {
                     Text(

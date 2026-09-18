@@ -176,6 +176,17 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     ) { viewModel.set { it.copy(keepConnectedInBackground = !it.keepConnectedInBackground) } }
                 }
 
+                // The keyboard's own behaviour, not the harness's: the composer field is
+                // multi-line, so enter inserting a newline is the default and sending is opted
+                // into rather than out of.
+                SettingsCard(stringResource(R.string.settings_composer)) {
+                    ToggleRow(
+                        stringResource(R.string.settings_enter_to_send),
+                        settings.enterToSend,
+                        stringResource(R.string.settings_enter_to_send_hint),
+                    ) { viewModel.set { it.copy(enterToSend = !it.enterToSend) } }
+                }
+
                 SettingsCard(stringResource(R.string.settings_harness)) {
                     connectionState.description?.let { host ->
                         // Only the home directory survives from `host.describe`; the version and

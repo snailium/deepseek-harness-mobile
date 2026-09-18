@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(пусто)</string>
     <string name="tool_copy_code">Копировать код</string>
     <string name="tool_copy">Копировать</string>
+    <string name="settings_composer">Ввод</string>
+    <string name="settings_enter_to_send">Клавиша Enter отправляет сообщение</string>
+    <string name="settings_enter_to_send_hint">Если выключено, Enter вставляет новую строку, а отправляет кнопка.</string>
 </resources>

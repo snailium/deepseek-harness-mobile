@@ -491,4 +491,7 @@
     <string name="debug_buffer_empty">(vacío)</string>
     <string name="tool_copy_code">Copiar código</string>
     <string name="tool_copy">Copiar</string>
+    <string name="settings_composer">Redacción</string>
+    <string name="settings_enter_to_send">La tecla Intro envía el mensaje</string>
+    <string name="settings_enter_to_send_hint">Desactivado, Intro inserta un salto de línea y envía el botón.</string>
 </resources>
