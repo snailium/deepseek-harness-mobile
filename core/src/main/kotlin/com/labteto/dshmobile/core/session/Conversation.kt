@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.core.session
 
+import com.labteto.dshmobile.core.wire.dto.TodoItem
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -134,6 +135,8 @@ data class ConversationSnapshot(
     val hasMore: Boolean = false,
     val lastSeq: Long = -1,
     val gap: Boolean = false,
+    /** The agent's live to-do list (last `todo/write` before the newest turn boundary), or null. */
+    val todos: List<TodoItem>? = null,
 ) {
     val turns: Int get() = nodes.count { it is TurnStartNode }
 }

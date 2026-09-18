@@ -4,6 +4,9 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import com.labteto.dshmobile.core.wire.decodeFromJsonElement
+import com.labteto.dshmobile.core.wire.dto.TodoItem
+import com.labteto.dshmobile.core.wire.dto.TodoWriteData
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -72,6 +75,7 @@ class EventFold(private val sessionId: String) {
             state.hasMore = initial.hasMore
             state.gap = initial.gap
             state.lastSeq = initial.lastSeq
+            state.liveTodos = initial.todos
             state.changed = false
             state.nodeView()
         }
@@ -126,6 +130,14 @@ internal class FoldState(private val sessionId: String) {
 
     private var cachedNodes: List<ChatNode>? = null
 
+    /**
+     * The to-do list as the web client derives it — a projection of the event stream, not a
+     * node: the last `todo/write` before the newest turn boundary is the current list, and a new
+     * `turn/start` clears it. Held in fold state so every rebuild re-derives it from the window
+     * actually on screen (a fresh open of an old session starts with no bar).
+     */
+    var liveTodos: List<TodoItem>? = null
+
     /** Open assistant per (turn, step), built from chunk deltas. */
     private data class OpenAssistant(
         val turn: Int,
@@ -165,6 +177,7 @@ internal class FoldState(private val sessionId: String) {
         hasMore = hasMore,
         lastSeq = lastSeq,
         gap = gap,
+        todos = liveTodos,
     )
 
     /**
@@ -226,6 +239,7 @@ internal class FoldState(private val sessionId: String) {
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 addNode(TurnStartNode(event.seq, turn))
                 running = true
+                liveTodos = null
             }
 
             "turn/end" -> {
@@ -317,7 +331,13 @@ internal class FoldState(private val sessionId: String) {
                 addNode(ToolResultNode(event.seq, toolCallId.orEmpty(), content, isError, turn, step, data.jsonObject["meta"]))
             }
 
-            "todo/write" -> addNode(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
+            "todo/write" -> {
+                val items = runCatching {
+                    decodeFromJsonElement(TodoWriteData.serializer(), data).todos
+                }.getOrNull() ?: emptyList()
+                liveTodos = items.ifEmpty { null }
+                addNode(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
+            }
 
             "goal/change" -> addNode(GoalNode(event.seq, data))
 
