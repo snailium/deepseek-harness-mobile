@@ -41,8 +41,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.input.key.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,6 +80,8 @@ import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 
 /**
  * Something picked and waiting to be sent with the next message.
@@ -201,36 +201,40 @@ internal fun Composer(
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
         Column(
-            // 3dp. The card already carries its own outer margin and its own border, so this inset
-            // only separates the field from the edge it is drawn against — 12dp was a section
-            // inset doing a hairline's job, and halving it once was not far enough.
-            Modifier.padding(horizontal = 3.dp, vertical = DsSpacing.xsmall),
+            Modifier.padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            TextField(
+            // BasicTextField, not Material3's TextField. Material3 enforces a hard-coded 56dp
+            // minimum height (TextFieldDefaults.MinHeight) plus its own internal content padding,
+            // neither of which a caller can remove — the `colors` block only hides its container
+            // and indicator. That unremovable inset is the "large border" around the text: every
+            // value tuned on the card around it was fighting a floor it could not go under.
+            //
+            // BasicTextField has no decoration box at all, so the field is exactly as tall as its
+            // text and its placeholder needs a manual overlay.
+            BasicTextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                // Fill the card's width and cap its height: the field is a direct Column child
-                // here, so a `weight` would be a *height* claim and would eat the whole card.
-                // The cap is what keeps a long draft from pushing the transcript off screen.
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .heightIn(max = 160.dp)
                     .onPreviewKeyEvent { event ->
-                    // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only when
-                    // the reader asked for it: the field is multi-line, so newline-by-default is
-                    // what it would otherwise do, and a stray Enter mid-message should not fire.
-                    val shortcut = event.isCtrlPressed || event.isMetaPressed
-                    if (event.key == Key.Enter && (shortcut || enterToSend)) {
-                        if (event.type == KeyEventType.KeyUp && canSend) {
-                            val text = currentDraft
-                            currentOnDraftChange("")
-                            currentOnSend(text)
-                        }
-                        // Consumed either way, so the newline does not also land in the draft.
-                        true
-                    } else false
-                },
+                        // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only
+                        // when the reader asked for it: the field is multi-line, so
+                        // newline-by-default is what it would otherwise do.
+                        val shortcut = event.isCtrlPressed || event.isMetaPressed
+                        if (event.key == Key.Enter && (shortcut || enterToSend)) {
+                            if (event.type == KeyEventType.KeyUp && canSend) {
+                                val text = currentDraft
+                                currentOnDraftChange("")
+                                currentOnSend(text)
+                            }
+                            true
+                        } else false
+                    },
+                enabled = enabled,
+                textStyle = DsType.std14.copy(color = colors.labelPrimary),
+                cursorBrush = SolidColor(colors.accent),
                 keyboardOptions = if (enterToSend) {
                     KeyboardOptions(imeAction = ImeAction.Send)
                 } else {
@@ -249,30 +253,23 @@ internal fun Composer(
                 } else {
                     KeyboardActions()
                 },
-                enabled = enabled,
-                placeholder = {
-                    Text(
-                        stringResource(R.string.chat_composer_hint),
-                        style = DsType.std14,
-                        color = colors.labelTertiary,
-                    )
-                },
                 minLines = 1,
-                // Six lines, not eight: past that the draft starts to outweigh the conversation
-                // it is replying to, and the field scrolls internally instead.
                 maxLines = 6,
-                textStyle = DsType.std14,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    disabledIndicatorColor = Color.Transparent,
-                    cursorColor = colors.accent,
-                    focusedTextColor = colors.labelPrimary,
-                    unfocusedTextColor = colors.labelPrimary,
-                ),
+                decorationBox = { innerTextField ->
+                    // The placeholder has to be drawn by hand now that there is no decoration box
+                    // to do it. It must not occupy space, or the field jumps by a line when the
+                    // first character lands.
+                    Box {
+                        if (draft.isEmpty()) {
+                            Text(
+                                stringResource(R.string.chat_composer_hint),
+                                style = DsType.std14,
+                                color = colors.labelTertiary,
+                            )
+                        }
+                        innerTextField()
+                    }
+                },
             )
 
             if (preparing) Text(stringResource(R.string.photos_preparing), style = DsType.caption11)
