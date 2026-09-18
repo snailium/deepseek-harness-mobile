@@ -242,15 +242,12 @@ internal fun Composer(
         ) {
             if (modelLabel != null) {
                 // The model chip fills the weighted slot and its label ellipses inside; the
-                // right-pinned pair keeps its full 64dp no matter how long the name runs. The
-                // chip re-hugs its content once measured (wrapContentSize, unbounded=false), so
-                // it stays left-aligned while the leftover slot width pushes the pair to the
-                // trailing edge.
+                // right-pinned pair keeps its full 64dp no matter how long the name runs.
                 ModelChip(
                     label = modelLabel,
                     routable = modelsRoutable,
                     onClick = onOpenModels,
-                    modifier = Modifier.weight(1f).wrapContentSize(unbounded = false),
+                    modifier = Modifier.weight(1f),
                 )
             } else {
                 Spacer(Modifier.weight(1f))

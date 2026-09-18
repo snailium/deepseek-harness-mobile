@@ -278,13 +278,11 @@ internal fun ModelChip(
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    // The caller may hand in a weighted slot (the composer strip) plus wrapContentSize to re-hug
-    // the chip. The inner Row therefore measures its content first and only then takes whatever
-    // width the outer modifier grants: with no grant it hugs the label (default), and with one it
-    // fills the slot while the label below ellipses — so a long name can never push the
-    // right-pinned controls off the strip.
+    // The caller may hand in a weighted slot (the composer strip). The chip then fills that slot
+    // and its label ellipses inside — so a long name can never push the right-pinned controls off
+    // the strip. Without a grant it simply hugs its content, the default behavior.
     Row(
-        modifier = modifier.wrapContentSize(unbounded = false)
+        modifier = modifier
             .heightIn(min = 32.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
