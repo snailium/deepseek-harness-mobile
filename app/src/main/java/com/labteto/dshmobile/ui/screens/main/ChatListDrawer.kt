@@ -75,6 +75,14 @@ import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import com.labteto.dshmobile.data.DebugBuffer
+import com.labteto.dshmobile.data.transcriptDebugReport
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: the workspace's own row order. */
 private const val SORT_MANUAL = "manual"
@@ -109,6 +117,8 @@ fun ChatListDrawer(
 
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
+    // The on-device diagnostics dialog. The phone has no adb, so this is how a report gets out.
+    var showDebugInfo by remember { mutableStateOf(false) }
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
     // to reset every time the drawer was closed.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
@@ -213,6 +223,12 @@ fun ChatListDrawer(
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
+            DsIconButton(
+                icon = FeatherIcons.Info,
+                contentDescription = stringResource(R.string.debug_dialog_title),
+                onClick = { showDebugInfo = true },
+                tint = colors.labelTertiary,
+            )
             DsIconButton(
                 icon = Icons.Filled.Settings,
                 contentDescription = stringResource(R.string.settings_title),
@@ -411,6 +427,54 @@ fun ChatListDrawer(
                 style = DsType.std14,
                 color = colors.labelSecondary,
             )
+        }
+    }
+
+    // ---- Diagnostics: the on-device log plus a dump of what the fold holds. ----
+    //
+    // Both halves answer questions a screenshot cannot: the buffer carries what the app said to
+    // itself (`<what> -> <outcome>` per line), and the transcript report carries the fold's own
+    // node list in seq order. Copy ships the pair back to a developer.
+    if (showDebugInfo) {
+        val context = LocalContext.current
+        val bufferText = DebugBuffer.snapshot()
+        val transcriptText = transcriptDebugReport(
+            loadingOlder = store.loadingOlder.value,
+            loadOlderFailed = store.loadOlderFailed.value,
+            conversation = store.currentConversation.value,
+        )
+        val debugText = buildString {
+            appendLine("=== Debug buffer ===")
+            appendLine(bufferText.ifEmpty { context.getString(R.string.debug_buffer_empty) })
+            appendLine()
+            append(transcriptText)
+        }
+        DsDialog(title = stringResource(R.string.debug_dialog_title), onDismiss = { showDebugInfo = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    debugText,
+                    style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
+                    color = colors.labelSecondary,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(DsSpacing.compact))
+            Row(horizontalArrangement = Arrangement.End) {
+                DsButton(
+                    text = stringResource(R.string.common_copy),
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as? android.content.ClipboardManager
+                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("dsh-debug", debugText))
+                        showDebugInfo = false
+                    },
+                )
+            }
         }
     }
 
