@@ -240,11 +240,16 @@ internal fun Composer(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
         ) {
             if (modelLabel != null) {
+                // The model name takes whatever room is left and ellipses; the right-pinned pair
+                // below keeps its full 64dp no matter how long the label runs.
                 ModelChip(
                     label = modelLabel,
                     routable = modelsRoutable,
                     onClick = onOpenModels,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+            } else {
+                Spacer(Modifier.weight(1f))
             }
             PermissionChip(
                 select = permissions,
@@ -252,7 +257,6 @@ internal fun Composer(
                 enabled = enabled,
                 onPick = onPermissionPick,
             )
-            Spacer(Modifier.weight(1f))
             ContextRing(contextBreakdown, contextPressure)
         }
     }

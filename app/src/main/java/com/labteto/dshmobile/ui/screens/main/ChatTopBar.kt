@@ -275,10 +275,11 @@ internal fun ModelChip(
     label: String,
     routable: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .heightIn(min = 32.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -295,7 +296,16 @@ internal fun ModelChip(
         if (!routable) {
             StateDot(StateDotState.Warning, size = 6.dp)
         }
-        Text(label, style = DsType.m3LabelMedium, color = colors.labelPrimary, maxLines = 1)
+        // The label ellipses inside a weighted slot so a long model name can never push the
+        // right-pinned controls (permission + context ring) off the strip.
+        Text(
+            label,
+            style = DsType.m3LabelMedium,
+            color = colors.labelPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
         Icon(
             FeatherIcons.ChevronDown,
             contentDescription = null,
