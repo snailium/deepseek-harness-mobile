@@ -145,13 +145,21 @@ fun DisclosureRow(
             // title hugs its text, so a row whose title is short and whose summary is absent —
             // every failed call with no preview, a compaction, an archived session — ended its
             // content early and the trailing slot floated in the middle of the line.
+            // The title is what identifies the row (`Bash`, `Read`, `Edit`) and is short by
+            // construction; the summary is the detail (`app/build.gradle.kts`) and is the part
+            // worth spending width on. So the title hugs its text and the summary absorbs the
+            // slack — the opposite of the obvious arrangement, and the reason two `weight(1f)`
+            // siblings were wrong: weight reserves its share *before* anything is measured, so a
+            // short title still claimed half the line and left the gap the reader saw between the
+            // name and the `::` separator, while the summary ellipsised at half width.
             Text(
                 title,
                 style = DsType.std14,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).then(titleModifier),
+                // `fill = false`: take only the space the text needs, never reserve a share.
+                modifier = Modifier.weight(1f, fill = false).then(titleModifier),
             )
             if (summary != null) {
                 Spacer(Modifier.width(6.dp))
@@ -163,10 +171,13 @@ fun DisclosureRow(
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    // The summary takes only what it needs, capped so it can never crowd the title
-                    // to nothing; the title's `fill` absorbs the rest.
-                    modifier = Modifier.weight(1f, fill = false),
+                    // Fills: the summary is the row's flexible part, so it takes whatever the title
+                    // and the trailing slot left and ellipsises only when genuinely out of room.
+                    modifier = Modifier.weight(1f),
                 )
+            } else {
+                // No summary: absorb the slack so the trailing slot stays at the right edge.
+                Spacer(Modifier.weight(1f))
             }
             // Trailing edge of the same line: keeps the elapsed time out of the header's own
             // vertical rhythm, so a long title and a long duration cannot push each other around.

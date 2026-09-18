@@ -57,6 +57,7 @@ import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import androidx.compose.runtime.derivedStateOf
 
 /**
  * How close to the far end of the list — the oldest message — a reader must get before the next
@@ -133,13 +134,19 @@ internal fun ChatTranscript(
 
     // Whether the newest message is on screen. In a reversed list that is index 0, and the tail
     // can be *partly* visible mid-scroll, so presence is what counts rather than exact offset.
-    var atNewest by remember(conversation?.sessionId) { mutableStateOf(true) }
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val first = listState.firstVisibleItemIndex
-            val offset = listState.firstVisibleItemScrollOffset
-            first == 0 && offset < AT_NEWEST_TOLERANCE_PX
-        }.collect { atNewest = it }
+    //
+    // Derived rather than latched: reading the layout info inside a composable-scoped read means a
+    // scroll recomposes this and the answer is always current. A `snapshotFlow` collecting into a
+    // `remember`ed flag looked equivalent and was not — the flag starts `true`, the first emission
+    // is also `true`, and the effect's key (the list state object) never changes, so an emission
+    // that never arrives leaves the button hidden for good. The visible-items list is a snapshot
+    // state read, so this recomposes on every scroll without an effect at all.
+    val atNewest = remember(conversation?.sessionId, listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val first = info.visibleItemsInfo.firstOrNull() ?: return@derivedStateOf true
+            first.index == 0 && first.offset >= -AT_NEWEST_TOLERANCE_PX
+        }
     }
     val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
@@ -276,7 +283,7 @@ internal fun ChatTranscript(
     // only way back to a live reply is to drag the whole way by hand.
     val scope = rememberCoroutineScope()
     AnimatedVisibility(
-        visible = !atNewest && rows.isNotEmpty(),
+        visible = !atNewest.value && rows.isNotEmpty(),
         enter = fadeIn() + slideInVertically { it / 4 },
         exit = fadeOut() + slideOutVertically { it / 4 },
         modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 12.dp),

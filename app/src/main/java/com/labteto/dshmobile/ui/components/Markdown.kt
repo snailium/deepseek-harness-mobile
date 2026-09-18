@@ -57,6 +57,7 @@ import com.labteto.dshmobile.core.markdown.safeHttpUrl
 import com.labteto.dshmobile.core.markdown.MdBlock
 import com.labteto.dshmobile.core.markdown.parseMarkdown
 import androidx.compose.ui.text.style.TextDecoration
+import kotlin.math.pow
 
 val LocalFileOpener = staticCompositionLocalOf<(String) -> Unit> { {} }
 
@@ -362,6 +363,11 @@ private fun HorizontalRuleLine() {
 @Composable
 private fun MdTableBlock(block: MdBlock.Table) {
     val colors = DsTheme.colors
+    // Column widths follow the content instead of splitting evenly. Equal weights gave a one-digit
+    // `#` column the same share as a prose column, so a table of numbers and text came out with a
+    // wide empty first column and a cramped second. Weights here are proportional to the longest
+    // cell each column holds, which is a single pass over the parsed table.
+    val weights = remember(block) { tableColumnWeights(block) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -374,7 +380,7 @@ private fun MdTableBlock(block: MdBlock.Table) {
                     text = cell,
                     alignment = block.alignments.getOrNull(index) ?: MdBlock.Alignment.LEFT,
                     header = true,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(weights.getOrElse(index) { 1f }),
                 )
             }
         }
@@ -388,11 +394,34 @@ private fun MdTableBlock(block: MdBlock.Table) {
                         text = cell,
                         alignment = block.alignments.getOrNull(index) ?: MdBlock.Alignment.LEFT,
                         header = false,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(weights.getOrElse(index) { 1f }),
                     )
                 }
             }
         }
+    }
+}
+
+
+/**
+ * Per-column layout weights, proportional to each column's longest cell.
+ *
+ * The share is `width^0.65` rather than raw width: a straight ratio lets one long cell (a URL, an
+ * English sentence in a table of numbers) take almost the whole line and squeeze every other column
+ * to an ellipsis. Compressing the exponent keeps the ordering — wider content gets more room —
+ * while bounding how much of the table any single column can claim.
+ *
+ * A floor of one character keeps the ratio finite; an empty column still gets a share.
+ */
+private fun tableColumnWeights(table: MdBlock.Table): List<Float> {
+    val columns = maxOf(table.header.size, table.rows.maxOfOrNull { it.size } ?: 0)
+    if (columns == 0) return emptyList()
+    return (0 until columns).map { index ->
+        val longest = sequence {
+            yield(table.header.getOrNull(index))
+            table.rows.forEach { yield(it.getOrNull(index)) }
+        }.filterNotNull().maxOfOrNull { it.length } ?: 0
+        maxOf(longest, 1).toDouble().pow(0.65).toFloat()
     }
 }
 
