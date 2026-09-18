@@ -481,4 +481,10 @@
     <string name="todo_progress_active">กำลังทำ %1$d</string>
     <string name="todo_progress_pending">รอดำเนินการ %1$d</string>
     <string name="todo_close">ปิดรายการงาน</string>
+    <string name="chat_scroll_to_bottom">ไปล่าสุด</string>
+    <string name="chat_search_hint">ค้นหาข้อความ</string>
+    <string name="chat_search_clear">ล้างการค้นหา</string>
+    <string name="chat_search_previous">รายการก่อนหน้า</string>
+    <string name="chat_search_next">รายการถัดไป</string>
+    <string name="chat_search_counter">%1$d/%2$d</string>
 </resources>

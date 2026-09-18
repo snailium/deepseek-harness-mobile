@@ -17,8 +17,22 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import com.labteto.dshmobile.ui.components.LocalSelectionDismiss
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -115,6 +129,17 @@ internal fun ChatTranscript(
         conversation?.nodes.orEmpty().filter { it.rendersContent() }.asReversed()
     }
     val hasMore = conversation?.hasMore == true
+
+    // Whether the newest message is on screen. In a reversed list that is index 0, and the tail
+    // can be *partly* visible mid-scroll, so presence is what counts rather than exact offset.
+    var atNewest by remember(conversation?.sessionId) { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val first = listState.firstVisibleItemIndex
+            val offset = listState.firstVisibleItemScrollOffset
+            first == 0 && offset < AT_NEWEST_TOLERANCE_PX
+        }.collect { atNewest = it }
+    }
     val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
 
@@ -179,9 +204,10 @@ internal fun ChatTranscript(
         return
     }
 
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         // Newest first, so the row the viewport anchors on is the one that grows.
         reverseLayout = true,
@@ -237,7 +263,46 @@ internal fun ChatTranscript(
             }
         }
     }
+
+    // Floating "jump to newest" affordance, shown once the reader has scrolled away from the tail.
+    // In a reversed list the newest message is index 0, so that is where this returns them.
+    // Reading back through history is the one case the pinned-follow behaviour does not cover:
+    // the list deliberately stops following once the reader scrolls up, and without this the
+    // only way back to a live reply is to drag the whole way by hand.
+    val scope = rememberCoroutineScope()
+    AnimatedVisibility(
+        visible = !atNewest && rows.isNotEmpty(),
+        enter = fadeIn() + slideInVertically { it / 4 },
+        exit = fadeOut() + slideOutVertically { it / 4 },
+        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 12.dp),
+    ) {
+        val colors = DsTheme.colors
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(colors.bgLayer3)
+                .border(1.dp, colors.borderL1)
+                .clickable { scope.launch { listState.animateScrollToItem(0) } },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.chat_scroll_to_bottom),
+                tint = colors.labelPrimary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+    }
 }
+
+/**
+ * How far the list may be scrolled past index 0 and still count as "at the newest message".
+ * A small positive value absorbs the rounding in Compose's own layout measurements, so the
+ * button does not flicker in at the very end of a scroll.
+ */
+private const val AT_NEWEST_TOLERANCE_PX = 4
 
 /** Stable identity for the one provisional streaming row; see the keying note above. */
 private const val STREAMING_ROW_KEY = "streaming-tail"

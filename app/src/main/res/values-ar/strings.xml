@@ -481,4 +481,10 @@
     <string name="todo_progress_active">%1$d قيد التنفيذ</string>
     <string name="todo_progress_pending">%1$d معلّق</string>
     <string name="todo_close">إغلاق المهام</string>
+    <string name="chat_scroll_to_bottom">الانتقال إلى الأحدث</string>
+    <string name="chat_search_hint">بحث في الرسائل</string>
+    <string name="chat_search_clear">مسح البحث</string>
+    <string name="chat_search_previous">النتيجة السابقة</string>
+    <string name="chat_search_next">النتيجة التالية</string>
+    <string name="chat_search_counter">%1$d/%2$d</string>
 </resources>
