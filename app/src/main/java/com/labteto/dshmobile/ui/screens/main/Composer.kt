@@ -35,6 +35,7 @@ import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Description
@@ -240,13 +241,16 @@ internal fun Composer(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
         ) {
             if (modelLabel != null) {
-                // The model chip fills the weighted slot and its label ellipses inside; the
-                // right-pinned pair keeps its full 64dp no matter how long the name runs.
+                // The chip gets the leftover slot but only wraps its own content inside it,
+                // left-aligned — so the pill hugs the label and the unused width lands between
+                // the chip and the right-pinned pair rather than inside the pill.
                 ModelChip(
                     label = modelLabel,
                     routable = modelsRoutable,
                     onClick = onOpenModels,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .wrapContentSize(align = Alignment.CenterStart),
                 )
             } else {
                 Spacer(Modifier.weight(1f))

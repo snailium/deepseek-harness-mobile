@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -278,13 +279,12 @@ internal fun ModelChip(
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    // The caller may hand in a weighted slot (the composer strip). The pill then caps itself at
-    // the slot's width and its label ellipses inside — so a long name can never push the
-    // right-pinned controls off the strip — while the pill still hugs the label when it is short,
-    // left-aligned in the slot. Without a grant it simply wraps its content, the default behavior.
+    // The caller grants a weighted slot and left-aligns us inside it (`wrapContent(Alignment
+    // .CenterStart)`); the pill sizes itself purely from its label, capped so a very long model
+    // name ellipses instead of pushing the right-pinned controls off the strip.
     Row(
         modifier = modifier
-            .widthIn(max = 200.dp)
+            .widthIn(max = 220.dp)
             .heightIn(min = 32.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -301,13 +301,15 @@ internal fun ModelChip(
         if (!routable) {
             StateDot(StateDotState.Warning, size = 6.dp)
         }
+        // Intrinsic width, not a weighted slot: the Row therefore measures to the text itself, so
+        // the pill hugs short names and only truncates at the cap above.
         Text(
             label,
             style = DsType.m3LabelMedium,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.width(IntrinsicSize.Max),
         )
         Icon(
             FeatherIcons.ChevronDown,
