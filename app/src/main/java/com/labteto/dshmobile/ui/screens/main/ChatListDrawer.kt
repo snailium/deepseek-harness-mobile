@@ -210,8 +210,11 @@ fun ChatListDrawer(
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
+            SortChip(sortByRecency) { next ->
+                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
+            }
+            Spacer(Modifier.weight(1f))
             DsIconButton(
                 icon = Icons.Filled.Search,
                 contentDescription = stringResource(R.string.common_search),
@@ -223,9 +226,6 @@ fun ChatListDrawer(
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
             )
-            SortChip(sortByRecency) { next ->
-                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
-            }
             DsIconButton(
                 icon = FeatherIcons.Info,
                 contentDescription = stringResource(R.string.debug_dialog_title),
@@ -402,6 +402,7 @@ fun ChatListDrawer(
             }
         }
 
+        Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
