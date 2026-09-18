@@ -54,6 +54,7 @@ import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.skeleton
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
@@ -208,7 +209,7 @@ internal fun ChatTranscript(
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = DsSpacing.pageHorizontal, vertical = 8.dp),
         // Newest first, so the row the viewport anchors on is the one that grows.
         reverseLayout = true,
         // Still bottom-aligned: a transcript shorter than the viewport belongs above the composer,
@@ -370,9 +371,11 @@ private fun LoadOlderRow(
 private fun TranscriptSkeleton(modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
     Column(
+        // No horizontal inset of its own: the list's contentPadding already puts this on the page
+        // column, and adding one here would indent the placeholder past every real row.
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 16.dp),
+            .padding(vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         listOf(0.55f, 0.9f, 0.75f, 0.4f).forEach { fraction ->

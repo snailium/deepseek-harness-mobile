@@ -53,6 +53,7 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionItem
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.launch
@@ -175,7 +176,9 @@ internal fun QuestionsPanel(
             shadowElevation = 2.dp,
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                // Inner padding only: the outer inset that aligns this panel with the composer
+                // and the transcript is applied by the caller (see DsSpacing.pageHorizontal).
+                modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 QuestionHeader(
@@ -371,9 +374,7 @@ private fun OptionRow(
         border = if (selected) BorderStroke(1.dp, colors.accent) else null,
     ) {
         Row(
-            // Half the previous inset (10/8 -> 5/4): the plate-to-text gap was wide enough that
-            // an option read as a floating label rather than a pressable row.
-            modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             // Top, not centre: a wrapped description would otherwise drift the marker down the
             // copy block and stop it reading as a control.
             verticalAlignment = Alignment.Top,

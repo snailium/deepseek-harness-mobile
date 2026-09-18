@@ -27,6 +27,22 @@ object DsSpacing {
     
     /** 16dp - Comfortable spacing for screen padding and section content */
     val comfortable = 16.dp
+
+    /**
+     * The horizontal inset every top-level container on the chat surface shares.
+     *
+     * Named for its *role*, not its size, because that is what went wrong: the names above say how
+     * much an inset is, so each container picked the amount that looked right on its own and the
+     * left edges stopped lining up — the transcript used 12, the to-do strip 6, the question panel
+     * none at all. A reader sees a ragged column and cannot say which one is wrong.
+     *
+     * Any container that spans the screen width and holds transcript-level content uses this:
+     * the composer card, the transcript's own content padding, the docks above the composer, the
+     * to-do strip, the question and approval panels, the connection banner. Nested or
+     * self-contained surfaces keep choosing by amount — a chip's inner padding has no obligation
+     * to match the page margin.
+     */
+    val pageHorizontal = 12.dp
     
     /** 20dp - Large spacing between major UI sections */
     val large = 20.dp

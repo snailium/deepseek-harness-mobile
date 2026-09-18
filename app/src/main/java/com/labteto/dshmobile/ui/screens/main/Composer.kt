@@ -186,7 +186,7 @@ internal fun Composer(
             // height, so an unbounded card is not a cosmetic problem — it is the transcript
             // disappearing. Attachments plus a full-height field still fit under this.
             .heightIn(max = 280.dp)
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small)
+            .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.small)
             .animateContentSize(),
         shape = DsShapes.composer,
         color = colors.composerCard,

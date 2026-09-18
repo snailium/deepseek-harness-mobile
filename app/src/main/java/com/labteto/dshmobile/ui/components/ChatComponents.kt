@@ -43,6 +43,7 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 import java.util.Locale
+import com.labteto.dshmobile.ui.theme.DsSpacing
 
 
 /**
@@ -140,8 +141,10 @@ fun ConnectionBanner(message: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // The strip is full-bleed by design (its fill must reach both edges), but its text
+            // sits on the same column as the transcript, so the inset is the page one.
             .background(DsTheme.colors.error)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = DsSpacing.pageHorizontal, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(

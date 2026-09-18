@@ -67,6 +67,7 @@ import androidx.compose.runtime.LaunchedEffect
 import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.ui.rememberHostsStore
 import androidx.compose.runtime.collectAsState
+import com.labteto.dshmobile.ui.theme.DsSpacing
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -442,9 +443,9 @@ fun ChatScreen(
                     todos = todos,
                     dismissed = todosDismissed,
                     onDismiss = { todosDismissed = true },
-                    // Tight to the transcript: the bar is a strip over the messages, so the
-                    // outer inset only needs to keep it off the screen edge.
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                    // Shares the page inset with the transcript and the composer: the bar spans
+                    // the same column, so its edges have to sit on the same lines.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 2.dp),
                 )
             }
 
@@ -502,7 +503,7 @@ fun ChatScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = DsSpacing.pageHorizontal),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     // The to-do list lives in the pinned bar above the transcript, not here:
@@ -519,6 +520,10 @@ fun ChatScreen(
                 ApprovalPanel(
                     toolName = approval.toolName,
                     reason = approval.reason,
+                    // The page inset lives here, at the call site, because the panel is one of
+                    // several stacked in the same column: a composable that inset itself would
+                    // fight whichever container also holds it.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                     onAllow = {
                         scope.launch { store.respondApproval(approval.sessionId, approval.approvalId, true) }
                     },
@@ -556,6 +561,7 @@ fun ChatScreen(
                     PlanReviewPanel(
                         review = review,
                         busy = planBusy,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                         onApprove = { decide(review.approve) },
                         onDecline = { review.decline?.let { decide(it) } },
                         // Wanting to talk it over first is not one of the options the asker stated,
@@ -569,6 +575,7 @@ fun ChatScreen(
                     QuestionsPanel(
                         requestKey = questions.rpcId,
                         questions = questions.items,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                         onSubmit = { answer ->
                             refusalOf(store.answerQuestions(questions.sessionId, answer))
                         },

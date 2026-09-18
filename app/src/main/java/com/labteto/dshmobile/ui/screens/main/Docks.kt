@@ -435,9 +435,7 @@ internal fun TodoBar(
         shape = RoundedCornerShape(12.dp),
         color = colors.tipSurface,
     ) {
-        // Half the previous inset (12/6 -> 6/3): the bar is a status strip, not a card, and the
-        // wide margin pushed the title so far from the edge that it stopped reading as one.
-        Column(modifier.padding(horizontal = 6.dp, vertical = 3.dp)) {
+        Column(modifier.padding(horizontal = DsSpacing.small, vertical = 3.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
