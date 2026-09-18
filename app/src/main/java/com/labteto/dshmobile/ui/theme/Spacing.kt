@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.theme
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.unit.dp
 
 /**
@@ -43,7 +44,13 @@ object DsSpacing {
      * to match the page margin.
      */
     val pageHorizontal = 12.dp
-    
+
+    /**
+     * The inset between a text surface and its content, shared by the composer's input field and
+     * the user message bubble so the two read as the same kind of object.
+     */
+    val textFieldInset = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+
     /** 20dp - Large spacing between major UI sections */
     val large = 20.dp
     

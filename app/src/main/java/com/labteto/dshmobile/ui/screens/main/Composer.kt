@@ -259,7 +259,7 @@ internal fun Composer(
                     // The placeholder has to be drawn by hand now that there is no decoration box
                     // to do it. It must not occupy space, or the field jumps by a line when the
                     // first character lands.
-                    Box {
+                    Box(modifier = Modifier.padding(DsSpacing.textFieldInset)) {
                         if (draft.isEmpty()) {
                             Text(
                                 stringResource(R.string.chat_composer_hint),

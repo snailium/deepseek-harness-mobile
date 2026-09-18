@@ -80,7 +80,7 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
                     .background(colors.accent, DsShapes.bubble)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(DsSpacing.textFieldInset),
             ) {
                 Text(text, style = DsType.bubbleText, color = colors.onAccent)
             }
