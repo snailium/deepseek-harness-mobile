@@ -354,47 +354,49 @@ fun ChatListDrawer(
             }
             if (ungrouped.isNotEmpty()) {
                 anyShown = true
-                item(key = "ungrouped") {
-                    var ungroupedExpanded by remember { mutableStateOf(false) }
-                    DisclosureRow(
-                        title = stringResource(R.string.chatlist_sessions),
-                        summary = ungrouped.size.toString(),
-                        expanded = ungroupedExpanded,
-                        onToggle = { ungroupedExpanded = !ungroupedExpanded },
-                    ) {
-                        val flat = ungrouped
-                            .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                            .flatMap { subtree(it) }
-                        flat.forEach { (session, depth) ->
-                            SessionRowItem(
-                                session = session,
-                                isCurrent = session.sessionId == currentSessionId,
-                                store = store,
-                                scope = scope,
-                                onClose = onClose,
-                                depth = depth,
-                                childCount = childrenByParent[session.sessionId].orEmpty().size,
-                                childrenExpanded = isExpanded(session.sessionId),
-                                onToggleChildren = { toggleChildren(session.sessionId) },
-                            )
-                        }
+                item(key = "ungrouped-header") {
+                    var expanded by remember { mutableStateOf(false) }
+                    GroupHeader(
+                        label = stringResource(R.string.chatlist_sessions),
+                        count = ungrouped.size,
+                        collapsed = !expanded,
+                        onToggle = { expanded = !expanded },
+                    )
+                }
+                val ungroupedFlat = ungrouped
+                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                    .flatMap { subtree(it) }
+                items(ungroupedFlat, key = { "ug-${it.first.sessionId}" }) { (session, depth) ->
+                    Box(Modifier.animateItem()) {
+                        SessionRowItem(
+                            session = session,
+                            isCurrent = session.sessionId == currentSessionId,
+                            store = store,
+                            scope = scope,
+                            onClose = onClose,
+                            depth = depth,
+                            childCount = childrenByParent[session.sessionId].orEmpty().size,
+                            childrenExpanded = isExpanded(session.sessionId),
+                            onToggleChildren = { toggleChildren(session.sessionId) },
+                        )
                     }
                 }
             }
 
             if (archivedSessions.isNotEmpty()) {
                 anyShown = true
-                item(key = "archived") {
-                    var archivedExpanded by remember { mutableStateOf(false) }
-                    DisclosureRow(
-                        title = stringResource(R.string.chatlist_archived),
-                        summary = archivedSessions.size.toString(),
-                        expanded = archivedExpanded,
-                        onToggle = { archivedExpanded = !archivedExpanded },
-                    ) {
-                        archivedSessions.forEach { session ->
-                            SessionRowItem(session, false, store, scope, onClose)
-                        }
+                item(key = "archived-header") {
+                    var expanded by remember { mutableStateOf(false) }
+                    GroupHeader(
+                        label = stringResource(R.string.chatlist_archived),
+                        count = archivedSessions.size,
+                        collapsed = !expanded,
+                        onToggle = { expanded = !expanded },
+                    )
+                }
+                items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
+                    Box(Modifier.animateItem()) {
+                        SessionRowItem(session, false, store, scope, onClose)
                     }
                 }
             }
@@ -554,6 +556,52 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
 // ---------------------------------------------------------------------------
 // Rows
 // ---------------------------------------------------------------------------
+
+/**
+ * A collapsible group header with the same visual style as [WorkspaceHeader]:
+ * chevron + bold label + count. Used for Ungrouped and Archived sections.
+ */
+@Composable
+private fun GroupHeader(
+    label: String,
+    count: Int,
+    collapsed: Boolean,
+    onToggle: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    val rotation by animateFloatAsState(
+        targetValue = if (collapsed) 0f else 90f,
+        animationSpec = DsAnimations.chevron,
+        label = "groupChevron",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onToggle)
+            .padding(vertical = DsSpacing.xsmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { rotationZ = rotation },
+        )
+        Spacer(Modifier.width(DsSpacing.tiny))
+        Text(
+            label,
+            style = DsType.base16Strong,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(count.toString(), style = DsType.xsmall12, color = colors.labelCaption)
+    }
+}
 
 /**
  * A workspace header that collapses its group and carries the workspace verbs.
