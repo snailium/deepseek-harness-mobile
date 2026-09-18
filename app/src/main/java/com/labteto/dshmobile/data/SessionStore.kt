@@ -75,6 +75,7 @@ import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.core.wire.dto.SkillListRequest
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
+import com.labteto.dshmobile.core.wire.dto.TodoItem
 import com.labteto.dshmobile.core.wire.dto.TokenUsageView
 import com.labteto.dshmobile.core.wire.dto.USER_QUESTIONS_REQUEST_EVENT
 import com.labteto.dshmobile.core.wire.dto.UnknownSubagentListEntry
@@ -296,6 +297,17 @@ class SessionStore @Inject constructor(
 
     private val _currentConversation = MutableStateFlow<ConversationSnapshot?>(null)
     val currentConversation: StateFlow<ConversationSnapshot?> = _currentConversation.asStateFlow()
+
+    /**
+     * The agent's live to-do list for the open session, or null when there is none to show.
+     *
+     * Derived by the fold from the event stream (`todo/write` sets it, `turn/start` clears it) and
+     * carried on the snapshot — reading it off the transcript's nodes instead went stale, because
+     * the fold's node cache is shared across rebuilds.
+     */
+    val todos: StateFlow<List<TodoItem>?> = currentConversation
+        .map { it?.todos }
+        .stateIn(scope, SharingStarted.Eagerly, null)
 
     private val _jobs = MutableStateFlow<List<JobView>>(emptyList())
     val jobs: StateFlow<List<JobView>> = _jobs.asStateFlow()

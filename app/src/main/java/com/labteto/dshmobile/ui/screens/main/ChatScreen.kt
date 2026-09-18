@@ -84,6 +84,10 @@ fun ChatScreen(
     val toast = rememberDsToast()
 
     val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    // The fold derives the live to-do list from the event stream (see SessionStore.todos);
+    // dismissal is keyed on the list itself, so a new `todo/write` restores the bar.
+    val liveTodos = store.todos.collectAsStateWithLifecycle().value
+    var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
@@ -396,6 +400,18 @@ fun ChatScreen(
             }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
+            }
+
+            // The agent's live to-do list, pinned above the transcript. Hidden until a
+            // `todo/write` arrives, and dismissed state is keyed on the list so a later write
+            // brings the bar back on its own.
+            liveTodos?.let { todos ->
+                TodoBar(
+                    todos = todos,
+                    dismissed = todosDismissed,
+                    onDismiss = { todosDismissed = true },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
             }
 
             val nodeContext = ChatNodeContext(
