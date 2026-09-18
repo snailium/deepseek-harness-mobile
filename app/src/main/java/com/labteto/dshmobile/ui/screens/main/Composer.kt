@@ -216,7 +216,7 @@ internal fun Composer(
                 value = draft,
                 onValueChange = onDraftChange,
                 modifier = Modifier
-                    .weight(1f)
+                    .fillMaxWidth()
                     .heightIn(max = 160.dp)
                     .onPreviewKeyEvent { event ->
                         // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only
@@ -233,7 +233,7 @@ internal fun Composer(
                         } else false
                     },
                 enabled = enabled,
-                textStyle = DsType.std14.copy(color = colors.labelPrimary),
+                textStyle = DsType.base16.copy(color = colors.labelPrimary),
                 cursorBrush = SolidColor(colors.accent),
                 keyboardOptions = if (enterToSend) {
                     KeyboardOptions(imeAction = ImeAction.Send)
@@ -263,7 +263,7 @@ internal fun Composer(
                         if (draft.isEmpty()) {
                             Text(
                                 stringResource(R.string.chat_composer_hint),
-                                style = DsType.std14,
+                                style = DsType.base16,
                                 color = colors.labelTertiary,
                             )
                         }
