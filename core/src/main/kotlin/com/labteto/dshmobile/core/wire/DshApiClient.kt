@@ -844,10 +844,20 @@ class DshApiClient(
         outcome: RemoteEventOutcome,
     ): RpcResult<JsonElement> = unary(
         REMOTE_EVENT_RESULT_ENDPOINT,
-        encodeToJsonElement(
-            RemoteEventResult.serializer(),
-            RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
-        ),
+        // The gateway's `parseRemoteEventResultPayload` demands a payload with *exactly one* key,
+        // `args` — the same `{args: {…}}` frame every other Remote uses. Posting the bare result
+        // object is refused before the outcome is ever read, so an approval or a question answer
+        // comes back as a generic failure while the harness is perfectly reachable. Every other
+        // call in this client gets that frame from `call()`; this one has to supply it.
+        buildJsonObject {
+            put(
+                "args",
+                encodeToJsonElement(
+                    RemoteEventResult.serializer(),
+                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
+                ),
+            )
+        },
         JsonElement.serializer(),
     )
 

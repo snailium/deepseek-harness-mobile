@@ -186,12 +186,17 @@ class MockHarnessTest {
         assertEquals(403, response.statusCode())
     }
 
+    /**
+     * The `{args: ...}` frame is mandatory: the gateway's parser accepts a payload only when it
+     * has exactly one own key, `args`. Posting the result at the top level is refused before the
+     * outcome is ever read, so these bodies go through the same wrapper a real client must send.
+     */
     @Test
     fun eventResultAcceptsAnAnswerForThisGeneration() {
         val rpcId = UUID.randomUUID().toString()
         val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
-            """"payload":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
-            """"outcome":{"kind":"result","value":{}}}}"""
+            """"payload":{"args":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}}"""
         val response = post("/api/${'$'}events/result", body)
         assertEquals(200, response.statusCode())
         val json = Json.parseToJsonElement(response.body()).jsonObject
@@ -205,13 +210,29 @@ class MockHarnessTest {
         // already replayed to the new one.
         val rpcId = UUID.randomUUID().toString()
         val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
-            """"payload":{"clientId":"stale","eventId":"evt-1",""" +
-            """"outcome":{"kind":"result","value":{}}}}"""
+            """"payload":{"args":{"clientId":"stale","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}}"""
         val response = post("/api/${'$'}events/result", body)
         assertEquals(200, response.statusCode())
         val result = Json.parseToJsonElement(response.body()).jsonObject["result"]!!.jsonObject
         assertEquals(false, result["ok"]!!.jsonPrimitive.boolean)
         assertEquals("stale-generation", result["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun eventResultRefusesAnUnframedPayload() {
+        // The regression this guards is worth spelling out: the mock used to unwrap the payload
+        // for the client, so a bare result object passed every test here and was refused by every
+        // real host. The answer then surfaced as "Could not reach the harness." while the
+        // connection was perfectly healthy.
+        val rpcId = UUID.randomUUID().toString()
+        val body = """{"type":"client-request","rpcId":"$rpcId","method":"${'$'}events/result",""" +
+            """"payload":{"clientId":"${harness.clientId}","eventId":"evt-1",""" +
+            """"outcome":{"kind":"result","value":{}}}}"""
+        val response = post("/api/${'$'}events/result", body)
+        assertEquals(200, response.statusCode())
+        val result = Json.parseToJsonElement(response.body()).jsonObject["result"]!!.jsonObject
+        assertEquals(false, result["ok"]!!.jsonPrimitive.boolean)
     }
 
     @Test

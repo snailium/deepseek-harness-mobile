@@ -371,7 +371,9 @@ private fun OptionRow(
         border = if (selected) BorderStroke(1.dp, colors.accent) else null,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+            // Half the previous inset (10/8 -> 5/4): the plate-to-text gap was wide enough that
+            // an option read as a floating label rather than a pressable row.
+            modifier = Modifier.padding(horizontal = 5.dp, vertical = 4.dp),
             // Top, not centre: a wrapped description would otherwise drift the marker down the
             // copy block and stop it reading as a control.
             verticalAlignment = Alignment.Top,

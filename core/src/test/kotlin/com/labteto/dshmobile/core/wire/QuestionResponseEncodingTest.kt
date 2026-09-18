@@ -9,6 +9,8 @@ import java.io.ByteArrayInputStream
 import java.io.InputStream
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -57,6 +59,25 @@ class QuestionResponseEncodingTest {
     private fun body(transport: RecordingTransport) =
         Json.parseToJsonElement(transport.lastBody!!).jsonObject
 
+    /**
+     * Unwrap the `args` frame the way the gateway does, refusing anything else.
+     *
+     * `parseRemoteEventResultPayload` accepts a payload only when it has *exactly one* own key,
+     * `args`, with the result nested inside. A body that posts the result at the top level is
+     * refused before the outcome is ever read — which is what made a question answer report
+     * "Could not reach the harness." on a perfectly healthy connection. Asserting the frame, not
+     * just the fields inside it, is the whole point of this helper.
+     */
+    private fun framedResult(transport: RecordingTransport): JsonObject {
+        val payload = body(transport)["payload"]!!.jsonObject
+        assertEquals(
+            "the gateway accepts only an {args: {...}} frame on \$events/result",
+            setOf("args"),
+            payload.keys,
+        )
+        return payload["args"]!!.jsonObject
+    }
+
     @Test
     fun `custom rides its own answer, not the list beside it`() = runTest {
         val transport = RecordingTransport()
@@ -76,7 +97,10 @@ class QuestionResponseEncodingTest {
         assertEquals("/api/\$events/result", transport.lastPath)
         val envelope = body(transport)
         assertEquals("client-request", envelope["type"]!!.jsonPrimitive.content)
-        val payload = envelope["payload"]!!.jsonObject
+        // Through the frame-aware helper: the fields below only ever reach the host if the
+        // {args: …} wrapper is present, so asserting them on a bare payload would pass while the
+        // real request is refused.
+        val payload = framedResult(transport)
         assertEquals("client-1", payload["clientId"]!!.jsonPrimitive.content)
         assertEquals("evt-1", payload["eventId"]!!.jsonPrimitive.content)
         val outcome = payload["outcome"]!!.jsonObject
@@ -118,10 +142,49 @@ class QuestionResponseEncodingTest {
             ),
         )
 
-        val outcome = body(transport)["payload"]!!.jsonObject["outcome"]!!.jsonObject
+        val outcome = framedResult(transport)["outcome"]!!.jsonObject
         assertEquals("rejected", outcome["kind"]!!.jsonPrimitive.content)
         val error = outcome["error"]!!.jsonObject
         assertEquals("cancelled", error["code"]!!.jsonPrimitive.content)
         assertEquals("the user closed this question request", error["message"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a question answer rides inside the gateway's args frame`() = runTest {
+        // The bug this pins: posting the bare result object was refused by the host before it read
+        // the outcome, so every answer surfaced as "Could not reach the harness." while the
+        // connection was fine. The frame is load-bearing, not cosmetic.
+        val transport = RecordingTransport()
+        client(transport).answerEvent(
+            "client-1",
+            "evt-1",
+            RemoteEventOutcome.Result(value = JsonPrimitive("yes")),
+        )
+
+        val result = framedResult(transport)
+        assertEquals(setOf("clientId", "eventId", "outcome"), result.keys)
+        assertEquals("client-1", result["clientId"]!!.jsonPrimitive.content)
+        assertEquals("evt-1", result["eventId"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a dismissal rides inside the same args frame`() = runTest {
+        // The approval waterfall shares this path, so one frame covers both. A dismissal that
+        // escaped the frame made an approval tap do nothing at all.
+        val transport = RecordingTransport()
+        client(transport).answerEvent(
+            "client-1",
+            "evt-2",
+            RemoteEventOutcome.Rejected(
+                error = RemoteEventRejection(
+                    name = "UserQuestionError",
+                    message = QUESTION_CANCELLED.message,
+                    code = QUESTION_CANCELLED.code,
+                ),
+            ),
+        )
+
+        val result = framedResult(transport)
+        assertEquals("rejected", result["outcome"]!!.jsonObject["kind"]!!.jsonPrimitive.content)
     }
 }

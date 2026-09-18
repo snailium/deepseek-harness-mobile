@@ -592,7 +592,16 @@ class MockHarness(
      * host has since replayed.
      */
     private fun judgeEventResult(payload: JsonElement): JsonElement {
-        val body = payload as? JsonObject ?: throw MockRefusal("bad-response")
+        // The gateway's `parseRemoteEventResultPayload` accepts only `{args: {…}}` — exactly one
+        // own key, named `args`, with the result nested inside. This used to unwrap the payload
+        // for the client, which is precisely why a bare result object passed every test here and
+        // was refused by every real host: the answer came back "Could not reach the harness."
+        // while the connection was healthy. Enforcing the frame is the regression guard.
+        val framed = payload as? JsonObject ?: throw MockRefusal("bad-response")
+        if (framed.keys != setOf("args")) {
+            throw MockRefusal("gateway/bad-request: Remote event result requires exactly one plain-object args field")
+        }
+        val body = framed["args"] as? JsonObject ?: throw MockRefusal("bad-response")
         if ((body["clientId"] as? JsonPrimitive)?.contentOrNull != clientId) {
             throw MockRefusal("stale-generation")
         }
