@@ -49,7 +49,7 @@ object DsSpacing {
      * The inset between a text surface and its content, shared by the composer's input field and
      * the user message bubble so the two read as the same kind of object.
      */
-    val textFieldInset = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+    val textFieldInset = PaddingValues(10.dp)
 
     /** 20dp - Large spacing between major UI sections */
     val large = 20.dp
