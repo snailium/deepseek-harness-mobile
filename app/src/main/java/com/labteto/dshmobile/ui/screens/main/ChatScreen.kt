@@ -64,6 +64,9 @@ import kotlinx.coroutines.CancellationException
 import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
 import androidx.compose.runtime.LaunchedEffect
+import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.ui.rememberHostsStore
+import androidx.compose.runtime.collectAsState
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -133,9 +136,15 @@ fun ChatScreen(
         ?: currentSessionId.orEmpty()
 
     val connection by store.connectionState.collectAsStateWithLifecycle()
+    // The persisted send mode seeds each new draft; the details panel's card writes it.
+    val hostsStore = rememberHostsStore()
+    val appSettings by hostsStore.settings.collectAsState(initial = AppSettings())
     val hostKey = connection.host?.let { "${it.baseUrl}|${it.id}" }.orEmpty()
     val composer = remember(hostKey, currentSessionId) {
-        store.composers.get(ComposerKey(hostKey, currentSessionId.orEmpty()))
+        store.composers.get(
+            ComposerKey(hostKey, currentSessionId.orEmpty()),
+            defaultMode = appSettings.promptMode,
+        )
     }
     var draft by composer::text
     var mode by composer::mode

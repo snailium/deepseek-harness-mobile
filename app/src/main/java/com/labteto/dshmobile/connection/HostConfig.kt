@@ -141,7 +141,30 @@ data class AppSettings(
     val updateCheckEnabled: Boolean = true,
     /** A release the user has already declined, so it is offered once rather than every launch. */
     val dismissedUpdate: String? = null,
+    /**
+     * What the send button does while a turn is running: `queue` (append a new turn) or `steer`
+     * (splice into the running one).
+     *
+     * Persisted rather than per-draft because it is a working preference, not a property of one
+     * message: someone who steers does so all session, and re-picking it after every restart —
+     * or worse, silently queueing when they meant to steer — is the failure this avoids.
+     */
+    val promptMode: String = PromptMode.QUEUE,
 )
+
+/**
+ * The two things a message can do to a turn that is already running.
+ *
+ * Both ride `session/prompt`; the host has always accepted `mode: queue|steer` mid-turn, and the
+ * distinction only exists while `running` is true — an idle agent has nothing to steer.
+ */
+object PromptMode {
+    /** Append the message as its own turn, to run when the current one finishes. */
+    const val QUEUE: String = "queue"
+
+    /** Splice the message into the turn in flight, as if the model had just been told this. */
+    const val STEER: String = "steer"
+}
 
 /** The two ways the app can reach a harness. Persisted as [AppSettings.connectMode]. */
 object ConnectMode {
