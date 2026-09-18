@@ -26,6 +26,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import kotlinx.coroutines.launch
+import androidx.activity.compose.BackHandler
 
 /**
  * Discord-style shell:
@@ -48,6 +49,21 @@ fun MainScreen(onOpenSettings: () -> Unit) {
     val scope = rememberCoroutineScope()
     var detailsOpen by remember { mutableStateOf(false) }
     val detailsWidth = 300.dp
+
+    // Back opens the chat list instead of leaving the app, and only a second press exits.
+    //
+    // ModalNavigationDrawer closes on back when it is *open*, but does nothing when it is closed —
+    // so back from the chat surface went straight out of the app, which on a phone is one gesture
+    // away from a mis-tap that loses the session. Back is also what a drawer means to a reader who
+    // does not know the hamburger is the way in.
+    //
+    // Ordering matters: the details panel and the drawer register their own handlers deeper in the
+    // tree, and Compose dispatches to the innermost first, so an open panel or an open drawer
+    // still consumes back before this sees it. This is only the fallback for "nothing else is
+    // open" — exactly the case that used to exit.
+    BackHandler(enabled = drawerState.isClosed && !detailsOpen) {
+        scope.launch { drawerState.open() }
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,

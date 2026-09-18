@@ -201,10 +201,10 @@ internal fun Composer(
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
         Column(
-            // Halved from the standard 12dp inset: the card already has its own outer margin and
-            // a field that fills its width, so the inner inset only stood between the text and the
-            // edge without separating anything.
-            Modifier.padding(DsSpacing.xsmall),
+            // 3dp. The card already carries its own outer margin and its own border, so this inset
+            // only separates the field from the edge it is drawn against — 12dp was a section
+            // inset doing a hairline's job, and halving it once was not far enough.
+            Modifier.padding(horizontal = 3.dp, vertical = DsSpacing.xsmall),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
             TextField(
@@ -288,20 +288,33 @@ internal fun Composer(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
             ) {
-                CircleAction(
-                    icon = Icons.Filled.Add,
-                    description = stringResource(R.string.chat_composer_commands),
-                    // A 28dp circle with a 14dp glyph: the same target and the same ring as the
-                    // permission trigger it sits beside. The glyph is stated rather than derived,
-                    // so matching the neighbours' size does not also shrink the mark inside.
-                    size = 28,
-                    iconSize = 14,
-                    background = colors.hoverSolid,
-                    tint = colors.labelPrimary,
-                    enabled = enabled,
-                    onClick = onOpenSheet,
-                    ringed = true,
-                )
+                // Built exactly like the permission trigger beside it — a 28dp circle, a 1dp
+                // ring, a 14dp glyph — rather than through CircleAction. That helper scales its
+                // glyph to the button and carries the send/stop styling; trying to make it also
+                // imitate a control it was never shaped for produced two rounds of a button that
+                // looked wrong in a different way each time. The three round controls in this row
+                // now share one construction, so a change to one is a change to all.
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(colors.hoverSolid)
+                        .border(1.dp, colors.borderL2, CircleShape)
+                        .clickable(
+                            enabled = enabled,
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.chat_composer_commands),
+                            onClick = onOpenSheet,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.chat_composer_commands),
+                        tint = colors.labelPrimary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
 
                 // The model sits between the + and the permission trigger: the choice configures
                 // the next turn, so it belongs where that turn is written.
@@ -595,20 +608,6 @@ private fun CircleAction(
     tint: Color,
     enabled: Boolean,
     onClick: () -> Unit,
-    /**
-     * Draw a hairline ring around the button. Used by the plain `+` and the permission glyph,
-     * whose fill is the page colour: without an edge there is nothing to say they are pressable
-     * rather than decoration, and a touch screen has no hover to reveal it.
-     */
-    ringed: Boolean = false,
-    /**
-     * Glyph size. Null scales it to the button ([size] x 0.46), which is right for the send and
-     * stop controls — they are the row's primary actions and read at that weight. A button that
-     * sits beside the permission trigger and the context ring is a peer of theirs, so it passes an
-     * explicit size: shrinking the whole button to match them also shrank its glyph, which is the
-     * opposite of what "make it look like the others" meant.
-     */
-    iconSize: Int? = null,
     content: (@Composable () -> Unit)? = null,
 ) {
     val colors = DsTheme.colors
@@ -621,7 +620,6 @@ private fun CircleAction(
         // and a squashed circle reads as a broken button. requiredSize wins that negotiation.
         modifier = Modifier
             .requiredSize(size.dp)
-            .then(if (ringed) Modifier.border(1.dp, colors.borderL2, CircleShape) else Modifier)
             .semantics { this.contentDescription = description },
         enabled = enabled,
         shape = CircleShape,
@@ -636,7 +634,7 @@ private fun CircleAction(
                     // reader say the label twice.
                     contentDescription = null,
                     tint = tint,
-                    modifier = Modifier.size((iconSize ?: (size * 0.46f).toInt()).dp),
+                    modifier = Modifier.size((size * 0.46f).dp),
                 )
             }
         }

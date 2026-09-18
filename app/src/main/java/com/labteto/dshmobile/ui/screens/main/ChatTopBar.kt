@@ -349,24 +349,30 @@ private fun ChatTabRow(
         // the Trajectory ledger — so a reader who cannot tell at a glance concludes the chat itself
         // is broken.
         DsSegmented(
+            // 40/60: "Chat" is the shorter label, so it keeps a compact hit target while
+            // "Trajectory" gets the room its longer word needs. An even split ellipsised the
+            // longer one to buy the shorter one space it had no use for.
             segments = listOf(
-                DsSegment(TAB_CHAT, stringResource(R.string.chat_tab)),
-                DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title)),
+                DsSegment(TAB_CHAT, stringResource(R.string.chat_tab), weight = 0.4f),
+                DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title), weight = 0.6f),
             ),
             selectedKey = if (tab == ChatTab.Chat) TAB_CHAT else TAB_TRAJECTORY,
             onSelect = { key ->
                 onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
             },
             role = Role.Tab,
-            // Stretched, not hugged: the two views render a user message completely differently,
-            // so which one is live is a decision the reader keeps making — it gets a primary
-            // control's width and height rather than an inline chip's. Capped at 240dp so it can
-            // never crowd the search field out on a narrow screen; below the cap the segments
-            // split the space 40/60, which gives the shorter "Chat" label a compact hit target
-            // while "Trajectory" has room without ellipsis.
+            // Stretched, not hugged: which view is live is a decision the reader keeps making, so
+            // the control gets a primary control's height rather than an inline chip's.
+            //
+            // 144dp, down from 240dp. The floor is set by the two labels, not by taste: at 13sp
+            // "Chat" needs ~28dp and "Trajectory" ~60dp of text, plus 8dp of padding and the
+            // track's own 6dp of chrome and gap. A 40/60 split of the inner width therefore gives
+            // Trajectory ~83dp at 144dp and ~76dp at 132dp — the latter ellipsises, so anything
+            // under 144 means "Trajector…". Narrower than that has to come out of the 40/60 ratio,
+            // not out of the track.
             stretch = true,
             modifier = Modifier
-                .widthIn(max = 240.dp)
+                .widthIn(max = 144.dp)
                 .heightIn(max = 32.dp),
         )
         // The transcript search is a permanent resident of the utility row — it belongs to the
