@@ -278,11 +278,13 @@ internal fun ModelChip(
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    // The caller may hand in a weighted slot (the composer strip). The chip then fills that slot
-    // and its label ellipses inside — so a long name can never push the right-pinned controls off
-    // the strip. Without a grant it simply hugs its content, the default behavior.
+    // The caller may hand in a weighted slot (the composer strip). The pill then caps itself at
+    // the slot's width and its label ellipses inside — so a long name can never push the
+    // right-pinned controls off the strip — while the pill still hugs the label when it is short,
+    // left-aligned in the slot. Without a grant it simply wraps its content, the default behavior.
     Row(
         modifier = modifier
+            .widthIn(max = 200.dp)
             .heightIn(min = 32.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
