@@ -303,8 +303,11 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // A little internal breathing room: an answer followed by its action row at 4dp read
+            // as one crowded block, since the transcript's own row gap does not apply inside here.
+            .padding(vertical = 2.dp)
             .clickable(enabled = !streaming) { actionsVisible = !actionsVisible },
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         node.blocks.forEachIndexed { index, block ->
             when (block.kind) {

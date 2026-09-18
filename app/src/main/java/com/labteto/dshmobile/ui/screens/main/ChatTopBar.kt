@@ -112,7 +112,9 @@ internal fun ChatTopBar(
             if (title.isNotBlank()) {
                 Text(
                     title,
-                    style = DsType.std14Strong,
+                    // A step up from the row's other text: the title is the one piece of prose in
+                    // the header, so it carries the emphasis rather than matching the controls.
+                    style = DsType.base16Strong,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -230,7 +232,9 @@ internal fun ModelChip(
 
     Row(
         modifier = modifier
-            .widthIn(max = 240.dp)
+            // No width cap of its own: the caller decides. In the composer the chip takes the
+            // leftover width, and capping it at 240dp there would leave a gap the round buttons
+            // then had to be pushed across by a competing spacer.
             .heightIn(min = 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -354,8 +358,16 @@ private fun ChatTabRow(
                 onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
             },
             role = Role.Tab,
-            // Hug the two labels and stay left; the search field takes the rest of the row.
-            modifier = Modifier.widthIn(max = 150.dp),
+            // Stretched, not hugged: the two views render a user message completely differently,
+            // so which one is live is a decision the reader keeps making — it gets a primary
+            // control's width and height rather than an inline chip's. Capped at 240dp so it can
+            // never crowd the search field out on a narrow screen; below the cap the segments
+            // split the space 40/60, which gives the shorter "Chat" label a compact hit target
+            // while "Trajectory" has room without ellipsis.
+            stretch = true,
+            modifier = Modifier
+                .widthIn(max = 240.dp)
+                .heightIn(max = 32.dp),
         )
         // The transcript search is a permanent resident of the utility row — it belongs to the
         // session, not to either view, so switching tabs never takes it away. Capped at 320dp and

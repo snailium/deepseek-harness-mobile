@@ -58,12 +58,12 @@ val LocalSelectionDismiss = staticCompositionLocalOf { mutableIntStateOf(0) }
 /**
  * Right-aligned user message bubble: r22, `userBubble` fill, hairline edge, 16/24 text.
  *
- * Three things carry the shape, and it needs all three. The assistant's turn is deliberately
- * container-less — as in the harness web UI — so the bubble is the *only* thing distinguishing who
- * said what, and it kept reading as plain text. `userBubble` now sits a step darker than the web
- * token (see `DsLight.userBubble`), `borderL3` draws an edge that survives a bright screen, and the
- * width cap keeps a short message a narrow pill hugging the right margin rather than a full-width
- * band that looks like more prose.
+ * The fill is the **accent** — the app's own strong colour — with white text on it, which is what
+ * makes the reader's own turn unmistakable at a glance. The assistant's turn is deliberately
+ * container-less, as in the harness web UI, so the bubble is the only thing distinguishing who
+ * said what; a pale tint of the accent left it reading as a lightly-shaded paragraph rather than
+ * as speech. Nothing else in the transcript uses the accent as a *fill*, so the colour itself
+ * carries the meaning and no border is needed to reinforce it.
  *
  * The cap mirrors the harness's `max-width: min(525px, 82%)`, which is why this measures its parent
  * rather than hardcoding a dp: a flat 320dp was most of a phone's width and none of a tablet's.
@@ -79,11 +79,10 @@ fun UserBubble(text: String, modifier: Modifier = Modifier) {
             SelectionContainer(
                 modifier = Modifier
                     .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                    .background(colors.userBubble, DsShapes.bubble)
-                    .border(1.dp, colors.borderL3, DsShapes.bubble)
+                    .background(colors.accent, DsShapes.bubble)
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             ) {
-                Text(text, style = DsType.bubbleText, color = colors.labelPrimary)
+                Text(text, style = DsType.bubbleText, color = colors.onAccent)
             }
         }
     }

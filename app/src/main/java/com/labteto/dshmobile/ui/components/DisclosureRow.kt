@@ -141,13 +141,17 @@ fun DisclosureRow(
             }
             Spacer(Modifier.width(8.dp))
             val titleModifier = if (running) Modifier.shimmer(runningBrush(colors)) else Modifier
+            // `fill = true` on the title is what keeps the row full width. With `fill = false` the
+            // title hugs its text, so a row whose title is short and whose summary is absent —
+            // every failed call with no preview, a compaction, an archived session — ended its
+            // content early and the trailing slot floated in the middle of the line.
             Text(
                 title,
                 style = DsType.std14,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false).then(titleModifier),
+                modifier = Modifier.weight(1f).then(titleModifier),
             )
             if (summary != null) {
                 Spacer(Modifier.width(6.dp))
@@ -159,7 +163,9 @@ fun DisclosureRow(
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    // The summary takes only what it needs, capped so it can never crowd the title
+                    // to nothing; the title's `fill` absorbs the rest.
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
             // Trailing edge of the same line: keeps the elapsed time out of the header's own

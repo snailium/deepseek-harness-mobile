@@ -201,7 +201,10 @@ internal fun Composer(
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
         Column(
-            Modifier.padding(DsSpacing.medium),
+            // Halved from the standard 12dp inset: the card already has its own outer margin and
+            // a field that fills its width, so the inner inset only stood between the text and the
+            // edge without separating anything.
+            Modifier.padding(DsSpacing.xsmall),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
             TextField(
@@ -288,7 +291,9 @@ internal fun Composer(
                 CircleAction(
                     icon = Icons.Filled.Add,
                     description = stringResource(R.string.chat_composer_commands),
-                    size = 30,
+                    // 28dp, matching the permission trigger and the context ring beside it. At 30dp
+                    // with a 1dp ring it read as a size class larger than the two it sits with.
+                    size = 28,
                     background = colors.hoverSolid,
                     tint = colors.labelPrimary,
                     enabled = enabled,
@@ -297,18 +302,20 @@ internal fun Composer(
                 )
 
                 // The model sits between the + and the permission trigger: the choice configures
-                // the next turn, so it belongs where that turn is written. Its slot is capped and
-                // its label drops its *leading* characters when it overflows, because model ids
-                // differ at the end (`…-Q4_K_M` vs `…-Q8_0`) and a trailing ellipsis would hide
-                // exactly the part that tells them apart.
+                // the next turn, so it belongs where that turn is written.
+                //
+                // It takes the leftover width rather than hugging its label. The row is +, the
+                // model, then permission and the ring pinned right; letting the chip absorb the
+                // slack keeps those two at the edge without a second spacer competing for the same
+                // space, and gives a long model name more room before it truncates. The label
+                // drops its *leading* characters when it does, because model ids differ at the end
+                // (`…-Q4_K_M` vs `…-Q8_0`) and a trailing ellipsis would hide exactly that.
                 ModelChip(
                     models = models,
                     onClick = onOpenModels,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f),
                     truncateLeading = true,
                 )
-
-                Spacer(Modifier.weight(1f))
 
                 // Permission and context sit together at the trailing edge, both icon-only: a
                 // 28dp preset-glyph button (the web hides its label below ~460px, and a phone

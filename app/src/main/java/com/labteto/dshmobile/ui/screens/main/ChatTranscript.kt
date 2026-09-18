@@ -217,7 +217,11 @@ internal fun ChatTranscript(
         // space, not the reversed one, so this reads the same as it always did — and it only has
         // any effect while the content is shorter than the viewport, which is exactly when no row
         // is growing under anyone's eyes.
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        // 10dp between rows. The 4dp this carried was tuned for a flat text list; with answers,
+        // thinking disclosures and tool cards alternating, 4dp left the prose touching the blocks
+        // around it. Still bottom-aligned — a transcript shorter than the viewport belongs above
+        // the composer.
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
     ) {
         if (rows.isEmpty()) {
             item(key = "empty") {
