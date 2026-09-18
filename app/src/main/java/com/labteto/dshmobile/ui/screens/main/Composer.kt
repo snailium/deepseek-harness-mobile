@@ -75,8 +75,7 @@ import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.FileAttachmentRef
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
-import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
-import com.labteto.dshmobile.ui.components.ContextMeter
+import com.labteto.dshmobile.ui.components.ContextRing
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.skeleton
@@ -254,7 +253,7 @@ internal fun Composer(
                 onPick = onPermissionPick,
             )
             Spacer(Modifier.weight(1f))
-            ContextMeter(contextBreakdown, contextPressure)
+            ContextRing(contextBreakdown, contextPressure)
         }
     }
 
@@ -404,12 +403,12 @@ internal fun Composer(
 }
 
 /**
- * The permission preset chip.
+ * The permission preset control — icon only.
  *
  * Renders nothing when the projection key is absent: that means the harness composes no permission
- * service at all, and a dead control would be worse than none. Labels come from the wire, because
- * the preset table is deployment-configurable — mapping ids to local strings would mislabel any
- * deployment that renamed one.
+ * service at all, and a dead control would be worse than none. A 28dp round trigger carries just
+ * the effective preset's glyph (the web hides its label below ~460px of width; on a phone it never
+ * fits), and tapping opens the bottom-sheet picker with the full labels and descriptions.
  */
 @Composable
 private fun PermissionChip(
@@ -423,72 +422,45 @@ private fun PermissionChip(
     var menuOpen by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf<String?>(null) }
     val effective = pending ?: select.currentValue
-    val option = select.options.firstOrNull { it.value == effective }
-    val label = if (option != null) {
-        displayPermissionPreset(option.value, option.name)
-    } else {
-        stringResource(R.string.permission_custom)
+
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(if (pending == null) colors.hoverSolid else colors.bgLayer2)
+            .border(1.dp, colors.borderL2, CircleShape)
+            .clickable(
+                enabled = enabled && pending == null,
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.permission_preset),
+                onClick = { menuOpen = true },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        // The design glyph for the effective preset; a host-configured name has none, and the
+        // trigger then reads as an empty round button rather than a misleading shape.
+        permissionPresetGlyph(effective, FULL_ACCESS_PRESET)?.let { glyph ->
+            Icon(
+                glyph,
+                contentDescription = stringResource(R.string.permission_preset),
+                tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelSecondary,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 
-    Box {
-        Row(
-            modifier = Modifier
-                .clip(DsShapes.cube)
-                .clickable(
-                    enabled = enabled && pending == null,
-                    role = Role.Button,
-                    onClickLabel = stringResource(R.string.permission_preset),
-                    onClick = { menuOpen = true },
-                )
-                .padding(horizontal = 8.dp, vertical = 6.dp)
-                .then(
-                    if (pending != null) {
-                        Modifier.skeleton(colors.bgLayer2, colors.hover, DsShapes.cube)
-                    } else {
-                        Modifier
-                    },
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            // The design glyph for the effective preset; a host-configured name has none, and the
-            // chip then reads as plain text the way the web's trigger does.
-            permissionPresetGlyph(effective, FULL_ACCESS_PRESET)?.let { glyph ->
-                Icon(
-                    glyph,
-                    contentDescription = stringResource(R.string.permission_preset),
-                    tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-            Text(
-                label,
-                style = DsType.small13,
-                color = colors.labelSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                FeatherIcons.ChevronDown,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(12.dp),
-            )
-        }
-
-        if (menuOpen) {
-            PermissionMenu(
-                select = select,
-                current = effective,
-                onDismiss = { menuOpen = false },
-                onPick = { value ->
-                    menuOpen = false
-                    // Full access removes the approval prompt entirely, so it gets an explicit
-                    // acknowledgement the way the desktop client does.
-                    if (value == FULL_ACCESS_PRESET) confirming = value else onPick(value)
-                },
-            )
-        }
+    if (menuOpen) {
+        PermissionMenu(
+            select = select,
+            current = effective,
+            onDismiss = { menuOpen = false },
+            onPick = { value ->
+                menuOpen = false
+                // Full access removes the approval prompt entirely, so it gets an explicit
+                // acknowledgement the way the desktop client does.
+                if (value == FULL_ACCESS_PRESET) confirming = value else onPick(value)
+            },
+        )
     }
 
     confirming?.let { target ->

@@ -321,6 +321,10 @@
     <string name="chat_stats_tokens">输入 %1$s · 输出 %2$s</string>
     <string name="chat_stats_cache">缓存 %1$d%%</string>
     <string name="chat_context_used">已使用 %1$d%% 上下文</string>
+    <string name="chat_context_window">上下文窗口</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
     <string name="permission_custom">自定义</string>
     <string name="permission_custom_hint">当前沙箱与审批设置不匹配任何预设。</string>
     <string name="permission_confirm_title">授予完全访问权限？</string>

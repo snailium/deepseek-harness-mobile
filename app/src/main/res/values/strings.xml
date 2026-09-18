@@ -190,6 +190,10 @@
     <string name="chat_stats_tokens">%1$s in · %2$s out</string>
     <string name="chat_stats_cache">Cache %1$d%%</string>
     <string name="chat_context_used">%1$d%% of context used</string>
+    <string name="chat_context_window">Context window</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
     <string name="chat_composer_queue">Queue</string>
     <string name="chat_composer_steer">Steer</string>
     <string name="chat_composer_stop">Stop</string>
