@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -71,6 +72,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
             ChatListDrawer(
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
+                modifier = Modifier.fillMaxHeight().width(280.dp),
             )
         },
     ) {

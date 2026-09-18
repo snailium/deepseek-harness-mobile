@@ -101,6 +101,7 @@ private const val SORT_UPDATED = "updated"
 fun ChatListDrawer(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     val store = rememberSessionStore()
@@ -193,7 +194,7 @@ fun ChatListDrawer(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(colors.sidebar)
             .safeDrawingPadding()
@@ -399,21 +400,25 @@ fun ChatListDrawer(
             }
         }
 
-        DsButton(
-            text = stringResource(R.string.chatlist_new_session),
-            icon = Icons.Filled.Add,
-            onClick = { newSessionOpen = true },
-            variant = DsButtonVariant.Info,
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(DsSpacing.xsmall))
-        DsButton(
-            text = stringResource(R.string.chatlist_new_workspace),
-            icon = Icons.Filled.Add,
-            onClick = { newWorkspaceOpen = true },
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+        ) {
+            DsButton(
+                text = stringResource(R.string.chatlist_new_session),
+                icon = Icons.Filled.Add,
+                onClick = { newSessionOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
+            )
+            DsButton(
+                text = stringResource(R.string.chatlist_new_workspace),
+                icon = Icons.Filled.Add,
+                onClick = { newWorkspaceOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
+            )
+        }
     }
 
     // ---- Diagnostics: the on-device log plus a dump of what the fold holds. ----
