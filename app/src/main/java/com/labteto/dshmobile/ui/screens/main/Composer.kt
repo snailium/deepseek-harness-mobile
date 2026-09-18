@@ -241,15 +241,16 @@ internal fun Composer(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
         ) {
             if (modelLabel != null) {
-                // The model chip fills the slot and its label ellipses inside; the right-pinned
-                // pair keeps its full 64dp no matter how long the name runs. wrapContentSize
-                // re-hugs the chip to its content once measured, so the weighted slot still
-                // absorbs the leftover width that pushes the pair to the trailing edge.
+                // The model chip fills the weighted slot and its label ellipses inside; the
+                // right-pinned pair keeps its full 64dp no matter how long the name runs. The
+                // chip re-hugs its content once measured (wrapContentSize, unbounded=false), so
+                // it stays left-aligned while the leftover slot width pushes the pair to the
+                // trailing edge.
                 ModelChip(
                     label = modelLabel,
                     routable = modelsRoutable,
                     onClick = onOpenModels,
-                    modifier = Modifier.weight(1f).wrapContentSize(),
+                    modifier = Modifier.weight(1f).wrapContentSize(unbounded = false),
                 )
             } else {
                 Spacer(Modifier.weight(1f))
