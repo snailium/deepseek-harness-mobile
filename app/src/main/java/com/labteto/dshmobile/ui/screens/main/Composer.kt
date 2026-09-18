@@ -68,14 +68,14 @@ import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.FileAttachmentRef
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
-import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
-import com.labteto.dshmobile.ui.components.ContextMeter
+import com.labteto.dshmobile.ui.components.ContextRing
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import androidx.compose.ui.semantics.Role
 
 /**
  * Something picked and waiting to be sent with the next message.
@@ -247,6 +247,12 @@ internal fun Composer(
                     onClick = onOpenSheet,
                 )
 
+                Spacer(Modifier.weight(1f))
+
+                // Permission and context sit together at the trailing edge, both icon-only: a
+                // 28dp preset-glyph button (the web hides its label below ~460px, and a phone
+                // never has that room) and a 14dp occupancy ring. Each opens its own bottom sheet.
+                // Pinned past the flexible spacer so neither can be crowded out.
                 PermissionChip(
                     select = permissions,
                     pending = pendingPermission,
@@ -254,9 +260,7 @@ internal fun Composer(
                     onPick = onPermissionPick,
                 )
 
-                Spacer(Modifier.weight(1f))
-
-                ContextMeter(contextBreakdown, contextPressure)
+                ContextRing(contextBreakdown, contextPressure)
 
                 // Send is always present; stop joins it while a turn runs.
                 //
@@ -334,48 +338,31 @@ private fun PermissionChip(
     var menuOpen by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf<String?>(null) }
     val effective = pending ?: select.currentValue
-    val option = select.options.firstOrNull { it.value == effective }
-    val label = if (option != null) {
-        displayPermissionPreset(option.value, option.name)
-    } else {
-        stringResource(R.string.permission_custom)
-    }
 
     Box {
-        Row(
+        // Icon only: the preset's own glyph on a 28dp round target. The label moves to the
+        // picker sheet, where there is room for it and its description.
+        Box(
             modifier = Modifier
-                .clip(DsShapes.cube)
-                .clickable(enabled = enabled && pending == null) { menuOpen = true }
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-                .then(
-                    if (pending != null) {
-                        Modifier.skeleton(colors.bgLayer2, colors.hover, DsShapes.cube)
-                    } else {
-                        Modifier
-                    },
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(if (pending == null) colors.hoverSolid else colors.bgLayer2)
+                .border(1.dp, colors.borderL2, CircleShape)
+                .clickable(
+                    enabled = enabled && pending == null,
+                    role = Role.Button,
+                    onClickLabel = stringResource(R.string.permission_preset),
+                ) { menuOpen = true },
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                Icons.Outlined.Shield,
-                contentDescription = stringResource(R.string.permission_preset),
-                tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelTertiary,
-                modifier = Modifier.size(14.dp),
-            )
-            Text(
-                label,
-                style = DsType.small13,
-                color = colors.labelSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                Icons.Filled.KeyboardArrowDown,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(12.dp),
-            )
+            permissionPresetGlyph(effective, FULL_ACCESS_PRESET)?.let { glyph ->
+                Icon(
+                    glyph,
+                    contentDescription = stringResource(R.string.permission_preset),
+                    tint = if (effective == FULL_ACCESS_PRESET) colors.warnLabel else colors.labelSecondary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
 
         if (menuOpen) {

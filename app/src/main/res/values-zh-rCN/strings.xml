@@ -473,10 +473,12 @@
     <string name="system_prompt">系统提示词</string>
     <string name="image_offload">请求中已省略历史图片</string>
     <string name="panel_open_host">在主机上打开</string>
-    <string name="chat_todo_title">任务</string>
-    <string name="chat_todo_progress">%1$d/%2$d</string>
     <string name="todo_progress_done">%1$d 已完成</string>
     <string name="todo_progress_active">%1$d 进行中</string>
     <string name="todo_progress_pending">%1$d 待处理</string>
     <string name="todo_close">关闭任务</string>
+    <string name="chat_context_window">上下文窗口</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
 </resources>

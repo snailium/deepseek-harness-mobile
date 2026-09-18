@@ -70,6 +70,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import com.labteto.dshmobile.core.wire.dto.TodoItem
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
 
 /**
  * The strip of persistent context between the transcript and the composer: to-dos, the ongoing
