@@ -72,7 +72,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
             ChatListDrawer(
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
-                modifier = Modifier.fillMaxHeight().width(280.dp),
+                modifier = Modifier.fillMaxHeight().width(306.dp),
             )
         },
     ) {

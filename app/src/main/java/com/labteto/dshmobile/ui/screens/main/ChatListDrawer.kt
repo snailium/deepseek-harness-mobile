@@ -200,16 +200,18 @@ fun ChatListDrawer(
             .safeDrawingPadding()
             .padding(horizontal = DsSpacing.medium),
     ) {
-        Row(
+        Text(
+            text = stringResource(R.string.chatlist_title),
+            style = DsType.title3,
+            color = colors.labelPrimary,
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
-            Text(
-                text = stringResource(R.string.chatlist_title),
-                style = DsType.title3,
-                color = colors.labelPrimary,
-                modifier = Modifier.weight(1f),
-            )
             DsIconButton(
                 icon = Icons.Filled.Search,
                 contentDescription = stringResource(R.string.common_search),
@@ -405,16 +407,16 @@ fun ChatListDrawer(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
             DsButton(
-                text = stringResource(R.string.chatlist_new_session),
+                text = stringResource(R.string.chatlist_new_workspace),
                 icon = Icons.Filled.Add,
-                onClick = { newSessionOpen = true },
+                onClick = { newWorkspaceOpen = true },
                 variant = DsButtonVariant.Info,
                 modifier = Modifier.weight(1f),
             )
             DsButton(
-                text = stringResource(R.string.chatlist_new_workspace),
+                text = stringResource(R.string.chatlist_new_session),
                 icon = Icons.Filled.Add,
-                onClick = { newWorkspaceOpen = true },
+                onClick = { newSessionOpen = true },
                 variant = DsButtonVariant.Info,
                 modifier = Modifier.weight(1f),
             )
