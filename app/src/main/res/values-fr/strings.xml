@@ -473,4 +473,12 @@
     <string name="system_prompt">Instructions système</string>
     <string name="image_offload">Images historiques omises de la requête</string>
     <string name="panel_open_host">Ouvrir sur l’hôte</string>
+    <string name="chat_context_window">Fenêtre de contexte</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
+    <string name="todo_progress_done">%1$d terminées</string>
+    <string name="todo_progress_active">%1$d en cours</string>
+    <string name="todo_progress_pending">%1$d en attente</string>
+    <string name="todo_close">Fermer les tâches</string>
 </resources>

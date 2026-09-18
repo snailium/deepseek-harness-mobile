@@ -473,4 +473,12 @@
     <string name="system_prompt">सिस्टम निर्देश</string>
     <string name="image_offload">अनुरोध से पुरानी छवियाँ हटाई गईं</string>
     <string name="panel_open_host">होस्ट पर खोलें</string>
+    <string name="chat_context_window">कॉन्टेक्स्ट विंडो</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
+    <string name="todo_progress_done">%1$d पूर्ण</string>
+    <string name="todo_progress_active">%1$d प्रगति पर</string>
+    <string name="todo_progress_pending">%1$d शेष</string>
+    <string name="todo_close">कार्य बंद करें</string>
 </resources>

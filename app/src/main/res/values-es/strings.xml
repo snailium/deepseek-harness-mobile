@@ -473,4 +473,12 @@
     <string name="system_prompt">Instrucciones del sistema</string>
     <string name="image_offload">Imágenes históricas omitidas de la solicitud</string>
     <string name="panel_open_host">Abrir en el host</string>
+    <string name="chat_context_window">Ventana de contexto</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
+    <string name="todo_progress_done">%1$d completadas</string>
+    <string name="todo_progress_active">%1$d en curso</string>
+    <string name="todo_progress_pending">%1$d pendientes</string>
+    <string name="todo_close">Cerrar tareas</string>
 </resources>

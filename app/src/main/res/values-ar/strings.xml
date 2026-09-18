@@ -473,4 +473,12 @@
     <string name="system_prompt">تعليمات النظام</string>
     <string name="image_offload">تم حذف الصور السابقة من الطلب</string>
     <string name="panel_open_host">فتح على المضيف</string>
+    <string name="chat_context_window">نافذة السياق</string>
+    <string name="chat_context_figures">~%1$s / %2$s</string>
+    <string name="chat_context_tokens_thousand">%1$sK</string>
+    <string name="chat_context_tokens_million">%1$sM</string>
+    <string name="todo_progress_done">%1$d مكتمل</string>
+    <string name="todo_progress_active">%1$d قيد التنفيذ</string>
+    <string name="todo_progress_pending">%1$d معلّق</string>
+    <string name="todo_close">إغلاق المهام</string>
 </resources>
