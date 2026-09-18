@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.LocalTextSelectionColors
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -240,13 +241,15 @@ internal fun Composer(
             horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
         ) {
             if (modelLabel != null) {
-                // The model name takes whatever room is left and ellipses; the right-pinned pair
-                // below keeps its full 64dp no matter how long the label runs.
+                // The model chip fills the slot and its label ellipses inside; the right-pinned
+                // pair keeps its full 64dp no matter how long the name runs. wrapContentSize
+                // re-hugs the chip to its content once measured, so the weighted slot still
+                // absorbs the leftover width that pushes the pair to the trailing edge.
                 ModelChip(
                     label = modelLabel,
                     routable = modelsRoutable,
                     onClick = onOpenModels,
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier.weight(1f).wrapContentSize(),
                 )
             } else {
                 Spacer(Modifier.weight(1f))
