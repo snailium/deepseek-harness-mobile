@@ -354,23 +354,30 @@ fun ChatListDrawer(
             }
             if (ungrouped.isNotEmpty()) {
                 anyShown = true
-                item(key = "sessions-header") { SectionHeader(stringResource(R.string.chatlist_sessions)) }
-                val flat = ungrouped
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    .flatMap { subtree(it) }
-                items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(
-                            session = session,
-                            isCurrent = session.sessionId == currentSessionId,
-                            store = store,
-                            scope = scope,
-                            onClose = onClose,
-                            depth = depth,
-                            childCount = childrenByParent[session.sessionId].orEmpty().size,
-                            childrenExpanded = isExpanded(session.sessionId),
-                            onToggleChildren = { toggleChildren(session.sessionId) },
-                        )
+                item(key = "ungrouped") {
+                    var ungroupedExpanded by remember { mutableStateOf(false) }
+                    DisclosureRow(
+                        title = stringResource(R.string.chatlist_sessions),
+                        summary = ungrouped.size.toString(),
+                        expanded = ungroupedExpanded,
+                        onToggle = { ungroupedExpanded = !ungroupedExpanded },
+                    ) {
+                        val flat = ungrouped
+                            .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                            .flatMap { subtree(it) }
+                        flat.forEach { (session, depth) ->
+                            SessionRowItem(
+                                session = session,
+                                isCurrent = session.sessionId == currentSessionId,
+                                store = store,
+                                scope = scope,
+                                onClose = onClose,
+                                depth = depth,
+                                childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                childrenExpanded = isExpanded(session.sessionId),
+                                onToggleChildren = { toggleChildren(session.sessionId) },
+                            )
+                        }
                     }
                 }
             }
