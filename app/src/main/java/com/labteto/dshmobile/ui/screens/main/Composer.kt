@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -177,6 +178,10 @@ internal fun Composer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            // A hard ceiling on the card. The transcript above the composer takes the leftover
+            // height, so an unbounded card is not a cosmetic problem — it is the transcript
+            // disappearing. Attachments plus a full-height field still fit under this.
+            .heightIn(max = 280.dp)
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small)
             .animateContentSize(),
         shape = DsShapes.composer,
@@ -190,10 +195,13 @@ internal fun Composer(
             TextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                // Weighted, not fillMaxWidth: a field that claims the whole line forces every
-                // sibling in the Row to shrink as the draft grows, which visibly flattened the
-                // round buttons once the message ran to several lines.
-                modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
+                // Fill the card's width and cap its height: the field is a direct Column child
+                // here, so a `weight` would be a *height* claim and would eat the whole card.
+                // The cap is what keeps a long draft from pushing the transcript off screen.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 160.dp)
+                    .onPreviewKeyEvent { event ->
                     if (event.key == Key.Enter && (event.isCtrlPressed || event.isMetaPressed)) {
                         if (event.type == KeyEventType.KeyUp && canSend) {
                             val text = currentDraft
@@ -216,7 +224,9 @@ internal fun Composer(
                     )
                 },
                 minLines = 1,
-                maxLines = 8,
+                // Six lines, not eight: past that the draft starts to outweigh the conversation
+                // it is replying to, and the field scrolls internally instead.
+                maxLines = 6,
                 textStyle = DsType.std14,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
