@@ -103,7 +103,9 @@ internal fun ChatTopBar(
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
-            ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f, fill = false))
+            // The model lives in the composer now, where the turn it configures is written; the
+            // header keeps identity and navigation. The spacer holds the title's place so the
+            // status dot and the panel button stay pinned right.
             Spacer(Modifier.weight(1f))
             StateDot(if (running) StateDotState.Running else StateDotState.Idle)
             if (!detailsOpen) {
@@ -175,10 +177,18 @@ internal fun ChatTopBar(
  * bare text over the transcript gave no sign the model was switchable at all.
  */
 @Composable
-private fun ModelChip(
+internal fun ModelChip(
     models: SessionModelsValue?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Drop the *leading* part of an over-long model name rather than the tail.
+     *
+     * Model ids are long and their distinguishing part is at the end (`…/Qwen3.8-27B-Q4_K_M` and
+     * `…/Qwen3.8-27B-Q8_0` differ only there), so the usual trailing ellipsis hides exactly the
+     * characters a reader needs. The composer's narrow slot is where this matters.
+     */
+    truncateLeading: Boolean = false,
 ) {
     val colors = DsTheme.colors
     if (models == null) {
@@ -213,8 +223,8 @@ private fun ModelChip(
             StateDot(StateDotState.Warning, size = 6.dp)
         }
         Text(
-            modelLabel,
-            style = DsType.std14Strong,
+            if (truncateLeading) modelLabel.trimStartForDisplay() else modelLabel,
+            style = DsType.small13Strong,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -230,6 +240,28 @@ private fun ModelChip(
             modifier = Modifier.size(14.dp),
         )
     }
+}
+
+
+/**
+ * Trim a model name's head so its tail survives.
+ *
+ * This is a coarse cut, not a measured one: Compose will still ellipsise whatever is left if it
+ * does not fit, and measuring per-glyph would mean a layout pass per keystroke for a label that
+ * changes once a session. Keeping the last [MODEL_LABEL_TAIL] characters covers the case that
+ * actually occurs — a provider path in front of a short, meaningful model id — while a name that
+ * is short throughout passes through untouched.
+ */
+private const val MODEL_LABEL_TAIL = 16
+
+private fun String.trimStartForDisplay(): String {
+    val slash = lastIndexOf('/')
+    // A provider prefix is the part worth dropping first, and it is unambiguous when present.
+    if (slash >= 0 && slash < length - 1) {
+        val tail = substring(slash + 1)
+        if (tail.length <= MODEL_LABEL_TAIL) return "\u2026$tail"
+    }
+    return if (length <= MODEL_LABEL_TAIL + 4) this else "\u2026" + takeLast(MODEL_LABEL_TAIL)
 }
 
 /** The preset and subagent chips. Same reasoning as [ModelChip]: a tap target has to look like one. */

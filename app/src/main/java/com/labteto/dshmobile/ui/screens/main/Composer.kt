@@ -78,6 +78,7 @@ import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import androidx.compose.ui.semantics.Role
+import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 
 /**
  * Something picked and waiting to be sent with the next message.
@@ -157,6 +158,9 @@ internal fun Composer(
     onPermissionPick: (String) -> Unit,
     contextBreakdown: ContextBreakdownView?,
     contextPressure: ContextPressureView?,
+    /** The session's current model, shown as a chip between `+` and the permission trigger. */
+    models: SessionModelsValue? = null,
+    onOpenModels: () -> Unit = {},
     running: Boolean,
     enabled: Boolean,
     onOpenSheet: () -> Unit,
@@ -263,6 +267,18 @@ internal fun Composer(
                     enabled = enabled,
                     onClick = onOpenSheet,
                     ringed = true,
+                )
+
+                // The model sits between the + and the permission trigger: the choice configures
+                // the next turn, so it belongs where that turn is written. Its slot is capped and
+                // its label drops its *leading* characters when it overflows, because model ids
+                // differ at the end (`…-Q4_K_M` vs `…-Q8_0`) and a trailing ellipsis would hide
+                // exactly the part that tells them apart.
+                ModelChip(
+                    models = models,
+                    onClick = onOpenModels,
+                    modifier = Modifier.weight(1f, fill = false),
+                    truncateLeading = true,
                 )
 
                 Spacer(Modifier.weight(1f))

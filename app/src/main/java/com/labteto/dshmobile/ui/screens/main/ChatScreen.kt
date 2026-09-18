@@ -590,6 +590,8 @@ fun ChatScreen(
                 onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
                 contextBreakdown = contextBreakdown,
                 contextPressure = contextPressure,
+                models = models,
+                onOpenModels = { sheet = ChatSheet.Models },
                 running = conversation?.running == true,
                 enabled = currentSessionId != null && !composer.submitting,
                 preparing = composer.preparing,
