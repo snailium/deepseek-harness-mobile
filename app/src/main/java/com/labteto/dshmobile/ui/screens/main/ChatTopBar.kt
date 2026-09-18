@@ -78,6 +78,8 @@ internal fun ChatTopBar(
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
+    /** Opens the session's workspace file panel; null hides the button. */
+    onOpenWorkspace: (() -> Unit)? = null,
     /** Transcript search: the query, where the cursor sits, and how many messages matched. */
     searchQuery: String = "",
     searchPosition: Int = 0,
@@ -103,10 +105,35 @@ internal fun ChatTopBar(
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
-            // The model lives in the composer now, where the turn it configures is written; the
-            // header keeps identity and navigation. The spacer holds the title's place so the
-            // status dot and the panel button stay pinned right.
-            Spacer(Modifier.weight(1f))
+            // The session title lives here, on the identity row, rather than on a row of its own
+            // below: it is what the screen *is*, and a separate row spent a whole line of a phone
+            // screen restating it. It shares the row with the controls and ellipsises, so a long
+            // title can never push the buttons off.
+            if (title.isNotBlank()) {
+                Text(
+                    title,
+                    style = DsType.std14Strong,
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = DsSpacing.tiny, end = DsSpacing.tiny),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            // The workspace panel is a destination, not a label: an icon frees the line of text it
+            // used to occupy above the transcript while staying one tap away.
+            if (onOpenWorkspace != null) {
+                DsIconButton(
+                    icon = FeatherIcons.Folder,
+                    contentDescription = stringResource(R.string.panel_workspace),
+                    onClick = onOpenWorkspace,
+                    tint = colors.labelTertiary,
+                    iconSize = 18.dp,
+                )
+            }
             StateDot(if (running) StateDotState.Running else StateDotState.Idle)
             if (!detailsOpen) {
                 DsIconButton(
@@ -120,7 +147,9 @@ internal fun ChatTopBar(
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
-        if (title.isNotBlank() || hasChips) {
+        // The chips row appears only when there is a chip to show: the title moved up, so a row
+        // holding nothing but empty space would be a blank band under the header.
+        if (hasChips) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -128,14 +157,6 @@ internal fun ChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
             ) {
-                Text(
-                    title,
-                    style = DsType.std14Strong,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
                 if (agentPresetLabel != null) {
                     MetaChip(
                         icon = Icons.Outlined.Dashboard,

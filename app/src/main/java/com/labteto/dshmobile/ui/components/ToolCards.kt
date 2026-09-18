@@ -56,6 +56,10 @@ fun ToolCard(
     trailing: (@Composable () -> Unit)? = null,
 ) {
     DisclosureRow(
+        // Full width of the transcript column. A tool call is a block in the message flow, not an
+        // inline chip: sized to its content it left a ragged right edge that made a run of calls
+        // read as a list of unrelated fragments.
+        modifier = Modifier.fillMaxWidth(),
         title = titleOverride ?: view.displayTitle(),
         summary = summaryOverride ?: view.summary(),
         icon = iconOverride ?: view.icon(),

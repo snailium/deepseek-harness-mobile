@@ -416,6 +416,13 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
+                // Null when there is no session to point at, which hides the button rather than
+                // offering a tap that does nothing.
+                onOpenWorkspace = if (currentSessionId != null) {
+                    { panelKey = composer.key }
+                } else {
+                    null
+                },
                 searchQuery = searchQuery,
                 // The counter is 1-based and reads 0/0 when nothing matches.
                 searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
@@ -427,9 +434,6 @@ fun ChatScreen(
 
             connectionError?.let {
                 androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
-            }
-            androidx.compose.material3.TextButton(onClick = { panelKey = composer.key }, enabled = currentSessionId != null) {
-                androidx.compose.material3.Text(stringResource(R.string.panel_workspace))
             }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
