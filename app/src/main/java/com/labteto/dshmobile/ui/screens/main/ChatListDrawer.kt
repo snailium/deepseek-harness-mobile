@@ -205,7 +205,7 @@ fun ChatListDrawer(
         ) {
             Text(
                 text = stringResource(R.string.chatlist_title),
-                style = DsType.large20,
+                style = DsType.title3,
                 color = colors.labelPrimary,
                 modifier = Modifier.weight(1f),
             )
@@ -237,14 +237,6 @@ fun ChatListDrawer(
             )
         }
 
-        DsButton(
-            text = stringResource(R.string.chatlist_new_session),
-            icon = Icons.Filled.Add,
-            onClick = { newSessionOpen = true },
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         // The search field folds away rather than permanently occupying a row of a phone-height
         // drawer, which is otherwise pure overhead for the common case.
         AnimatedVisibility(visible = searchOpen) {
@@ -253,7 +245,7 @@ fun ChatListDrawer(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
+                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.base16) },
                     singleLine = true,
                     colors = dialogTextFieldColors(),
                 )
@@ -262,7 +254,7 @@ fun ChatListDrawer(
                 if (!contentSearchAvailable && query.isNotBlank()) {
                     Text(
                         stringResource(R.string.chatlist_search_content_off),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                         modifier = Modifier.padding(top = DsSpacing.tiny),
                     )
@@ -279,7 +271,7 @@ fun ChatListDrawer(
                     item(key = "search-empty") {
                         Text(
                             stringResource(R.string.chatlist_search_empty),
-                            style = DsType.std14,
+                            style = DsType.base16,
                             color = colors.labelTertiary,
                             modifier = Modifier.padding(vertical = DsSpacing.small),
                         )
@@ -292,7 +284,7 @@ fun ChatListDrawer(
                     item(key = "search-more") {
                         Text(
                             stringResource(R.string.chatlist_search_refine),
-                            style = DsType.caption11,
+                            style = DsType.xsmall12,
                             color = colors.labelCaption,
                             modifier = Modifier.padding(vertical = DsSpacing.xsmall),
                         )
@@ -407,27 +399,21 @@ fun ChatListDrawer(
             }
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.row)
-                .clickable { newWorkspaceOpen = true }
-                .padding(vertical = DsSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Filled.Add,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(16.dp),
-            )
-            Spacer(Modifier.width(DsSpacing.small))
-            Text(
-                stringResource(R.string.chatlist_new_workspace),
-                style = DsType.std14,
-                color = colors.labelSecondary,
-            )
-        }
+        DsButton(
+            text = stringResource(R.string.chatlist_new_session),
+            icon = Icons.Filled.Add,
+            onClick = { newSessionOpen = true },
+            variant = DsButtonVariant.Info,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(DsSpacing.xsmall))
+        DsButton(
+            text = stringResource(R.string.chatlist_new_workspace),
+            icon = Icons.Filled.Add,
+            onClick = { newWorkspaceOpen = true },
+            variant = DsButtonVariant.Info,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 
     // ---- Diagnostics: the on-device log plus a dump of what the fold holds. ----
@@ -458,7 +444,7 @@ fun ChatListDrawer(
             ) {
                 Text(
                     debugText,
-                    style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
+                    style = DsType.xsmall12.copy(fontFamily = FontFamily.Monospace),
                     color = colors.labelSecondary,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -536,7 +522,7 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
                 )
                 Text(
                     if (byRecency) updated else manual,
-                    style = DsType.small13,
+                    style = DsType.small13Strong,
                     color = colors.labelSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -602,13 +588,13 @@ private fun WorkspaceHeader(
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
                 label,
-                style = DsType.std14Strong,
+                style = DsType.base16Strong,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(sessionCount.toString(), style = DsType.caption11, color = colors.labelCaption)
+            Text(sessionCount.toString(), style = DsType.xsmall12, color = colors.labelCaption)
         }
         if (menuOpen) {
             WorkspaceMenu(
@@ -756,7 +742,7 @@ private fun SessionRowItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = sessionTitle(session),
-                    style = DsType.std14,
+                    style = DsType.base16,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -765,17 +751,17 @@ private fun SessionRowItem(
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             basename(it),
-                            style = DsType.caption11,
+                            style = DsType.xsmall12,
                             color = colors.labelCaption,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text(" · ", style = DsType.caption11, color = colors.labelCaption)
+                        Text(" · ", style = DsType.xsmall12, color = colors.labelCaption)
                     }
                     Text(
                         relativeTime(session.updatedAt),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                     )
                 }
@@ -872,7 +858,7 @@ private fun SearchResultRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = sessionTitle(hit.session),
-                style = DsType.rowText,
+                style = DsType.base16,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -886,7 +872,7 @@ private fun SearchResultRow(
         hit.workspaceLabel.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelCaption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -895,7 +881,7 @@ private fun SearchResultRow(
         hit.snippet?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -920,7 +906,7 @@ private fun NewSessionDialog(
         if (workspaces.isEmpty()) {
             Text(
                 stringResource(R.string.chatlist_no_workspaces),
-                style = DsType.std14,
+                style = DsType.base16,
                 color = colors.labelSecondary,
             )
         }
