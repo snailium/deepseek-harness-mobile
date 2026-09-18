@@ -489,4 +489,6 @@
     <string name="chat_search_counter">%1$d/%2$d</string>
     <string name="debug_dialog_title">Informações de depuração</string>
     <string name="debug_buffer_empty">(vazio)</string>
+    <string name="tool_copy_code">Copiar código</string>
+    <string name="tool_copy">Copiar</string>
 </resources>

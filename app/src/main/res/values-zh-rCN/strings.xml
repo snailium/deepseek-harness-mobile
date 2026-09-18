@@ -489,4 +489,6 @@
     <string name="chat_scroll_to_bottom">跳到最新</string>
     <string name="debug_dialog_title">调试信息</string>
     <string name="debug_buffer_empty">（空）</string>
+    <string name="tool_copy_code">复制代码</string>
+    <string name="tool_copy">复制</string>
 </resources>

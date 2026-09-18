@@ -491,4 +491,6 @@
     <string name="chat_scroll_to_bottom">Jump to newest</string>
     <string name="debug_dialog_title">Debug info</string>
     <string name="debug_buffer_empty">(empty)</string>
+    <string name="tool_copy_code">Copy code</string>
+    <string name="tool_copy">Copy</string>
 </resources>

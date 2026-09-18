@@ -23,8 +23,15 @@ sealed interface MdBlock {
     /**
      * [text] is the item content without its marker; [indent] is nesting depth (0 = top).
      * [checked] is non-null for task-list items (`- [x] done`, `- [ ] todo`).
+     * [ordered] says whether the parent list is numbered or bulleted — a renderer needs it to
+     * pick the marker, and the parser is the only layer that knows which grammar rule matched.
      */
-    data class ListItem(val text: String, val indent: Int, val checked: Boolean? = null) : MdBlock
+    data class ListItem(
+        val text: String,
+        val indent: Int,
+        val checked: Boolean? = null,
+        val ordered: Boolean = false,
+    ) : MdBlock
     data class Blockquote(val lines: List<String>) : MdBlock
     data class Code(val lang: String?, val code: String) : MdBlock
     object HorizontalRule : MdBlock
@@ -165,9 +172,14 @@ private fun listLine(line: String, ordered: Boolean): MdBlock.ListItem {
     val task = TASK_REGEX.matchEntire(content.trim())
     if (task != null) {
         content = task.groupValues[2].trim()
-        return MdBlock.ListItem(content, indent / 2, checked = task.groupValues[1].lowercase() == "x")
+        return MdBlock.ListItem(
+            content,
+            indent / 2,
+            checked = task.groupValues[1].lowercase() == "x",
+            ordered = ordered,
+        )
     }
-    return MdBlock.ListItem(content.trim(), indent / 2)
+    return MdBlock.ListItem(content.trim(), indent / 2, ordered = ordered)
 }
 
 private fun isSpecialLine(line: String): Boolean {
