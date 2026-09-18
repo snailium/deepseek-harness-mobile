@@ -17,6 +17,8 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
+import com.labteto.dshmobile.ui.components.LocalSelectionDismiss
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -97,6 +99,11 @@ internal fun ChatTranscript(
     context: ChatNodeContext,
     listState: LazyListState,
     onLoadOlder: () -> Unit,
+    /**
+     * The message a search hit landed on, if any. Its row is scrolled to; the row itself decides
+     * how to mark the hit. Null when nothing is being searched for.
+     */
+    focusSeq: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
@@ -110,6 +117,16 @@ internal fun ChatTranscript(
     val hasMore = conversation?.hasMore == true
     val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
+
+    // The row carrying the hit. Rows are already reversed, so the index is the list index — the
+    // paging row sits at the far end and shifts nothing at the head.
+    val focusRowIndex = remember(rows, focusSeq) {
+        focusSeq?.let { seq -> rows.indexOfFirst { it.seq == seq }.takeIf { it >= 0 } }
+    }
+    LaunchedEffect(focusRowIndex, sessionId) {
+        val target = focusRowIndex ?: return@LaunchedEffect
+        listState.animateScrollToItem(target)
+    }
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
@@ -193,9 +210,17 @@ internal fun ChatTranscript(
                 key = { node -> if (node is AssistantMessageNode && node.streaming) STREAMING_ROW_KEY else node.seq },
             ) { node ->
                 val streaming = node is AssistantMessageNode && node.streaming
+                // A tap on the row dismisses any active text selection: this Compose version's
+                // SelectionContainer has no built-in "tap outside to clear", so each row opts in.
+                // Long-press is a distinct gesture and still reaches the selectable text inside.
+                val selectionDismiss = LocalSelectionDismiss.current
                 // Placement animation is for rows that move. The streaming row grows in place many
                 // times a second, and animating that reads as jitter rather than motion.
-                Column(if (streaming) Modifier else Modifier.animateItem()) {
+                Column(
+                    (if (streaming) Modifier else Modifier.animateItem())
+                        .fillMaxWidth()
+                        .clickable { selectionDismiss.value++ },
+                ) {
                     ChatNodeItem(node = node, context = context)
                 }
             }

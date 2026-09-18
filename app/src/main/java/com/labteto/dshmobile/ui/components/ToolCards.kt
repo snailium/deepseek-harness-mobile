@@ -52,6 +52,8 @@ fun ToolCard(
     iconOverride: ImageVector? = null,
     /** Terminal state from the call's own result; null derives the running bit from the card. */
     state: DisclosureState? = null,
+    /** Trailing slot on the header line — the tool row passes its elapsed time here. */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     DisclosureRow(
         title = titleOverride ?: view.displayTitle(),
@@ -60,6 +62,7 @@ fun ToolCard(
         state = state ?: if (view.isRunning()) DisclosureState.Running else DisclosureState.Idle,
         expanded = expanded,
         onToggle = onToggle,
+        trailing = trailing,
     ) {
         ToolCardBody(view)
     }

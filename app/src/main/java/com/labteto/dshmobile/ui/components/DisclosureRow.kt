@@ -67,6 +67,13 @@ fun DisclosureRow(
     state: DisclosureState = DisclosureState.Idle,
     expanded: Boolean = false,
     onToggle: (() -> Unit)? = null,
+    /**
+     * Pinned to the trailing edge of the header row, on the same line as the title.
+     *
+     * A caller-supplied slot rather than a `String?` because it holds more than text — the tool
+     * row puts its elapsed time here, and a chevron or badge would want the same place.
+     */
+    trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: (@Composable () -> Unit)? = null,
 ) {
@@ -154,6 +161,12 @@ fun DisclosureRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+            }
+            // Trailing edge of the same line: keeps the elapsed time out of the header's own
+            // vertical rhythm, so a long title and a long duration cannot push each other around.
+            if (trailing != null) {
+                Spacer(Modifier.width(8.dp))
+                trailing()
             }
         }
         // Every disclosure in the app routes through here — tool cards, compaction, workflows,

@@ -39,6 +39,7 @@ import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.StateDot
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -77,6 +78,13 @@ internal fun ChatTopBar(
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
+    /** Transcript search: the query, where the cursor sits, and how many messages matched. */
+    searchQuery: String = "",
+    searchPosition: Int = 0,
+    searchCount: Int = 0,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchPrevious: () -> Unit = {},
+    onSearchNext: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -143,7 +151,16 @@ internal fun ChatTopBar(
             }
         }
 
-        ChatTabRow(tab = tab, onTabChange = onTabChange)
+        ChatTabRow(
+            tab = tab,
+            onTabChange = onTabChange,
+            searchQuery = searchQuery,
+            searchPosition = searchPosition,
+            searchCount = searchCount,
+            onSearchQueryChange = onSearchQueryChange,
+            onSearchPrevious = onSearchPrevious,
+            onSearchNext = onSearchNext,
+        )
     }
 }
 
@@ -252,13 +269,23 @@ private fun MetaChip(
  * their own; a 28dp track wraps to the labels and lets the chrome end there.
  */
 @Composable
-private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
+private fun ChatTabRow(
+    tab: ChatTab,
+    onTabChange: (ChatTab) -> Unit,
+    searchQuery: String,
+    searchPosition: Int,
+    searchCount: Int,
+    onSearchQueryChange: (String) -> Unit,
+    onSearchPrevious: () -> Unit,
+    onSearchNext: () -> Unit,
+) {
     val colors = DsTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
     ) {
         // Which tab is live is load-bearing, not decoration: the two views render a user message
         // completely differently — a right-aligned bubble in Chat, a `> line` of caption text in
@@ -274,6 +301,21 @@ private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
                 onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
             },
             role = Role.Tab,
+            // Hug the two labels and stay left; the search field takes the rest of the row.
+            modifier = Modifier.widthIn(max = 150.dp),
+        )
+        // The transcript search is a permanent resident of the utility row — it belongs to the
+        // session, not to either view, so switching tabs never takes it away. Capped at 320dp and
+        // pushed to the right edge: on a wide screen it does not stretch into an absurd pill, and
+        // the eye finds it in the same place every time.
+        TranscriptSearchBar(
+            query = searchQuery,
+            onQueryChange = onSearchQueryChange,
+            matchPosition = searchPosition,
+            matchCount = searchCount,
+            onPrevious = onSearchPrevious,
+            onNext = onSearchNext,
+            modifier = Modifier.weight(1f).widthIn(max = 320.dp),
         )
     }
     Spacer(

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -189,7 +190,10 @@ internal fun Composer(
             TextField(
                 value = draft,
                 onValueChange = onDraftChange,
-                modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                // Weighted, not fillMaxWidth: a field that claims the whole line forces every
+                // sibling in the Row to shrink as the draft grows, which visibly flattened the
+                // round buttons once the message ran to several lines.
+                modifier = Modifier.weight(1f).onPreviewKeyEvent { event ->
                     if (event.key == Key.Enter && (event.isCtrlPressed || event.isMetaPressed)) {
                         if (event.type == KeyEventType.KeyUp && canSend) {
                             val text = currentDraft
@@ -233,7 +237,10 @@ internal fun Composer(
             }
 
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                // Bottom, not centre: the action buttons ride the field's last line as it grows,
+                // which is the ChatGPT/WhatsApp arrangement. Centre made them drift to the middle
+                // of a tall draft, away from the line being typed.
+                verticalAlignment = Alignment.Bottom,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
             ) {
@@ -245,6 +252,7 @@ internal fun Composer(
                     tint = colors.labelPrimary,
                     enabled = enabled,
                     onClick = onOpenSheet,
+                    ringed = true,
                 )
 
                 Spacer(Modifier.weight(1f))
@@ -525,14 +533,26 @@ private fun CircleAction(
     tint: Color,
     enabled: Boolean,
     onClick: () -> Unit,
+    /**
+     * Draw a hairline ring around the button. Used by the plain `+` and the permission glyph,
+     * whose fill is the page colour: without an edge there is nothing to say they are pressable
+     * rather than decoration, and a touch screen has no hover to reveal it.
+     */
+    ringed: Boolean = false,
     content: (@Composable () -> Unit)? = null,
 ) {
+    val colors = DsTheme.colors
     Surface(
         onClick = onClick,
         // Described here rather than on the icon, because not every one of these has an icon: the
         // stop button draws a plain square through `content`, and while the description hung off
         // the icon that button announced nothing at all to a screen reader.
-        modifier = Modifier.size(size.dp).semantics { this.contentDescription = description },
+        // `size` then `requiredSize`: the Row may try to squeeze a sibling when space is short,
+        // and a squashed circle reads as a broken button. requiredSize wins that negotiation.
+        modifier = Modifier
+            .requiredSize(size.dp)
+            .then(if (ringed) Modifier.border(1.dp, colors.borderL2, CircleShape) else Modifier)
+            .semantics { this.contentDescription = description },
         enabled = enabled,
         shape = CircleShape,
         color = background,

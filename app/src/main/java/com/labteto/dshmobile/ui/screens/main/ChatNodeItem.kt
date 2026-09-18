@@ -1,5 +1,9 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -420,10 +424,13 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
     }
     val startedAt = context.eventTimes[node.seq]
     val endedAt = result?.let { context.eventTimes[it.seq] }
-    if (startedAt != null && endedAt != null) Text(
-        com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0)),
-        style = DsType.caption11, color = colors.labelCaption,
-    )
+    // The elapsed time rides the header line's trailing edge, not a line of its own: as its own
+    // line it read as a separate item above the call and broke the card's scan rhythm.
+    val elapsed = if (startedAt != null && endedAt != null) {
+        com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0))
+    } else {
+        null
+    }
     ToolCard(
         view = card,
         expanded = expanded,
@@ -432,6 +439,15 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
         summaryOverride = row.summary,
         iconOverride = row.variant.featherIcon(),
         state = state,
+        trailing = elapsed?.let { text ->
+            {
+                Text(
+                    text,
+                    style = DsType.caption11,
+                    color = colors.labelCaption,
+                )
+            }
+        },
     )
     if (expanded) {
         result?.content?.let { JsonDisclosure(stringResource(R.string.chat_output_placeholder), it) }
@@ -439,13 +455,47 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
         PtcChildren(node.callId, context.nodes.filterIsInstance<OtherNode>())
     }
     if (result?.isError == true) {
-        // The dot is colour-only, so the word stays — but without a second dot beside it.
+        // The call's own failure text, not a generic apology: "Something went wrong" told the
+        // reader nothing they could act on, while the result body carries the command's stderr,
+        // the refused path, or the tool's own message. The generic string is only the fallback
+        // for a result that genuinely carries no prose.
+        val failure = remember(result?.content) { toolFailureMessage(result?.content) }
         Text(
-            stringResource(R.string.common_error),
+            failure ?: stringResource(R.string.common_error),
             style = DsType.caption11,
             color = colors.error,
             modifier = Modifier.padding(start = 26.dp),
         )
+    }
+}
+
+/**
+ * The readable failure text out of a `tool/result` body, or null when it carries none.
+ *
+ * The body is the model-facing tool-result parts array — the same shape the harness renders — so
+ * the message lives in a `text` part, sometimes preceded by other parts. Anything that is not
+ * prose (an image part, a structured meta blob) is skipped rather than dumped at the reader.
+ * A bare JSON string body is accepted too: some tools answer with one.
+ */
+private fun toolFailureMessage(content: JsonElement?): String? {
+    fun fromText(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }
+
+    return when (content) {
+        null -> null
+        is JsonPrimitive -> fromText(content.contentOrNull)
+        is JsonArray -> content.asSequence()
+            .mapNotNull { part ->
+                val obj = part as? JsonObject ?: return@mapNotNull null
+                // Only a text part is prose; a `type` of anything else is not for this line.
+                val type = obj["type"]?.jsonPrimitive?.contentOrNull
+                if (type != null && type != "text") return@mapNotNull null
+                fromText(obj["text"]?.jsonPrimitive?.contentOrNull)
+            }
+            .firstOrNull()
+        is JsonObject -> fromText(
+            (content["text"] ?: content["message"] ?: content["error"])?.jsonPrimitive?.contentOrNull,
+        )
+        else -> null
     }
 }
 

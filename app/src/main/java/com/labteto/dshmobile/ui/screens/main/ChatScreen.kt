@@ -63,6 +63,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
+import androidx.compose.runtime.LaunchedEffect
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -89,6 +90,21 @@ fun ChatScreen(
     val liveTodos = store.todos.collectAsStateWithLifecycle().value
     var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    // In-transcript search. The bar is a permanent resident of the utility row, so the query and
+    // the cursor live above the tab swap: they belong to the session rather than to either view,
+    // and stepping past the last hit wraps to the first.
+    var searchQuery by remember(currentSessionId) { mutableStateOf("") }
+    var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
+    val matches = remember(conversation?.nodes, searchQuery) {
+        findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
+    }
+    // A new query resets the walk to the first hit; keeping the old cursor would land the reader at
+    // position 5 of a completely different result set. The cursor is also clamped on read, because
+    // the node list can shrink under it (a live turn folding, a page of history arriving).
+    LaunchedEffect(searchQuery) { matchCursor = 0 }
+    val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
+    val currentMatch = matches.getOrNull(cursor)
+
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
     val skills by store.skills.collectAsStateWithLifecycle()
@@ -390,6 +406,13 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
+                searchQuery = searchQuery,
+                // The counter is 1-based and reads 0/0 when nothing matches.
+                searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                searchCount = matches.size,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
             )
 
             connectionError?.let {
@@ -452,6 +475,7 @@ fun ChatScreen(
                         context = nodeContext,
                         listState = chatListState,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
+                        focusSeq = currentMatch?.seq,
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,
