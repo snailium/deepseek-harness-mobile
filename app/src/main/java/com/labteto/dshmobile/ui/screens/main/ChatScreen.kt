@@ -433,7 +433,9 @@ fun ChatScreen(
                     todos = todos,
                     dismissed = todosDismissed,
                     onDismiss = { todosDismissed = true },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    // Tight to the transcript: the bar is a strip over the messages, so the
+                    // outer inset only needs to keep it off the screen edge.
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
 
@@ -494,7 +496,8 @@ fun ChatScreen(
                         .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    parseTodos(conv.projections["todos"])?.let { TodoDock(it) }
+                    // The to-do list lives in the pinned bar above the transcript, not here:
+                    // two renderings of the same list on one screen read as two different lists.
                     parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
                     QueueDock(conv.queue, store)
                 }
