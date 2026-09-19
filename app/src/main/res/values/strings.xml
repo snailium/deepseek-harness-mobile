@@ -11,6 +11,7 @@
     <string name="common_copied">Copied</string>
     <string name="common_retry">Retry</string>
     <string name="common_search">Search</string>
+    <string name="chatlist_search_results">Search results</string>
     <string name="common_loading">Loading…</string>
     <string name="common_connected">Connected</string>
     <string name="common_reconnecting">Reconnecting…</string>

@@ -321,7 +321,14 @@ fun ChatListDrawer(
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             if (query.isNotBlank()) {
-                item(key = "search-header") { SectionHeader(stringResource(R.string.common_search)) }
+                item(key = "search-header") {
+                    Text(
+                        stringResource(R.string.chatlist_search_results),
+                        style = DsType.base16Strong,
+                        color = colors.labelSecondary,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 if (searchHits.items.isEmpty()) {
                     item(key = "search-empty") {
                         Text(
