@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
@@ -44,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,6 +80,7 @@ import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: the workspace's own row order. */
 private const val SORT_MANUAL = "manual"
@@ -93,6 +99,7 @@ private const val SORT_UPDATED = "updated"
 fun ChatListDrawer(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     val store = rememberSessionStore()
@@ -109,6 +116,8 @@ fun ChatListDrawer(
 
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
+    // The on-device diagnostics dialog is disabled and lives in ChatListDebug.kt; its
+    // `showDebugInfo` state went with it.
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
     // to reset every time the drawer was closed.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
@@ -116,6 +125,8 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     var newSessionOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
+    var ungroupedExpanded by remember { mutableStateOf(false) }
+    var archivedExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(query) {
         delay(250)
@@ -183,22 +194,27 @@ fun ChatListDrawer(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(colors.sidebar)
             .safeDrawingPadding()
             .padding(horizontal = DsSpacing.medium),
     ) {
-        Row(
+        Text(
+            text = stringResource(R.string.chatlist_title),
+            style = DsType.title3,
+            color = colors.labelPrimary,
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stringResource(R.string.chatlist_title),
-                style = DsType.large20,
-                color = colors.labelPrimary,
-                modifier = Modifier.weight(1f),
-            )
+            SortChip(sortByRecency) { next ->
+                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
+            }
+            Spacer(Modifier.weight(1f))
             DsIconButton(
                 icon = Icons.Filled.Search,
                 contentDescription = stringResource(R.string.common_search),
@@ -210,9 +226,6 @@ fun ChatListDrawer(
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
             )
-            SortChip(sortByRecency) { next ->
-                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
-            }
             DsIconButton(
                 icon = Icons.Filled.Settings,
                 contentDescription = stringResource(R.string.settings_title),
@@ -221,32 +234,69 @@ fun ChatListDrawer(
             )
         }
 
-        DsButton(
-            text = stringResource(R.string.chatlist_new_session),
-            icon = Icons.Filled.Add,
-            onClick = { newSessionOpen = true },
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
         // The search field folds away rather than permanently occupying a row of a phone-height
-        // drawer, which is otherwise pure overhead for the common case.
+        // drawer, which is otherwise pure overhead for the common case. Same pill recipe as the
+        // transcript search bar: 32dp tall, hoverSolid fill, Feather magnifier, BasicTextField,
+        // trailing × — no border, no Material3 TextField (56dp floor).
         AnimatedVisibility(visible = searchOpen) {
             Column(modifier = Modifier.padding(top = DsSpacing.small)) {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
-                    singleLine = true,
-                    colors = dialogTextFieldColors(),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .clip(DsShapes.pillFull)
+                        .background(colors.hoverSolid)
+                        .padding(start = DsSpacing.small, end = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        FeatherIcons.Search,
+                        contentDescription = null,
+                        tint = colors.labelTertiary,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(DsSpacing.tiny))
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        textStyle = DsType.m3BodyMedium.copy(color = colors.labelPrimary),
+                        cursorBrush = SolidColor(colors.accent),
+                        singleLine = true,
+                        decorationBox = { inner ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        stringResource(R.string.chatlist_search_hint),
+                                        style = DsType.m3BodyMedium,
+                                        color = colors.labelTertiary,
+                                        maxLines = 1,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
+                    )
+                    Icon(
+                        FeatherIcons.X,
+                        contentDescription = stringResource(R.string.common_cancel),
+                        tint = colors.labelTertiary,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clickable {
+                                searchOpen = false
+                                query = ""
+                            }
+                            .padding(6.dp),
+                    )
+                }
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
                 // content index off, so this is a normal capability note — not a failure.
                 if (!contentSearchAvailable && query.isNotBlank()) {
                     Text(
                         stringResource(R.string.chatlist_search_content_off),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                         modifier = Modifier.padding(top = DsSpacing.tiny),
                     )
@@ -258,12 +308,19 @@ fun ChatListDrawer(
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             if (query.isNotBlank()) {
-                item(key = "search-header") { SectionHeader(stringResource(R.string.common_search)) }
+                item(key = "search-header") {
+                    Text(
+                        stringResource(R.string.chatlist_search_results),
+                        style = DsType.base16Strong,
+                        color = colors.labelSecondary,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 if (searchHits.items.isEmpty()) {
                     item(key = "search-empty") {
                         Text(
                             stringResource(R.string.chatlist_search_empty),
-                            style = DsType.std14,
+                            style = DsType.base16,
                             color = colors.labelTertiary,
                             modifier = Modifier.padding(vertical = DsSpacing.small),
                         )
@@ -276,7 +333,7 @@ fun ChatListDrawer(
                     item(key = "search-more") {
                         Text(
                             stringResource(R.string.chatlist_search_refine),
-                            style = DsType.caption11,
+                            style = DsType.xsmall12,
                             color = colors.labelCaption,
                             modifier = Modifier.padding(vertical = DsSpacing.xsmall),
                         )
@@ -343,38 +400,49 @@ fun ChatListDrawer(
             }
             if (ungrouped.isNotEmpty()) {
                 anyShown = true
-                item(key = "sessions-header") { SectionHeader(stringResource(R.string.chatlist_sessions)) }
-                val flat = ungrouped
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    .flatMap { subtree(it) }
-                items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(
-                            session = session,
-                            isCurrent = session.sessionId == currentSessionId,
-                            store = store,
-                            scope = scope,
-                            onClose = onClose,
-                            depth = depth,
-                            childCount = childrenByParent[session.sessionId].orEmpty().size,
-                            childrenExpanded = isExpanded(session.sessionId),
-                            onToggleChildren = { toggleChildren(session.sessionId) },
-                        )
+                item(key = "ungrouped-header") {
+                    GroupHeader(
+                        label = stringResource(R.string.chatlist_sessions),
+                        count = ungrouped.size,
+                        collapsed = !ungroupedExpanded,
+                        onToggle = { ungroupedExpanded = !ungroupedExpanded },
+                    )
+                }
+                if (ungroupedExpanded) {
+                    val ungroupedFlat = ungrouped
+                        .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                        .flatMap { subtree(it) }
+                    items(ungroupedFlat, key = { "ug-${it.first.sessionId}" }) { (session, depth) ->
+                        Box(Modifier.animateItem()) {
+                            SessionRowItem(
+                                session = session,
+                                isCurrent = session.sessionId == currentSessionId,
+                                store = store,
+                                scope = scope,
+                                onClose = onClose,
+                                depth = depth,
+                                childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                childrenExpanded = isExpanded(session.sessionId),
+                                onToggleChildren = { toggleChildren(session.sessionId) },
+                            )
+                        }
                     }
                 }
             }
 
             if (archivedSessions.isNotEmpty()) {
                 anyShown = true
-                item(key = "archived") {
-                    var archivedExpanded by remember { mutableStateOf(false) }
-                    DisclosureRow(
-                        title = stringResource(R.string.chatlist_archived),
-                        summary = archivedSessions.size.toString(),
-                        expanded = archivedExpanded,
+                item(key = "archived-header") {
+                    GroupHeader(
+                        label = stringResource(R.string.chatlist_archived),
+                        count = archivedSessions.size,
+                        collapsed = !archivedExpanded,
                         onToggle = { archivedExpanded = !archivedExpanded },
-                    ) {
-                        archivedSessions.forEach { session ->
+                    )
+                }
+                if (archivedExpanded) {
+                    items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
+                        Box(Modifier.animateItem()) {
                             SessionRowItem(session, false, store, scope, onClose)
                         }
                     }
@@ -391,28 +459,34 @@ fun ChatListDrawer(
             }
         }
 
+        Spacer(Modifier.height(10.dp))
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.row)
-                .clickable { newWorkspaceOpen = true }
-                .padding(vertical = DsSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            Icon(
-                Icons.Filled.Add,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(16.dp),
+            DsButton(
+                text = stringResource(R.string.chatlist_new_workspace),
+                icon = Icons.Filled.Add,
+                onClick = { newWorkspaceOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(DsSpacing.small))
-            Text(
-                stringResource(R.string.chatlist_new_workspace),
-                style = DsType.std14,
-                color = colors.labelSecondary,
+            DsButton(
+                text = stringResource(R.string.chatlist_new_session),
+                icon = Icons.Filled.Add,
+                onClick = { newSessionOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
             )
         }
     }
+
+    // ---- Diagnostics: extracted to ChatListDebug.kt and currently disabled. ----
+    //
+    // The on-device log dialog used to live here. It is self-contained (one button, one dialog,
+    // one buffer) and was ~50 lines of debug chrome in the app's busiest composable, so it moved
+    // to its own file. That file carries the re-enable instructions; nothing here calls it while
+    // CHAT_LIST_DEBUG_ENABLED is false.
 
     if (newSessionOpen) {
         NewSessionDialog(
@@ -472,7 +546,7 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
                 )
                 Text(
                     if (byRecency) updated else manual,
-                    style = DsType.small13,
+                    style = DsType.small13Strong,
                     color = colors.labelSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -489,6 +563,52 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
 // ---------------------------------------------------------------------------
 // Rows
 // ---------------------------------------------------------------------------
+
+/**
+ * A collapsible group header with the same visual style as [WorkspaceHeader]:
+ * chevron + bold label + count. Used for Ungrouped and Archived sections.
+ */
+@Composable
+private fun GroupHeader(
+    label: String,
+    count: Int,
+    collapsed: Boolean,
+    onToggle: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    val rotation by animateFloatAsState(
+        targetValue = if (collapsed) 0f else 90f,
+        animationSpec = DsAnimations.chevron,
+        label = "groupChevron",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onToggle)
+            .padding(vertical = DsSpacing.xsmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { rotationZ = rotation },
+        )
+        Spacer(Modifier.width(DsSpacing.tiny))
+        Text(
+            label,
+            style = DsType.base16Strong,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(count.toString(), style = DsType.xsmall12, color = colors.labelCaption)
+    }
+}
 
 /**
  * A workspace header that collapses its group and carries the workspace verbs.
@@ -538,13 +658,13 @@ private fun WorkspaceHeader(
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
                 label,
-                style = DsType.std14Strong,
+                style = DsType.base16Strong,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(sessionCount.toString(), style = DsType.caption11, color = colors.labelCaption)
+            Text(sessionCount.toString(), style = DsType.xsmall12, color = colors.labelCaption)
         }
         if (menuOpen) {
             WorkspaceMenu(
@@ -692,7 +812,7 @@ private fun SessionRowItem(
             Column(Modifier.weight(1f)) {
                 Text(
                     text = sessionTitle(session),
-                    style = DsType.std14,
+                    style = DsType.base16,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -701,17 +821,17 @@ private fun SessionRowItem(
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             basename(it),
-                            style = DsType.caption11,
+                            style = DsType.xsmall12,
                             color = colors.labelCaption,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text(" · ", style = DsType.caption11, color = colors.labelCaption)
+                        Text(" · ", style = DsType.xsmall12, color = colors.labelCaption)
                     }
                     Text(
                         relativeTime(session.updatedAt),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                     )
                 }
@@ -808,7 +928,7 @@ private fun SearchResultRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = sessionTitle(hit.session),
-                style = DsType.rowText,
+                style = DsType.base16,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -822,7 +942,7 @@ private fun SearchResultRow(
         hit.workspaceLabel.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelCaption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -831,7 +951,7 @@ private fun SearchResultRow(
         hit.snippet?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -856,7 +976,7 @@ private fun NewSessionDialog(
         if (workspaces.isEmpty()) {
             Text(
                 stringResource(R.string.chatlist_no_workspaces),
-                style = DsType.std14,
+                style = DsType.base16,
                 color = colors.labelSecondary,
             )
         }
