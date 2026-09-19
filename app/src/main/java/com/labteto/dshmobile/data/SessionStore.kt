@@ -2256,7 +2256,16 @@ class SessionStore @Inject constructor(
         // overwriting a newer host's catalog, which is what the clear was standing in for.
         val result = api.permissionCatalog()
         if (epoch == permissionCatalogEpoch && key == activeHostKey) {
-            permissionCatalog.value = (result as? RpcResult.Ok)?.value
+            when (result) {
+                is RpcResult.Ok -> {
+                    log("permission catalog: ${result.value.options.size} options")
+                    permissionCatalog.value = result.value
+                }
+                is RpcResult.Err -> {
+                    log("permission catalog failed: ${result.error.message}")
+                    // Leave the previous value in place; a transient failure should not blank the chip.
+                }
+            }
         }
     }
 

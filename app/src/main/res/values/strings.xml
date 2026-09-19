@@ -216,6 +216,7 @@
     <string name="permission_confirm_title">Grant full access?</string>
     <string name="permission_confirm_body">The agent will be able to read and write anywhere on the harness computer and will stop asking for approval.</string>
     <string name="permission_confirm_ack">I understand the risk</string>
+    <string name="permission_no_options">No permission presets available from this harness.</string>
     <string name="permission_unavailable">This harness does not expose permission presets</string>
     <string name="questions_skip">Skip</string>
     <string name="questions_previous">Previous</string>
