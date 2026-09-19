@@ -127,6 +127,8 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     var newSessionOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
+    var ungroupedExpanded by remember { mutableStateOf(false) }
+    var archivedExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(query) {
         delay(250)
@@ -355,30 +357,31 @@ fun ChatListDrawer(
             if (ungrouped.isNotEmpty()) {
                 anyShown = true
                 item(key = "ungrouped-header") {
-                    var expanded by remember { mutableStateOf(false) }
                     GroupHeader(
                         label = stringResource(R.string.chatlist_sessions),
                         count = ungrouped.size,
-                        collapsed = !expanded,
-                        onToggle = { expanded = !expanded },
+                        collapsed = !ungroupedExpanded,
+                        onToggle = { ungroupedExpanded = !ungroupedExpanded },
                     )
                 }
-                val ungroupedFlat = ungrouped
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    .flatMap { subtree(it) }
-                items(ungroupedFlat, key = { "ug-${it.first.sessionId}" }) { (session, depth) ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(
-                            session = session,
-                            isCurrent = session.sessionId == currentSessionId,
-                            store = store,
-                            scope = scope,
-                            onClose = onClose,
-                            depth = depth,
-                            childCount = childrenByParent[session.sessionId].orEmpty().size,
-                            childrenExpanded = isExpanded(session.sessionId),
-                            onToggleChildren = { toggleChildren(session.sessionId) },
-                        )
+                if (ungroupedExpanded) {
+                    val ungroupedFlat = ungrouped
+                        .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                        .flatMap { subtree(it) }
+                    items(ungroupedFlat, key = { "ug-${it.first.sessionId}" }) { (session, depth) ->
+                        Box(Modifier.animateItem()) {
+                            SessionRowItem(
+                                session = session,
+                                isCurrent = session.sessionId == currentSessionId,
+                                store = store,
+                                scope = scope,
+                                onClose = onClose,
+                                depth = depth,
+                                childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                childrenExpanded = isExpanded(session.sessionId),
+                                onToggleChildren = { toggleChildren(session.sessionId) },
+                            )
+                        }
                     }
                 }
             }
@@ -386,17 +389,18 @@ fun ChatListDrawer(
             if (archivedSessions.isNotEmpty()) {
                 anyShown = true
                 item(key = "archived-header") {
-                    var expanded by remember { mutableStateOf(false) }
                     GroupHeader(
                         label = stringResource(R.string.chatlist_archived),
                         count = archivedSessions.size,
-                        collapsed = !expanded,
-                        onToggle = { expanded = !expanded },
+                        collapsed = !archivedExpanded,
+                        onToggle = { archivedExpanded = !archivedExpanded },
                     )
                 }
-                items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(session, false, store, scope, onClose)
+                if (archivedExpanded) {
+                    items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
+                        Box(Modifier.animateItem()) {
+                            SessionRowItem(session, false, store, scope, onClose)
+                        }
                     }
                 }
             }
