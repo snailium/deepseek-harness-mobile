@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Spacer
@@ -76,6 +77,7 @@ import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -207,9 +209,16 @@ fun ChatListDrawer(
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
         )
 
+        // The chat page's title bar is the template for this row: same height floor, same icon
+        // size and touch target, same gap. The drawer used to run its own numbers (48dp targets,
+        // 20dp glyphs), which made it read as a heavier chrome than the bar it mirrors.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = DsTitleBar.height)
+                .padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
         ) {
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
@@ -225,12 +234,16 @@ fun ChatListDrawer(
                     if (!searchOpen) query = ""
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
             DsIconButton(
                 icon = Icons.Filled.Settings,
                 contentDescription = stringResource(R.string.settings_title),
                 onClick = onOpenSettings,
                 tint = colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
         }
 

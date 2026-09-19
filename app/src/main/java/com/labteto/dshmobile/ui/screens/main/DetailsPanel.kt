@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -80,6 +81,7 @@ import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -250,15 +252,24 @@ private enum class DetailsSheet { Models, Presets }
 @Composable
 private fun HeaderRow(onClose: () -> Unit) {
     val colors = DsTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    // The chat page's title bar is the template: same height floor, same icon size and touch
+    // target. The panel used to run a 48dp back button with a 20dp display-font title, which made
+    // it read as a heavier chrome than the bar that opens it.
+    Row(
+        modifier = Modifier.heightIn(min = DsTitleBar.height),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+    ) {
         DsIconButton(
             icon = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = stringResource(R.string.common_back),
             onClick = onClose,
+            iconSize = DsTitleBar.iconSize,
+            touchTarget = DsTitleBar.iconTouchTarget,
         )
         Text(
             stringResource(R.string.chat_details_title),
-            style = DsType.large20,
+            style = DsTitleBar.titleStyle,
             color = colors.labelPrimary,
         )
     }

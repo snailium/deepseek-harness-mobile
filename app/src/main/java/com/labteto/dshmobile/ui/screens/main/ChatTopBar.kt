@@ -46,6 +46,7 @@ import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 
 /** The two views of a session the harness offers. */
@@ -97,17 +98,17 @@ internal fun ChatTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 44.dp)
+                .heightIn(min = DsTitleBar.height)
                 .padding(horizontal = DsSpacing.tiny),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+            horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
         ) {
             DsIconButton(
-                icon = FeatherIcons.Menu,
+                icon = DsTitleBar.menuIcon,
                 contentDescription = stringResource(R.string.chatlist_open),
                 onClick = onOpenDrawer,
                 tint = colors.labelSecondary,
-                iconSize = 18.dp,
+                iconSize = DsTitleBar.iconSize,
             )
             // The session title lives here, on the identity row, rather than on a row of its own
             // below: it is what the screen *is*, and a separate row spent a whole line of a phone
@@ -118,7 +119,7 @@ internal fun ChatTopBar(
                     title,
                     // A step up from the row's other text: the title is the one piece of prose in
                     // the header, so it carries the emphasis rather than matching the controls.
-                    style = DsType.base16Strong,
+                    style = DsTitleBar.titleStyle,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -138,8 +139,8 @@ internal fun ChatTopBar(
                 contentDescription = stringResource(R.string.common_search),
                 onClick = onToggleSearch,
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
-                iconSize = 18.dp,
-                touchTarget = 24.dp,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
             // The workspace panel is a destination, not a label: an icon frees the line of text it
             // used to occupy above the transcript while staying one tap away.
@@ -149,8 +150,8 @@ internal fun ChatTopBar(
                     contentDescription = stringResource(R.string.panel_workspace),
                     onClick = onOpenWorkspace,
                     tint = colors.labelTertiary,
-                    iconSize = 18.dp,
-                    touchTarget = 24.dp,
+                    iconSize = DsTitleBar.iconSize,
+                    touchTarget = DsTitleBar.iconTouchTarget,
                 )
             }
             if (!detailsOpen) {
@@ -159,8 +160,8 @@ internal fun ChatTopBar(
                     contentDescription = stringResource(R.string.chat_details_title),
                     onClick = onOpenDetails,
                     tint = colors.labelTertiary,
-                    iconSize = 18.dp,
-                    touchTarget = 24.dp,
+                    iconSize = DsTitleBar.iconSize,
+                    touchTarget = DsTitleBar.iconTouchTarget,
                 )
             }
             // Zero-width filler: its only purpose is to be a child of the Row so that
