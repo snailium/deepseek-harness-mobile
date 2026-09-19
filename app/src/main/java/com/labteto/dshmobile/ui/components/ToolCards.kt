@@ -52,14 +52,21 @@ fun ToolCard(
     iconOverride: ImageVector? = null,
     /** Terminal state from the call's own result; null derives the running bit from the card. */
     state: DisclosureState? = null,
+    /** Trailing slot on the header line — the tool row passes its elapsed time here. */
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     DisclosureRow(
+        // Full width of the transcript column. A tool call is a block in the message flow, not an
+        // inline chip: sized to its content it left a ragged right edge that made a run of calls
+        // read as a list of unrelated fragments.
+        modifier = Modifier.fillMaxWidth(),
         title = titleOverride ?: view.displayTitle(),
         summary = summaryOverride ?: view.summary(),
         icon = iconOverride ?: view.icon(),
         state = state ?: if (view.isRunning()) DisclosureState.Running else DisclosureState.Idle,
         expanded = expanded,
         onToggle = onToggle,
+        trailing = trailing,
     ) {
         ToolCardBody(view)
     }
