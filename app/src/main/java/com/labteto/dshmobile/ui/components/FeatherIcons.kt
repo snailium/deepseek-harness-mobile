@@ -207,6 +207,41 @@ internal object FeatherIcons {
         }
     }
 
+    /**
+     * `slash` — inserting a command.
+     *
+     * Feather's own glyph, which is exactly the character it stands for: one diagonal from the
+     * top-right to the bottom-left. Drawn corner to corner rather than inset, so it reads as the
+     * same weight as the paperclip beside it — an inset slash looks like a stray tick.
+     */
+    val Slash: ImageVector by lazy {
+        feather("Slash") {
+            moveTo(17f, 4f); lineTo(7f, 20f)
+        }
+    }
+
+    /**
+     * `paperclip` — attaching a file or a photo.
+     *
+     * Traced from Feather's own `paperclip`, which is one continuous path: a long outer run from
+     * the top-right down the left side and around, then two nested inner turns that draw the
+     * doubled-back wire. Kept as three arcs rather than a simplified hook, because the two inner
+     * loops *are* the glyph — a single arc reads as a hook or a walking stick at 14dp, which is
+     * the size this is actually drawn at.
+     */
+    val Paperclip: ImageVector by lazy {
+        feather("Paperclip") {
+            moveTo(21.44f, 11.05f)
+            lineTo(12.25f, 20.24f)
+            arcToRelative(6f, 6f, 0f, isMoreThanHalf = false, isPositiveArc = true, -8.49f, -8.49f)
+            lineTo(12.95f, 2.56f)
+            arcToRelative(4f, 4f, 0f, isMoreThanHalf = false, isPositiveArc = true, 5.66f, 5.66f)
+            lineTo(9.41f, 17.41f)
+            arcToRelative(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, -2.83f, -2.83f)
+            lineTo(15.07f, 6.1f)
+        }
+    }
+
     /** `chevron-down` — dropdown and expand hints. */
     val ChevronDown: ImageVector by lazy {
         feather("ChevronDown") {

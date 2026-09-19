@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">คิว</string>
     <string name="chat_composer_steer">นำทาง</string>
     <string name="chat_composer_stop">หยุด</string>
-    <string name="chat_composer_attach">แนบรูปภาพ</string>
+    <string name="chat_composer_attach">แนบ</string>
+    <string name="chat_composer_attach_image">แนบรูปภาพ</string>
+    <string name="chat_composer_attach_title">แนบกับข้อความ</string>
     <string name="chat_composer_remove_image">ลบรูปภาพ</string>
     <string name="chat_empty_title">เริ่มทำงานกับ Harness ของคุณ</string>
     <string name="chat_empty_hint">ส่งข้อความเพื่อเริ่มเทิร์นใหม่</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">โหมดการส่ง</string>
     <string name="chat_composer_mode_queue_hint">ทำงานหลังจากเทิร์นปัจจุบันจบ</string>
     <string name="chat_composer_mode_steer_hint">แทรกเข้าไปในเทิร์นที่กำลังทำงาน</string>
-    <string name="chat_composer_steer_idle">การแทรกต้องมีเทิร์นที่กำลังทำงาน</string>
     <string name="chat_tab">แชท</string>
     <string name="chat_todo_title">สิ่งที่ต้องทำ</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

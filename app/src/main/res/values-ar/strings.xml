@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">قائمة الانتظار</string>
     <string name="chat_composer_steer">توجيه</string>
     <string name="chat_composer_stop">إيقاف</string>
-    <string name="chat_composer_attach">إرفاق صورة</string>
+    <string name="chat_composer_attach">إرفاق</string>
+    <string name="chat_composer_attach_image">إرفاق صورة</string>
+    <string name="chat_composer_attach_title">إرفاق بالرسالة</string>
     <string name="chat_composer_remove_image">إزالة الصورة</string>
     <string name="chat_empty_title">ابدأ العمل مع Harness الخاص بك</string>
     <string name="chat_empty_hint">أرسل رسالة لبدء جولة جديدة.</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">وضع الإرسال</string>
     <string name="chat_composer_mode_queue_hint">يُنفَّذ بعد انتهاء الدور الحالي</string>
     <string name="chat_composer_mode_steer_hint">يقاطع الدور الجاري</string>
-    <string name="chat_composer_steer_idle">التوجيه يحتاج دورًا جاريًا</string>
     <string name="chat_tab">المحادثة</string>
     <string name="chat_todo_title">المهام</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

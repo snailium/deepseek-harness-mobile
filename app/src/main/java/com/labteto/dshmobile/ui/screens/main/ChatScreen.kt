@@ -631,7 +631,8 @@ fun ChatScreen(
                 enterToSend = appSettings.enterToSend,
                 enabled = currentSessionId != null && !composer.submitting,
                 preparing = composer.preparing,
-                onOpenSheet = { sheet = ChatSheet.Commands },
+                onOpenCommands = { sheet = ChatSheet.Commands },
+                onOpenAttachments = { sheet = ChatSheet.Attachments },
                 // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
                 // which keeps what it has when the new value is equal to it, and a reference to a
                 // local function equals every other reference to that function whatever it
@@ -656,17 +657,6 @@ fun ChatScreen(
             commands = commands,
             commandsAvailable = commandsAvailable,
             skills = skills,
-            mode = mode,
-            running = conversation?.running == true,
-            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
-            onModeChange = { mode = it },
-            onAttach = {
-                if (!composer.preparing && store.composers.imagePickTarget == null) {
-                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
-                    imagePicker.launch("image/*")
-                }
-            },
-            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             // The sheet only auto-runs commands that take no input at all, and a command that
             // takes no input takes no attachments either — so a pending attachment refuses here
             // for the same reason it refuses at the composer, rather than being silently dropped.
@@ -679,6 +669,19 @@ fun ChatScreen(
                 }
             },
             onPrefillDraft = { prefix -> draft = prefix },
+            onDismiss = { sheet = null },
+        )
+        ChatSheet.Attachments -> AttachmentSheet(
+            // Both rows upload against an open session, so both need one; and a pick already in
+            // flight has to finish before another starts.
+            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
+            onAttachImage = {
+                if (!composer.preparing && store.composers.imagePickTarget == null) {
+                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
+                    imagePicker.launch("image/*")
+                }
+            },
+            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })
@@ -701,7 +704,7 @@ fun ChatScreen(
 }
 
 /** Which sheet, if any, is open over the chat surface. */
-private enum class ChatSheet { Commands, Models, Presets, Subagents }
+private enum class ChatSheet { Commands, Attachments, Models, Presets, Subagents }
 
 /**
  * A picked document's display name and size, as its provider reports them.

@@ -126,7 +126,6 @@
     <string name="chat_composer_mode">Send mode</string>
     <string name="chat_composer_mode_queue_hint">Runs after the current turn finishes</string>
     <string name="chat_composer_mode_steer_hint">Interrupts the running turn</string>
-    <string name="chat_composer_steer_idle">Steering needs a running turn</string>
     <string name="chat_tab">Chat</string>
     <string name="chat_todo_title">To-dos</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>
@@ -149,7 +148,9 @@
     <string name="chat_composer_queue">Queue</string>
     <string name="chat_composer_steer">Steer</string>
     <string name="chat_composer_stop">Stop</string>
-    <string name="chat_composer_attach">Attach image</string>
+    <string name="chat_composer_attach">Attach</string>
+    <string name="chat_composer_attach_image">Attach image</string>
+    <string name="chat_composer_attach_title">Attach to message</string>
     <string name="chat_composer_remove_image">Remove image</string>
     <string name="chat_empty_title">Start working with your harness</string>
     <string name="chat_empty_hint">Send a message to begin a new turn.</string>

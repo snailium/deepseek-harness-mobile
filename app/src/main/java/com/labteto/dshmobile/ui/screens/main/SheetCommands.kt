@@ -1,7 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,9 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -34,7 +30,7 @@ import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.ui.components.DsBottomSheet
-import com.labteto.dshmobile.ui.components.DsPill
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -42,24 +38,24 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
- * The `+` sheet: everything you can add to a message that is not the message.
+ * The `/` sheet: the harness's own commands and skills.
  *
- * Commands come from the harness's own per-session catalog rather than a hardcoded list, because
- * which commands exist depends on the deployment and on the session's agent preset. When the
- * harness exposes no catalog the section says so instead of inventing entries — a menu that offers
- * a command the host will reject is worse than a menu that admits it does not know.
+ * Commands come from the harness's per-session catalog rather than a hardcoded list, because which
+ * commands exist depends on the deployment and on the session's agent preset. When the harness
+ * exposes no catalog the section says so instead of inventing entries — a menu that offers a
+ * command the host will reject is worse than a menu that admits it does not know.
+ *
+ * Attaching and the Queue/Steer mode used to live here too. They moved out: the composer's `+`
+ * button was three unrelated things in one menu (a command palette, a file picker and a send-mode
+ * switch), and the split is now `/` for commands and the paperclip for attachments. The send mode
+ * went to the session details panel, where a working preference belongs rather than a per-message
+ * menu.
  */
 @Composable
 internal fun CommandSheet(
     commands: List<CommandDescriptor>,
     commandsAvailable: Boolean,
     skills: List<SkillEntry>,
-    mode: String,
-    running: Boolean,
-    canAttach: Boolean,
-    onModeChange: (String) -> Unit,
-    onAttach: () -> Unit,
-    onAttachFile: () -> Unit,
     onRunCommand: (String) -> Unit,
     onPrefillDraft: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -71,73 +67,6 @@ internal fun CommandSheet(
     val searchable = commands.size + skills.size > 12
 
     DsBottomSheet(title = stringResource(R.string.chat_composer_commands), onDismiss = onDismiss) {
-        // Attach ------------------------------------------------------------
-        SheetRow(
-            leading = {
-                Icon(
-                    Icons.Filled.Image,
-                    contentDescription = null,
-                    tint = colors.labelSecondary,
-                    modifier = Modifier.size(20.dp),
-                )
-            },
-            title = stringResource(R.string.chat_composer_attach),
-            subtitle = if (canAttach) null else stringResource(R.string.err_attachment_failed),
-            enabled = canAttach,
-            onClick = {
-                onDismiss()
-                onAttach()
-            },
-        )
-        // Harness 0.1.3 takes any file, not only pictures. The bytes go up as soon as one is
-        // picked and the message cites the receipt, so the row stays enabled exactly when the
-        // image one is: both need an open session to upload against.
-        SheetRow(
-            leading = {
-                Icon(
-                    Icons.Filled.AttachFile,
-                    contentDescription = null,
-                    tint = colors.labelSecondary,
-                    modifier = Modifier.size(20.dp),
-                )
-            },
-            title = stringResource(R.string.chat_composer_attach_file),
-            subtitle = null,
-            enabled = canAttach,
-            onClick = {
-                onDismiss()
-                onAttachFile()
-            },
-        )
-
-        // Send mode ---------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_mode))
-        Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-            DsPill(
-                text = stringResource(R.string.chat_composer_queue),
-                selected = mode != "steer",
-                onClick = { onModeChange("queue") },
-            )
-            // Steering splices into a turn that is already running; with an idle agent there is
-            // nothing to steer, so the option stays visible but inert rather than silently failing.
-            DsPill(
-                text = stringResource(R.string.chat_composer_steer),
-                selected = mode == "steer",
-                onClick = if (running) ({ onModeChange("steer") }) else null,
-            )
-        }
-        Text(
-            stringResource(
-                when {
-                    !running && mode == "steer" -> R.string.chat_composer_steer_idle
-                    mode == "steer" -> R.string.chat_composer_mode_steer_hint
-                    else -> R.string.chat_composer_mode_queue_hint
-                },
-            ),
-            style = DsType.caption11,
-            color = colors.labelTertiary,
-        )
-
         if (searchable) {
             TextField(
                 value = query,
@@ -210,6 +139,63 @@ internal fun CommandSheet(
                 }
             }
         }
+    }
+}
+
+/**
+ * The paperclip sheet: what to attach.
+ *
+ * Two rows rather than one picker, because the platform makes them different gestures — a photo
+ * comes from the media store and a file from the document provider — and the harness treats them
+ * differently too: 0.1.3 takes any file, but the image path also feeds the multimodal route.
+ */
+@Composable
+internal fun AttachmentSheet(
+    canAttach: Boolean,
+    onAttachImage: () -> Unit,
+    onAttachFile: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    DsBottomSheet(title = stringResource(R.string.chat_composer_attach_title), onDismiss = onDismiss) {
+        SheetRow(
+            leading = {
+                Icon(
+                    FeatherIcons.Image,
+                    contentDescription = null,
+                    tint = colors.labelSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            },
+            title = stringResource(R.string.chat_composer_attach_image),
+            // The row stays enabled exactly when the file one is: both upload against an open
+            // session, so both need one.
+            subtitle = if (canAttach) null else stringResource(R.string.err_attachment_failed),
+            enabled = canAttach,
+            onClick = {
+                onDismiss()
+                onAttachImage()
+            },
+        )
+        // Harness 0.1.3 takes any file, not only pictures. The bytes go up as soon as one is
+        // picked and the message cites the receipt.
+        SheetRow(
+            leading = {
+                Icon(
+                    FeatherIcons.Paperclip,
+                    contentDescription = null,
+                    tint = colors.labelSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            },
+            title = stringResource(R.string.chat_composer_attach_file),
+            subtitle = null,
+            enabled = canAttach,
+            onClick = {
+                onDismiss()
+                onAttachFile()
+            },
+        )
     }
 }
 

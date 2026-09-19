@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">File d’attente</string>
     <string name="chat_composer_steer">Orienter</string>
     <string name="chat_composer_stop">Arrêter</string>
-    <string name="chat_composer_attach">Joindre une image</string>
+    <string name="chat_composer_attach">Joindre</string>
+    <string name="chat_composer_attach_image">Joindre une image</string>
+    <string name="chat_composer_attach_title">Joindre au message</string>
     <string name="chat_composer_remove_image">Retirer l’image</string>
     <string name="chat_empty_title">Commencez à travailler avec votre Harness</string>
     <string name="chat_empty_hint">Envoyez un message pour démarrer un nouveau tour.</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">Mode d’envoi</string>
     <string name="chat_composer_mode_queue_hint">S’exécute à la fin du tour en cours</string>
     <string name="chat_composer_mode_steer_hint">Interrompt le tour en cours</string>
-    <string name="chat_composer_steer_idle">L’orientation exige un tour en cours</string>
     <string name="chat_tab">Discussion</string>
     <string name="chat_todo_title">Tâches</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">কিউ</string>
     <string name="chat_composer_steer">পরিচালনা</string>
     <string name="chat_composer_stop">থামান</string>
-    <string name="chat_composer_attach">ছবি সংযুক্ত করুন</string>
+    <string name="chat_composer_attach">সংযুক্ত করুন</string>
+    <string name="chat_composer_attach_image">ছবি সংযুক্ত করুন</string>
+    <string name="chat_composer_attach_title">বার্তায় সংযুক্ত করুন</string>
     <string name="chat_composer_remove_image">ছবি সরান</string>
     <string name="chat_empty_title">আপনার Harness নিয়ে কাজ শুরু করুন</string>
     <string name="chat_empty_hint">নতুন টার্ন শুরু করতে একটি বার্তা পাঠান।</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">পাঠানোর ধরন</string>
     <string name="chat_composer_mode_queue_hint">বর্তমান টার্ন শেষ হলে চলবে</string>
     <string name="chat_composer_mode_steer_hint">চলমান টার্নে হস্তক্ষেপ করে</string>
-    <string name="chat_composer_steer_idle">হস্তক্ষেপের জন্য চলমান টার্ন লাগে</string>
     <string name="chat_tab">চ্যাট</string>
     <string name="chat_todo_title">করণীয়</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

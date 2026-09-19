@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">Очередь</string>
     <string name="chat_composer_steer">Направлять</string>
     <string name="chat_composer_stop">Стоп</string>
-    <string name="chat_composer_attach">Прикрепить изображение</string>
+    <string name="chat_composer_attach">Прикрепить</string>
+    <string name="chat_composer_attach_image">Прикрепить изображение</string>
+    <string name="chat_composer_attach_title">Прикрепить к сообщению</string>
     <string name="chat_composer_remove_image">Убрать изображение</string>
     <string name="chat_empty_title">Начните работу со своим Harness</string>
     <string name="chat_empty_hint">Отправьте сообщение, чтобы начать новый ход.</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">Режим отправки</string>
     <string name="chat_composer_mode_queue_hint">Выполнится после завершения текущего хода</string>
     <string name="chat_composer_mode_steer_hint">Прерывает текущий ход</string>
-    <string name="chat_composer_steer_idle">Для вмешательства нужен идущий ход</string>
     <string name="chat_tab">Чат</string>
     <string name="chat_todo_title">Задачи</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

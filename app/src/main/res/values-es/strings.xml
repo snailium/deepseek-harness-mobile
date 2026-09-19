@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">Cola</string>
     <string name="chat_composer_steer">Dirigir</string>
     <string name="chat_composer_stop">Detener</string>
-    <string name="chat_composer_attach">Adjuntar imagen</string>
+    <string name="chat_composer_attach">Adjuntar</string>
+    <string name="chat_composer_attach_image">Adjuntar imagen</string>
+    <string name="chat_composer_attach_title">Adjuntar al mensaje</string>
     <string name="chat_composer_remove_image">Quitar imagen</string>
     <string name="chat_empty_title">Empieza a trabajar con tu Harness</string>
     <string name="chat_empty_hint">Envía un mensaje para comenzar un nuevo turno.</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">Modo de envío</string>
     <string name="chat_composer_mode_queue_hint">Se ejecuta al terminar el turno actual</string>
     <string name="chat_composer_mode_steer_hint">Interrumpe el turno en curso</string>
-    <string name="chat_composer_steer_idle">Dirigir requiere un turno en curso</string>
     <string name="chat_tab">Chat</string>
     <string name="chat_todo_title">Tareas</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

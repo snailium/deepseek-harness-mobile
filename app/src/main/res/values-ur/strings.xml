@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">قطار</string>
     <string name="chat_composer_steer">سمت دینا</string>
     <string name="chat_composer_stop">روکیں</string>
-    <string name="chat_composer_attach">تصویر منسلک کریں</string>
+    <string name="chat_composer_attach">منسلک کریں</string>
+    <string name="chat_composer_attach_image">تصویر منسلک کریں</string>
+    <string name="chat_composer_attach_title">پیغام کے ساتھ منسلک کریں</string>
     <string name="chat_composer_remove_image">تصویر ہٹائیں</string>
     <string name="chat_empty_title">اپنے Harness کے ساتھ کام شروع کریں</string>
     <string name="chat_empty_hint">نیا ٹرن شروع کرنے کے لیے پیغام بھیجیں۔</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">بھیجنے کا انداز</string>
     <string name="chat_composer_mode_queue_hint">موجودہ ٹرن ختم ہونے پر چلے گا</string>
     <string name="chat_composer_mode_steer_hint">جاری ٹرن میں مداخلت کرتا ہے</string>
-    <string name="chat_composer_steer_idle">مداخلت کے لیے جاری ٹرن ضروری ہے</string>
     <string name="chat_tab">چیٹ</string>
     <string name="chat_todo_title">کام</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

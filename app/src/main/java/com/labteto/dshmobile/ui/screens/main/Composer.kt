@@ -31,7 +31,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -69,6 +68,7 @@ import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.FileAttachmentRef
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
 import com.labteto.dshmobile.ui.components.ContextRing
+import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
@@ -141,12 +141,18 @@ internal sealed interface FileUploadState {
 }
 
 /**
- * The message composer, laid out like the harness's own: the `+` and the permission chip on the
- * left, the send affordance on the right.
+ * The message composer, laid out like the harness's own: the `/` and paperclip buttons on the
+ * left, the permission chip and context ring on the right of the field, send at the far edge.
  *
- * The model selector is deliberately *not* here — it moved to the top bar, which leaves this row
- * for the two controls you change mid-conversation and keeps the composer from wrapping on a
- * narrow phone.
+ * The two leading buttons used to be one `+` that opened a menu holding a command palette, a file
+ * picker and a send-mode switch. That is three unrelated things behind one glyph, and the reader
+ * had to open it to find out which. `/` now opens only commands and the paperclip only
+ * attachments; the send mode moved to the session details panel, where a working preference
+ * belongs rather than a per-message menu.
+ *
+ * The model selector is deliberately *not* here — it lives in the tab row, which leaves this row
+ * for the controls you change mid-conversation and keeps the composer from wrapping on a narrow
+ * phone.
  */
 @Composable
 internal fun Composer(
@@ -167,7 +173,8 @@ internal fun Composer(
      * a newline, which is what a field of this shape is expected to do.
      */
     enterToSend: Boolean = false,
-    onOpenSheet: () -> Unit,
+    onOpenCommands: () -> Unit,
+    onOpenAttachments: () -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -285,29 +292,24 @@ internal fun Composer(
                 // ring, a 14dp glyph — rather than through CircleAction. That helper scales its
                 // glyph to the button and carries the send/stop styling; trying to make it also
                 // imitate a control it was never shaped for produced two rounds of a button that
-                // looked wrong in a different way each time. The three round controls in this row
-                // now share one construction, so a change to one is a change to all.
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(colors.hoverSolid)
-                        .border(1.dp, colors.borderL2, CircleShape)
-                        .clickable(
-                            enabled = enabled,
-                            role = Role.Button,
-                            onClickLabel = stringResource(R.string.chat_composer_commands),
-                            onClick = onOpenSheet,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.Add,
-                        contentDescription = stringResource(R.string.chat_composer_commands),
-                        tint = colors.labelPrimary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
+                // looked wrong in a different way each time. Every round control in this row now
+                // shares one construction, so a change to one is a change to all.
+                //
+                // `/` and the paperclip are siblings rather than one `+`: the glyph is the label,
+                // and a slash for "insert a command" needs no explaining where a `+` covering
+                // three unrelated actions did.
+                ComposerRoundButton(
+                    icon = FeatherIcons.Slash,
+                    label = stringResource(R.string.chat_composer_commands),
+                    enabled = enabled,
+                    onClick = onOpenCommands,
+                )
+                ComposerRoundButton(
+                    icon = FeatherIcons.Paperclip,
+                    label = stringResource(R.string.chat_composer_attach),
+                    enabled = enabled,
+                    onClick = onOpenAttachments,
+                )
 
                 // Flexible spacer: absorbs the leftover width so the trailing controls
                 // (permission, context ring, send) are pinned to the right edge of the row.
@@ -378,6 +380,48 @@ internal fun Composer(
                 }
             }
         }
+    }
+}
+
+/**
+ * One 28dp round button of the composer's action row.
+ *
+ * Extracted from the `+` it replaces so the two leading buttons (`/` and the paperclip) are
+ * literally the same construction as each other and as the permission trigger beside them: a 28dp
+ * circle, a 1dp `borderL2` ring, a 14dp glyph. Three copies of that recipe is how they drifted
+ * apart the last time; one helper is how they stay together.
+ *
+ * The ring is not decoration — the fill is the page colour, and a touch screen has no hover to
+ * reveal that the button is pressable.
+ */
+@Composable
+private fun ComposerRoundButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(colors.hoverSolid)
+            .border(1.dp, colors.borderL2, CircleShape)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = label,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (enabled) colors.labelPrimary else colors.labelTertiary,
+            modifier = Modifier.size(14.dp),
+        )
     }
 }
 

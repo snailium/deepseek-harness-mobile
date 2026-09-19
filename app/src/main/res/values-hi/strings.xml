@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">कतार</string>
     <string name="chat_composer_steer">निर्देशित करें</string>
     <string name="chat_composer_stop">रोकें</string>
-    <string name="chat_composer_attach">छवि संलग्न करें</string>
+    <string name="chat_composer_attach">संलग्न करें</string>
+    <string name="chat_composer_attach_image">छवि संलग्न करें</string>
+    <string name="chat_composer_attach_title">संदेश में संलग्न करें</string>
     <string name="chat_composer_remove_image">छवि हटाएं</string>
     <string name="chat_empty_title">अपने Harness के साथ काम शुरू करें</string>
     <string name="chat_empty_hint">नया टर्न शुरू करने के लिए एक संदेश भेजें।</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">भेजने का तरीका</string>
     <string name="chat_composer_mode_queue_hint">मौजूदा टर्न पूरा होने के बाद चलेगा</string>
     <string name="chat_composer_mode_steer_hint">चल रहे टर्न में हस्तक्षेप करता है</string>
-    <string name="chat_composer_steer_idle">हस्तक्षेप के लिए चल रहा टर्न चाहिए</string>
     <string name="chat_tab">चैट</string>
     <string name="chat_todo_title">कार्य</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

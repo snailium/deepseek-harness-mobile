@@ -107,7 +107,9 @@
     <string name="chat_composer_queue">队列</string>
     <string name="chat_composer_steer">引导</string>
     <string name="chat_composer_stop">停止</string>
-    <string name="chat_composer_attach">附加图片</string>
+    <string name="chat_composer_attach">附件</string>
+    <string name="chat_composer_attach_image">添加图片</string>
+    <string name="chat_composer_attach_title">添加到消息</string>
     <string name="chat_composer_remove_image">移除图片</string>
     <string name="chat_empty_title">开始使用你的 Harness</string>
     <string name="chat_empty_hint">发送一条消息即可开始新一轮。</string>
@@ -299,7 +301,6 @@
     <string name="chat_composer_mode">发送方式</string>
     <string name="chat_composer_mode_queue_hint">在当前回合结束后执行</string>
     <string name="chat_composer_mode_steer_hint">插入正在进行的回合</string>
-    <string name="chat_composer_steer_idle">插入需要有正在进行的回合</string>
     <string name="chat_tab">对话</string>
     <string name="chat_todo_title">待办</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>
