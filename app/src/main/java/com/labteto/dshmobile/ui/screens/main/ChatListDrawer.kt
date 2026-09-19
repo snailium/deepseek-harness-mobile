@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -48,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,6 +64,8 @@ import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.MenuItem
+import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
@@ -235,62 +235,25 @@ fun ChatListDrawer(
         }
 
         // The search field folds away rather than permanently occupying a row of a phone-height
-        // drawer, which is otherwise pure overhead for the common case. Same pill recipe as the
-        // transcript search bar: 32dp tall, hoverSolid fill, Feather magnifier, BasicTextField,
-        // trailing × — no border, no Material3 TextField (56dp floor).
+        // drawer, which is otherwise pure overhead for the common case. Same pill as every other
+        // search field in the app, through SearchField — this used to be a hand-copied version of
+        // that recipe, which is exactly how it drifted from the transcript's.
         AnimatedVisibility(visible = searchOpen) {
             Column(modifier = Modifier.padding(top = DsSpacing.small)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .clip(DsShapes.pillFull)
-                        .background(colors.hoverSolid)
-                        .padding(start = DsSpacing.small, end = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        FeatherIcons.Search,
-                        contentDescription = null,
-                        tint = colors.labelTertiary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(DsSpacing.tiny))
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.weight(1f),
-                        textStyle = DsType.m3BodyMedium.copy(color = colors.labelPrimary),
-                        cursorBrush = SolidColor(colors.accent),
-                        singleLine = true,
-                        decorationBox = { inner ->
-                            Box(contentAlignment = Alignment.CenterStart) {
-                                if (query.isEmpty()) {
-                                    Text(
-                                        stringResource(R.string.chatlist_search_hint),
-                                        style = DsType.m3BodyMedium,
-                                        color = colors.labelTertiary,
-                                        maxLines = 1,
-                                    )
-                                }
-                                inner()
-                            }
-                        },
-                    )
-                    Icon(
-                        FeatherIcons.X,
-                        contentDescription = stringResource(R.string.common_cancel),
-                        tint = colors.labelTertiary,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .clickable {
+                SearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = stringResource(R.string.chatlist_search_hint),
+                    modifier = Modifier.fillMaxWidth(),
+                    trailing = {
+                        SearchFieldCloseButton(
+                            onClick = {
                                 searchOpen = false
                                 query = ""
-                            }
-                            .padding(6.dp),
-                    )
-                }
+                            },
+                        )
+                    },
+                )
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
                 // content index off, so this is a normal capability note — not a failure.
                 if (!contentSearchAvailable && query.isNotBlank()) {

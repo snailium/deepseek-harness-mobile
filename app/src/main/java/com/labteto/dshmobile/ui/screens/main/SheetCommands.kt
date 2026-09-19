@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +30,8 @@ import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -68,13 +69,18 @@ internal fun CommandSheet(
 
     DsBottomSheet(title = stringResource(R.string.chat_composer_commands), onDismiss = onDismiss) {
         if (searchable) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
+            // The app's own search pill, not a Material3 TextField: that one is a 56dp outlined
+            // box, so it read as a control from a different app sitting above the list.
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = stringResource(R.string.common_search),
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.common_search), style = DsType.std14) },
-                colors = dialogTextFieldColors(),
+                trailing = if (query.isNotEmpty()) {
+                    { SearchFieldCloseButton(onClick = { query = "" }) }
+                } else {
+                    null
+                },
             )
         }
 
