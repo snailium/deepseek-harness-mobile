@@ -100,7 +100,7 @@ internal fun ChatTopBar(
                 .heightIn(min = 44.dp)
                 .padding(horizontal = DsSpacing.tiny),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
             DsIconButton(
                 icon = FeatherIcons.Menu,
@@ -134,7 +134,7 @@ internal fun ChatTopBar(
                 onClick = onToggleSearch,
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
                 iconSize = 18.dp,
-                touchTarget = 20.dp,
+                touchTarget = 24.dp,
             )
             // The workspace panel is a destination, not a label: an icon frees the line of text it
             // used to occupy above the transcript while staying one tap away.
@@ -145,7 +145,7 @@ internal fun ChatTopBar(
                     onClick = onOpenWorkspace,
                     tint = colors.labelTertiary,
                     iconSize = 18.dp,
-                    touchTarget = 20.dp,
+                    touchTarget = 24.dp,
                 )
             }
             if (!detailsOpen) {
@@ -155,9 +155,10 @@ internal fun ChatTopBar(
                     onClick = onOpenDetails,
                     tint = colors.labelTertiary,
                     iconSize = 18.dp,
-                    touchTarget = 20.dp,
+                    touchTarget = 24.dp,
                 )
             }
+            Spacer(Modifier.width(6.dp))
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
