@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -245,43 +248,60 @@ fun ChatListDrawer(
         }
 
         // The search field folds away rather than permanently occupying a row of a phone-height
-        // drawer, which is otherwise pure overhead for the common case.
+        // drawer, which is otherwise pure overhead for the common case. Same pill recipe as the
+        // transcript search bar: 32dp tall, hoverSolid fill, Feather magnifier, BasicTextField,
+        // trailing × — no border, no Material3 TextField (56dp floor).
         AnimatedVisibility(visible = searchOpen) {
             Column(modifier = Modifier.padding(top = DsSpacing.small)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .height(32.dp)
                         .clip(DsShapes.pillFull)
-                        .background(colors.bgLayer2)
-                        .border(1.dp, colors.borderL2, DsShapes.pillFull)
-                        .padding(start = DsSpacing.medium, end = DsSpacing.xsmall),
+                        .background(colors.hoverSolid)
+                        .padding(start = DsSpacing.small, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        Icons.Filled.Search,
+                        FeatherIcons.Search,
                         contentDescription = null,
                         tint = colors.labelTertiary,
-                        modifier = Modifier.size(16.dp).padding(end = DsSpacing.xsmall),
+                        modifier = Modifier.size(14.dp),
                     )
-                    TextField(
+                    Spacer(Modifier.width(DsSpacing.tiny))
+                    BasicTextField(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.base16) },
+                        textStyle = DsType.m3BodyMedium.copy(color = colors.labelPrimary),
+                        cursorBrush = SolidColor(colors.accent),
                         singleLine = true,
-                        colors = dialogTextFieldColors(),
+                        decorationBox = { inner ->
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                if (query.isEmpty()) {
+                                    Text(
+                                        stringResource(R.string.chatlist_search_hint),
+                                        style = DsType.m3BodyMedium,
+                                        color = colors.labelTertiary,
+                                        maxLines = 1,
+                                    )
+                                }
+                                inner()
+                            }
+                        },
                     )
                     Icon(
-                        Icons.Filled.Close,
+                        FeatherIcons.X,
                         contentDescription = stringResource(R.string.common_cancel),
                         tint = colors.labelTertiary,
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(24.dp)
                             .clip(androidx.compose.foundation.shape.CircleShape)
                             .clickable {
                                 searchOpen = false
                                 query = ""
-                            },
+                            }
+                            .padding(6.dp),
                     )
                 }
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
