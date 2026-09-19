@@ -158,7 +158,10 @@ internal fun ChatTopBar(
                     touchTarget = 24.dp,
                 )
             }
-            Spacer(Modifier.width(2.dp))
+            // Zero-width filler: its only purpose is to be a child of the Row so that
+            // spacedBy(xsmall) inserts a 6dp gap after the last icon. Without it, info would
+            // sit flush against the row's own 4dp horizontal padding.
+            Spacer(Modifier.width(0.dp))
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
