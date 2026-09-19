@@ -158,7 +158,7 @@ internal fun ChatTopBar(
                     touchTarget = 24.dp,
                 )
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(2.dp))
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
