@@ -39,6 +39,7 @@ import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.StateDot
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -77,6 +78,18 @@ internal fun ChatTopBar(
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
+    /** Opens the session's workspace file panel; null hides the button. */
+    onOpenWorkspace: (() -> Unit)? = null,
+    /** Transcript search: the query, where the cursor sits, and how many messages matched. */
+    searchQuery: String = "",
+    searchPosition: Int = 0,
+    searchCount: Int = 0,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchPrevious: () -> Unit = {},
+    onSearchNext: () -> Unit = {},
+    /** Whether the collapsible search bar is open; the toolbar's search icon toggles it. */
+    searchOpen: Boolean = false,
+    onToggleSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -84,9 +97,10 @@ internal fun ChatTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
+                .heightIn(min = 44.dp)
                 .padding(horizontal = DsSpacing.tiny),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
             DsIconButton(
                 icon = FeatherIcons.Menu,
@@ -95,9 +109,50 @@ internal fun ChatTopBar(
                 tint = colors.labelSecondary,
                 iconSize = 18.dp,
             )
-            ModelChip(models = models, onClick = onOpenModels, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.weight(1f))
-            StateDot(if (running) StateDotState.Running else StateDotState.Idle)
+            // The session title lives here, on the identity row, rather than on a row of its own
+            // below: it is what the screen *is*, and a separate row spent a whole line of a phone
+            // screen restating it. It shares the row with the controls and ellipsises, so a long
+            // title can never push the buttons off.
+            if (title.isNotBlank()) {
+                Text(
+                    title,
+                    // A step up from the row's other text: the title is the one piece of prose in
+                    // the header, so it carries the emphasis rather than matching the controls.
+                    style = DsType.base16Strong,
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+            } else {
+                Spacer(Modifier.weight(1f))
+            }
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                StateDot(if (running) StateDotState.Running else StateDotState.Idle, size = 12.dp)
+            }
+            DsIconButton(
+                icon = FeatherIcons.Search,
+                contentDescription = stringResource(R.string.common_search),
+                onClick = onToggleSearch,
+                tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = 18.dp,
+                touchTarget = 24.dp,
+            )
+            // The workspace panel is a destination, not a label: an icon frees the line of text it
+            // used to occupy above the transcript while staying one tap away.
+            if (onOpenWorkspace != null) {
+                DsIconButton(
+                    icon = FeatherIcons.Folder,
+                    contentDescription = stringResource(R.string.panel_workspace),
+                    onClick = onOpenWorkspace,
+                    tint = colors.labelTertiary,
+                    iconSize = 18.dp,
+                    touchTarget = 24.dp,
+                )
+            }
             if (!detailsOpen) {
                 DsIconButton(
                     icon = FeatherIcons.Info,
@@ -105,12 +160,19 @@ internal fun ChatTopBar(
                     onClick = onOpenDetails,
                     tint = colors.labelTertiary,
                     iconSize = 18.dp,
+                    touchTarget = 24.dp,
                 )
             }
+            // Zero-width filler: its only purpose is to be a child of the Row so that
+            // spacedBy(xsmall) inserts a 6dp gap after the last icon. Without it, info would
+            // sit flush against the row's own 4dp horizontal padding.
+            Spacer(Modifier.width(0.dp))
         }
 
         val hasChips = agentPresetLabel != null || subagentCount > 0
-        if (title.isNotBlank() || hasChips) {
+        // The chips row appears only when there is a chip to show: the title moved up, so a row
+        // holding nothing but empty space would be a blank band under the header.
+        if (hasChips) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -118,14 +180,6 @@ internal fun ChatTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
             ) {
-                Text(
-                    title,
-                    style = DsType.std14Strong,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
                 if (agentPresetLabel != null) {
                     MetaChip(
                         icon = Icons.Outlined.Dashboard,
@@ -143,7 +197,12 @@ internal fun ChatTopBar(
             }
         }
 
-        ChatTabRow(tab = tab, onTabChange = onTabChange)
+        ChatTabRow(
+            tab = tab,
+            onTabChange = onTabChange,
+            models = models,
+            onOpenModels = onOpenModels,
+        )
     }
 }
 
@@ -158,10 +217,18 @@ internal fun ChatTopBar(
  * bare text over the transcript gave no sign the model was switchable at all.
  */
 @Composable
-private fun ModelChip(
+internal fun ModelChip(
     models: SessionModelsValue?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /**
+     * Drop the *leading* part of an over-long model name rather than the tail.
+     *
+     * Model ids are long and their distinguishing part is at the end (`…/Qwen3.8-27B-Q4_K_M` and
+     * `…/Qwen3.8-27B-Q8_0` differ only there), so the usual trailing ellipsis hides exactly the
+     * characters a reader needs. The composer's narrow slot is where this matters.
+     */
+    truncateLeading: Boolean = false,
 ) {
     val colors = DsTheme.colors
     if (models == null) {
@@ -182,7 +249,9 @@ private fun ModelChip(
 
     Row(
         modifier = modifier
-            .widthIn(max = 240.dp)
+            // No width cap of its own: the caller decides. In the composer the chip takes the
+            // leftover width, and capping it at 240dp there would leave a gap the round buttons
+            // then had to be pushed across by a competing spacer.
             .heightIn(min = 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -196,12 +265,12 @@ private fun ModelChip(
             StateDot(StateDotState.Warning, size = 6.dp)
         }
         Text(
-            modelLabel,
-            style = DsType.std14Strong,
+            if (truncateLeading) modelLabel.trimStartForDisplay() else modelLabel,
+            style = DsType.small13Strong,
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.weight(1f),
         )
         effort?.let {
             Text(it.name, style = DsType.small13, color = colors.labelTertiary, maxLines = 1)
@@ -213,6 +282,28 @@ private fun ModelChip(
             modifier = Modifier.size(14.dp),
         )
     }
+}
+
+
+/**
+ * Trim a model name's head so its tail survives.
+ *
+ * This is a coarse cut, not a measured one: Compose will still ellipsise whatever is left if it
+ * does not fit, and measuring per-glyph would mean a layout pass per keystroke for a label that
+ * changes once a session. Keeping the last [MODEL_LABEL_TAIL] characters covers the case that
+ * actually occurs — a provider path in front of a short, meaningful model id — while a name that
+ * is short throughout passes through untouched.
+ */
+private const val MODEL_LABEL_TAIL = 16
+
+private fun String.trimStartForDisplay(): String {
+    val slash = lastIndexOf('/')
+    // A provider prefix is the part worth dropping first, and it is unambiguous when present.
+    if (slash >= 0 && slash < length - 1) {
+        val tail = substring(slash + 1)
+        if (tail.length <= MODEL_LABEL_TAIL) return "\u2026$tail"
+    }
+    return if (length <= MODEL_LABEL_TAIL + 4) this else "\u2026" + takeLast(MODEL_LABEL_TAIL)
 }
 
 /** The preset and subagent chips. Same reasoning as [ModelChip]: a tap target has to look like one. */
@@ -252,28 +343,58 @@ private fun MetaChip(
  * their own; a 28dp track wraps to the labels and lets the chrome end there.
  */
 @Composable
-private fun ChatTabRow(tab: ChatTab, onTabChange: (ChatTab) -> Unit) {
+private fun ChatTabRow(
+    tab: ChatTab,
+    onTabChange: (ChatTab) -> Unit,
+    models: SessionModelsValue?,
+    onOpenModels: () -> Unit,
+) {
     val colors = DsTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
     ) {
         // Which tab is live is load-bearing, not decoration: the two views render a user message
         // completely differently — a right-aligned bubble in Chat, a `> line` of caption text in
         // the Trajectory ledger — so a reader who cannot tell at a glance concludes the chat itself
         // is broken.
         DsSegmented(
+            // 40/60: "Chat" is the shorter label, so it keeps a compact hit target while
+            // "Trajectory" gets the room its longer word needs. An even split ellipsised the
+            // longer one to buy the shorter one space it had no use for.
             segments = listOf(
-                DsSegment(TAB_CHAT, stringResource(R.string.chat_tab)),
-                DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title)),
+                DsSegment(TAB_CHAT, stringResource(R.string.chat_tab), weight = 0.4f),
+                DsSegment(TAB_TRAJECTORY, stringResource(R.string.trajectory_title), weight = 0.6f),
             ),
             selectedKey = if (tab == ChatTab.Chat) TAB_CHAT else TAB_TRAJECTORY,
             onSelect = { key ->
                 onTabChange(if (key == TAB_CHAT) ChatTab.Chat else ChatTab.Trajectory)
             },
             role = Role.Tab,
+            // Stretched, not hugged: which view is live is a decision the reader keeps making, so
+            // the control gets a primary control's height rather than an inline chip's.
+            //
+            // 144dp, down from 240dp. The floor is set by the two labels, not by taste: at 13sp
+            // "Chat" needs ~28dp and "Trajectory" ~60dp of text, plus 8dp of padding and the
+            // track's own 6dp of chrome and gap. A 40/60 split of the inner width therefore gives
+            // Trajectory ~83dp at 144dp and ~76dp at 132dp — the latter ellipsises, so anything
+            // under 144 means "Trajector…". Narrower than that has to come out of the 40/60 ratio,
+            // not out of the track.
+            stretch = true,
+            modifier = Modifier
+                .widthIn(max = 144.dp)
+                .heightIn(max = 32.dp),
+        )
+        // The model selector lives here rather than in the composer: it configures the session,
+        // not the next keystroke, so it belongs in the tab row where the reader's eye already goes.
+        // 32dp matches the segmented control's height; the font stays small13Strong.
+        ModelChip(
+            models = models,
+            onClick = onOpenModels,
+            modifier = Modifier.weight(1f).widthIn(max = 320.dp).height(32.dp),
         )
     }
     Spacer(
