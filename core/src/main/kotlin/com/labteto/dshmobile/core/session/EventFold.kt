@@ -9,6 +9,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import com.labteto.dshmobile.core.wire.WireJson
+import com.labteto.dshmobile.core.wire.dto.TodoItem
+import com.labteto.dshmobile.core.wire.dto.TodoWriteData
 
 /**
  * Folds raw [SessionEventEnvelope]s into a [ConversationSnapshot].
@@ -65,6 +68,7 @@ class EventFold(private val sessionId: String) {
             state.nodes.addAll(initial.nodes.filterNot { it is AssistantMessageNode && it.streaming })
             state.running = initial.running
             state.hasMore = initial.hasMore
+            state.liveTodos = initial.todos
         }
 
         fun apply(event: SessionEventEnvelope): ConversationSnapshot? {
@@ -92,6 +96,16 @@ private class FoldState(private val sessionId: String) {
     var lastSeq = -1L
     var gap = false
 
+    /**
+     * The agent's live to-do list for the open turn, or null when there is nothing to show.
+     *
+     * Derived here rather than read back off [nodes]: the node list is a render-order buffer that
+     * the snapshot rebuilds, so scanning it for the newest `TodoNode` went stale. `todo/write`
+     * carries the whole list, `turn/start` clears it (a new turn starts with no plan), and an
+     * empty write means the agent finished everything — all three collapse to this one field.
+     */
+    var liveTodos: List<TodoItem>? = null
+
     /** Open assistant per (turn, step), built from chunk deltas. */
     private data class OpenAssistant(
         val turn: Int,
@@ -118,6 +132,7 @@ private class FoldState(private val sessionId: String) {
         hasMore = hasMore,
         lastSeq = lastSeq,
         gap = gap,
+        todos = liveTodos,
     )
 
     /**
@@ -168,6 +183,8 @@ private class FoldState(private val sessionId: String) {
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 nodes.add(TurnStartNode(event.seq, turn))
                 running = true
+                // A new turn starts with no plan of its own; the bar hides until the agent writes one.
+                liveTodos = null
             }
 
             "turn/end" -> {
@@ -258,7 +275,16 @@ private class FoldState(private val sessionId: String) {
                 nodes.add(ToolResultNode(event.seq, toolCallId.orEmpty(), content, isError, turn, step, data.jsonObject["meta"]))
             }
 
-            "todo/write" -> nodes.add(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
+            "todo/write" -> {
+                val items: List<TodoItem> = try {
+                    WireJson.decodeFromJsonElement(TodoWriteData.serializer(), data).todos
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                // An empty write is the agent clearing the plan, not an empty list to render.
+                liveTodos = items.ifEmpty { null }
+                nodes.add(TodoNode(event.seq, data.jsonObject["todos"] ?: data))
+            }
 
             "goal/change" -> nodes.add(GoalNode(event.seq, data))
 
