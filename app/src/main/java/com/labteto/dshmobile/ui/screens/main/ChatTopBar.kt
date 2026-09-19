@@ -87,6 +87,9 @@ internal fun ChatTopBar(
     onSearchQueryChange: (String) -> Unit = {},
     onSearchPrevious: () -> Unit = {},
     onSearchNext: () -> Unit = {},
+    /** Whether the collapsible search bar is open; the toolbar's search icon toggles it. */
+    searchOpen: Boolean = false,
+    onToggleSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -125,6 +128,14 @@ internal fun ChatTopBar(
             } else {
                 Spacer(Modifier.weight(1f))
             }
+            StateDot(if (running) StateDotState.Running else StateDotState.Idle)
+            DsIconButton(
+                icon = FeatherIcons.Search,
+                contentDescription = stringResource(R.string.common_search),
+                onClick = onToggleSearch,
+                tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = 18.dp,
+            )
             // The workspace panel is a destination, not a label: an icon frees the line of text it
             // used to occupy above the transcript while staying one tap away.
             if (onOpenWorkspace != null) {
@@ -136,7 +147,6 @@ internal fun ChatTopBar(
                     iconSize = 18.dp,
                 )
             }
-            StateDot(if (running) StateDotState.Running else StateDotState.Idle)
             if (!detailsOpen) {
                 DsIconButton(
                     icon = FeatherIcons.Info,
@@ -179,12 +189,8 @@ internal fun ChatTopBar(
         ChatTabRow(
             tab = tab,
             onTabChange = onTabChange,
-            searchQuery = searchQuery,
-            searchPosition = searchPosition,
-            searchCount = searchCount,
-            onSearchQueryChange = onSearchQueryChange,
-            onSearchPrevious = onSearchPrevious,
-            onSearchNext = onSearchNext,
+            models = models,
+            onOpenModels = onOpenModels,
         )
     }
 }
@@ -329,12 +335,8 @@ private fun MetaChip(
 private fun ChatTabRow(
     tab: ChatTab,
     onTabChange: (ChatTab) -> Unit,
-    searchQuery: String,
-    searchPosition: Int,
-    searchCount: Int,
-    onSearchQueryChange: (String) -> Unit,
-    onSearchPrevious: () -> Unit,
-    onSearchNext: () -> Unit,
+    models: SessionModelsValue?,
+    onOpenModels: () -> Unit,
 ) {
     val colors = DsTheme.colors
     Row(
@@ -375,17 +377,11 @@ private fun ChatTabRow(
                 .widthIn(max = 144.dp)
                 .heightIn(max = 32.dp),
         )
-        // The transcript search is a permanent resident of the utility row — it belongs to the
-        // session, not to either view, so switching tabs never takes it away. Capped at 320dp and
-        // pushed to the right edge: on a wide screen it does not stretch into an absurd pill, and
-        // the eye finds it in the same place every time.
-        TranscriptSearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchQueryChange,
-            matchPosition = searchPosition,
-            matchCount = searchCount,
-            onPrevious = onSearchPrevious,
-            onNext = onSearchNext,
+        // The model selector moved here from the composer: it configures the session, not the
+        // next keystroke, so it belongs in the tab row where the reader's eye already goes.
+        ModelChip(
+            models = models,
+            onClick = onOpenModels,
             modifier = Modifier.weight(1f).widthIn(max = 320.dp),
         )
     }

@@ -56,6 +56,8 @@ internal fun TranscriptSearchBar(
     matchCount: Int,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
+    /** Called when the trailing × is tapped; null hides the button (permanent-resident mode). */
+    onClose: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -137,6 +139,19 @@ internal fun TranscriptSearchBar(
             enabled = matchCount > 0,
             onClick = onNext,
         )
+        if (onClose != null) {
+            Spacer(Modifier.width(DsSpacing.xsmall))
+            Icon(
+                FeatherIcons.X,
+                contentDescription = stringResource(R.string.chat_search_close),
+                tint = colors.labelTertiary,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.chat_search_close)) { onClose() }
+                    .padding(6.dp),
+            )
+        }
     }
 }
 

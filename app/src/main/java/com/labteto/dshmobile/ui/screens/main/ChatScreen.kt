@@ -6,6 +6,7 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -67,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.ui.rememberHostsStore
 import androidx.compose.runtime.collectAsState
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
 import com.labteto.dshmobile.ui.theme.DsSpacing
 
 /**
@@ -94,10 +96,11 @@ fun ChatScreen(
     val liveTodos = store.todos.collectAsStateWithLifecycle().value
     var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
-    // In-transcript search. The bar is a permanent resident of the utility row, so the query and
-    // the cursor live above the tab swap: they belong to the session rather than to either view,
-    // and stepping past the last hit wraps to the first.
+    // In-transcript search. The bar is collapsible: the toolbar's search icon opens it, and a ×
+    // inside the bar closes it. The query and cursor live above the tab swap — they belong to the
+    // session rather than to either view, and stepping past the last hit wraps to the first.
     var searchQuery by remember(currentSessionId) { mutableStateOf("") }
+    var searchOpen by remember(currentSessionId) { mutableStateOf(false) }
     var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
     val matches = remember(conversation?.nodes, searchQuery) {
         findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
@@ -430,6 +433,8 @@ fun ChatScreen(
                 onSearchQueryChange = { searchQuery = it },
                 onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
                 onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                searchOpen = searchOpen,
+                onToggleSearch = { searchOpen = !searchOpen },
             )
 
             connectionError?.let {
@@ -468,6 +473,24 @@ fun ChatScreen(
                         ?.firstOrNull { it.seq == seq }?.messageId?.let { feedback = Triple(composer.key, it, positive) }
                 },
             )
+
+            // Collapsible transcript search: hidden by default, opened by the toolbar's search
+            // icon, closed by its own × button. Sits above the transcript so hits are visible
+            // while reading.
+            AnimatedVisibility(visible = searchOpen) {
+                TranscriptSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                    matchCount = matches.size,
+                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                    onClose = { searchOpen = false; searchQuery = "" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
+                )
+            }
 
             AnimatedContent(
                 targetState = tab,
