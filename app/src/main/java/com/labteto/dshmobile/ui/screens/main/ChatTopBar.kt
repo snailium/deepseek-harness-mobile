@@ -127,7 +127,12 @@ internal fun ChatTopBar(
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            StateDot(if (running) StateDotState.Running else StateDotState.Idle, size = 12.dp)
+            Box(
+                modifier = Modifier.size(24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                StateDot(if (running) StateDotState.Running else StateDotState.Idle, size = 12.dp)
+            }
             DsIconButton(
                 icon = FeatherIcons.Search,
                 contentDescription = stringResource(R.string.common_search),
