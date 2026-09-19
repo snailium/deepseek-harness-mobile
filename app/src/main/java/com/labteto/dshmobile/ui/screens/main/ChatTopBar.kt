@@ -97,9 +97,10 @@ internal fun ChatTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 48.dp)
+                .heightIn(min = 44.dp)
                 .padding(horizontal = DsSpacing.tiny),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
         ) {
             DsIconButton(
                 icon = FeatherIcons.Menu,
@@ -121,14 +122,13 @@ internal fun ChatTopBar(
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = DsSpacing.tiny, end = DsSpacing.tiny),
+                    modifier = Modifier.weight(1f),
                 )
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            StateDot(if (running) StateDotState.Running else StateDotState.Idle)
+            // 16dp: the default 8dp was lost in the row; doubled so the running animation reads.
+            StateDot(if (running) StateDotState.Running else StateDotState.Idle, size = 16.dp)
             DsIconButton(
                 icon = FeatherIcons.Search,
                 contentDescription = stringResource(R.string.common_search),

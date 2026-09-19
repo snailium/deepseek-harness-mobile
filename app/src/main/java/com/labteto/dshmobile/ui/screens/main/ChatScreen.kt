@@ -444,6 +444,24 @@ fun ChatScreen(
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
             }
 
+            // Collapsible transcript search: hidden by default, opened by the toolbar's search
+            // icon, closed by its own × button. Sits above the todo dock so hits are visible
+            // while reading.
+            AnimatedVisibility(visible = searchOpen) {
+                TranscriptSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                    matchCount = matches.size,
+                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                    onClose = { searchOpen = false; searchQuery = "" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
+                )
+            }
+
             // The agent's live to-do list, pinned above the transcript. Hidden until a
             // `todo/write` arrives, and dismissed state is keyed on the list so a later write
             // brings the bar back on its own.
@@ -473,24 +491,6 @@ fun ChatScreen(
                         ?.firstOrNull { it.seq == seq }?.messageId?.let { feedback = Triple(composer.key, it, positive) }
                 },
             )
-
-            // Collapsible transcript search: hidden by default, opened by the toolbar's search
-            // icon, closed by its own × button. Sits above the transcript so hits are visible
-            // while reading.
-            AnimatedVisibility(visible = searchOpen) {
-                TranscriptSearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
-                    matchCount = matches.size,
-                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
-                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
-                    onClose = { searchOpen = false; searchQuery = "" },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
-                )
-            }
 
             AnimatedContent(
                 targetState = tab,
