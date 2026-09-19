@@ -11,11 +11,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.data.DebugBuffer
 import com.labteto.dshmobile.data.SessionStore
@@ -97,11 +99,18 @@ internal fun ChatListDebugDialog(
     if (!CHAT_LIST_DEBUG_ENABLED || !visible) return
     val colors = DsTheme.colors
     val context = LocalContext.current
+    // Collected, not read through `.value`: reading a StateFlow's value during composition is a
+    // lint error (`StateFlowValueCalledInComposition`) because it subscribes to nothing — the
+    // dialog would render whatever the flows held at first composition and never recompose.
+    // Collecting is also what the drawer does for every other store flow.
+    val loadingOlder by store.loadingOlder.collectAsStateWithLifecycle()
+    val loadOlderFailed by store.loadOlderFailed.collectAsStateWithLifecycle()
+    val conversation by store.currentConversation.collectAsStateWithLifecycle()
     val bufferText = DebugBuffer.snapshot()
     val transcriptText = transcriptDebugReport(
-        loadingOlder = store.loadingOlder.value,
-        loadOlderFailed = store.loadOlderFailed.value,
-        conversation = store.currentConversation.value,
+        loadingOlder = loadingOlder,
+        loadOlderFailed = loadOlderFailed,
+        conversation = conversation,
     )
     val debugText = buildString {
         appendLine("=== Debug buffer ===")
