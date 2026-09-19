@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
@@ -246,14 +248,42 @@ fun ChatListDrawer(
         // drawer, which is otherwise pure overhead for the common case.
         AnimatedVisibility(visible = searchOpen) {
             Column(modifier = Modifier.padding(top = DsSpacing.small)) {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.base16) },
-                    singleLine = true,
-                    colors = dialogTextFieldColors(),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(DsShapes.pillFull)
+                        .background(colors.bgLayer2)
+                        .border(1.dp, colors.borderL2, DsShapes.pillFull)
+                        .padding(start = DsSpacing.medium, end = DsSpacing.xsmall),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        tint = colors.labelTertiary,
+                        modifier = Modifier.size(16.dp).padding(end = DsSpacing.xsmall),
+                    )
+                    TextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.base16) },
+                        singleLine = true,
+                        colors = dialogTextFieldColors(),
+                    )
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.common_cancel),
+                        tint = colors.labelTertiary,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .clickable {
+                                searchOpen = false
+                                query = ""
+                            },
+                    )
+                }
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
                 // content index off, so this is a normal capability note — not a failure.
                 if (!contentSearchAvailable && query.isNotBlank()) {
