@@ -76,7 +76,6 @@ import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import androidx.compose.ui.semantics.Role
-import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -161,9 +160,6 @@ internal fun Composer(
     onPermissionPick: (String) -> Unit,
     contextBreakdown: ContextBreakdownView?,
     contextPressure: ContextPressureView?,
-    /** The session's current model, shown as a chip between `+` and the permission trigger. */
-    models: SessionModelsValue? = null,
-    onOpenModels: () -> Unit = {},
     running: Boolean,
     enabled: Boolean,
     /**
@@ -312,22 +308,6 @@ internal fun Composer(
                         modifier = Modifier.size(14.dp),
                     )
                 }
-
-                // The model sits between the + and the permission trigger: the choice configures
-                // the next turn, so it belongs where that turn is written.
-                //
-                // It takes the leftover width rather than hugging its label. The row is +, the
-                // model, then permission and the ring pinned right; letting the chip absorb the
-                // slack keeps those two at the edge without a second spacer competing for the same
-                // space, and gives a long model name more room before it truncates. The label
-                // drops its *leading* characters when it does, because model ids differ at the end
-                // (`…-Q4_K_M` vs `…-Q8_0`) and a trailing ellipsis would hide exactly that.
-                ModelChip(
-                    models = models,
-                    onClick = onOpenModels,
-                    modifier = Modifier.weight(1f),
-                    truncateLeading = true,
-                )
 
                 // Permission and context sit together at the trailing edge, both icon-only: a
                 // 28dp preset-glyph button (the web hides its label below ~460px, and a phone

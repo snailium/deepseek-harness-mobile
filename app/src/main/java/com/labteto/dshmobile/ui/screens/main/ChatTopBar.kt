@@ -377,12 +377,13 @@ private fun ChatTabRow(
                 .widthIn(max = 144.dp)
                 .heightIn(max = 32.dp),
         )
-        // The model selector moved here from the composer: it configures the session, not the
-        // next keystroke, so it belongs in the tab row where the reader's eye already goes.
+        // The model selector lives here rather than in the composer: it configures the session,
+        // not the next keystroke, so it belongs in the tab row where the reader's eye already goes.
+        // 32dp matches the segmented control's height; the font stays small13Strong.
         ModelChip(
             models = models,
             onClick = onOpenModels,
-            modifier = Modifier.weight(1f).widthIn(max = 320.dp),
+            modifier = Modifier.weight(1f).widthIn(max = 320.dp).height(32.dp),
         )
     }
     Spacer(
