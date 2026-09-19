@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -83,6 +85,7 @@ fun ChatScreen(
     onOpenDetails: () -> Unit,
     onOpenDrawer: () -> Unit,
     detailsOpen: Boolean,
+    onCloseDetails: () -> Unit = {},
 ) {
     val store = rememberSessionStore()
     val scope = rememberCoroutineScope()
@@ -397,7 +400,22 @@ fun ChatScreen(
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
         store.panels.get(composer.key).open(path); panelKey = composer.key
     }) {
-    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            // Tap outside the open details panel closes it. The detector lives on this surface —
+            // not on MainScreen's Box, which sits *behind* the chat content in hit-test order and
+            // never sees a tap that the transcript's LazyColumn claims first. A tap on the panel
+            // itself is claimed by the panel's own content, so this only fires for taps that land
+            // left of the panel's edge.
+            .pointerInput(detailsOpen) {
+                if (!detailsOpen) return@pointerInput
+                detectTapGestures(onTap = { offset ->
+                    if (offset.x < 300.dp.toPx()) onCloseDetails()
+                })
+            },
+        color = colors.bgBase,
+    ) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
