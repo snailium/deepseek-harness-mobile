@@ -255,8 +255,13 @@ private fun HeaderRow(onClose: () -> Unit) {
     // The chat page's title bar is the template: same height floor, same icon size and touch
     // target. The panel used to run a 48dp back button with a 20dp display-font title, which made
     // it read as a heavier chrome than the bar that opens it.
+    //
+    // The row is pinned to exactly DsTitleBar.height rather than heightIn(min = …): the panel's
+    // content padding (DsSpacing.medium = 12dp) sits above it, and a min-height row would grow to
+    // whatever its content asked for, so the title's baseline drifted off the chat page's. A fixed
+    // height keeps the two bars' titles on the same line even though their top insets differ.
     Row(
-        modifier = Modifier.heightIn(min = DsTitleBar.height),
+        modifier = Modifier.height(DsTitleBar.height),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
     ) {

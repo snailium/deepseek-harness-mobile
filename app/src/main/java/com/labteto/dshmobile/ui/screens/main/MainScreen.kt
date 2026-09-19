@@ -21,6 +21,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
@@ -79,6 +80,16 @@ fun MainScreen(onOpenSettings: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // Tap outside the open details panel closes it. The detector only fires while the
+                // panel is up and only for taps that land left of its edge; a tap on the panel
+                // itself is claimed by the panel's own content first, so this never steals a click
+                // from a button or row inside it.
+                .pointerInput(detailsOpen) {
+                    if (!detailsOpen) return@pointerInput
+                    detectTapGestures(onTap = { offset ->
+                        if (offset.x < detailsWidth.toPx()) detailsOpen = false
+                    })
+                }
                 .pointerInput(detailsOpen) {
                     val width = size.width.toFloat()
                     val edgeBandPx = 28.dp.toPx()
