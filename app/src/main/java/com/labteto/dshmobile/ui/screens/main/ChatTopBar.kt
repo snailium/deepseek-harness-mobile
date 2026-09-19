@@ -265,7 +265,7 @@ internal fun ModelChip(
             color = colors.labelPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
+            modifier = Modifier.weight(1f),
         )
         effort?.let {
             Text(it.name, style = DsType.small13, color = colors.labelTertiary, maxLines = 1)
