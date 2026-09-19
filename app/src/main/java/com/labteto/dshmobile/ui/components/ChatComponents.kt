@@ -20,6 +20,10 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,16 +43,27 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 import java.util.Locale
+import com.labteto.dshmobile.ui.theme.DsSpacing
+
+
+/**
+ * A shared dismiss token for text selections in the transcript.
+ *
+ * Tapping any row increments it; selectable components observe it and clear their selection when it
+ * changes. This Compose version's SelectionContainer has no built-in "tap outside to clear", so the
+ * transcript opts in by wiring this token through every row.
+ */
+val LocalSelectionDismiss = staticCompositionLocalOf { mutableIntStateOf(0) }
 
 /**
  * Right-aligned user message bubble: r22, `userBubble` fill, hairline edge, 16/24 text.
  *
- * Three things carry the shape, and it needs all three. The assistant's turn is deliberately
- * container-less — as in the harness web UI — so the bubble is the *only* thing distinguishing who
- * said what, and it kept reading as plain text. `userBubble` now sits a step darker than the web
- * token (see `DsLight.userBubble`), `borderL3` draws an edge that survives a bright screen, and the
- * width cap keeps a short message a narrow pill hugging the right margin rather than a full-width
- * band that looks like more prose.
+ * The fill is the **accent** — the app's own strong colour — with white text on it, which is what
+ * makes the reader's own turn unmistakable at a glance. The assistant's turn is deliberately
+ * container-less, as in the harness web UI, so the bubble is the only thing distinguishing who
+ * said what; a pale tint of the accent left it reading as a lightly-shaded paragraph rather than
+ * as speech. Nothing else in the transcript uses the accent as a *fill*, so the colour itself
+ * carries the meaning and no border is needed to reinforce it.
  *
  * The cap mirrors the harness's `max-width: min(525px, 82%)`, which is why this measures its parent
  * rather than hardcoding a dp: a flat 320dp was most of a phone's width and none of a tablet's.
@@ -56,17 +71,20 @@ import java.util.Locale
 @Composable
 fun UserBubble(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
+    // Re-key the SelectionContainer when the shared dismiss token changes so an active selection is
+    // cleared. The token is incremented by a tap on any transcript row (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Text(
-            text,
-            style = DsType.bubbleText,
-            color = colors.labelPrimary,
-            modifier = Modifier
-                .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                .background(colors.userBubble, DsShapes.bubble)
-                .border(1.dp, colors.borderL3, DsShapes.bubble)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+        key(dismissToken) {
+            SelectionContainer(
+                modifier = Modifier
+                    .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
+                    .background(colors.accent, DsShapes.bubble)
+                    .padding(DsSpacing.textFieldInset),
+            ) {
+                Text(text, style = DsType.bubbleText, color = colors.onAccent)
+            }
+        }
     }
 }
 
@@ -122,8 +140,10 @@ fun ConnectionBanner(message: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // The strip is full-bleed by design (its fill must reach both edges), but its text
+            // sits on the same column as the transcript, so the inset is the page one.
             .background(DsTheme.colors.error)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = DsSpacing.pageHorizontal, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
