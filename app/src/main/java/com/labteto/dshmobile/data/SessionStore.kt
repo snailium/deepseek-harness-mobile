@@ -584,9 +584,10 @@ class SessionStore @Inject constructor(
                     state.phase == ConnectionPhase.CONNECTED
                 prev = state
                 if (initialConnect || reconnect) {
-                    // A new generation talks to a possibly different host: drop the previous
-                    // generation's diagnostics so the buffer only carries what this one said.
-                    DebugBuffer.clear()
+                    // DEBUG-BUFFER: restore together with ChatListDebug.kt's CHAT_LIST_DEBUG_ENABLED.
+                    // A new generation talks to a possibly different host, so the previous
+                    // generation's diagnostics must not bleed into the next one's report.
+                    // DebugBuffer.clear()
                     triggerBaseline()
                 }
             }
@@ -2431,9 +2432,10 @@ class SessionStore @Inject constructor(
 
     private fun log(message: String, throwable: Throwable? = null) {
         if (throwable != null) Log.w(TAG, message, throwable) else Log.w(TAG, message)
-        // The phone has no adb: the same line lands in the on-device debug buffer so the session
-        // list's debug dialog can ship it back. Keep both — logcat is for a dev box with one.
-        DebugBuffer.append("$message${throwable?.let { " (${it::class.simpleName}: ${it.message})" } ?: ""}")
+        // DEBUG-BUFFER: restore together with ChatListDebug.kt's CHAT_LIST_DEBUG_ENABLED. The
+        // phone has no adb, so this line is what feeds the on-device report; logcat alone is only
+        // readable from a dev box.
+        // DebugBuffer.append("$message${throwable?.let { " (${it::class.simpleName}: ${it.message})" } ?: ""}")
     }
 
     private companion object {
