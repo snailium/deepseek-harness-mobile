@@ -48,6 +48,13 @@ internal fun PermissionMenu(
         title = stringResource(R.string.permission_preset),
         onDismiss = onDismiss,
     ) {
+        if (select.selectable.isEmpty()) {
+            Text(
+                stringResource(R.string.permission_no_options),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+        } else {
         select.selectable.forEach { option ->
             val selected = option.value == current
             Row(
@@ -90,6 +97,7 @@ internal fun PermissionMenu(
                 style = DsType.caption11,
                 color = colors.warnLabel,
             )
+        }
         }
     }
 }
