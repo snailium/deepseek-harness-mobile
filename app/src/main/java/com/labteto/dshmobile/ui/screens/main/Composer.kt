@@ -309,10 +309,13 @@ internal fun Composer(
                     )
                 }
 
+                // Flexible spacer: absorbs the leftover width so the trailing controls
+                // (permission, context ring, send) are pinned to the right edge of the row.
+                Spacer(Modifier.weight(1f))
+
                 // Permission and context sit together at the trailing edge, both icon-only: a
                 // 28dp preset-glyph button (the web hides its label below ~460px, and a phone
                 // never has that room) and a 14dp occupancy ring. Each opens its own bottom sheet.
-                // Pinned past the flexible spacer so neither can be crowded out.
                 PermissionChip(
                     select = permissions,
                     pending = pendingPermission,
