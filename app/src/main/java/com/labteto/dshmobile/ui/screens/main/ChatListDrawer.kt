@@ -202,33 +202,29 @@ fun ChatListDrawer(
             .safeDrawingPadding()
             .padding(horizontal = DsSpacing.medium),
     ) {
-        Text(
-            text = stringResource(R.string.chatlist_title),
-            style = DsType.title3,
-            color = colors.labelPrimary,
-            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
-        )
-
-        // The chat page's title bar is the template for this row: same height floor, same icon
-        // size and touch target, same gap. The drawer used to run its own numbers (48dp targets,
-        // 20dp glyphs), which made it read as a heavier chrome than the bar it mirrors.
+        // The title row is the drawer's title bar: the same shape as the chat page's — a 44dp
+        // floor, the title in base16Strong, icon controls at 18dp/24dp. Search and settings live
+        // here rather than on a second row, because they configure the list, not the sessions it
+        // holds; the sort chip is the one control that belongs to the list itself and stays with it.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = DsTitleBar.height)
-                .padding(top = DsSpacing.xsmall),
+                .padding(top = DsSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
         ) {
-            SortChip(sortByRecency) { next ->
-                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
-            }
-            Spacer(Modifier.weight(1f))
+            Text(
+                text = stringResource(R.string.chatlist_title),
+                style = DsTitleBar.titleStyle,
+                color = colors.labelPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            // Closing the field clears the query too: a hidden field holding text left the list
+            // filtered by something no longer on screen.
             DsIconButton(
                 icon = Icons.Filled.Search,
                 contentDescription = stringResource(R.string.common_search),
-                // Closing the field clears the query too: a hidden field holding text left the list
-                // filtered by something no longer on screen.
                 onClick = {
                     searchOpen = !searchOpen
                     if (!searchOpen) query = ""
@@ -245,6 +241,15 @@ fun ChatListDrawer(
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SortChip(sortByRecency) { next ->
+                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
+            }
         }
 
         // The search field folds away rather than permanently occupying a row of a phone-height

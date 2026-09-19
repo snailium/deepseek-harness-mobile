@@ -103,12 +103,18 @@ internal fun ChatTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
         ) {
+            // Zero-width filler: the menu button is the row's first child, so without a filler
+            // before it spacedBy would not insert a gap on its left and the glyph would sit flush
+            // against the row's own 4dp padding. The trailing filler does the same for the last
+            // icon; this one mirrors it on the leading edge.
+            Spacer(Modifier.width(0.dp))
             DsIconButton(
                 icon = DsTitleBar.menuIcon,
                 contentDescription = stringResource(R.string.chatlist_open),
                 onClick = onOpenDrawer,
                 tint = colors.labelSecondary,
                 iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
             // The session title lives here, on the identity row, rather than on a row of its own
             // below: it is what the screen *is*, and a separate row spent a whole line of a phone
