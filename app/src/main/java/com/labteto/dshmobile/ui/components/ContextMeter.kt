@@ -148,6 +148,9 @@ fun ContextDetailSheet(
         title = stringResource(R.string.chat_context_window),
         onDismiss = onDismiss,
     ) {
+        // Same breathing room as the attachment sheet: the sheet's own 8dp gap puts the headline
+        // directly on top of the figures and reads as one block.
+        Spacer(Modifier.height(DsSpacing.small))
         if (ratio != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
