@@ -94,13 +94,14 @@ internal fun CommandSheet(
             else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
                 items(filteredCommands, key = { it.name }) { command ->
                     SheetRow(
-                        title = when (command.name) {
-                            "goal" -> stringResource(R.string.goal_title)
-                            "plan" -> stringResource(R.string.plan_mode_title)
-                            "export" -> stringResource(R.string.chat_export)
-                            "feedback" -> stringResource(R.string.feedback_send)
-                            else -> command.line
-                        },
+                        // Always the command itself, never a friendly name. This list used to
+                        // special-case four commands into localized labels ("Goal", "Plan mode",
+                        // "Download session log", "Submit feedback") while every other entry showed
+                        // its own `/name` — so the column mixed two conventions, and the four
+                        // localized ones stopped being recognisable as commands at all. The
+                        // description beside it is what explains the command; the title's job is to
+                        // say what to type.
+                        title = command.line,
                         subtitle = command.description.ifBlank { null },
                         trailing = command.input?.hint,
                         onClick = {
