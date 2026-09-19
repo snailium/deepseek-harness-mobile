@@ -484,6 +484,9 @@
     <string name="chat_scroll_to_bottom">Ir para o mais recente</string>
     <string name="chat_search_hint">Pesquisar mensagens</string>
     <string name="chat_search_clear">Limpar pesquisa</string>
+    <string name="chat_search_close">Fechar pesquisa</string>
+    <string name="chatlist_search_results">Resultados da pesquisa</string>
+    <string name="permission_no_options">Nenhuma predefinição de permissão disponível neste harness.</string>
     <string name="chat_search_previous">Correspondência anterior</string>
     <string name="chat_search_next">Próxima correspondência</string>
     <string name="chat_search_counter">%1$d/%2$d</string>

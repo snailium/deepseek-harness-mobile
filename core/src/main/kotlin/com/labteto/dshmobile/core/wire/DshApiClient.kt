@@ -82,6 +82,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.serializer
 
@@ -852,27 +853,24 @@ class DshApiClient(
      * A failure here is deliberately not retried: upstream fails the whole connection generation
      * on it and replays the pending event on the next one, so a client-side retry queue would
      * answer the same request twice.
+     *
+     * It goes through [call] like every other unary, and that is load-bearing rather than tidy:
+     * the gateway reads `$events/result` as a Remote with one named parameter, so the three
+     * fields ride inside `args` and a bare `{clientId, eventId, outcome}` payload is refused
+     * outright — "Remote event result requires exactly one plain-object args field". Through
+     * 0.11.2 this posted that bare object, so every answer and every approval failed on the
+     * wire while the app reported it as a connection fault.
      */
     suspend fun answerEvent(
         clientId: String,
         eventId: String,
         outcome: RemoteEventOutcome,
-    ): RpcResult<JsonElement> = unary(
+    ): RpcResult<JsonElement> = call(
         REMOTE_EVENT_RESULT_ENDPOINT,
-        // The gateway's `parseRemoteEventResultPayload` demands a payload with *exactly one* key,
-        // `args` — the same `{args: {…}}` frame every other Remote uses. Posting the bare result
-        // object is refused before the outcome is ever read, so an approval or a question answer
-        // comes back as a generic failure while the harness is perfectly reachable. Every other
-        // call in this client gets that frame from `call()`; this one has to supply it.
-        buildJsonObject {
-            put(
-                "args",
-                encodeToJsonElement(
-                    RemoteEventResult.serializer(),
-                    RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
-                ),
-            )
-        },
+        encodeToJsonElement(
+            RemoteEventResult.serializer(),
+            RemoteEventResult(clientId = clientId, eventId = eventId, outcome = outcome),
+        ).jsonObject,
         JsonElement.serializer(),
     )
 

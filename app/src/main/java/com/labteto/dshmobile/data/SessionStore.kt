@@ -90,6 +90,7 @@ import com.labteto.dshmobile.core.wire.dto.WorkspaceValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceView
 import com.labteto.dshmobile.core.wire.dto.imageRejectionOf
 import com.labteto.dshmobile.core.wire.RpcError
+import com.labteto.dshmobile.core.wire.TransportFailures
 import com.labteto.dshmobile.core.wire.encodeToJsonElement
 import com.labteto.dshmobile.core.wire.newPromptRequestId
 import java.io.InputStream
@@ -188,19 +189,43 @@ sealed interface PromptOutcome {
 /** What the harness did with an answer to a question request, or with a dismissal of one. */
 sealed interface QuestionOutcome {
     /**
-     * Taken. The panel leaves when the `question/resolved` frame lands rather than now — the
-     * receipt only says the response was well-formed for the wait it addressed.
+     * Taken. The wait behind the card is over, so the card goes with it — the host announces that
+     * resolution to every *other* client and to this one never, so nothing else can take it away.
      */
     data object Accepted : QuestionOutcome
 
     /**
-     * Refused. `bad-response` means the payload did not match the request it answered;
-     * `not-pending` means the wait had already settled.
+     * Refused by the host. `bad-response` means the payload did not match the request it
+     * answered; [NOT_PENDING] means the wait had already settled; anything else is the code the
+     * host sent, named rather than translated — a refusal this build has never heard of is still
+     * worth showing, because the wait behind it stays open either way.
      */
     data class Refused(val reason: String) : QuestionOutcome
 
     /** The POST never completed, so nothing is known about the wait. */
     data object Unsent : QuestionOutcome
+}
+
+/** The refusal that means the request this answer addressed is already over. */
+internal const val NOT_PENDING: String = "not-pending"
+
+/**
+ * Whether [outcome] means this client is done holding the request it answered.
+ *
+ * Two of the three do. [QuestionOutcome.Accepted] is the host taking the answer, and
+ * [QuestionOutcome.Refused] with [NOT_PENDING] is the host saying the wait had already settled —
+ * one is a card that did its job and the other a card that outlived its request, and neither has
+ * anything left to send. Every other refusal leaves the host's wait open with the tool call behind
+ * it still blocked, so the card has to stay: it is the only thing that can still answer. So does
+ * [QuestionOutcome.Unsent], where nothing is known about the wait at all and taking the card away
+ * would strand the session with no way to retry.
+ *
+ * File-level so the rule is testable without standing up the whole store, as [nextHasMore] is.
+ */
+internal fun settlesRequest(outcome: QuestionOutcome): Boolean = when (outcome) {
+    is QuestionOutcome.Accepted -> true
+    is QuestionOutcome.Refused -> outcome.reason == NOT_PENDING
+    is QuestionOutcome.Unsent -> false
 }
 
 /** Wire workspace -> renderable row, parsing the ISO-8601 stamp once at the boundary. */
@@ -450,7 +475,7 @@ class SessionStore @Inject constructor(
     // which is both what an answer names and what a `cancel` frame withdraws — 0.1.2 mints no
     // separate approval id.
     private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
-    private val questionEventBySession = HashMap<String, String>() // sessionId -> eventId
+    private val questionEvents = PendingQuestionRegistry()
 
     /**
      * An answer the user submitted whose `$events/result` POST failed, held for one retry.
@@ -755,8 +780,21 @@ class SessionStore @Inject constructor(
      * Replaces the `approval/resolved` and `question/resolved` frames, and covers both — an
      * `eventId` identifies the request without saying which kind it was, so both registries are
      * checked.
+     *
+     * It is *not* the only way a request leaves: the host drops the answering client's delivery
+     * before it cancels the rest, so this frame reaches every client except the one that acted.
+     * That client settles its own card in [answerOutcome].
      */
-    private fun handleWaterfallCancelled(eventId: String) {
+    private fun handleWaterfallCancelled(eventId: String) = forgetRequest(eventId)
+
+    /**
+     * Drop one request this client is holding, whoever settled it.
+     *
+     * Idempotent by construction — every step is a remove or a null-if-matching — because the two
+     * callers can both fire for one request: this client answers, forgets it here, and a `cancel`
+     * for the same `eventId` may still arrive if the host had a second delivery open.
+     */
+    private fun forgetRequest(eventId: String) {
         val approval = synchronized(lock) { approvalRequests.remove(eventId) }
         if (approval != null) {
             synchronized(lock) {
@@ -767,15 +805,29 @@ class SessionStore @Inject constructor(
             return
         }
         val sessionId = synchronized(lock) {
-            questionEventBySession.entries.firstOrNull { it.value == eventId }?.key
+            questionEvents.sessionFor(eventId)
         } ?: return
+        forgetQuestions(sessionId, eventId)
+    }
+
+    /**
+     * Drop the question batch [sessionId] is holding — but only while it is still [eventId]'s, and
+     * only the card drawn from that same request. [PendingQuestionRegistry.forget] holds the rule
+     * and the reason for it; a null [eventId] is the corpse case it describes.
+     */
+    private fun forgetQuestions(sessionId: String, eventId: String?) {
+        // Registry and card move together under the lock, so a replacement cannot land between
+        // them and lose its card to this call.
         synchronized(lock) {
-            questionEventBySession.remove(sessionId)
+            if (!questionEvents.forget(sessionId, eventId)) return
             removePendingLocked(sessionId, "question")
             removePendingLocked(sessionId, "plan-review")
             emitSessionsLocked()
+            val shown = _pendingQuestions.value
+            if (shown?.sessionId == sessionId && (eventId == null || shown.rpcId == eventId)) {
+                _pendingQuestions.value = null
+            }
         }
-        if (_pendingQuestions.value?.sessionId == sessionId) _pendingQuestions.value = null
     }
 
     // ------------------------------------------------------------------ control stream
@@ -941,7 +993,7 @@ class SessionStore @Inject constructor(
         questions: List<AskUserQuestionItem>,
     ) {
         synchronized(lock) {
-            questionEventBySession[sessionId] = eventId
+            questionEvents.install(sessionId, eventId)
             val kind = if (questions.any { it.intent is AskUserQuestionIntent.PlanReview }) {
                 "plan-review"
             } else {
@@ -949,8 +1001,12 @@ class SessionStore @Inject constructor(
             }
             addPendingLocked(sessionId, kind)
             emitSessionsLocked()
+            // Inside the lock, with the registration it belongs to: [forgetQuestions] decides
+            // whether to clear the card by reading that registration, so a request that installed
+            // one but not yet the other could have its card taken by an answer to the request it
+            // just replaced.
+            _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
         }
-        _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
         // The host replays pending waterfalls on a new generation. If the user already answered
         // this question but the POST failed, re-send now rather than asking them again.
         val retry = pendingQuestionRetry
@@ -1017,7 +1073,7 @@ class SessionStore @Inject constructor(
             sessionRows.remove(sessionId)
             pendingKinds.remove(sessionId)
             runningBySession.remove(sessionId)
-            questionEventBySession.remove(sessionId)
+            questionEvents.discard(sessionId)
             emitSessionsLocked()
         }
     }
@@ -1635,17 +1691,27 @@ class SessionStore @Inject constructor(
         }
     }
 
-    suspend fun respondApproval(sessionId: String, approvalId: String, allow: Boolean) {
-        val api = apiOrNull() ?: return
+    /**
+     * Allows or refuses one pending approval.
+     *
+     * Reports its verdict in the same vocabulary a question answer does, and for the same reason:
+     * an approval that the host would not take leaves the tool call behind it blocked, and a panel
+     * that swallowed the refusal would sit there looking like a button that does nothing. A taken
+     * one takes the panel with it — see [answerOutcome] for why no frame does that here.
+     */
+    suspend fun respondApproval(sessionId: String, approvalId: String, allow: Boolean): QuestionOutcome {
+        val api = apiOrNull() ?: return QuestionOutcome.Unsent
         val request = synchronized(lock) { approvalRequests[approvalId] }
         if (request == null) {
             log("no pending approval for id $approvalId")
-            return
+            // Nothing to answer with, so nothing can arrive to take the panel away either.
+            if (_pendingApproval.value?.approvalId == approvalId) _pendingApproval.value = null
+            return QuestionOutcome.Refused(NOT_PENDING)
         }
         val clientId = connectionManager.generation?.clientId
         if (clientId == null) {
             log("cannot answer approval $approvalId: no connection generation")
-            return
+            return QuestionOutcome.Unsent
         }
         val outcome = if (allow) ApprovalOutcome.ALLOWED_ONCE else ApprovalOutcome.REJECTED
         // The waterfall's own return value *is* the outcome string, so this claims the request
@@ -1655,7 +1721,7 @@ class SessionStore @Inject constructor(
             eventId = request.eventId,
             outcome = RemoteEventOutcome.Result(value = JsonPrimitive(outcome)),
         )
-        if (result is RpcResult.Err) log("approval response failed for $approvalId: ${result.error.message}")
+        return answerOutcome(result, "approval response", sessionId) { forgetRequest(request.eventId) }
     }
 
     /**
@@ -1669,7 +1735,7 @@ class SessionStore @Inject constructor(
      */
     suspend fun answerQuestions(sessionId: String, answer: AskUserQuestionAnswer): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val eventId = pendingQuestionEvent(sessionId) ?: return abandonQuestions(sessionId)
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // The waterfall returns the answer object itself; there is no envelope around it now.
         val outcome = answerOutcome(
@@ -1682,7 +1748,7 @@ class SessionStore @Inject constructor(
             ),
             "question response",
             sessionId,
-        )
+        ) { forgetQuestions(sessionId, eventId) }
         // A refusal means the host read the call and said no — re-sending would only refuse again.
         // An unsent call means nothing is known about the wait, so it is worth one retry when the
         // host replays the waterfall on the next generation.
@@ -1700,7 +1766,7 @@ class SessionStore @Inject constructor(
      */
     suspend fun dismissQuestions(sessionId: String): QuestionOutcome {
         val api = apiOrNull() ?: return QuestionOutcome.Unsent
-        val eventId = pendingQuestionEvent(sessionId) ?: return QuestionOutcome.Refused("not-pending")
+        val eventId = pendingQuestionEvent(sessionId) ?: return abandonQuestions(sessionId)
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // A rejection, not an empty answer, and not `next`: `next` would delegate to the host's
         // own later listeners, which is a different thing from the user closing the prompt.
@@ -1718,36 +1784,74 @@ class SessionStore @Inject constructor(
             ),
             "question dismissal",
             sessionId,
-        )
+        ) { forgetQuestions(sessionId, eventId) }
     }
 
     private fun pendingQuestionEvent(sessionId: String): String? {
-        val eventId = synchronized(lock) { questionEventBySession[sessionId] }
+        val eventId = synchronized(lock) { questionEvents.eventFor(sessionId) }
         if (eventId == null) log("no pending question for session $sessionId")
         return eventId
     }
 
     /**
-     * Map one `$events/result` answer onto the store's outcome vocabulary.
+     * There is a card on screen for [sessionId] but no event left to address it to.
+     *
+     * A card in that state can never be answered — every path through here needs the `eventId` the
+     * waterfall arrived with — so it is a corpse, and leaving it up would be the same dead end by a
+     * shorter route. Reported as [NOT_PENDING] all the same: the wait, wherever it went, is not
+     * this client's to settle any more.
+     */
+    private fun abandonQuestions(sessionId: String): QuestionOutcome {
+        // Null, not an event: the corpse is defined by having no registration, and a request that
+        // arrived in the meantime has one and must be left alone.
+        forgetQuestions(sessionId, null)
+        return QuestionOutcome.Refused(NOT_PENDING)
+    }
+
+    /**
+     * Map one `$events/result` answer onto the store's outcome vocabulary, and run [forget] when
+     * that answer ended the request behind it.
+     *
+     * [forget] is the card's only exit on this client, and it is a caller's lambda rather than an
+     * `eventId` because the two kinds are held differently — an approval by its event alone, a
+     * question by its session *and* its event, so that an answer cannot take away the card of the
+     * request that replaced the one it answered. The web client has no equivalent because it never needs
+     * one: its `PendingQuestion.answer()` resolves the waiting promise in the same process, so the
+     * card's life ends with the call. Here the answer is a POST, and the host settles it by
+     * *removing this client's delivery first* and then pushing `cancel` to the deliveries that
+     * remain — so the client that acted is the only one the resolution is never announced to.
+     * Waiting for a frame that cannot arrive is what left an answered card frozen on "Submitting…"
+     * with no way out but a force-stop.
      *
      * A failure here is not retried: upstream fails the whole connection generation on it and
      * replays the pending request on the next one, so a retry would answer the same question
-     * twice.
+     * twice. Nor is a failing card taken away — see [settlesRequest].
      */
     private fun answerOutcome(
         result: RpcResult<JsonElement>,
         what: String,
         sessionId: String,
-    ): QuestionOutcome = when (result) {
-        is RpcResult.Ok -> QuestionOutcome.Accepted
-        is RpcResult.Err -> {
-            log("$what failed for $sessionId: ${result.error.message}")
-            if (result.error.code == "not-pending") {
-                QuestionOutcome.Refused("not-pending")
-            } else {
-                QuestionOutcome.Unsent
+        forget: () -> Unit,
+    ): QuestionOutcome {
+        val outcome = when (result) {
+            is RpcResult.Ok -> QuestionOutcome.Accepted
+            is RpcResult.Err -> {
+                log("$what failed for $sessionId: ${result.error.code}: ${result.error.message}")
+                // The split is "did the host answer at all", not a list of codes. A carrier failure
+                // carries a [TransportFailure] marker and nothing is known about the wait; anything
+                // else reached the host and came back `ok:false`, so the refusal is reported with
+                // the host's own code. Folding those into [QuestionOutcome.Unsent] is what made a
+                // malformed envelope read as "could not reach the harness" and sent reporters to
+                // debug their network for a protocol fault.
+                if (TransportFailures.of(result.error) != null) {
+                    QuestionOutcome.Unsent
+                } else {
+                    QuestionOutcome.Refused(result.error.code)
+                }
             }
         }
+        if (settlesRequest(outcome)) forget()
+        return outcome
     }
 
 

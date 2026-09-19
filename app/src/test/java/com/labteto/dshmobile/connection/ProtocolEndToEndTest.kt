@@ -27,6 +27,7 @@ import com.labteto.dshmobile.core.wire.dto.PromptContentPart
 import com.labteto.dshmobile.core.wire.dto.SessionAssistantStreamFrame
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
 import com.labteto.dshmobile.core.wire.newPromptRequestId
+import com.labteto.dshmobile.mockharness.ARGS_REQUIRED
 import com.labteto.dshmobile.mockharness.MockHarness
 import com.labteto.dshmobile.core.session.AssistantLiveState
 import com.labteto.dshmobile.core.session.AssistantMessageNode
@@ -38,6 +39,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
@@ -465,6 +467,73 @@ class ProtocolEndToEndTest {
     }
 
     @Test
+    fun `answering leaves the acting client nothing to wait for`() = runBlocking {
+        // Why the card has to be taken away locally. The host settles a waterfall by dropping the
+        // answering client's delivery first and then cancelling the deliveries that remain, so the
+        // client that acted never hears that the request resolved — and asking again is no help
+        // either, because a second answer to a settled event is early-returned `ok:true` rather
+        // than refused. Through 0.11.3 the card waited for a frame with both of those properties
+        // and sat on "Submitting…" until the app was force-stopped.
+        val recorder = Recorder()
+        val loop = ConnectionLoop({ mux() }, recorder, LoopConfig(delay = { }))
+        loop.start()
+        try {
+            assertTrue(await { recorder.connected.isNotEmpty() })
+            val generation = recorder.connected.first()
+            harness.pushEvent(
+                buildJsonObject {
+                    put("type", "waterfall")
+                    put("event", "user-questions/request")
+                    put("eventId", "evt-settled")
+                    put("agentId", "s1")
+                    putJsonObject("request") {
+                        putJsonArray("questions") {
+                            addJsonObject {
+                                put("id", "q1")
+                                put("question", "which?")
+                                putJsonArray("options") { addJsonObject { put("label", "Rewrite") } }
+                            }
+                        }
+                    }
+                },
+            )
+            assertTrue(await { recorder.frames.any { it is RemoteEventFrame.Waterfall } })
+            val answer = buildJsonObject {
+                putJsonArray("answers") {
+                    addJsonObject {
+                        put("id", "q1")
+                        putJsonArray("selected") { add("Rewrite") }
+                    }
+                }
+            }
+            val first = client().answerEvent(
+                clientId = generation.clientId,
+                eventId = "evt-settled",
+                outcome = RemoteEventOutcome.Result(value = answer),
+            )
+            assertTrue("answer was refused: $first", first is RpcResult.Ok)
+
+            // No `cancel` for the event this client just settled, however long it waits.
+            delay(250)
+            assertTrue(
+                "the acting client was told about its own answer",
+                recorder.frames.none { it is RemoteEventFrame.Cancel && it.eventId == "evt-settled" },
+            )
+
+            // And the second attempt the stuck card invited reads as success, not as a refusal
+            // the panel could have exited on.
+            val again = client().answerEvent(
+                clientId = generation.clientId,
+                eventId = "evt-settled",
+                outcome = RemoteEventOutcome.Result(value = answer),
+            )
+            assertTrue("was $again", again is RpcResult.Ok)
+        } finally {
+            loop.stop()
+        }
+    }
+
+    @Test
     fun `an answer from a retired generation is refused`() = runBlocking {
         // The whole point of binding a reply to a clientId: an answer typed before a reconnect
         // must not resolve a request the host has since replayed to the new generation.
@@ -488,6 +557,35 @@ class ProtocolEndToEndTest {
         )
         assertTrue("was $result", result is RpcResult.Err)
         assertEquals("stale-generation", (result as RpcResult.Err).error.code)
+    }
+
+    @Test
+    fun `the bare payload the app sent through 0_11_2 is refused`() = runBlocking {
+        // The shape the client posted until 0.11.3: the three fields with no `args` around them.
+        // The real gateway refuses it, and the mock did not — it had been written from the app
+        // rather than from the host, so both halves of this repo agreed on a payload no harness
+        // would take. Posted raw here, because the client can no longer produce it.
+        val bare = buildJsonObject {
+            put("type", "client-request")
+            put("rpcId", "bare-shape")
+            put("method", "\$events/result")
+            putJsonObject("payload") {
+                put("clientId", "c1")
+                put("eventId", "evt-bare")
+                putJsonObject("outcome") {
+                    put("kind", "result")
+                    put("value", JsonPrimitive(ApprovalOutcome.ALLOWED_ONCE))
+                }
+            }
+        }
+        val response = OkHttpRpcTransport(baseUrl, http, 5_000, 5_000)
+            .post("/api/\$events/result", bare.toString())
+
+        assertEquals(200, response.status)
+        val error = Json.parseToJsonElement(response.body)
+            .jsonObject["result"]!!.jsonObject["error"]!!.jsonObject
+        assertEquals("gateway/internal", error["code"]!!.jsonPrimitive.content)
+        assertEquals(ARGS_REQUIRED, error["message"]!!.jsonPrimitive.content)
     }
 
     @Test

@@ -166,10 +166,16 @@ Pending requests arrive as **waterfall** frames on `$events` (below) and are
 settled through the Gateway's own unary endpoint, `POST /api/$events/result`:
 
 ```json
-{"type":"client-request","rpcId":"<uuid>","method":"$events/result","payload":{
+{"type":"client-request","rpcId":"<uuid>","method":"$events/result","payload":{"args":{
   "clientId":"<from the ready frame>","eventId":"<from the waterfall frame>",
-  "outcome":{"kind":"result","value":{"answers":[…]}}}}
+  "outcome":{"kind":"result","value":{"answers":[…]}}}}}
 ```
+
+The `args` wrapper is not optional here either: the Gateway reads this endpoint
+as an ordinary Remote, and a bare `{clientId, eventId, outcome}` payload is
+refused with `gateway/internal` — *Remote event result requires exactly one
+plain-object args field*. The app posted it bare through 0.11.2, which failed
+every question answer and every approval on the wire.
 
 `clientId` binds the reply to the current connection generation and `eventId` to
 one pending request; the host refuses a reply carrying a retired generation,
@@ -275,6 +281,16 @@ are **positional** (the host forwards the listener's own argument list), and an
 on recovery must come from a query or a stream baseline instead. A `cancel`
 withdraws a delivered waterfall — another client answered first, or the host's
 caller gave up.
+
+A `cancel` never reaches the client whose answer settled the request. The host
+drops the answering delivery and *then* cancels the ones that remain, so the one
+client that learns nothing is the one that acted; asking again is no help either,
+because a second answer to a settled event is early-returned `ok:true` rather
+than refused. A client's own receipt is therefore the only signal it will ever
+get that its card is done, and it has to take the card away on that alone —
+keeping `cancel` for foreign answers and host-side cancellations. Through 0.11.3
+the app waited for the frame instead, and every answered, dismissed or skipped
+question card stuck on "Submitting…" until the app was force-stopped.
 
 **`session/follow`** takes `{address, maxMessages?, assistantStream?}` and opens
 with one complete snapshot, then yields durable events and — when the follower
