@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -89,9 +90,11 @@ internal fun SearchField(
         modifier = modifier
             .height(32.dp)
             .clip(DsShapes.pillFull)
-            // Fill only, no outline. The pill's own shape carries the affordance; a border on top
-            // of it is what made the previous attempts look like a different design language.
             .background(colors.hoverSolid)
+            // A 1dp hairline over the fill, not instead of it: the flat pill alone blends into the
+            // sheet's own background and reads as a recessed area rather than an input. The border
+            // is drawn after the clip so it follows the pill's corners exactly.
+            .border(1.dp, colors.borderL2, DsShapes.pillFull)
             // 8dp leading, 2dp trailing: the magnifier needs room to breathe, while the trailing
             // controls are already 24dp targets with their own inset padding and would sit too far
             // from the edge at 8dp.

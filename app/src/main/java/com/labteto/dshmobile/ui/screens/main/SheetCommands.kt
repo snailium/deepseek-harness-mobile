@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,7 +33,6 @@ import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.SearchField
 import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
-import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -85,7 +85,14 @@ internal fun CommandSheet(
         }
 
         // Commands ----------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_commands))
+        // One size up from the shared SectionHeader (14 → 16): inside a sheet these two headers
+        // are the only chrome above the rows, and at 14 they read as just another row label.
+        Text(
+            stringResource(R.string.chat_composer_commands),
+            style = DsType.base16Strong,
+            color = colors.labelSecondary,
+            modifier = Modifier.fillMaxWidth(),
+        )
         when {
             !commandsAvailable -> Text(
                 stringResource(R.string.chat_commands_unavailable),
@@ -127,7 +134,12 @@ internal fun CommandSheet(
 
         // Skills ------------------------------------------------------------
         if (filteredSkills.isNotEmpty()) {
-            SectionHeader(stringResource(R.string.skills_title))
+            Text(
+                stringResource(R.string.skills_title),
+                style = DsType.base16Strong,
+                color = colors.labelSecondary,
+                modifier = Modifier.fillMaxWidth(),
+            )
             LazyColumn(Modifier.heightIn(max = 220.dp)) {
                 items(filteredSkills, key = { it.name }) { skill ->
                     SheetRow(
@@ -165,6 +177,10 @@ internal fun AttachmentSheet(
 ) {
     val colors = DsTheme.colors
     DsBottomSheet(title = stringResource(R.string.chat_composer_attach_title), onDismiss = onDismiss) {
+        // The sheet's own 8dp gap between children is too tight here: the title sits on top of a
+        // two-row list, and at that distance it reads as one block. An extra row of air separates
+        // "what this is" from "what you can do".
+        Spacer(Modifier.height(DsSpacing.small))
         SheetRow(
             leading = {
                 Icon(
