@@ -783,12 +783,15 @@ private fun SessionRowItem(
                 Spacer(Modifier.width(16.dp))
             }
             Spacer(Modifier.width(DsSpacing.tiny))
+            // 1.5x the component's default: at 8dp the dot is a speck next to a 16sp title, and the
+            // row's other affordances (chevron, pill) are all bigger than it.
             StateDot(
                 state = when {
                     session.running -> StateDotState.Running
                     session.pendingInteraction != null -> StateDotState.Warning
                     else -> StateDotState.Idle
                 },
+                size = 12.dp,
             )
             Spacer(Modifier.width(DsSpacing.small))
             Column(Modifier.weight(1f)) {
