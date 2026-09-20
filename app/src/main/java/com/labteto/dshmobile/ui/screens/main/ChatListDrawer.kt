@@ -246,6 +246,7 @@ fun ChatListDrawer(
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
         ) {
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
