@@ -357,6 +357,10 @@ class SessionStore @Inject constructor(
     private val _loadingOlder = MutableStateFlow(false)
     val loadingOlder: StateFlow<Boolean> = _loadingOlder.asStateFlow()
 
+    /** The session list's pull-to-refresh is in flight. */
+    private val _refreshingSessions = MutableStateFlow(false)
+    val refreshingSessions: StateFlow<Boolean> = _refreshingSessions.asStateFlow()
+
     /**
      * The last backwards page failed.
      *
@@ -1252,7 +1256,24 @@ class SessionStore @Inject constructor(
     }
 
     // ------------------------------------------------------------------ public RPC surface
+    /**
+     * Pull the session list from the harness.
+     *
+     * [refreshingSessions] guards re-entry and feeds the drawer's pull-to-refresh indicator; it is
+     * set even when there is no connection, so a disconnected pull still shows (and ends) the
+     * spinner instead of looking like it was never attempted.
+     */
     suspend fun refreshSessions() {
+        if (_refreshingSessions.value) return
+        _refreshingSessions.value = true
+        try {
+            refreshSessionsLocked()
+        } finally {
+            _refreshingSessions.value = false
+        }
+    }
+
+    private suspend fun refreshSessionsLocked() {
         val api = apiOrNull() ?: return
         when (val r = api.sessionList(null)) {
             is RpcResult.Ok -> {
