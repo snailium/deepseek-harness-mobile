@@ -25,7 +25,7 @@ fun SectionHeader(
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             title,
-            style = DsType.std14Strong,
+            style = DsType.small13Strong,
             color = colors.labelSecondary,
             modifier = Modifier.weight(1f),
         )

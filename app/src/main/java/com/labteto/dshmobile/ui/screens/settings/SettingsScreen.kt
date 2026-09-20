@@ -75,6 +75,7 @@ import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import java.util.Locale
 
@@ -115,21 +116,29 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The screen's title bar: the same 44dp row, icon and type constants as every other
+                // page's — a back control at 18dp/24dp and the title in base16Strong.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DsTitleBar.height)
+                        .padding(top = DsSpacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+                ) {
                     DsIconButton(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.common_back),
                         onClick = onClose,
+                        tint = colors.labelTertiary,
+                        iconSize = DsTitleBar.iconSize,
+                        touchTarget = DsTitleBar.iconTouchTarget,
                     )
                     Text(
                         stringResource(R.string.settings_title),
-                        style = DsType.large20,
+                        style = DsTitleBar.titleStyle,
                         color = colors.labelPrimary,
                     )
-                }
-
-                SettingsCard(stringResource(R.string.archived_title)) {
-                    com.labteto.dshmobile.ui.screens.main.ArchivedSessions(store)
                 }
 
                 SettingsCard(stringResource(R.string.settings_general)) {
