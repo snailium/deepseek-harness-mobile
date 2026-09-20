@@ -312,10 +312,11 @@ private fun MetaChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     Row(
-        modifier = Modifier
+        modifier = modifier
             .heightIn(min = 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -396,11 +397,14 @@ private fun ChatTabRow(
         // The subagent chip claims the model chip's slot: it is a destination, like the model, and
         // sits where the eye already looks for "what am I switching to". It appears only when the
         // session actually has children.
+        // Pinned to the row's 32dp like its two neighbours: heightIn(min) alone would let it hug
+        // its text and sit a few dp shorter than the segmented control and the model chip.
         if (subagentCount > 0) {
             MetaChip(
                 icon = Icons.Outlined.Groups,
                 label = "$subagentCount",
                 onClick = onOpenSubagents,
+                modifier = Modifier.height(32.dp),
             )
         }
         // The model selector lives here rather than in the composer: it configures the session,
