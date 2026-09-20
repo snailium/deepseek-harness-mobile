@@ -33,6 +33,7 @@ import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.SearchField
 import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -84,77 +85,67 @@ internal fun CommandSheet(
             )
         }
 
-        // Commands ----------------------------------------------------------
-        // One size up from the shared SectionHeader (14 → 16): inside a sheet these two headers
-        // are the only chrome above the rows, and at 14 they read as just another row label.
-        Text(
-            stringResource(R.string.chat_composer_commands),
-            style = DsType.base16Strong,
-            color = colors.labelSecondary,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        when {
-            !commandsAvailable -> Text(
-                stringResource(R.string.chat_commands_unavailable),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            filteredCommands.isEmpty() -> Text(
-                stringResource(R.string.chat_commands_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
-                items(filteredCommands, key = { it.name }) { command ->
-                    SheetRow(
-                        // Always the command itself, never a friendly name. This list used to
-                        // special-case four commands into localized labels ("Goal", "Plan mode",
-                        // "Download session log", "Submit feedback") while every other entry showed
-                        // its own `/name` — so the column mixed two conventions, and the four
-                        // localized ones stopped being recognisable as commands at all. The
-                        // description beside it is what explains the command; the title's job is to
-                        // say what to type.
-                        title = command.line,
-                        subtitle = command.description.ifBlank { null },
-                        trailing = command.input?.hint,
-                        onClick = {
-                            onDismiss()
-                            // A bare command runs immediately; one that takes an argument prefills
-                            // the composer so the argument can be typed where the hint is visible.
-                            if (command.input == null) {
-                                onRunCommand(command.line)
-                            } else {
-                                onPrefillDraft(command.draftPrefix)
-                            }
-                        },
-                    )
+        // Commands and Skills share the settings page's card shape: title, then a raised block of
+        // rows. The sheet's 8dp gap between children is what separates one card from the next.
+        SettingsCard(stringResource(R.string.chat_composer_commands)) {
+            when {
+                !commandsAvailable -> Text(
+                    stringResource(R.string.chat_commands_unavailable),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+                filteredCommands.isEmpty() -> Text(
+                    stringResource(R.string.chat_commands_empty),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+                else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                    items(filteredCommands, key = { it.name }) { command ->
+                        SheetRow(
+                            // Always the command itself, never a friendly name. This list used to
+                            // special-case four commands into localized labels ("Goal", "Plan mode",
+                            // "Download session log", "Submit feedback") while every other entry showed
+                            // its own `/name` — so the column mixed two conventions, and the four
+                            // localized ones stopped being recognisable as commands at all. The
+                            // description beside it is what explains the command; the title's job is to
+                            // say what to type.
+                            title = command.line,
+                            subtitle = command.description.ifBlank { null },
+                            trailing = command.input?.hint,
+                            onClick = {
+                                onDismiss()
+                                // A bare command runs immediately; one that takes an argument prefills
+                                // the composer so the argument can be typed where the hint is visible.
+                                if (command.input == null) {
+                                    onRunCommand(command.line)
+                                } else {
+                                    onPrefillDraft(command.draftPrefix)
+                                }
+                            },
+                        )
+                    }
                 }
             }
         }
 
-        // Skills ------------------------------------------------------------
         if (filteredSkills.isNotEmpty()) {
-            Text(
-                stringResource(R.string.skills_title),
-                style = DsType.base16Strong,
-                color = colors.labelSecondary,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            LazyColumn(Modifier.heightIn(max = 220.dp)) {
-                items(filteredSkills, key = { it.name }) { skill ->
-                    SheetRow(
-                        title = "/${skill.name}",
-                        subtitle = skill.description.ifBlank { null },
-                        trailing = if (!skill.modelInvocable) {
-                            stringResource(R.string.skills_user_only)
-                        } else {
-                            null
-                        },
-                        onClick = {
-                            onDismiss()
-                            onPrefillDraft("/${skill.name} ")
-                        },
-                    )
+            SettingsCard(stringResource(R.string.skills_title)) {
+                LazyColumn(Modifier.heightIn(max = 220.dp)) {
+                    items(filteredSkills, key = { it.name }) { skill ->
+                        SheetRow(
+                            title = "/${skill.name}",
+                            subtitle = skill.description.ifBlank { null },
+                            trailing = if (!skill.modelInvocable) {
+                                stringResource(R.string.skills_user_only)
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                onDismiss()
+                                onPrefillDraft("/${skill.name} ")
+                            },
+                        )
+                    }
                 }
             }
         }

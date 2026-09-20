@@ -66,7 +66,7 @@ import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.MenuItem
-import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
@@ -293,24 +293,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     }
 }
 
-/** One settings group as a raised card, so groups read as blocks rather than a running list. */
-@Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    val colors = DsTheme.colors
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
-        SectionHeader(title)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.block)
-                .background(colors.bgLayer1)
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-        ) {
-            content()
-        }
-    }
-}
+
 
 /**
  * The host's composed plugins, as one row that opens the list.
