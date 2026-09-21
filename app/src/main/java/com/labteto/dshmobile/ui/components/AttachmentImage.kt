@@ -26,11 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.ui.media.AttachmentImageState
-import com.labteto.dshmobile.ui.media.aspectRatioOf
-import com.labteto.dshmobile.ui.media.rememberAttachmentCache
-import com.labteto.dshmobile.ui.media.rememberAttachmentImage
-import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.core.session.aspectRatioOf
+import com.labteto.dshmobile.ui.components.media.AttachmentImageState
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -44,7 +41,7 @@ import com.labteto.dshmobile.ui.theme.DsType
  */
 @Composable
 fun AttachmentImage(
-    attachmentId: String,
+    state: AttachmentImageState,
     intrinsicWidth: Int,
     intrinsicHeight: Int,
     modifier: Modifier = Modifier,
@@ -52,21 +49,8 @@ fun AttachmentImage(
     contentDescription: String? = null,
 ) {
     val colors = DsTheme.colors
-    val store = rememberSessionStore()
-    val cache = rememberAttachmentCache()
-    val density = LocalDensity.current
-    val screenWidthDp = LocalConfiguration.current.screenWidthDp
-    // Decode for the widest the transcript can ever show it, not for the source resolution.
-    val targetWidthPx = remember(screenWidthDp) { with(density) { screenWidthDp.dp.roundToPx() } }
-    val state by rememberAttachmentImage(
-        attachmentId = attachmentId,
-        intrinsicWidth = intrinsicWidth,
-        intrinsicHeight = intrinsicHeight,
-        targetWidthPx = targetWidthPx,
-        store = store,
-        cache = cache,
-    )
-    var zoomed by remember(attachmentId) { mutableStateOf(false) }
+    // Keyed on the attachment so a recycled row does not inherit the previous image's zoom.
+    var zoomed by remember(intrinsicWidth, intrinsicHeight) { mutableStateOf(false) }
     val ratio = remember(intrinsicWidth, intrinsicHeight) {
         aspectRatioOf(intrinsicWidth, intrinsicHeight)
     }
