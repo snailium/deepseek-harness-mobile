@@ -36,6 +36,7 @@ import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.formatDurationMs
 import com.labteto.dshmobile.ui.components.formatTokens
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
@@ -172,7 +173,7 @@ private fun ToolLedgerRow(call: ToolCallNode, result: ToolResultNode?, cwd: Stri
             onToggle = { expanded = !expanded },
             modifier = Modifier.weight(1f),
         ) {
-            Column(Modifier.padding(start = 28.dp, top = 2.dp)) {
+            Column(Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp)) {
                 Text(stringResource(R.string.chat_input_placeholder), style = DsType.caption11, color = colors.labelCaption)
                 JsonDisclosure(call.name, runCatching { kotlinx.serialization.json.Json.parseToJsonElement(call.arguments) }.getOrElse { kotlinx.serialization.json.JsonPrimitive(call.arguments) })
                 result?.content?.let { content ->

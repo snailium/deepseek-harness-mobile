@@ -100,7 +100,7 @@ internal fun TodoDock(todos: List<TodoEntry>, modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 28.dp, top = 2.dp),
+                    .padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 StateDot(todoStatusDot(todo.status), size = 8.dp)
@@ -255,7 +255,7 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 28.dp, top = 2.dp),
+                    .padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
