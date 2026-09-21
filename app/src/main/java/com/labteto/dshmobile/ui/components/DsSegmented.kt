@@ -30,7 +30,16 @@ import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
 
 /** One choice in a [DsSegmented] track. */
-data class DsSegment(val key: String, val label: String)
+/**
+ * One choice in the track.
+ *
+ * [weight] is the segment's share of a stretched track, and exists because the two labels are not
+ * the same length: an even split gives the short label as much room as the long one needs and
+ * leaves the long one ellipsised. Hugging (an unstretched track) is the alternative, but then the
+ * control is only as wide as its text and stops reading as a primary choice. A caller that cares
+ * passes the ratio; the default keeps the previous even behaviour for every other use.
+ */
+data class DsSegment(val key: String, val label: String, val weight: Float = 1f)
 
 /**
  * A compact segmented control: a track of mutually exclusive choices, one of them live.
@@ -84,7 +93,7 @@ fun DsSegmented(
                 // get a button's height. 24dp is a comfortable inline chip and an uncomfortably
                 // small thing to hit when it is the first decision on a screen.
                 minHeight = if (stretch) 36.dp else 24.dp,
-                modifier = Modifier.weight(1f, fill = stretch),
+                modifier = Modifier.weight(segment.weight, fill = stretch),
             )
         }
     }
@@ -113,7 +122,11 @@ private fun DsSegment(
             .clip(DsShapes.pillFull)
             .background(colors.accentTertiary.copy(alpha = emphasis))
             .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
-            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
+            // 8dp each side, not the standard 12dp. The padding exists to keep the pill's fill off
+            // its own label; a stretched segment is already sized by its share of the track, so
+            // the wider inset only took room from the label — at a narrow track it was the
+            // difference between "Trajectory" fitting and ellipsising.
+            .padding(horizontal = DsSpacing.small, vertical = DsSpacing.tiny),
     ) {
         Text(
             label,

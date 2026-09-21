@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,26 +17,35 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -61,6 +72,8 @@ import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.MenuItem
+import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.SectionHeader
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
@@ -71,10 +84,12 @@ import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.labteto.dshmobile.ui.components.FeatherIcons
 
 /** [com.labteto.dshmobile.connection.HostsStore.sessionSort]: the workspace's own row order. */
 private const val SORT_MANUAL = "manual"
@@ -89,10 +104,12 @@ private const val SORT_UPDATED = "updated"
  * as scratch space and reuses it, so listing them just accumulates empty rows. And times are
  * relative, because a clock time cannot distinguish "an hour ago" from "last Tuesday".
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListDrawer(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     val store = rememberSessionStore()
@@ -106,9 +123,16 @@ fun ChatListDrawer(
     val contentSearchAvailable by store.contentSearchAvailable.collectAsStateWithLifecycle()
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
     val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
+    val refreshing by store.refreshingSessions.collectAsStateWithLifecycle()
+
+    // Pull-to-refresh: the session list is a snapshot of the harness's state, and a session created
+    // elsewhere (another client, the web UI) only appears once we ask again.
+    val pullState = rememberPullToRefreshState()
 
     var query by remember { mutableStateOf("") }
     var searchOpen by remember { mutableStateOf(false) }
+    // The on-device diagnostics dialog is disabled and lives in ChatListDebug.kt; its
+    // `showDebugInfo` state went with it.
     // Persisted, not remembered: the order you read your sessions in is a preference, and it used
     // to reset every time the drawer was closed.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
@@ -116,6 +140,8 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     var newSessionOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
+    var ungroupedExpanded by remember { mutableStateOf(false) }
+    var archivedExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(query) {
         delay(250)
@@ -183,70 +209,89 @@ fun ChatListDrawer(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(colors.sidebar)
             .safeDrawingPadding()
             .padding(horizontal = DsSpacing.medium),
     ) {
+        // The title row is the drawer's title bar: the same shape as the chat page's — a 44dp
+        // floor, the title in base16Strong, icon controls at 18dp/24dp. Search and settings live
+        // here rather than on a second row, because they configure the list, not the sessions it
+        // holds; the sort chip is the one control that belongs to the list itself and stays with it.
         Row(
-            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.small),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = DsTitleBar.height)
+                .padding(top = DsSpacing.small),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
         ) {
             Text(
                 text = stringResource(R.string.chatlist_title),
-                style = DsType.large20,
+                style = DsTitleBar.titleStyle,
                 color = colors.labelPrimary,
                 modifier = Modifier.weight(1f),
             )
+            // Closing the field clears the query too: a hidden field holding text left the list
+            // filtered by something no longer on screen.
             DsIconButton(
                 icon = Icons.Filled.Search,
                 contentDescription = stringResource(R.string.common_search),
-                // Closing the field clears the query too: a hidden field holding text left the list
-                // filtered by something no longer on screen.
                 onClick = {
                     searchOpen = !searchOpen
                     if (!searchOpen) query = ""
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
-            SortChip(sortByRecency) { next ->
-                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
-            }
             DsIconButton(
                 icon = Icons.Filled.Settings,
                 contentDescription = stringResource(R.string.settings_title),
                 onClick = onOpenSettings,
                 tint = colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
             )
         }
 
-        DsButton(
-            text = stringResource(R.string.chatlist_new_session),
-            icon = Icons.Filled.Add,
-            onClick = { newSessionOpen = true },
-            variant = DsButtonVariant.Info,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End,
+        ) {
+            SortChip(sortByRecency) { next ->
+                scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
+            }
+        }
 
         // The search field folds away rather than permanently occupying a row of a phone-height
-        // drawer, which is otherwise pure overhead for the common case.
+        // drawer, which is otherwise pure overhead for the common case. Same pill as every other
+        // search field in the app, through SearchField — this used to be a hand-copied version of
+        // that recipe, which is exactly how it drifted from the transcript's.
         AnimatedVisibility(visible = searchOpen) {
             Column(modifier = Modifier.padding(top = DsSpacing.small)) {
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
+                SearchField(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = stringResource(R.string.chatlist_search_hint),
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(stringResource(R.string.chatlist_search_hint), style = DsType.std14) },
-                    singleLine = true,
-                    colors = dialogTextFieldColors(),
+                    trailing = {
+                        SearchFieldCloseButton(
+                            onClick = {
+                                searchOpen = false
+                                query = ""
+                            },
+                        )
+                    },
                 )
                 // Stated once, quietly, and only while searching. Most harnesses ship with the
                 // content index off, so this is a normal capability note — not a failure.
                 if (!contentSearchAvailable && query.isNotBlank()) {
                     Text(
                         stringResource(R.string.chatlist_search_content_off),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                         modifier = Modifier.padding(top = DsSpacing.tiny),
                     )
@@ -256,163 +301,194 @@ fun ChatListDrawer(
 
         Spacer(Modifier.height(DsSpacing.small))
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            if (query.isNotBlank()) {
-                item(key = "search-header") { SectionHeader(stringResource(R.string.common_search)) }
-                if (searchHits.items.isEmpty()) {
-                    item(key = "search-empty") {
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { scope.launch { store.refreshSessions() } },
+            state = pullState,
+            modifier = Modifier.fillMaxWidth().weight(1f),
+        ) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                if (query.isNotBlank()) {
+                    item(key = "search-header") {
                         Text(
-                            stringResource(R.string.chatlist_search_empty),
-                            style = DsType.std14,
-                            color = colors.labelTertiary,
-                            modifier = Modifier.padding(vertical = DsSpacing.small),
+                            stringResource(R.string.chatlist_search_results),
+                            style = DsType.base16Strong,
+                            color = colors.labelSecondary,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                }
-                items(searchHits.items, key = { it.session.sessionId }) { hit ->
-                    SearchResultRow(hit, store, scope, onClose)
-                }
-                if (searchHits.hasMore) {
-                    item(key = "search-more") {
-                        Text(
-                            stringResource(R.string.chatlist_search_refine),
-                            style = DsType.caption11,
-                            color = colors.labelCaption,
-                            modifier = Modifier.padding(vertical = DsSpacing.xsmall),
-                        )
-                    }
-                }
-                return@LazyColumn
-            }
-
-            var anyShown = false
-            for (workspace in workspaces) {
-                val roots = workspace.sessionIds
-                    .mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
-                    .filterNot { it.sessionId in nestedIds }
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                if (roots.isEmpty()) continue
-                anyShown = true
-                // Only the workspace you are working in is open by default. With twenty sessions
-                // and their subagents in one group, expanding everything buries the list you came
-                // for; the explicit map entry then remembers whatever you choose.
-                val holdsCurrent = roots.any { it.sessionId in openPath }
-                val isCollapsed = collapsed[workspace.workspaceId] ?: !holdsCurrent
-                item(key = "ws-${workspace.workspaceId}") {
-                    WorkspaceHeader(
-                        workspace = workspace,
-                        collapsed = isCollapsed,
-                        // Sessions, not sessions-plus-their-subagents: a subagent count belongs on
-                        // the row that spawned them, where it says something.
-                        sessionCount = roots.size,
-                        onToggle = { collapsed[workspace.workspaceId] = !isCollapsed },
-                        store = store,
-                        scope = scope,
-                        onNewSession = {
-                            scope.launch {
-                                store.createSession(workspaceId = workspace.workspaceId)
-                                onClose()
-                            }
-                        },
-                    )
-                }
-                if (!isCollapsed) {
-                    val flat = roots.flatMap { subtree(it) }
-                    items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                        Box(Modifier.animateItem()) {
-                            SessionRowItem(
-                                session = session,
-                                isCurrent = session.sessionId == currentSessionId,
-                                store = store,
-                                scope = scope,
-                                onClose = onClose,
-                                depth = depth,
-                                childCount = childrenByParent[session.sessionId].orEmpty().size,
-                                childrenExpanded = isExpanded(session.sessionId),
-                                onToggleChildren = { toggleChildren(session.sessionId) },
+                    if (searchHits.items.isEmpty()) {
+                        item(key = "search-empty") {
+                            Text(
+                                stringResource(R.string.chatlist_search_empty),
+                                style = DsType.base16,
+                                color = colors.labelTertiary,
+                                modifier = Modifier.padding(vertical = DsSpacing.small),
                             )
                         }
                     }
+                    items(searchHits.items, key = { it.session.sessionId }) { hit ->
+                        SearchResultRow(hit, store, scope, onClose)
+                    }
+                    if (searchHits.hasMore) {
+                        item(key = "search-more") {
+                            Text(
+                                stringResource(R.string.chatlist_search_refine),
+                                style = DsType.xsmall12,
+                                color = colors.labelCaption,
+                                modifier = Modifier.padding(vertical = DsSpacing.xsmall),
+                            )
+                        }
+                    }
+                    return@LazyColumn
                 }
-            }
 
-            // Sessions the harness never registered in a workspace, plus any subagent whose whole
-            // ancestry is archived or blank — those have no row left to nest under.
-            val ungrouped = listable.filter {
-                it.sessionId !in workspaceSessionIds && it.sessionId !in nestedIds
-            }
-            if (ungrouped.isNotEmpty()) {
-                anyShown = true
-                item(key = "sessions-header") { SectionHeader(stringResource(R.string.chatlist_sessions)) }
-                val flat = ungrouped
-                    .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    .flatMap { subtree(it) }
-                items(flat, key = { it.first.sessionId }) { (session, depth) ->
-                    Box(Modifier.animateItem()) {
-                        SessionRowItem(
-                            session = session,
-                            isCurrent = session.sessionId == currentSessionId,
+                var anyShown = false
+                for (workspace in workspaces) {
+                    val roots = workspace.sessionIds
+                        .mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
+                        .filterNot { it.sessionId in nestedIds }
+                        .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                    if (roots.isEmpty()) continue
+                    anyShown = true
+                    // Only the workspace you are working in is open by default. With twenty sessions
+                    // and their subagents in one group, expanding everything buries the list you came
+                    // for; the explicit map entry then remembers whatever you choose.
+                    val holdsCurrent = roots.any { it.sessionId in openPath }
+                    val isCollapsed = collapsed[workspace.workspaceId] ?: !holdsCurrent
+                    item(key = "ws-${workspace.workspaceId}") {
+                        WorkspaceHeader(
+                            workspace = workspace,
+                            collapsed = isCollapsed,
+                            // Sessions, not sessions-plus-their-subagents: a subagent count belongs on
+                            // the row that spawned them, where it says something.
+                            sessionCount = roots.size,
+                            onToggle = { collapsed[workspace.workspaceId] = !isCollapsed },
                             store = store,
                             scope = scope,
-                            onClose = onClose,
-                            depth = depth,
-                            childCount = childrenByParent[session.sessionId].orEmpty().size,
-                            childrenExpanded = isExpanded(session.sessionId),
-                            onToggleChildren = { toggleChildren(session.sessionId) },
+                            onNewSession = {
+                                scope.launch {
+                                    store.createSession(workspaceId = workspace.workspaceId)
+                                    onClose()
+                                }
+                            },
+                        )
+                    }
+                    if (!isCollapsed) {
+                        val flat = roots.flatMap { subtree(it) }
+                        items(flat, key = { it.first.sessionId }) { (session, depth) ->
+                            Box(Modifier.animateItem()) {
+                                SessionRowItem(
+                                    session = session,
+                                    isCurrent = session.sessionId == currentSessionId,
+                                    store = store,
+                                    scope = scope,
+                                    onClose = onClose,
+                                    depth = depth,
+                                    childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                    childrenExpanded = isExpanded(session.sessionId),
+                                    onToggleChildren = { toggleChildren(session.sessionId) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Sessions the harness never registered in a workspace, plus any subagent whose whole
+                // ancestry is archived or blank — those have no row left to nest under.
+                val ungrouped = listable.filter {
+                    it.sessionId !in workspaceSessionIds && it.sessionId !in nestedIds
+                }
+                if (ungrouped.isNotEmpty()) {
+                    anyShown = true
+                    item(key = "ungrouped-header") {
+                        GroupHeader(
+                            label = stringResource(R.string.chatlist_sessions),
+                            count = ungrouped.size,
+                            collapsed = !ungroupedExpanded,
+                            onToggle = { ungroupedExpanded = !ungroupedExpanded },
+                        )
+                    }
+                    if (ungroupedExpanded) {
+                        val ungroupedFlat = ungrouped
+                            .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
+                            .flatMap { subtree(it) }
+                        items(ungroupedFlat, key = { "ug-${it.first.sessionId}" }) { (session, depth) ->
+                            Box(Modifier.animateItem()) {
+                                SessionRowItem(
+                                    session = session,
+                                    isCurrent = session.sessionId == currentSessionId,
+                                    store = store,
+                                    scope = scope,
+                                    onClose = onClose,
+                                    depth = depth,
+                                    childCount = childrenByParent[session.sessionId].orEmpty().size,
+                                    childrenExpanded = isExpanded(session.sessionId),
+                                    onToggleChildren = { toggleChildren(session.sessionId) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (archivedSessions.isNotEmpty()) {
+                    anyShown = true
+                    item(key = "archived-header") {
+                        GroupHeader(
+                            label = stringResource(R.string.chatlist_archived),
+                            count = archivedSessions.size,
+                            collapsed = !archivedExpanded,
+                            onToggle = { archivedExpanded = !archivedExpanded },
+                        )
+                    }
+                    if (archivedExpanded) {
+                        items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
+                            Box(Modifier.animateItem()) {
+                                SessionRowItem(session, false, store, scope, onClose)
+                            }
+                        }
+                    }
+                }
+
+                if (!anyShown) {
+                    item(key = "empty") {
+                        EmptyHero(
+                            headline = stringResource(R.string.chatlist_empty),
+                            subtitle = stringResource(R.string.chatlist_empty_hint),
                         )
                     }
                 }
             }
-
-            if (archivedSessions.isNotEmpty()) {
-                anyShown = true
-                item(key = "archived") {
-                    var archivedExpanded by remember { mutableStateOf(false) }
-                    DisclosureRow(
-                        title = stringResource(R.string.chatlist_archived),
-                        summary = archivedSessions.size.toString(),
-                        expanded = archivedExpanded,
-                        onToggle = { archivedExpanded = !archivedExpanded },
-                    ) {
-                        archivedSessions.forEach { session ->
-                            SessionRowItem(session, false, store, scope, onClose)
-                        }
-                    }
-                }
-            }
-
-            if (!anyShown) {
-                item(key = "empty") {
-                    EmptyHero(
-                        headline = stringResource(R.string.chatlist_empty),
-                        subtitle = stringResource(R.string.chatlist_empty_hint),
-                    )
-                }
-            }
         }
 
+        Spacer(Modifier.height(10.dp))
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.row)
-                .clickable { newWorkspaceOpen = true }
-                .padding(vertical = DsSpacing.small),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            Icon(
-                Icons.Filled.Add,
-                contentDescription = null,
-                tint = colors.labelTertiary,
-                modifier = Modifier.size(16.dp),
+            DsButton(
+                text = stringResource(R.string.chatlist_new_workspace),
+                icon = Icons.Filled.Add,
+                onClick = { newWorkspaceOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.width(DsSpacing.small))
-            Text(
-                stringResource(R.string.chatlist_new_workspace),
-                style = DsType.std14,
-                color = colors.labelSecondary,
+            DsButton(
+                text = stringResource(R.string.chatlist_new_session),
+                icon = Icons.Filled.Add,
+                onClick = { newSessionOpen = true },
+                variant = DsButtonVariant.Info,
+                modifier = Modifier.weight(1f),
             )
         }
     }
+
+    // ---- Diagnostics: extracted to ChatListDebug.kt and currently disabled. ----
+    //
+    // The on-device log dialog used to live here. It is self-contained (one button, one dialog,
+    // one buffer) and was ~50 lines of debug chrome in the app's busiest composable, so it moved
+    // to its own file. That file carries the re-enable instructions; nothing here calls it while
+    // CHAT_LIST_DEBUG_ENABLED is false.
 
     if (newSessionOpen) {
         NewSessionDialog(
@@ -472,7 +548,7 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
                 )
                 Text(
                     if (byRecency) updated else manual,
-                    style = DsType.small13,
+                    style = DsType.small13Strong,
                     color = colors.labelSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -489,6 +565,52 @@ private fun SortChip(byRecency: Boolean, onPick: (byRecency: Boolean) -> Unit) {
 // ---------------------------------------------------------------------------
 // Rows
 // ---------------------------------------------------------------------------
+
+/**
+ * A collapsible group header with the same visual style as [WorkspaceHeader]:
+ * chevron + bold label + count. Used for Ungrouped and Archived sections.
+ */
+@Composable
+private fun GroupHeader(
+    label: String,
+    count: Int,
+    collapsed: Boolean,
+    onToggle: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    val rotation by animateFloatAsState(
+        targetValue = if (collapsed) 0f else 90f,
+        animationSpec = DsAnimations.chevron,
+        label = "groupChevron",
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .clickable(onClick = onToggle)
+            .padding(vertical = DsSpacing.xsmall),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = colors.labelTertiary,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { rotationZ = rotation },
+        )
+        Spacer(Modifier.width(DsSpacing.tiny))
+        Text(
+            label,
+            style = DsType.base16Strong,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(count.toString(), style = DsType.xsmall12, color = colors.labelCaption)
+    }
+}
 
 /**
  * A workspace header that collapses its group and carries the workspace verbs.
@@ -538,13 +660,13 @@ private fun WorkspaceHeader(
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
                 label,
-                style = DsType.std14Strong,
+                style = DsType.base16Strong,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Text(sessionCount.toString(), style = DsType.caption11, color = colors.labelCaption)
+            Text(sessionCount.toString(), style = DsType.xsmall12, color = colors.labelCaption)
         }
         if (menuOpen) {
             WorkspaceMenu(
@@ -681,18 +803,21 @@ private fun SessionRowItem(
                 Spacer(Modifier.width(16.dp))
             }
             Spacer(Modifier.width(DsSpacing.tiny))
+            // 1.5x the component's default: at 8dp the dot is a speck next to a 16sp title, and the
+            // row's other affordances (chevron, pill) are all bigger than it.
             StateDot(
                 state = when {
                     session.running -> StateDotState.Running
                     session.pendingInteraction != null -> StateDotState.Warning
                     else -> StateDotState.Idle
                 },
+                size = 12.dp,
             )
             Spacer(Modifier.width(DsSpacing.small))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = sessionTitle(session),
-                    style = DsType.std14,
+                    style = DsType.base16,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -701,17 +826,17 @@ private fun SessionRowItem(
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             basename(it),
-                            style = DsType.caption11,
+                            style = DsType.xsmall12,
                             color = colors.labelCaption,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        Text(" · ", style = DsType.caption11, color = colors.labelCaption)
+                        Text(" · ", style = DsType.xsmall12, color = colors.labelCaption)
                     }
                     Text(
                         relativeTime(session.updatedAt),
-                        style = DsType.caption11,
+                        style = DsType.xsmall12,
                         color = colors.labelCaption,
                     )
                 }
@@ -808,7 +933,7 @@ private fun SearchResultRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = sessionTitle(hit.session),
-                style = DsType.rowText,
+                style = DsType.base16,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -822,7 +947,7 @@ private fun SearchResultRow(
         hit.workspaceLabel.takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelCaption,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -831,7 +956,7 @@ private fun SearchResultRow(
         hit.snippet?.let {
             Text(
                 text = it,
-                style = DsType.caption11,
+                style = DsType.xsmall12,
                 color = colors.labelSecondary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -856,7 +981,7 @@ private fun NewSessionDialog(
         if (workspaces.isEmpty()) {
             Text(
                 stringResource(R.string.chatlist_no_workspaces),
-                style = DsType.std14,
+                style = DsType.base16,
                 color = colors.labelSecondary,
             )
         }

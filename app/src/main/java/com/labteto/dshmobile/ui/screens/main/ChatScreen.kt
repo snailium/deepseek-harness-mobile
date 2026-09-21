@@ -6,6 +6,7 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -63,6 +64,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
+import androidx.compose.runtime.LaunchedEffect
+import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.ui.rememberHostsStore
+import androidx.compose.runtime.collectAsState
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
+import com.labteto.dshmobile.ui.theme.DsSpacing
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -84,7 +91,27 @@ fun ChatScreen(
     val toast = rememberDsToast()
 
     val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    // The fold derives the live to-do list from the event stream (see SessionStore.todos);
+    // dismissal is keyed on the list itself, so a new `todo/write` restores the bar.
+    val liveTodos = store.todos.collectAsStateWithLifecycle().value
+    var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    // In-transcript search. The bar is collapsible: the toolbar's search icon opens it, and a ×
+    // inside the bar closes it. The query and cursor live above the tab swap — they belong to the
+    // session rather than to either view, and stepping past the last hit wraps to the first.
+    var searchQuery by remember(currentSessionId) { mutableStateOf("") }
+    var searchOpen by remember(currentSessionId) { mutableStateOf(false) }
+    var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
+    val matches = remember(conversation?.nodes, searchQuery) {
+        findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
+    }
+    // A new query resets the walk to the first hit; keeping the old cursor would land the reader at
+    // position 5 of a completely different result set. The cursor is also clamped on read, because
+    // the node list can shrink under it (a live turn folding, a page of history arriving).
+    LaunchedEffect(searchQuery) { matchCursor = 0 }
+    val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
+    val currentMatch = matches.getOrNull(cursor)
+
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
     val skills by store.skills.collectAsStateWithLifecycle()
@@ -113,9 +140,15 @@ fun ChatScreen(
         ?: currentSessionId.orEmpty()
 
     val connection by store.connectionState.collectAsStateWithLifecycle()
+    // The persisted send mode seeds each new draft; the details panel's card writes it.
+    val hostsStore = rememberHostsStore()
+    val appSettings by hostsStore.settings.collectAsState(initial = AppSettings())
     val hostKey = connection.host?.let { "${it.baseUrl}|${it.id}" }.orEmpty()
     val composer = remember(hostKey, currentSessionId) {
-        store.composers.get(ComposerKey(hostKey, currentSessionId.orEmpty()))
+        store.composers.get(
+            ComposerKey(hostKey, currentSessionId.orEmpty()),
+            defaultMode = appSettings.promptMode,
+        )
     }
     var draft by composer::text
     var mode by composer::mode
@@ -364,7 +397,10 @@ fun ChatScreen(
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
         store.panels.get(composer.key).open(path); panelKey = composer.key
     }) {
-    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = colors.bgBase,
+    ) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
@@ -386,16 +422,61 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
+                // Null when there is no session to point at, which hides the button rather than
+                // offering a tap that does nothing.
+                onOpenWorkspace = if (currentSessionId != null) {
+                    { panelKey = composer.key }
+                } else {
+                    null
+                },
+                searchQuery = searchQuery,
+                // The counter is 1-based and reads 0/0 when nothing matches.
+                searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                searchCount = matches.size,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                searchOpen = searchOpen,
+                onToggleSearch = { searchOpen = !searchOpen },
             )
 
             connectionError?.let {
                 androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
             }
-            androidx.compose.material3.TextButton(onClick = { panelKey = composer.key }, enabled = currentSessionId != null) {
-                androidx.compose.material3.Text(stringResource(R.string.panel_workspace))
-            }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
+            }
+
+            // Collapsible transcript search: hidden by default, opened by the toolbar's search
+            // icon, closed by its own × button. Sits above the todo dock so hits are visible
+            // while reading.
+            AnimatedVisibility(visible = searchOpen) {
+                TranscriptSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                    matchCount = matches.size,
+                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                    onClose = { searchOpen = false; searchQuery = "" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
+                )
+            }
+
+            // The agent's live to-do list, pinned above the transcript. Hidden until a
+            // `todo/write` arrives, and dismissed state is keyed on the list so a later write
+            // brings the bar back on its own.
+            liveTodos?.let { todos ->
+                TodoBar(
+                    todos = todos,
+                    dismissed = todosDismissed,
+                    onDismiss = { todosDismissed = true },
+                    // Shares the page inset with the transcript and the composer: the bar spans
+                    // the same column, so its edges have to sit on the same lines.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 2.dp),
+                )
             }
 
             val nodeContext = ChatNodeContext(
@@ -436,6 +517,7 @@ fun ChatScreen(
                         context = nodeContext,
                         listState = chatListState,
                         onLoadOlder = { scope.launch { store.loadOlder() } },
+                        focusSeq = currentMatch?.seq,
                     )
                     ChatTab.Trajectory -> TrajectoryTab(
                         conversation = conversation,
@@ -451,10 +533,11 @@ fun ChatScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = DsSpacing.pageHorizontal),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    parseTodos(conv.projections["todos"])?.let { TodoDock(it) }
+                    // The to-do list lives in the pinned bar above the transcript, not here:
+                    // two renderings of the same list on one screen read as two different lists.
                     parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
                     QueueDock(conv.queue, store)
                 }
@@ -474,6 +557,10 @@ fun ChatScreen(
                 ApprovalPanel(
                     toolName = approval.toolName,
                     reason = approval.reason,
+                    // The page inset lives here, at the call site, because the panel is one of
+                    // several stacked in the same column: a composable that inset itself would
+                    // fight whichever container also holds it.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                     onAllow = { decide(true) },
                     onReject = { decide(false) },
                 )
@@ -507,6 +594,7 @@ fun ChatScreen(
                     PlanReviewPanel(
                         review = review,
                         busy = planBusy,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                         onApprove = { decide(review.approve) },
                         onDecline = { review.decline?.let { decide(it) } },
                         // Wanting to talk it over first is not one of the options the asker stated,
@@ -520,6 +608,7 @@ fun ChatScreen(
                     QuestionsPanel(
                         requestKey = questions.rpcId,
                         questions = questions.items,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                         onSubmit = { answer ->
                             refusalOf(store.answerQuestions(questions.sessionId, answer))
                         },
@@ -542,9 +631,11 @@ fun ChatScreen(
                 contextBreakdown = contextBreakdown,
                 contextPressure = contextPressure,
                 running = conversation?.running == true,
+                enterToSend = appSettings.enterToSend,
                 enabled = currentSessionId != null && !composer.submitting,
                 preparing = composer.preparing,
-                onOpenSheet = { sheet = ChatSheet.Commands },
+                onOpenCommands = { sheet = ChatSheet.Commands },
+                onOpenAttachments = { sheet = ChatSheet.Attachments },
                 // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
                 // which keeps what it has when the new value is equal to it, and a reference to a
                 // local function equals every other reference to that function whatever it
@@ -569,17 +660,6 @@ fun ChatScreen(
             commands = commands,
             commandsAvailable = commandsAvailable,
             skills = skills,
-            mode = mode,
-            running = conversation?.running == true,
-            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
-            onModeChange = { mode = it },
-            onAttach = {
-                if (!composer.preparing && store.composers.imagePickTarget == null) {
-                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
-                    imagePicker.launch("image/*")
-                }
-            },
-            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             // The sheet only auto-runs commands that take no input at all, and a command that
             // takes no input takes no attachments either — so a pending attachment refuses here
             // for the same reason it refuses at the composer, rather than being silently dropped.
@@ -592,6 +672,19 @@ fun ChatScreen(
                 }
             },
             onPrefillDraft = { prefix -> draft = prefix },
+            onDismiss = { sheet = null },
+        )
+        ChatSheet.Attachments -> AttachmentSheet(
+            // Both rows upload against an open session, so both need one; and a pick already in
+            // flight has to finish before another starts.
+            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
+            onAttachImage = {
+                if (!composer.preparing && store.composers.imagePickTarget == null) {
+                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
+                    imagePicker.launch("image/*")
+                }
+            },
+            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })
@@ -614,7 +707,7 @@ fun ChatScreen(
 }
 
 /** Which sheet, if any, is open over the chat surface. */
-private enum class ChatSheet { Commands, Models, Presets, Subagents }
+private enum class ChatSheet { Commands, Attachments, Models, Presets, Subagents }
 
 /**
  * A picked document's display name and size, as its provider reports them.

@@ -17,6 +17,22 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import com.labteto.dshmobile.ui.components.LocalSelectionDismiss
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,8 +54,10 @@ import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.skeleton
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import androidx.compose.runtime.derivedStateOf
 
 /**
  * How close to the far end of the list — the oldest message — a reader must get before the next
@@ -97,6 +115,11 @@ internal fun ChatTranscript(
     context: ChatNodeContext,
     listState: LazyListState,
     onLoadOlder: () -> Unit,
+    /**
+     * The message a search hit landed on, if any. Its row is scrolled to; the row itself decides
+     * how to mark the hit. Null when nothing is being searched for.
+     */
+    focusSeq: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
@@ -108,8 +131,35 @@ internal fun ChatTranscript(
         conversation?.nodes.orEmpty().filter { it.rendersContent() }.asReversed()
     }
     val hasMore = conversation?.hasMore == true
+
+    // Whether the newest message is on screen. In a reversed list that is index 0, and the tail
+    // can be *partly* visible mid-scroll, so presence is what counts rather than exact offset.
+    //
+    // Derived rather than latched: reading the layout info inside a composable-scoped read means a
+    // scroll recomposes this and the answer is always current. A `snapshotFlow` collecting into a
+    // `remember`ed flag looked equivalent and was not — the flag starts `true`, the first emission
+    // is also `true`, and the effect's key (the list state object) never changes, so an emission
+    // that never arrives leaves the button hidden for good. The visible-items list is a snapshot
+    // state read, so this recomposes on every scroll without an effect at all.
+    val atNewest = remember(conversation?.sessionId, listState) {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val first = info.visibleItemsInfo.firstOrNull() ?: return@derivedStateOf true
+            first.index == 0 && first.offset >= -AT_NEWEST_TOLERANCE_PX
+        }
+    }
     val itemCount = rows.size + if (hasMore) 1 else 0
     val sessionId = conversation?.sessionId
+
+    // The row carrying the hit. Rows are already reversed, so the index is the list index — the
+    // paging row sits at the far end and shifts nothing at the head.
+    val focusRowIndex = remember(rows, focusSeq) {
+        focusSeq?.let { seq -> rows.indexOfFirst { it.seq == seq }.takeIf { it >= 0 } }
+    }
+    LaunchedEffect(focusRowIndex, sessionId) {
+        val target = focusRowIndex ?: return@LaunchedEffect
+        listState.animateScrollToItem(target)
+    }
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
@@ -162,10 +212,11 @@ internal fun ChatTranscript(
         return
     }
 
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = DsSpacing.pageHorizontal, vertical = 8.dp),
         // Newest first, so the row the viewport anchors on is the one that grows.
         reverseLayout = true,
         // Still bottom-aligned: a transcript shorter than the viewport belongs above the composer,
@@ -173,7 +224,11 @@ internal fun ChatTranscript(
         // space, not the reversed one, so this reads the same as it always did — and it only has
         // any effect while the content is shorter than the viewport, which is exactly when no row
         // is growing under anyone's eyes.
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        // 10dp between rows. The 4dp this carried was tuned for a flat text list; with answers,
+        // thinking disclosures and tool cards alternating, 4dp left the prose touching the blocks
+        // around it. Still bottom-aligned — a transcript shorter than the viewport belongs above
+        // the composer.
+        verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
     ) {
         if (rows.isEmpty()) {
             item(key = "empty") {
@@ -193,9 +248,17 @@ internal fun ChatTranscript(
                 key = { node -> if (node is AssistantMessageNode && node.streaming) STREAMING_ROW_KEY else node.seq },
             ) { node ->
                 val streaming = node is AssistantMessageNode && node.streaming
+                // A tap on the row dismisses any active text selection: this Compose version's
+                // SelectionContainer has no built-in "tap outside to clear", so each row opts in.
+                // Long-press is a distinct gesture and still reaches the selectable text inside.
+                val selectionDismiss = LocalSelectionDismiss.current
                 // Placement animation is for rows that move. The streaming row grows in place many
                 // times a second, and animating that reads as jitter rather than motion.
-                Column(if (streaming) Modifier else Modifier.animateItem()) {
+                Column(
+                    (if (streaming) Modifier else Modifier.animateItem())
+                        .fillMaxWidth()
+                        .clickable { selectionDismiss.value++ },
+                ) {
                     ChatNodeItem(node = node, context = context)
                 }
             }
@@ -212,7 +275,46 @@ internal fun ChatTranscript(
             }
         }
     }
+
+    // Floating "jump to newest" affordance, shown once the reader has scrolled away from the tail.
+    // In a reversed list the newest message is index 0, so that is where this returns them.
+    // Reading back through history is the one case the pinned-follow behaviour does not cover:
+    // the list deliberately stops following once the reader scrolls up, and without this the
+    // only way back to a live reply is to drag the whole way by hand.
+    val scope = rememberCoroutineScope()
+    AnimatedVisibility(
+        visible = !atNewest.value && rows.isNotEmpty(),
+        enter = fadeIn() + slideInVertically { it / 4 },
+        exit = fadeOut() + slideOutVertically { it / 4 },
+        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 12.dp),
+    ) {
+        val colors = DsTheme.colors
+        Box(
+            Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(colors.bgLayer3)
+                .border(1.dp, colors.borderL1)
+                .clickable { scope.launch { listState.animateScrollToItem(0) } },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.chat_scroll_to_bottom),
+                tint = colors.labelPrimary,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+    }
 }
+
+/**
+ * How far the list may be scrolled past index 0 and still count as "at the newest message".
+ * A small positive value absorbs the rounding in Compose's own layout measurements, so the
+ * button does not flicker in at the very end of a scroll.
+ */
+private const val AT_NEWEST_TOLERANCE_PX = 4
 
 /** Stable identity for the one provisional streaming row; see the keying note above. */
 private const val STREAMING_ROW_KEY = "streaming-tail"
@@ -280,9 +382,12 @@ private fun LoadOlderRow(
 private fun TranscriptSkeleton(modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
     Column(
+        // The skeleton replaces the list, so it carries the page margin itself — the same constant
+        // as the list's contentPadding, which is what keeps the placeholder on the same column as
+        // every real row.
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 16.dp),
+            .padding(horizontal = DsSpacing.pageHorizontal, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         listOf(0.55f, 0.9f, 0.75f, 0.4f).forEach { fraction ->

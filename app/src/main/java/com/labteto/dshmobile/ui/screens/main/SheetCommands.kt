@@ -1,24 +1,20 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,32 +30,34 @@ import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.ui.components.DsBottomSheet
-import com.labteto.dshmobile.ui.components.DsPill
-import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 
 /**
- * The `+` sheet: everything you can add to a message that is not the message.
+ * The `/` sheet: the harness's own commands and skills.
  *
- * Commands come from the harness's own per-session catalog rather than a hardcoded list, because
- * which commands exist depends on the deployment and on the session's agent preset. When the
- * harness exposes no catalog the section says so instead of inventing entries — a menu that offers
- * a command the host will reject is worse than a menu that admits it does not know.
+ * Commands come from the harness's per-session catalog rather than a hardcoded list, because which
+ * commands exist depends on the deployment and on the session's agent preset. When the harness
+ * exposes no catalog the section says so instead of inventing entries — a menu that offers a
+ * command the host will reject is worse than a menu that admits it does not know.
+ *
+ * Attaching and the Queue/Steer mode used to live here too. They moved out: the composer's `+`
+ * button was three unrelated things in one menu (a command palette, a file picker and a send-mode
+ * switch), and the split is now `/` for commands and the paperclip for attachments. The send mode
+ * went to the session details panel, where a working preference belongs rather than a per-message
+ * menu.
  */
 @Composable
 internal fun CommandSheet(
     commands: List<CommandDescriptor>,
     commandsAvailable: Boolean,
     skills: List<SkillEntry>,
-    mode: String,
-    running: Boolean,
-    canAttach: Boolean,
-    onModeChange: (String) -> Unit,
-    onAttach: () -> Unit,
-    onAttachFile: () -> Unit,
     onRunCommand: (String) -> Unit,
     onPrefillDraft: (String) -> Unit,
     onDismiss: () -> Unit,
@@ -71,31 +69,134 @@ internal fun CommandSheet(
     val searchable = commands.size + skills.size > 12
 
     DsBottomSheet(title = stringResource(R.string.chat_composer_commands), onDismiss = onDismiss) {
-        // Attach ------------------------------------------------------------
+        if (searchable) {
+            // The app's own search pill, not a Material3 TextField: that one is a 56dp outlined
+            // box, so it read as a control from a different app sitting above the list.
+            SearchField(
+                query = query,
+                onQueryChange = { query = it },
+                placeholder = stringResource(R.string.common_search),
+                modifier = Modifier.fillMaxWidth(),
+                trailing = if (query.isNotEmpty()) {
+                    { SearchFieldCloseButton(onClick = { query = "" }) }
+                } else {
+                    null
+                },
+            )
+        }
+
+        // Commands and Skills share the settings page's card shape: title, then a raised block of
+        // rows. The sheet's 8dp gap between children is what separates one card from the next.
+        SettingsCard(stringResource(R.string.chat_composer_commands)) {
+            when {
+                !commandsAvailable -> Text(
+                    stringResource(R.string.chat_commands_unavailable),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+                filteredCommands.isEmpty() -> Text(
+                    stringResource(R.string.chat_commands_empty),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+                else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                    items(filteredCommands, key = { it.name }) { command ->
+                        SheetRow(
+                            // Always the command itself, never a friendly name. This list used to
+                            // special-case four commands into localized labels ("Goal", "Plan mode",
+                            // "Download session log", "Submit feedback") while every other entry showed
+                            // its own `/name` — so the column mixed two conventions, and the four
+                            // localized ones stopped being recognisable as commands at all. The
+                            // description beside it is what explains the command; the title's job is to
+                            // say what to type.
+                            title = command.line,
+                            subtitle = command.description.ifBlank { null },
+                            trailing = command.input?.hint,
+                            onClick = {
+                                onDismiss()
+                                // A bare command runs immediately; one that takes an argument prefills
+                                // the composer so the argument can be typed where the hint is visible.
+                                if (command.input == null) {
+                                    onRunCommand(command.line)
+                                } else {
+                                    onPrefillDraft(command.draftPrefix)
+                                }
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (filteredSkills.isNotEmpty()) {
+            SettingsCard(stringResource(R.string.skills_title)) {
+                LazyColumn(Modifier.heightIn(max = 220.dp)) {
+                    items(filteredSkills, key = { it.name }) { skill ->
+                        SheetRow(
+                            title = "/${skill.name}",
+                            subtitle = skill.description.ifBlank { null },
+                            trailing = if (!skill.modelInvocable) {
+                                stringResource(R.string.skills_user_only)
+                            } else {
+                                null
+                            },
+                            onClick = {
+                                onDismiss()
+                                onPrefillDraft("/${skill.name} ")
+                            },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The paperclip sheet: what to attach.
+ *
+ * Two rows rather than one picker, because the platform makes them different gestures — a photo
+ * comes from the media store and a file from the document provider — and the harness treats them
+ * differently too: 0.1.3 takes any file, but the image path also feeds the multimodal route.
+ */
+@Composable
+internal fun AttachmentSheet(
+    canAttach: Boolean,
+    onAttachImage: () -> Unit,
+    onAttachFile: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    DsBottomSheet(title = stringResource(R.string.chat_composer_attach_title), onDismiss = onDismiss) {
+        // The sheet's own 8dp gap between children is too tight here: the title sits on top of a
+        // two-row list, and at that distance it reads as one block. An extra row of air separates
+        // "what this is" from "what you can do".
+        Spacer(Modifier.height(DsSpacing.small))
         SheetRow(
             leading = {
                 Icon(
-                    Icons.Filled.Image,
+                    FeatherIcons.Image,
                     contentDescription = null,
                     tint = colors.labelSecondary,
                     modifier = Modifier.size(20.dp),
                 )
             },
-            title = stringResource(R.string.chat_composer_attach),
+            title = stringResource(R.string.chat_composer_attach_image),
+            // The row stays enabled exactly when the file one is: both upload against an open
+            // session, so both need one.
             subtitle = if (canAttach) null else stringResource(R.string.err_attachment_failed),
             enabled = canAttach,
             onClick = {
                 onDismiss()
-                onAttach()
+                onAttachImage()
             },
         )
         // Harness 0.1.3 takes any file, not only pictures. The bytes go up as soon as one is
-        // picked and the message cites the receipt, so the row stays enabled exactly when the
-        // image one is: both need an open session to upload against.
+        // picked and the message cites the receipt.
         SheetRow(
             leading = {
                 Icon(
-                    Icons.Filled.AttachFile,
+                    FeatherIcons.Paperclip,
                     contentDescription = null,
                     tint = colors.labelSecondary,
                     modifier = Modifier.size(20.dp),
@@ -109,107 +210,6 @@ internal fun CommandSheet(
                 onAttachFile()
             },
         )
-
-        // Send mode ---------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_mode))
-        Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-            DsPill(
-                text = stringResource(R.string.chat_composer_queue),
-                selected = mode != "steer",
-                onClick = { onModeChange("queue") },
-            )
-            // Steering splices into a turn that is already running; with an idle agent there is
-            // nothing to steer, so the option stays visible but inert rather than silently failing.
-            DsPill(
-                text = stringResource(R.string.chat_composer_steer),
-                selected = mode == "steer",
-                onClick = if (running) ({ onModeChange("steer") }) else null,
-            )
-        }
-        Text(
-            stringResource(
-                when {
-                    !running && mode == "steer" -> R.string.chat_composer_steer_idle
-                    mode == "steer" -> R.string.chat_composer_mode_steer_hint
-                    else -> R.string.chat_composer_mode_queue_hint
-                },
-            ),
-            style = DsType.caption11,
-            color = colors.labelTertiary,
-        )
-
-        if (searchable) {
-            TextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.common_search), style = DsType.std14) },
-                colors = dialogTextFieldColors(),
-            )
-        }
-
-        // Commands ----------------------------------------------------------
-        SectionHeader(stringResource(R.string.chat_composer_commands))
-        when {
-            !commandsAvailable -> Text(
-                stringResource(R.string.chat_commands_unavailable),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            filteredCommands.isEmpty() -> Text(
-                stringResource(R.string.chat_commands_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            else -> LazyColumn(Modifier.heightIn(max = 260.dp)) {
-                items(filteredCommands, key = { it.name }) { command ->
-                    SheetRow(
-                        title = when (command.name) {
-                            "goal" -> stringResource(R.string.goal_title)
-                            "plan" -> stringResource(R.string.plan_mode_title)
-                            "export" -> stringResource(R.string.chat_export)
-                            "feedback" -> stringResource(R.string.feedback_send)
-                            else -> command.line
-                        },
-                        subtitle = command.description.ifBlank { null },
-                        trailing = command.input?.hint,
-                        onClick = {
-                            onDismiss()
-                            // A bare command runs immediately; one that takes an argument prefills
-                            // the composer so the argument can be typed where the hint is visible.
-                            if (command.input == null) {
-                                onRunCommand(command.line)
-                            } else {
-                                onPrefillDraft(command.draftPrefix)
-                            }
-                        },
-                    )
-                }
-            }
-        }
-
-        // Skills ------------------------------------------------------------
-        if (filteredSkills.isNotEmpty()) {
-            SectionHeader(stringResource(R.string.skills_title))
-            LazyColumn(Modifier.heightIn(max = 220.dp)) {
-                items(filteredSkills, key = { it.name }) { skill ->
-                    SheetRow(
-                        title = "/${skill.name}",
-                        subtitle = skill.description.ifBlank { null },
-                        trailing = if (!skill.modelInvocable) {
-                            stringResource(R.string.skills_user_only)
-                        } else {
-                            null
-                        },
-                        onClick = {
-                            onDismiss()
-                            onPrefillDraft("/${skill.name} ")
-                        },
-                    )
-                }
-            }
-        }
     }
 }
 

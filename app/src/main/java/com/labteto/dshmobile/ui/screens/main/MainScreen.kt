@@ -1,12 +1,17 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -49,12 +54,28 @@ fun MainScreen(onOpenSettings: () -> Unit) {
     var detailsOpen by remember { mutableStateOf(false) }
     val detailsWidth = 300.dp
 
+    // Back opens the chat list instead of leaving the app, and only a second press exits.
+    //
+    // ModalNavigationDrawer closes on back when it is *open*, but does nothing when it is closed —
+    // so back from the chat surface went straight out of the app, which on a phone is one gesture
+    // away from a mis-tap that loses the session. Back is also what a drawer means to a reader who
+    // does not know the hamburger is the way in.
+    //
+    // Ordering matters: the details panel and the drawer register their own handlers deeper in the
+    // tree, and Compose dispatches to the innermost first, so an open panel or an open drawer
+    // still consumes back before this sees it. This is only the fallback for "nothing else is
+    // open" — exactly the case that used to exit.
+    BackHandler(enabled = drawerState.isClosed && !detailsOpen) {
+        scope.launch { drawerState.open() }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ChatListDrawer(
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
+                modifier = Modifier.fillMaxHeight().width(306.dp),
             )
         },
     ) {
@@ -116,18 +137,43 @@ fun MainScreen(onOpenSettings: () -> Unit) {
                 detailsOpen = detailsOpen,
             )
 
+            // The panel is an overlay with its own scrim, not a decoration on the chat surface.
+            //
+            // This is the structure ModalNavigationDrawer uses for the drawer, and it is the
+            // reason a scrim tap there works and a modifier-based detector here did not. The
+            // transcript's LazyColumn and its rows are real hit-test targets: a `pointerInput` on
+            // a *parent* of the content runs in the down pass but the child still wins the gesture
+            // arbitration, so a tap on a message fired the message's own clickable and the panel
+            // stayed open. A scrim is a sibling drawn on top, so it is simply the front-most hit
+            // target over everything left of the panel and takes the tap before any content sees
+            // it — no arbitration to lose.
+            //
+            // A translucent scrim also dims the content behind, which is what makes an overlay read
+            // as modal rather than as a panel that happens to be there.
             AnimatedVisibility(
                 visible = detailsOpen,
-                // Explicit spec: the platform default runs 300ms, which lags behind the drag the
-                // panel is usually opened with.
-                enter = slideInHorizontally(DsAnimations.panelSlide) { it },
-                exit = slideOutHorizontally(DsAnimations.panelSlide) { it },
+                enter = fadeIn() + slideInHorizontally(DsAnimations.panelSlide) { it },
+                exit = fadeOut() + slideOutHorizontally(DsAnimations.panelSlide) { it },
                 modifier = Modifier.align(Alignment.CenterEnd),
             ) {
-                DetailsPanel(
-                    onClose = { detailsOpen = false },
-                    modifier = Modifier.width(detailsWidth),
-                )
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Scrim: covers the whole surface, sits under the panel but over the chat.
+                    // Sized to the surface, not to the panel's width, so the tap target is
+                    // everything the panel does not cover.
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTapGestures { detailsOpen = false }
+                            },
+                    )
+                    DetailsPanel(
+                        onClose = { detailsOpen = false },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .width(detailsWidth),
+                    )
+                }
             }
         }
     }
