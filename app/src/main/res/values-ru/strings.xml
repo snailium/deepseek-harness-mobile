@@ -474,4 +474,13 @@
     <string name="image_offload">Из запроса исключены прежние изображения</string>
     <string name="panel_open_host">Открыть на хосте</string>
     <string name="tool_copy_code">Копировать код</string>
+    <string name="todo_progress_done">%1$d выполнено</string>
+    <string name="todo_progress_active">%1$d в работе</string>
+    <string name="todo_progress_pending">%1$d ожидает</string>
+    <string name="todo_close">Закрыть задачи</string>
+    <string name="debug_dialog_title">Отладочная информация</string>
+    <string name="debug_buffer_empty">(пусто)</string>
+    <string name="settings_composer">Ввод</string>
+    <string name="settings_enter_to_send">Клавиша Enter отправляет сообщение</string>
+    <string name="settings_enter_to_send_hint">Если выключено, Enter вставляет новую строку, а отправляет кнопка.</string>
 </resources>

@@ -474,4 +474,13 @@
     <string name="image_offload">অনুরোধ থেকে পুরোনো ছবি বাদ দেওয়া হয়েছে</string>
     <string name="panel_open_host">হোস্টে খুলুন</string>
     <string name="tool_copy_code">কোড কপি করুন</string>
+    <string name="todo_progress_done">%1$d সম্পন্ন</string>
+    <string name="todo_progress_active">%1$d চলমান</string>
+    <string name="todo_progress_pending">%1$d অপেক্ষমাণ</string>
+    <string name="todo_close">টু-ডু বন্ধ করুন</string>
+    <string name="debug_dialog_title">ডিবাগ তথ্য</string>
+    <string name="debug_buffer_empty">(খালি)</string>
+    <string name="settings_composer">কম্পোজার</string>
+    <string name="settings_enter_to_send">এন্টার কী বার্তা পাঠায়</string>
+    <string name="settings_enter_to_send_hint">বন্ধ থাকলে এন্টার কী নতুন লাইন যোগ করে এবং পাঠানোর বোতাম পাঠায়।</string>
 </resources>

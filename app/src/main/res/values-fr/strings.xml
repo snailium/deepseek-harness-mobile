@@ -474,4 +474,13 @@
     <string name="image_offload">Images historiques omises de la requête</string>
     <string name="panel_open_host">Ouvrir sur l’hôte</string>
     <string name="tool_copy_code">Copier le code</string>
+    <string name="todo_progress_done">%1$d terminées</string>
+    <string name="todo_progress_active">%1$d en cours</string>
+    <string name="todo_progress_pending">%1$d en attente</string>
+    <string name="todo_close">Fermer les tâches</string>
+    <string name="debug_dialog_title">Informations de débogage</string>
+    <string name="debug_buffer_empty">(vide)</string>
+    <string name="settings_composer">Rédaction</string>
+    <string name="settings_enter_to_send">La touche Entrée envoie le message</string>
+    <string name="settings_enter_to_send_hint">Désactivé, Entrée insère un saut de ligne et le bouton envoie.</string>
 </resources>

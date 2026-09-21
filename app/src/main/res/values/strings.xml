@@ -476,4 +476,13 @@
     <string name="image_offload">Historical images omitted from request</string>
     <string name="panel_open_host">Open on host</string>
     <string name="tool_copy_code">Copy code</string>
+    <string name="todo_progress_done">%1$d completed</string>
+    <string name="todo_progress_active">%1$d in progress</string>
+    <string name="todo_progress_pending">%1$d pending</string>
+    <string name="todo_close">Close to-dos</string>
+    <string name="debug_dialog_title">Debug info</string>
+    <string name="debug_buffer_empty">(empty)</string>
+    <string name="settings_composer">Composer</string>
+    <string name="settings_enter_to_send">Enter key sends message</string>
+    <string name="settings_enter_to_send_hint">When off, the enter key inserts a newline and the send button submits.</string>
 </resources>

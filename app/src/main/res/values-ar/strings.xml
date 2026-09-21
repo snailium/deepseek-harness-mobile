@@ -474,4 +474,13 @@
     <string name="image_offload">تم حذف الصور السابقة من الطلب</string>
     <string name="panel_open_host">فتح على المضيف</string>
     <string name="tool_copy_code">نسخ الكود</string>
+    <string name="todo_progress_done">%1$d مكتمل</string>
+    <string name="todo_progress_active">%1$d قيد التنفيذ</string>
+    <string name="todo_progress_pending">%1$d معلّق</string>
+    <string name="todo_close">إغلاق المهام</string>
+    <string name="debug_dialog_title">معلومات التصحيح</string>
+    <string name="debug_buffer_empty">(فارغ)</string>
+    <string name="settings_composer">المحرر</string>
+    <string name="settings_enter_to_send">مفتاح الإدخال يرسل الرسالة</string>
+    <string name="settings_enter_to_send_hint">عند الإيقاف، يُدرج مفتاح الإدخال سطرًا جديدًا ويرسل زر الإرسال.</string>
 </resources>

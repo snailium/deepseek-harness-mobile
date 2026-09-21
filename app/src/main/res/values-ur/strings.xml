@@ -474,4 +474,13 @@
     <string name="image_offload">درخواست سے پرانی تصاویر خارج کی گئیں</string>
     <string name="panel_open_host">ہوسٹ پر کھولیں</string>
     <string name="tool_copy_code">کوڈ کاپی کریں</string>
+    <string name="todo_progress_done">%1$d مکمل</string>
+    <string name="todo_progress_active">%1$d جاری</string>
+    <string name="todo_progress_pending">%1$d زیر التوا</string>
+    <string name="todo_close">ٹوڈو بند کریں</string>
+    <string name="debug_dialog_title">ڈیبگ معلومات</string>
+    <string name="debug_buffer_empty">(خالی)</string>
+    <string name="settings_composer">کمپوزر</string>
+    <string name="settings_enter_to_send">انٹر کلید پیغام بھیجتی ہے</string>
+    <string name="settings_enter_to_send_hint">بند ہونے پر انٹر کلید نئی سطر ڈالتا ہے اور بھیجیں بٹن بھیجتا ہے۔</string>
 </resources>

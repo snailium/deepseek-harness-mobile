@@ -474,4 +474,13 @@
     <string name="image_offload">ละภาพในประวัติออกจากคำขอ</string>
     <string name="panel_open_host">เปิดบนโฮสต์</string>
     <string name="tool_copy_code">คัดลอกโค้ด</string>
+    <string name="todo_progress_done">เสร็จแล้ว %1$d</string>
+    <string name="todo_progress_active">กำลังทำ %1$d</string>
+    <string name="todo_progress_pending">รอดำเนินการ %1$d</string>
+    <string name="todo_close">ปิดรายการงาน</string>
+    <string name="debug_dialog_title">ข้อมูลดีบัก</string>
+    <string name="debug_buffer_empty">(ว่าง)</string>
+    <string name="settings_composer">ตัวเขียนข้อความ</string>
+    <string name="settings_enter_to_send">ปุ่ม Enter ส่งข้อความ</string>
+    <string name="settings_enter_to_send_hint">เมื่อปิด ปุ่ม Enter จะขึ้นบรรทัดใหม่ และปุ่มส่งจะเป็นตัวส่ง</string>
 </resources>

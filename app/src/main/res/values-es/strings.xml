@@ -474,4 +474,13 @@
     <string name="image_offload">Imágenes históricas omitidas de la solicitud</string>
     <string name="panel_open_host">Abrir en el host</string>
     <string name="tool_copy_code">Copiar código</string>
+    <string name="todo_progress_done">%1$d completadas</string>
+    <string name="todo_progress_active">%1$d en curso</string>
+    <string name="todo_progress_pending">%1$d pendientes</string>
+    <string name="todo_close">Cerrar tareas</string>
+    <string name="debug_dialog_title">Información de depuración</string>
+    <string name="debug_buffer_empty">(vacío)</string>
+    <string name="settings_composer">Redacción</string>
+    <string name="settings_enter_to_send">La tecla Intro envía el mensaje</string>
+    <string name="settings_enter_to_send_hint">Desactivado, Intro inserta un salto de línea y envía el botón.</string>
 </resources>

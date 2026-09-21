@@ -474,4 +474,13 @@
     <string name="image_offload">请求中已省略历史图片</string>
     <string name="panel_open_host">在主机上打开</string>
     <string name="tool_copy_code">复制代码</string>
+    <string name="todo_progress_done">%1$d 已完成</string>
+    <string name="todo_progress_active">%1$d 进行中</string>
+    <string name="todo_progress_pending">%1$d 待处理</string>
+    <string name="todo_close">关闭任务</string>
+    <string name="debug_dialog_title">调试信息</string>
+    <string name="debug_buffer_empty">（空）</string>
+    <string name="settings_composer">输入框</string>
+    <string name="settings_enter_to_send">回车键发送消息</string>
+    <string name="settings_enter_to_send_hint">关闭时回车键插入换行，由发送按钮提交。</string>
 </resources>
