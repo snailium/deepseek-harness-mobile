@@ -76,6 +76,7 @@ import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.core.wire.dto.SkillListRequest
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
+import com.labteto.dshmobile.core.wire.dto.TodoItem
 import com.labteto.dshmobile.core.wire.dto.TokenUsageView
 import com.labteto.dshmobile.core.wire.dto.USER_QUESTIONS_REQUEST_EVENT
 import com.labteto.dshmobile.core.wire.dto.UnknownSubagentListEntry
@@ -326,6 +327,21 @@ class SessionStore @Inject constructor(
     private val _currentConversation = MutableStateFlow<ConversationSnapshot?>(null)
     val currentConversation: StateFlow<ConversationSnapshot?> = _currentConversation.asStateFlow()
 
+    /**
+     * The agent's live to-do list for the open session, or null when there is none to show.
+     *
+     * Derived by the fold from the event stream and carried on the snapshot — reading it off the
+     * transcript's nodes instead went stale, because the fold's node cache is shared across
+     * rebuilds. See `FoldState.liveTodos`.
+     */
+    val todos: StateFlow<List<TodoItem>?> = currentConversation
+        .map { it?.todos }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** The session list's pull-to-refresh is in flight. */
+    private val _refreshingSessions = MutableStateFlow(false)
+    val refreshingSessions: StateFlow<Boolean> = _refreshingSessions.asStateFlow()
+
     private val _jobs = MutableStateFlow<List<JobView>>(emptyList())
     val jobs: StateFlow<List<JobView>> = _jobs.asStateFlow()
 
@@ -467,6 +483,16 @@ class SessionStore @Inject constructor(
     // separate approval id.
     private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
     private val questionEvents = PendingQuestionRegistry()
+
+    /**
+     * An answer the user submitted whose `$events/result` POST failed, held for one retry.
+     *
+     * The host replays a still-pending waterfall on the next generation, so the same logical
+     * question comes back and the answer is still valid — and no double-answer is possible,
+     * because the old generation's eventId is dead. This is what removes the "Could not reach the
+     * harness." toast in the common case where the socket was briefly down at submit time.
+     */
+    private var pendingQuestionRetry: Pair<String, AskUserQuestionAnswer>? = null
 
     // Open-session fold state.
     private var currentId: String? = null
@@ -1012,6 +1038,14 @@ class SessionStore @Inject constructor(
             // just replaced.
             _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
         }
+        // The host replays pending waterfalls on a new generation. If the user already answered
+        // this question but the POST failed, re-send now rather than asking them again.
+        val retry = pendingQuestionRetry
+        if (retry != null && retry.first == sessionId) {
+            pendingQuestionRetry = null
+            log("re-sending failed question answer for $sessionId after reconnect replay")
+            scope.launch { answerQuestions(sessionId, retry.second) }
+        }
     }
 
     // ------------------------------------------------------------------ session list state updates
@@ -1257,7 +1291,24 @@ class SessionStore @Inject constructor(
     }
 
     // ------------------------------------------------------------------ public RPC surface
+    /**
+     * Pull the session list from the harness.
+     *
+     * [refreshingSessions] guards re-entry and feeds the drawer's pull-to-refresh indicator; it is
+     * set even when there is no connection, so a disconnected pull still shows (and ends) the
+     * spinner instead of looking like it was never attempted.
+     */
     suspend fun refreshSessions() {
+        if (_refreshingSessions.value) return
+        _refreshingSessions.value = true
+        try {
+            refreshSessionsLocked()
+        } finally {
+            _refreshingSessions.value = false
+        }
+    }
+
+    private suspend fun refreshSessionsLocked() {
         val api = apiOrNull() ?: return
         when (val r = api.sessionList(null)) {
             is RpcResult.Ok -> {
@@ -1744,7 +1795,7 @@ class SessionStore @Inject constructor(
         val eventId = pendingQuestionEvent(sessionId) ?: return abandonQuestions(sessionId)
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // The waterfall returns the answer object itself; there is no envelope around it now.
-        return answerOutcome(
+        val outcome = answerOutcome(
             api.answerEvent(
                 clientId = clientId,
                 eventId = eventId,
@@ -1755,6 +1806,11 @@ class SessionStore @Inject constructor(
             "question response",
             sessionId,
         ) { forgetQuestions(sessionId, eventId) }
+        // A refusal means the host read the call and said no — re-sending would only refuse again.
+        // An unsent call means nothing is known about the wait, so it is worth one retry when the
+        // host replays the waterfall on the next generation.
+        if (outcome is QuestionOutcome.Unsent) pendingQuestionRetry = sessionId to answer
+        return outcome
     }
 
     /**
