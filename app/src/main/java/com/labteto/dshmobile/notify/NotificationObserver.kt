@@ -71,6 +71,11 @@ class NotificationObserver @Inject constructor(
         started = true
         notifications.ensureChannels()
         trackAppForeground()
+        // Wire the session-event sink. SessionStore owns the per-session follow streams and has no
+        // all-session stream to subscribe to, so it forwards turn/start, turn/end and goal/change
+        // through this hook. Without the assignment this observer compiled, started, and never saw
+        // an event — completions were silently never notified at all.
+        store.notificationSink = { sessionId, envelope -> onSessionEvent(sessionId, envelope) }
         scope.launch {
             hostsStore.settings.collect { settings = it }
         }

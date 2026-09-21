@@ -45,6 +45,8 @@ class HostsStore @Inject constructor(
         val SESSION_SORT = stringPreferencesKey("session_sort")
         val UPDATE_CHECK = booleanPreferencesKey("update_check")
         val DISMISSED_UPDATE = stringPreferencesKey("dismissed_update")
+        val PROMPT_MODE = stringPreferencesKey("prompt_mode")
+        val ENTER_TO_SEND = booleanPreferencesKey("enter_to_send")
     }
 
     private val hostsSerializer = ListSerializer(HostConfig.serializer())
@@ -69,7 +71,7 @@ class HostsStore @Inject constructor(
             autoConnectLoopback = prefs[Keys.AUTO_LOOPBACK] ?: true,
             autoConnectRelay = prefs[Keys.AUTO_RELAY] ?: false,
             connectMode = ConnectMode.of(prefs[Keys.CONNECT_MODE]),
-            keepConnectedInBackground = prefs[Keys.BACKGROUND] ?: false,
+            keepConnectedInBackground = prefs[Keys.BACKGROUND] ?: true,
             notifyTurnComplete = prefs[Keys.NOTIFY_TURN] ?: true,
             notifyGoal = prefs[Keys.NOTIFY_GOAL] ?: true,
             notifyNeedsAction = prefs[Keys.NOTIFY_ACTION] ?: true,
@@ -78,6 +80,8 @@ class HostsStore @Inject constructor(
             knownPorts = ports,
             updateCheckEnabled = prefs[Keys.UPDATE_CHECK] ?: true,
             dismissedUpdate = prefs[Keys.DISMISSED_UPDATE],
+            promptMode = prefs[Keys.PROMPT_MODE] ?: PromptMode.QUEUE,
+            enterToSend = prefs[Keys.ENTER_TO_SEND] ?: false,
         )
     }
 
@@ -225,6 +229,8 @@ class HostsStore @Inject constructor(
             prefs[Keys.NOTIFY_ACTION] = next.notifyNeedsAction
             prefs[Keys.THEME] = next.themePreference
             prefs[Keys.UPDATE_CHECK] = next.updateCheckEnabled
+            prefs[Keys.PROMPT_MODE] = next.promptMode
+            prefs[Keys.ENTER_TO_SEND] = next.enterToSend
             next.localeOverride?.let { prefs[Keys.LOCALE] = it } ?: prefs.remove(Keys.LOCALE)
         }
     }
