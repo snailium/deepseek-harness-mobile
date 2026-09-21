@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
+import com.labteto.dshmobile.ui.components.PageColumn
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -381,15 +382,10 @@ private fun LoadOlderRow(
 @Composable
 private fun TranscriptSkeleton(modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
-    Column(
-        // The skeleton replaces the list, so it carries the page margin itself — the same constant
-        // as the list's contentPadding, which is what keeps the placeholder on the same column as
-        // every real row.
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = DsSpacing.pageHorizontal, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    // The skeleton replaces the list, so it carries the page column itself — the same structure the
+    // list's contentPadding expresses, which is what keeps the placeholder on the same column as
+    // every real row.
+    PageColumn(modifier = modifier, vertical = 16.dp, spacing = 12.dp) {
         listOf(0.55f, 0.9f, 0.75f, 0.4f).forEach { fraction ->
             Box(
                 Modifier
