@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.core.session
 
+import com.labteto.dshmobile.core.wire.dto.TodoItem
 import kotlinx.serialization.json.JsonElement
 
 /**
@@ -148,6 +149,12 @@ data class ConversationSnapshot(
     val hasMore: Boolean = false,
     val lastSeq: Long = -1,
     val gap: Boolean = false,
+    /**
+     * The agent's live to-do list, or null when there is none. Derived by the fold from the event
+     * stream — see `FoldState.liveTodos` — and surfaced here so the UI reads one field rather than
+     * re-deriving it from the transcript nodes.
+     */
+    val todos: List<TodoItem>? = null,
 ) {
     val turns: Int get() = nodes.count { it is TurnStartNode }
 }

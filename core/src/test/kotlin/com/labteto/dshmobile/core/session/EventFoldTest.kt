@@ -13,6 +13,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -418,5 +419,52 @@ class EventFoldTest {
         val parsed = WireJson.parseToJsonElement(raw)
         assertTrue(parsed.toString().contains("turn/end"))
         assertTrue(parsed.toString().contains("completed"))
+    }
+
+    @Test
+    fun tracksLiveTodosAcrossTurns() {
+        // The web client derives the to-do bar from the event stream: the last todo/write before
+        // a turn boundary is current, and a new turn clears it. The fold must do the same so the
+        // mobile bar appears while work runs and hides again once the next turn starts.
+        val todos = buildJsonObject {
+            putJsonArray("todos") {
+                add(buildJsonObject { put("content", "a"); put("status", "in_progress") })
+                add(buildJsonObject { put("content", "b"); put("status", "pending") })
+            }
+        }
+        val events = listOf(
+            event("turn/start", 0, buildJsonObject { put("turn", 1) }),
+            event("todo/write", 1, todos),
+            event("turn/end", 2, buildJsonObject {
+                put("turn", 1)
+                putJsonObject("reason") { put("kind", "completed") }
+            }),
+        )
+        val midTurn = EventFold("s1").fold(events).todos
+        assertEquals(2, midTurn?.size)
+        assertEquals("in_progress", midTurn?.first()?.status)
+
+        // A new turn clears the list even though no further write lands.
+        val afterNewTurn = EventFold("s1").fold(
+            events + event("turn/start", 3, buildJsonObject { put("turn", 2) }),
+        ).todos
+        assertNull(afterNewTurn)
+
+        // A later write in the new turn becomes the live list again.
+        val refreshed = EventFold("s1").fold(
+            events +
+                event("turn/start", 3, buildJsonObject { put("turn", 2) }) +
+                event("todo/write", 4, buildJsonObject {
+                    putJsonArray("todos") { add(buildJsonObject { put("content", "c"); put("status", "pending") }) }
+                }),
+        ).todos
+        assertEquals(1, refreshed?.size)
+        assertEquals("c", refreshed?.first()?.content)
+
+        // An empty write reads as absent: the bar never renders an empty list.
+        val emptied = EventFold("s1").fold(
+            events + event("todo/write", 9, buildJsonObject { putJsonArray("todos") {} }),
+        ).todos
+        assertNull(emptied)
     }
 }
