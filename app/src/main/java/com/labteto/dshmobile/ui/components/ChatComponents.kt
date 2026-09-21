@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.runtime.key
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -68,17 +71,25 @@ val LocalSelectionDismiss = staticCompositionLocalOf { mutableIntStateOf(0) }
 @Composable
 fun UserBubble(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
+    // Re-key the SelectionContainer when the shared dismiss token changes so an active selection is
+    // cleared. The token is incremented by a tap on any transcript row (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Text(
-            text,
-            style = DsType.bubbleText,
-            color = colors.labelPrimary,
-            modifier = Modifier
-                .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                .background(colors.userBubble, DsShapes.bubble)
-                .border(1.dp, colors.borderL3, DsShapes.bubble)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+        key(dismissToken) {
+            SelectionContainer(
+                modifier = Modifier
+                    .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
+                    // The **accent** fill, where upstream paints `userBubble` with a hairline border.
+                    // Nothing else in the transcript uses the accent as a fill, so the colour alone
+                    // marks the reader's turn — and the assistant's turn is deliberately
+                    // container-less, as in the web client, which makes the bubble the only thing
+                    // distinguishing who said what.
+                    .background(colors.accent, DsShapes.bubble)
+                    .padding(DsSpacing.textFieldInset),
+            ) {
+                Text(text, style = DsType.bubbleText, color = colors.onAccent)
+            }
+        }
     }
 }
 
