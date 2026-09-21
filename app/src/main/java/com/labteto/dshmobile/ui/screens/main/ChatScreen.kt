@@ -100,18 +100,15 @@ fun ChatScreen(
     // In-transcript search. The bar is collapsible: the toolbar's search icon opens it, and a ×
     // inside the bar closes it. The query and cursor live above the tab swap — they belong to the
     // session rather than to either view, and stepping past the last hit wraps to the first.
-    var searchQuery by remember(currentSessionId) { mutableStateOf("") }
-    var searchOpen by remember(currentSessionId) { mutableStateOf(false) }
-    var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
-    val matches = remember(conversation?.nodes, searchQuery) {
-        findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
+    // The finder's four values are one thing — the cursor only means anything against the current
+    // query's results, and the query only against the open session — so they travel together in a
+    // holder. See `TranscriptSearchState`.
+    val search = rememberTranscriptSearchState(currentSessionId)
+    val matches = remember(conversation?.nodes, search.query) {
+        search.matches(conversation?.nodes.orEmpty())
     }
-    // A new query resets the walk to the first hit; keeping the old cursor would land the reader at
-    // position 5 of a completely different result set. The cursor is also clamped on read, because
-    // the node list can shrink under it (a live turn folding, a page of history arriving).
-    LaunchedEffect(searchQuery) { matchCursor = 0 }
-    val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
-    val currentMatch = matches.getOrNull(cursor)
+    val cursor = search.cursorIn(matches)
+    val currentMatch = search.current(matches)
 
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
@@ -430,15 +427,15 @@ fun ChatScreen(
                 } else {
                     null
                 },
-                searchQuery = searchQuery,
+                searchQuery = search.query,
                 // The counter is 1-based and reads 0/0 when nothing matches.
                 searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
                 searchCount = matches.size,
-                onSearchQueryChange = { searchQuery = it },
-                onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
-                onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
-                searchOpen = searchOpen,
-                onToggleSearch = { searchOpen = !searchOpen },
+                onSearchQueryChange = { search.onQueryChange(it) },
+                onSearchPrevious = { search.step(-1, matches.size) },
+                onSearchNext = { search.step(1, matches.size) },
+                searchOpen = search.open,
+                onToggleSearch = { search.open = !search.open },
             )
 
             connectionError?.let {
@@ -451,15 +448,15 @@ fun ChatScreen(
             // Collapsible transcript search: hidden by default, opened by the toolbar's search
             // icon, closed by its own × button. Sits above the todo dock so hits are visible
             // while reading.
-            AnimatedVisibility(visible = searchOpen) {
+            AnimatedVisibility(visible = search.open) {
                 TranscriptSearchBar(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
+                    query = search.query,
+                    onQueryChange = { search.onQueryChange(it) },
                     matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
                     matchCount = matches.size,
-                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
-                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
-                    onClose = { searchOpen = false; searchQuery = "" },
+                    onPrevious = { search.step(-1, matches.size) },
+                    onNext = { search.step(1, matches.size) },
+                    onClose = { search.close() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
