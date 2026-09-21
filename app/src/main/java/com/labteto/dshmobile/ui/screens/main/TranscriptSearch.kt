@@ -1,5 +1,10 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.labteto.dshmobile.core.session.AssistantMessageNode
 import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.UserMessageNode
@@ -79,3 +84,58 @@ internal fun stepMatchCursor(cursor: Int, delta: Int, count: Int): Int {
     if (count <= 0) return 0
     return ((cursor + delta) % count + count) % count
 }
+
+/**
+ * The transcript finder's own state: query, bar visibility, and where the walk has got to.
+ *
+ * A holder rather than three `remember`s in `ChatScreen` because the four values are one thing —
+ * the cursor is only meaningful against the current query's result set, and the query is only
+ * meaningful against the open session — and because keeping them together is what lets the screen
+ * pass a single object to its layout instead of threading four parameters plus two callbacks.
+ *
+ * [matches] is derived, not stored: it is a pure function of the node list and the query, and
+ * caching it in a field would need invalidating on every streamed token.
+ */
+internal class TranscriptSearchState(private val sessionId: String?) {
+    var query by mutableStateOf("")
+    var open by mutableStateOf(false)
+    private var cursor by mutableStateOf(0)
+
+    /** Every hit for the current query, in transcript order. */
+    fun matches(nodes: List<ChatNode>): List<TranscriptMatch> =
+        findTranscriptMatches(nodes, query)
+
+    /** The live cursor, clamped — the node list can shrink under it as a turn folds or a page lands. */
+    fun cursorIn(matches: List<TranscriptMatch>): Int =
+        cursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
+
+    fun current(matches: List<TranscriptMatch>): TranscriptMatch? = matches.getOrNull(cursorIn(matches))
+
+    /** 1-based position for the `n/m` counter, or 0 when nothing matches. */
+    fun position(matches: List<TranscriptMatch>): Int = if (matches.isEmpty()) 0 else cursorIn(matches) + 1
+
+    fun step(delta: Int, count: Int) {
+        cursor = stepMatchCursor(cursor, delta, count)
+    }
+
+    /** Closing the bar clears the query: a hidden field holding text filters by nothing visible. */
+    fun close() {
+        open = false
+        query = ""
+        cursor = 0
+    }
+
+    /** A new query restarts the walk — the old cursor means nothing against a different result set. */
+    fun onQueryChange(next: String) {
+        query = next
+        cursor = 0
+    }
+
+    /** The session this finder belongs to; a new session gets a fresh finder. */
+    val key: String get() = sessionId.orEmpty()
+}
+
+/** The finder for the open session, recreated when the session changes. */
+@Composable
+internal fun rememberTranscriptSearchState(sessionId: String?): TranscriptSearchState =
+    remember(sessionId) { TranscriptSearchState(sessionId) }
