@@ -14,11 +14,28 @@ plugins {
  * the first shipped an APK still claiming to be the first — same `versionCode`, so Android saw no
  * upgrade at all. The code is derived from the name so it rises with semver on its own; the
  * fallback is what a local `assembleRelease` builds.
+ *
+ * **This fork versions as `<fork>-dsh.<harness>`, e.g. `0.2.0-dsh.0.1.6`.**
+ *
+ * The two halves mean different things and neither may be advanced to suit the other:
+ *
+ * - `<fork>` is *our* release count. It moves when we ship.
+ * - `<harness>` is the **harness line the app speaks** — `0.1.6` means "for DSH 0.1.6". It is a
+ *   compatibility claim, not a counter. It changes only when we move onto a different harness, and
+ *   it names the harness upstream's `docs/COMPATIBILITY.md` records for this baseline. Advancing it
+ *   to track our own release number would make the name a lie.
+ *
+ * `versionCode` comes from the fork half alone. Upstream's own scheme packs its semver into the
+ * same integer, and if we derived ours from the full name a harness bump would collide with a fork
+ * bump — two different builds claiming one code, so Android would refuse the upgrade. The fork half
+ * is monotonic on its own, which is all Android asks.
  */
-val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.11.7"
+val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.2.0-dsh.0.1.6"
 
-val dshVersionCode: Int = dshVersionName
-    .substringBefore('-')
+/** The fork's own semver, i.e. everything before `-dsh.`; the harness half is a compatibility claim. */
+private val forkVersion: String = dshVersionName.substringBefore("-dsh.").substringBefore('-')
+
+val dshVersionCode: Int = forkVersion
     .split('.')
     .mapNotNull { it.toIntOrNull() }
     .let { parts ->

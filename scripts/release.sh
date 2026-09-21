@@ -2,11 +2,13 @@
 #
 # Build and publish a signed release APK for the snailium fork.
 #
-# Usage:  scripts/release.sh <version>        e.g. scripts/release.sh 0.1.0-dsh.0.1.5
+# Usage:  scripts/release.sh <version>        e.g. scripts/release.sh 0.2.0-dsh.0.1.7
 #
-# The version is this fork's own line plus the upstream harness line it speaks, as
-# `<fork>-dsh.<upstream>` — see the KDoc in app/build.gradle.kts for why versionCode comes from the
-# fork half alone.
+# The version is `<fork>-dsh.<harness>`: our own release count, then the harness line the app
+# speaks. The harness half is a **compatibility claim, not a counter** — `0.1.7` means "for DSH
+# 0.1.7", and it must match the upstream baseline the tree is actually built on. This script checks
+# that, because the failure is silent: a wrong harness half produces an APK that installs fine and
+# misinforms everyone who reads the version.
 #
 # What it does: runs the test suite, builds a signed release APK, copies it into the served `apk/`
 # directory with a timestamped name, and prints the download URL. It refuses to build if the
@@ -20,11 +22,32 @@ WORKSPACE_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 
 VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
-  echo "usage: $(basename "$0") <version>   e.g. 0.1.0-dsh.0.1.5" >&2
+  echo "usage: $(basename "$0") <version>   e.g. 0.2.0-dsh.0.1.7" >&2
   exit 2
 fi
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dsh\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "version must look like 0.1.0-dsh.0.1.5 (fork line -dsh. upstream line)" >&2
+  echo "version must look like 0.2.0-dsh.0.1.7 (fork line -dsh. harness line)" >&2
+  exit 2
+fi
+
+# The harness half must name the harness baseline this tree is built on. Read from
+# `docs/COMPATIBILITY.md`, which is upstream's own record of "this app version targets this harness
+# version" — not from the app's version number, which is a different thing entirely (0.11.7 is the
+# app; the harness it targets is 0.1.6).
+#
+# The *latest* row is used rather than a row keyed on the current app version, because upstream does
+# not add a row for every release — 0.11.6 and 0.11.7 have none, and their harness target is
+# unchanged from 0.11.5's.
+cd "$REPO_ROOT"
+HARNESS_BASELINE="$(git show upstream/main:docs/COMPATIBILITY.md 2>/dev/null \
+  | grep -E '^\| [0-9]+\.[0-9]+\.[0-9]+ ' | head -1 | awk -F'|' '{ print $3 }')"
+# `0.1.6-alpha.1 + master …` -> `0.1.6`: the name carries the release line, not the prerelease tag.
+HARNESS_LINE="$(echo "$HARNESS_BASELINE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+VERSION_HARNESS="${VERSION##*-dsh.}"
+if [[ -n "$HARNESS_LINE" && "$VERSION_HARNESS" != "$HARNESS_LINE" ]]; then
+  echo "harness half is $VERSION_HARNESS but upstream targets harness $HARNESS_LINE" >&2
+  echo "the harness half is a compatibility claim — it names the harness this build is for," >&2
+  echo "not a counter that advances with our own releases" >&2
   exit 2
 fi
 
