@@ -2,7 +2,7 @@
 #
 # Build and publish a signed release APK for the snailium fork.
 #
-# Usage:  scripts/release.sh <version>        e.g. scripts/release.sh 0.2.0-dsh.0.1.7
+# Usage:  scripts/release.sh <version>        e.g. scripts/release.sh 0.2.0-dsh.0.1.6
 #
 # The version is `<fork>-dsh.<harness>`: our own release count, then the harness line the app
 # speaks. The harness half is a **compatibility claim, not a counter** — `0.1.7` means "for DSH
@@ -22,11 +22,26 @@ WORKSPACE_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 
 VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
-  echo "usage: $(basename "$0") <version>   e.g. 0.2.0-dsh.0.1.7" >&2
+  echo "usage: $(basename "$0") <version>   e.g. 0.2.0-dsh.0.1.6" >&2
   exit 2
 fi
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dsh\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "version must look like 0.2.0-dsh.0.1.7 (fork line -dsh. harness line)" >&2
+  echo "version must look like 0.2.0-dsh.0.1.6 (fork line -dsh. harness line)" >&2
+  exit 2
+fi
+
+# `version.properties` is the fork's own record of the scheme — see its header for why the values
+# live outside `app/build.gradle.kts`. The argument's harness half must match it, and that file in
+# turn must match upstream's compatibility table below.
+cd "$REPO_ROOT"
+if [[ ! -f version.properties ]]; then
+  echo "version.properties is missing — see FORK-NOTES for the scheme" >&2
+  exit 2
+fi
+FILE_HARNESS="$(sed -n 's/^harnessVersion=//p' version.properties | tr -d '[:space:]')"
+VERSION_HARNESS="${VERSION##*-dsh.}"
+if [[ -n "$FILE_HARNESS" && "$VERSION_HARNESS" != "$FILE_HARNESS" ]]; then
+  echo "harness half is $VERSION_HARNESS but version.properties says $FILE_HARNESS" >&2
   exit 2
 fi
 
@@ -38,12 +53,10 @@ fi
 # The *latest* row is used rather than a row keyed on the current app version, because upstream does
 # not add a row for every release — 0.11.6 and 0.11.7 have none, and their harness target is
 # unchanged from 0.11.5's.
-cd "$REPO_ROOT"
 HARNESS_BASELINE="$(git show upstream/main:docs/COMPATIBILITY.md 2>/dev/null \
   | grep -E '^\| [0-9]+\.[0-9]+\.[0-9]+ ' | head -1 | awk -F'|' '{ print $3 }')"
 # `0.1.6-alpha.1 + master …` -> `0.1.6`: the name carries the release line, not the prerelease tag.
 HARNESS_LINE="$(echo "$HARNESS_BASELINE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-VERSION_HARNESS="${VERSION##*-dsh.}"
 if [[ -n "$HARNESS_LINE" && "$VERSION_HARNESS" != "$HARNESS_LINE" ]]; then
   echo "harness half is $VERSION_HARNESS but upstream targets harness $HARNESS_LINE" >&2
   echo "the harness half is a compatibility claim — it names the harness this build is for," >&2
