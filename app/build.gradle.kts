@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,34 +10,48 @@ plugins {
 }
 
 /**
- * The release version, taken from the git tag the release workflow is building.
+ * The version, read from the fork's own `version.properties` at the repository root.
  *
- * `DSH_VERSION_NAME` is the tag without its leading `v`. Hardcoding it here meant every tag after
- * the first shipped an APK still claiming to be the first — same `versionCode`, so Android saw no
- * upgrade at all. The code is derived from the name so it rises with semver on its own; the
- * fallback is what a local `assembleRelease` builds.
+ * It lives there rather than here on purpose. This block used to sit in this file, and upstream
+ * rewrote it for its own 0.11.6 and 0.11.7 releases — a merge then took their side silently, with
+ * no conflict and no error, leaving an APK that built as plain `0.11.7` while claiming to be
+ * upstream's build. A file upstream does not have cannot be merged away.
  *
- * **This fork versions as `<fork>-dsh.<harness>`, e.g. `0.2.0-dsh.0.1.6`.**
- *
- * The two halves mean different things and neither may be advanced to suit the other:
- *
- * - `<fork>` is *our* release count. It moves when we ship.
- * - `<harness>` is the **harness line the app speaks** — `0.1.6` means "for DSH 0.1.6". It is a
- *   compatibility claim, not a counter. It changes only when we move onto a different harness, and
- *   it names the harness upstream's `docs/COMPATIBILITY.md` records for this baseline. Advancing it
- *   to track our own release number would make the name a lie.
- *
- * `versionCode` comes from the fork half alone. Upstream's own scheme packs its semver into the
- * same integer, and if we derived ours from the full name a harness bump would collide with a fork
- * bump — two different builds claiming one code, so Android would refuse the upgrade. The fork half
- * is monotonic on its own, which is all Android asks.
+ * See `version.properties` for the scheme (`<fork>-dsh.<harness>`) and why the harness half is a
+ * compatibility claim rather than a counter. `scripts/release.sh` passes `DSH_VERSION_NAME` and
+ * checks the harness half against upstream's own compatibility table before building.
  */
-val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.2.0-dsh.0.1.6"
+val forkVersionFile = rootProject.file("version.properties")
+val forkVersionProps = Properties().apply {
+    require(forkVersionFile.exists()) { "missing ${forkVersionFile.path} — see its header" }
+    forkVersionFile.inputStream().use { load(it) }
+}
 
-/** The fork's own semver, i.e. everything before `-dsh.`; the harness half is a compatibility claim. */
-private val forkVersion: String = dshVersionName.substringBefore("-dsh.").substringBefore('-')
+/** The fork's own release count, e.g. `0.2.0`. */
+val forkVersion: String = forkVersionProps.getProperty("forkVersion").trim()
 
-val dshVersionCode: Int = forkVersion
+/** The harness line this build is for, e.g. `0.1.6`. A claim, not a counter. */
+val harnessVersion: String = forkVersionProps.getProperty("harnessVersion").trim()
+
+/**
+ * `DSH_VERSION_NAME` overrides the whole name, which is what the release workflow uses; otherwise
+ * the name is composed from the two halves.
+ */
+val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() }
+    ?: "$forkVersion-dsh.$harnessVersion"
+
+/**
+ * `versionCode` derives from the fork half **of the effective name**, not from `forkVersion`.
+ *
+ * It has to follow the override, or a release built with `DSH_VERSION_NAME=0.3.0-…` would ship with
+ * the *previous* release's code and Android would refuse to upgrade over it.
+ *
+ * The fork half is taken alone on purpose: upstream packs its semver into the same integer, so
+ * deriving ours from the full name would let a harness bump collide with a fork bump — two builds
+ * claiming one code. The fork half is monotonic by itself, which is all Android asks.
+ */
+val dshVersionCode: Int = dshVersionName
+    .substringBefore("-dsh.").substringBefore('-')
     .split('.')
     .mapNotNull { it.toIntOrNull() }
     .let { parts ->
