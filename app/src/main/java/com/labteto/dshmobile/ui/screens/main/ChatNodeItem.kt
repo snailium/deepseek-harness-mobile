@@ -71,6 +71,7 @@ import com.labteto.dshmobile.ui.components.UserBubble
 import com.labteto.dshmobile.ui.media.rememberAttachmentImageState
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.serialization.json.JsonArray
@@ -524,7 +525,7 @@ private fun CommandRow(node: CommandNode) {
             node.data.toString(),
             style = DsType.caption11.copy(fontFamily = DsType.codeFont),
             color = colors.labelCaption,
-            modifier = Modifier.padding(start = 28.dp, top = 2.dp),
+            modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
         )
     }
 }
@@ -552,7 +553,7 @@ private fun WorkflowRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 28.dp, top = 2.dp)
+                    .padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp)
                     .then(
                         if (memberChildId != null) {
                             Modifier.clickable { onOpenMember(memberChildId) }

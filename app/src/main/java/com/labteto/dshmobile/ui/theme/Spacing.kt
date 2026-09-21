@@ -51,6 +51,20 @@ object DsSpacing {
      */
     val textFieldInset = PaddingValues(10.dp)
 
+    /**
+     * The leading inset for content *inside* an expanded disclosure row.
+     *
+     * Derived from the header it sits under rather than chosen: the row's own 4dp padding, the
+     * 14dp chevron, a 4dp gap, and the 6dp that centres a 16dp leading slot's content. A body that
+     * starts at 0 sits under the chevron and reads as a sibling of the header rather than as its
+     * contents.
+     *
+     * It had been hardcoded as `28.dp` in five places across four files, which is exactly how it
+     * drifted — each site looked locally reasonable and nothing said they had to agree. Named for
+     * its role so the next disclosure body does not re-derive it.
+     */
+    val disclosureBodyIndent = 28.dp
+
     /** 20dp - Large spacing between major UI sections */
     val large = 20.dp
     
