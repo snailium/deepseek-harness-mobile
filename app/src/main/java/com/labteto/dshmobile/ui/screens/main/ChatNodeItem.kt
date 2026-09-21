@@ -72,6 +72,7 @@ import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ThinkingPanel
 import com.labteto.dshmobile.ui.components.ToolCard
 import com.labteto.dshmobile.ui.components.UserBubble
+import com.labteto.dshmobile.ui.media.rememberAttachmentImageState
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -111,8 +112,13 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
         is UserMessageNode -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             node.blocks.filter { it.kind == "image" }.forEach { block ->
                 parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
+                    val imageState by rememberAttachmentImageState(
                         attachmentId = ref.attachmentId,
+                        intrinsicWidth = ref.width,
+                        intrinsicHeight = ref.height,
+                    )
+                    AttachmentImage(
+                        state = imageState,
                         intrinsicWidth = ref.width,
                         intrinsicHeight = ref.height,
                         contentDescription = ref.name,
@@ -337,8 +343,13 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                 }
                 "tool-result" -> Unit
                 "image" -> parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
+                    val imageState by rememberAttachmentImageState(
                         attachmentId = ref.attachmentId,
+                        intrinsicWidth = ref.width,
+                        intrinsicHeight = ref.height,
+                    )
+                    AttachmentImage(
+                        state = imageState,
                         intrinsicWidth = ref.width,
                         intrinsicHeight = ref.height,
                         contentDescription = ref.name,

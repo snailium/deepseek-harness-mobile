@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.core.session.previewPath
 import com.labteto.dshmobile.ui.theme.DsColors
 import com.labteto.dshmobile.ui.theme.DsShapes
 import androidx.compose.foundation.text.InlineTextContent
@@ -303,25 +304,16 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         }
         return
     }
-    // `Text` with its own hit test rather than `ClickableText`: the pills are inline content, which
-    // ClickableText cannot host. Taps resolve to a character offset through the layout result,
-    // exactly as ClickableText does internally. A pill is clickable itself: the offset under its
-    // right half is the one after it, so an offset lookup would leave half of every pill dead.
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    Text(
-        result,
-        modifier = modifier.pointerInput(result) {
-            detectTapGestures { position ->
-                val offset = layout?.getOffsetForPosition(position) ?: return@detectTapGestures
-                if (result.getStringAnnotations("path", offset, offset).isNotEmpty()) return@detectTapGestures
-                result.getStringAnnotations("url", offset, offset).firstOrNull()?.item?.let { raw ->
-                    // http(s) goes to the browser, anything else is treated as a path into the
-                    // session's own files. The scheme check lives in core so a reply cannot smuggle
-                    // `intent:`/`file:` past this handler by dressing it up as a link.
-                    val url = safeHttpUrl(raw)
-                    if (url != null) runCatching { uriHandler.openUri(url) }
-                    else com.labteto.dshmobile.ui.screens.main.previewPath(raw)?.let { openWorkspaceReference(it, openFile, openFolder) }
-                }
+    ClickableText(
+        result, modifier = modifier, style = style,
+        onClick = { offset ->
+            result.getStringAnnotations("url", offset, offset).firstOrNull()?.item?.let { raw ->
+                // http(s) goes to the browser, anything else is treated as a path into the
+                // session's own files. The scheme check lives in core so a reply cannot smuggle
+                // `intent:`/`file:` past this handler by dressing it up as a link.
+                val url = safeHttpUrl(raw)
+                if (url != null) runCatching { uriHandler.openUri(url) }
+                else previewPath(raw)?.let(openFile)
             }
         },
         style = style,
