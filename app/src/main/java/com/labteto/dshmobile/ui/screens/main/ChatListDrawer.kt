@@ -162,10 +162,19 @@ fun ChatListDrawer(
 
     // Blank sessions are scratch space the harness reuses; subagent transcripts belong under their
     // parent, not as top-level rows.
-    val listable = sessions.filter { it.sessionId !in archivedIds && !it.blank }
-    val sessionsById = sessions.associateBy { it.sessionId }
-    val archivedSessions = sessions.filter { it.sessionId in archivedIds }
-    val workspaceSessionIds = workspaces.flatMap { it.sessionIds }.toSet()
+    //
+    // Remembered, and not merely for tidiness: `childrenByParent` below is keyed on `listable`, and
+    // an unremembered `filter` mints a new list every recomposition — so that key never matched and
+    // `indexSubagents` re-ran on every pass, walking each session's ancestry. The drawer recomposes
+    // on every keystroke in its search field.
+    val listable = remember(sessions, archivedIds) {
+        sessions.filter { it.sessionId !in archivedIds && !it.blank }
+    }
+    val sessionsById = remember(sessions) { sessions.associateBy { it.sessionId } }
+    val archivedSessions = remember(sessions, archivedIds) {
+        sessions.filter { it.sessionId in archivedIds }
+    }
+    val workspaceSessionIds = remember(workspaces) { workspaces.flatMap { it.sessionIds }.toSet() }
 
     // Subagents nest under the session that spawned them. `origin` is the discriminator, not
     // `parentSessionId` — an ordinary fork sets a parent too, and a fork is a session in its own

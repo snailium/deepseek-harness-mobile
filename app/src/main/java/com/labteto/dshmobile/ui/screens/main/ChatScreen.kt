@@ -102,8 +102,19 @@ fun ChatScreen(
     // query's results, and the query only against the open session — so they travel together in a
     // holder. See `TranscriptSearchState`.
     val search = rememberTranscriptSearchState(currentSessionId)
-    val matches = remember(conversation?.nodes, search.query) {
-        search.matches(conversation?.nodes.orEmpty())
+    // Scanned only while the bar is open, and only for a real query.
+    //
+    // `conversation.nodes` is a fresh list on every fold tick — `EventFold` builds it as
+    // `nodes + provisionalNodes()` — and a streaming turn ticks many times a second. Keying this
+    // on the node list alone re-scanned the whole transcript per token even with the finder closed,
+    // which is the common case and pure waste. Short-circuiting on `open` and on a blank query also
+    // skips the per-node `lowercase` the scan does.
+    val matches = if (!search.open || search.query.isBlank()) {
+        emptyList()
+    } else {
+        remember(conversation?.nodes, search.query) {
+            search.matches(conversation?.nodes.orEmpty())
+        }
     }
     val cursor = search.cursorIn(matches)
     val currentMatch = search.current(matches)
