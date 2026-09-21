@@ -42,9 +42,7 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.CommandSubmitAttachment
 import com.labteto.dshmobile.core.wire.dto.ImageLimitsView
-import com.labteto.dshmobile.data.CommandOutcome
 import com.labteto.dshmobile.data.PromptOutcome
-import com.labteto.dshmobile.data.QuestionOutcome
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.ui.components.ApprovalPanel
 import com.labteto.dshmobile.ui.components.ConnectionBanner
@@ -158,32 +156,9 @@ fun ChatScreen(
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
-    val commandFailed = stringResource(R.string.err_command_failed)
-    val unknownCommand = stringResource(R.string.err_command_unknown)
-
-    fun report(outcome: CommandOutcome) {
-        when (outcome) {
-            is CommandOutcome.Ok -> outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it) }
-            is CommandOutcome.Unknown -> toast.second(unknownCommand.format(outcome.line))
-            is CommandOutcome.Failed -> toast.second(commandFailed.format(outcome.message))
-        }
-    }
-
-    val answerRefused = stringResource(R.string.questions_answer_refused)
-    val answerUnsent = stringResource(R.string.questions_answer_unsent)
-
-    /**
-     * What to tell the user about a question response, or null when the harness took it.
-     *
-     * A refusal is worth naming rather than swallowing: the host's wait stays open and the tool
-     * call that opened it stays blocked, so a card that quietly did nothing would leave the session
-     * stuck with no explanation.
-     */
-    fun refusalOf(outcome: QuestionOutcome): String? = when (outcome) {
-        is QuestionOutcome.Accepted -> null
-        is QuestionOutcome.Refused -> answerRefused.format(outcome.reason)
-        is QuestionOutcome.Unsent -> answerUnsent
-    }
+    // Answering the harness — approvals, plan reviews, question batches — and the mapping from its
+    // reply to something the reader can act on. See `HarnessResponder`.
+    val responder = rememberHarnessResponder(store = store, toast = { toast.second(it) })
 
     // The composer's submit path — draft, send mode, attachments, the two in-flight flags and
     // every operation on them — lives in one object. See `ComposerSubmitter`.
@@ -192,7 +167,7 @@ fun ChatScreen(
         composer = composer,
         commands = commands,
         imageLimits = imageLimits,
-        report = { outcome -> report(outcome) },
+        report = responder::report,
     )
     val draft = submitter.draft
     val attachments = submitter.attachments
@@ -350,13 +325,12 @@ fun ChatScreen(
             // so burying them behind a scroll would strand the session.
             val approval = pendingApproval
             if (approval != null && approval.sessionId == currentSessionId) {
-                // A refusal is said out loud here rather than swallowed, for the reason [refusalOf]
-                // gives: the host's wait — and the tool call behind it — stays open, and a panel
-                // that reported nothing would read as two buttons that do nothing.
-                fun decide(allow: Boolean) = scope.launch {
-                    refusalOf(store.respondApproval(approval.sessionId, approval.approvalId, allow))
-                        ?.let { toast.second(it) }
-                }
+                // A refusal is said out loud rather than swallowed, for the reason
+                // `HarnessResponder.refusalOf` gives: the host's wait — and the tool call behind it
+                // — stays open, and a panel that reported nothing would read as two buttons that do
+                // nothing.
+                fun decide(allow: Boolean) =
+                    responder.respondToApproval(approval.sessionId, approval.approvalId, allow)
                 ApprovalPanel(
                     toolName = approval.toolName,
                     reason = approval.reason,
@@ -370,33 +344,21 @@ fun ChatScreen(
             }
             val questions = pendingQuestions
             if (questions != null && questions.sessionId == currentSessionId) {
-                var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
                 // A plan review rides the question channel but is a different decision, so it gets
                 // the card built for it. The narrowing decides which — and hands back anything the
                 // card could not answer in full, because the card answers one question and the host
                 // refuses an answer batch shorter than the request it resolves.
                 val review = remember(questions.rpcId) { planReviewOf(questions.items) }
                 if (review != null) {
-                    fun settle(block: suspend () -> QuestionOutcome) {
-                        planBusy = true
-                        scope.launch {
-                            refusalOf(block())?.let {
-                                planBusy = false
-                                toast.second(it)
-                            }
-                        }
-                    }
-                    fun decide(option: AskUserQuestionOption) = settle {
-                        store.answerQuestions(
-                            questions.sessionId,
-                            AskUserQuestionAnswer(
-                                listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label))),
-                            ),
-                        )
-                    }
+                    fun decide(option: AskUserQuestionOption) = responder.answerPlanReview(
+                        questions.sessionId,
+                        AskUserQuestionAnswer(
+                            listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label))),
+                        ),
+                    )
                     PlanReviewPanel(
                         review = review,
-                        busy = planBusy,
+                        busy = responder.busy,
                         modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
                         onApprove = { decide(review.approve) },
                         onDecline = { review.decline?.let { decide(it) } },
@@ -404,7 +366,7 @@ fun ChatScreen(
                         // so it ends the request rather than answering it with the refusal.
                         onDiscuss = {
                             submitter.onDraftChange("")
-                            settle { store.dismissQuestions(questions.sessionId) }
+                            responder.dismissQuestions(questions.sessionId)
                         },
                     )
                 } else {
@@ -412,10 +374,8 @@ fun ChatScreen(
                         requestKey = questions.rpcId,
                         questions = questions.items,
                         modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
-                        onSubmit = { answer ->
-                            refusalOf(store.answerQuestions(questions.sessionId, answer))
-                        },
-                        onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
+                        onSubmit = { answer -> responder.answerQuestionsOrRefusal(questions.sessionId, answer) },
+                        onDismiss = { responder.dismissQuestionsOrRefusal(questions.sessionId) },
                     )
                 }
             }
@@ -430,7 +390,7 @@ fun ChatScreen(
                 },
                 permissions = permissions,
                 pendingPermission = pendingPermission,
-                onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
+                onPermissionPick = { value -> scope.launch { responder.report(store.setPermissionPreset(value)) } },
                 contextBreakdown = contextBreakdown,
                 contextPressure = contextPressure,
                 running = conversation?.running == true,
@@ -469,7 +429,7 @@ fun ChatScreen(
             onRunCommand = { line ->
                 val name = line.removePrefix("/").substringBefore(' ')
                 if (attachments.isEmpty()) {
-                    scope.launch { report(store.runCommand(line)) }
+                    scope.launch { responder.report(store.runCommand(line)) }
                 } else {
                     toast.second(context.getString(R.string.err_command_no_images, name))
                 }
