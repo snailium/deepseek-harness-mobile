@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.core.session.previewPath
 import com.labteto.dshmobile.ui.theme.DsColors
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -252,7 +253,7 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
                 // `intent:`/`file:` past this handler by dressing it up as a link.
                 val url = safeHttpUrl(raw)
                 if (url != null) runCatching { uriHandler.openUri(url) }
-                else com.labteto.dshmobile.ui.screens.main.previewPath(raw)?.let(openFile)
+                else previewPath(raw)?.let(openFile)
             }
         },
     )
