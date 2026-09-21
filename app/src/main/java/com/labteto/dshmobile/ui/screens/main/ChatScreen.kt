@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.components.PageColumn
 import com.labteto.dshmobile.ui.media.sampleSizeFor
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
@@ -530,12 +531,7 @@ fun ChatScreen(
             }
 
             conversation?.let { conv ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = DsSpacing.pageHorizontal),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
+                PageColumn(spacing = 4.dp) {
                     // The to-do list lives in the pinned bar above the transcript, not here:
                     // two renderings of the same list on one screen read as two different lists.
                     parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
