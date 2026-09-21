@@ -42,6 +42,8 @@ fun DsIconButton(
     enabled: Boolean = true,
     tint: Color = DsTheme.colors.labelSecondary,
     iconSize: Dp = 20.dp,
+    /** Touch-target size; defaults to the accessible 48dp. */
+    touchTarget: Dp = DsSpacing.touchTarget,
 ) {
     val colors = DsTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
@@ -63,7 +65,7 @@ fun DsIconButton(
     
     Surface(
         onClick = onClick,
-        modifier = modifier.size(DsSpacing.touchTarget),
+        modifier = modifier.size(touchTarget),
         enabled = enabled,
         color = background,
         shape = androidx.compose.foundation.shape.CircleShape,

@@ -66,7 +66,7 @@ import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.MenuItem
-import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
@@ -75,6 +75,7 @@ import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import java.util.Locale
 
@@ -115,21 +116,29 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The screen's title bar: the same 44dp row, icon and type constants as every other
+                // page's — a back control at 18dp/24dp and the title in base16Strong.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DsTitleBar.height)
+                        .padding(top = DsSpacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+                ) {
                     DsIconButton(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.common_back),
                         onClick = onClose,
+                        tint = colors.labelTertiary,
+                        iconSize = DsTitleBar.iconSize,
+                        touchTarget = DsTitleBar.iconTouchTarget,
                     )
                     Text(
                         stringResource(R.string.settings_title),
-                        style = DsType.large20,
+                        style = DsTitleBar.titleStyle,
                         color = colors.labelPrimary,
                     )
-                }
-
-                SettingsCard(stringResource(R.string.archived_title)) {
-                    com.labteto.dshmobile.ui.screens.main.ArchivedSessions(store)
                 }
 
                 SettingsCard(stringResource(R.string.settings_general)) {
@@ -174,6 +183,17 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                         settings.keepConnectedInBackground,
                         stringResource(R.string.settings_background_hint),
                     ) { viewModel.set { it.copy(keepConnectedInBackground = !it.keepConnectedInBackground) } }
+                }
+
+                // The keyboard's own behaviour, not the harness's: the composer field is
+                // multi-line, so enter inserting a newline is the default and sending is opted
+                // into rather than out of.
+                SettingsCard(stringResource(R.string.settings_composer)) {
+                    ToggleRow(
+                        stringResource(R.string.settings_enter_to_send),
+                        settings.enterToSend,
+                        stringResource(R.string.settings_enter_to_send_hint),
+                    ) { viewModel.set { it.copy(enterToSend = !it.enterToSend) } }
                 }
 
                 SettingsCard(stringResource(R.string.settings_harness)) {
@@ -273,24 +293,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     }
 }
 
-/** One settings group as a raised card, so groups read as blocks rather than a running list. */
-@Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    val colors = DsTheme.colors
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
-        SectionHeader(title)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.block)
-                .background(colors.bgLayer1)
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-        ) {
-            content()
-        }
-    }
-}
+
 
 /**
  * The host's composed plugins, as one row that opens the list.

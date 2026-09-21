@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -48,6 +49,16 @@ internal fun PermissionMenu(
         title = stringResource(R.string.permission_preset),
         onDismiss = onDismiss,
     ) {
+        // Same breathing room as the attachment sheet: the sheet's own 8dp gap puts the list
+        // directly under the title and reads as one block.
+        Spacer(Modifier.height(DsSpacing.small))
+        if (select.selectable.isEmpty()) {
+            Text(
+                stringResource(R.string.permission_no_options),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+        } else {
         select.selectable.forEach { option ->
             val selected = option.value == current
             Row(
@@ -90,6 +101,7 @@ internal fun PermissionMenu(
                 style = DsType.caption11,
                 color = colors.warnLabel,
             )
+        }
         }
     }
 }
