@@ -55,7 +55,7 @@ fun ApprovalPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(colors.warnTertiary)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -127,7 +127,7 @@ internal fun PlanReviewPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(colors.warnTertiary)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(

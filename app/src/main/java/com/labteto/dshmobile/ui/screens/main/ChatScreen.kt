@@ -6,6 +6,7 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -74,6 +75,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
+import androidx.compose.runtime.LaunchedEffect
+import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.ui.rememberHostsStore
+import androidx.compose.runtime.collectAsState
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
+import com.labteto.dshmobile.ui.theme.DsSpacing
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -95,7 +102,27 @@ fun ChatScreen(
     val toast = rememberDsToast()
 
     val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    // The fold derives the live to-do list from the event stream (see SessionStore.todos);
+    // dismissal is keyed on the list itself, so a new `todo/write` restores the bar.
+    val liveTodos = store.todos.collectAsStateWithLifecycle().value
+    var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    // In-transcript search. The bar is collapsible: the toolbar's search icon opens it, and a ×
+    // inside the bar closes it. The query and cursor live above the tab swap — they belong to the
+    // session rather than to either view, and stepping past the last hit wraps to the first.
+    var searchQuery by remember(currentSessionId) { mutableStateOf("") }
+    var searchOpen by remember(currentSessionId) { mutableStateOf(false) }
+    var matchCursor by remember(currentSessionId) { mutableStateOf(0) }
+    val matches = remember(conversation?.nodes, searchQuery) {
+        findTranscriptMatches(conversation?.nodes.orEmpty(), searchQuery)
+    }
+    // A new query resets the walk to the first hit; keeping the old cursor would land the reader at
+    // position 5 of a completely different result set. The cursor is also clamped on read, because
+    // the node list can shrink under it (a live turn folding, a page of history arriving).
+    LaunchedEffect(searchQuery) { matchCursor = 0 }
+    val cursor = matchCursor.coerceIn(0, (matches.size - 1).coerceAtLeast(0))
+    val currentMatch = matches.getOrNull(cursor)
+
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
     val skills by store.skills.collectAsStateWithLifecycle()
@@ -125,9 +152,15 @@ fun ChatScreen(
         ?: currentSessionId.orEmpty()
 
     val connection by store.connectionState.collectAsStateWithLifecycle()
+    // The persisted send mode seeds each new draft; the details panel's card writes it.
+    val hostsStore = rememberHostsStore()
+    val appSettings by hostsStore.settings.collectAsState(initial = AppSettings())
     val hostKey = connection.host?.let { "${it.baseUrl}|${it.id}" }.orEmpty()
     val composer = remember(hostKey, currentSessionId) {
-        store.composers.get(ComposerKey(hostKey, currentSessionId.orEmpty()))
+        store.composers.get(
+            ComposerKey(hostKey, currentSessionId.orEmpty()),
+            defaultMode = appSettings.promptMode,
+        )
     }
     var referencePicker by remember(composer.key) { mutableStateOf<AtQuery?>(null) }
     var draft by composer::text
@@ -425,13 +458,12 @@ fun ChatScreen(
     androidx.compose.runtime.CompositionLocalProvider(
         com.labteto.dshmobile.ui.media.LocalAttachmentScope provides (composer.key.host to composer.key.sessionId),
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
-            store.panels.get(composer.key).open(path); panelKey = composer.key
-        },
-        com.labteto.dshmobile.ui.components.LocalFolderOpener provides { path: String ->
-            store.panels.get(composer.key).browse(path); panelKey = composer.key
-        },
+        store.panels.get(composer.key).open(path); panelKey = composer.key
+    }) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = colors.bgBase,
     ) {
-    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
@@ -459,9 +491,22 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
-                onOpenWorkspace = { panelKey = composer.key },
-                workspaceEnabled = currentSessionId != null,
-                historyEnabled = currentSessionId != null,
+                // Null when there is no session to point at, which hides the button rather than
+                // offering a tap that does nothing.
+                onOpenWorkspace = if (currentSessionId != null) {
+                    { panelKey = composer.key }
+                } else {
+                    null
+                },
+                searchQuery = searchQuery,
+                // The counter is 1-based and reads 0/0 when nothing matches.
+                searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                searchCount = matches.size,
+                onSearchQueryChange = { searchQuery = it },
+                onSearchPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                onSearchNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                searchOpen = searchOpen,
+                onToggleSearch = { searchOpen = !searchOpen },
             )
 
             connectionError?.let {
@@ -469,6 +514,38 @@ fun ChatScreen(
             }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
+            }
+
+            // Collapsible transcript search: hidden by default, opened by the toolbar's search
+            // icon, closed by its own × button. Sits above the todo dock so hits are visible
+            // while reading.
+            AnimatedVisibility(visible = searchOpen) {
+                TranscriptSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                    matchCount = matches.size,
+                    onPrevious = { matchCursor = stepMatchCursor(cursor, -1, matches.size) },
+                    onNext = { matchCursor = stepMatchCursor(cursor, 1, matches.size) },
+                    onClose = { searchOpen = false; searchQuery = "" },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
+                )
+            }
+
+            // The agent's live to-do list, pinned above the transcript. Hidden until a
+            // `todo/write` arrives, and dismissed state is keyed on the list so a later write
+            // brings the bar back on its own.
+            liveTodos?.let { todos ->
+                TodoBar(
+                    todos = todos,
+                    dismissed = todosDismissed,
+                    onDismiss = { todosDismissed = true },
+                    // Shares the page inset with the transcript and the composer: the bar spans
+                    // the same column, so its edges have to sit on the same lines.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 2.dp),
+                )
             }
 
             val nodeContext = ChatNodeContext(
@@ -517,63 +594,83 @@ fun ChatScreen(
                             jumpToSeq = pendingJumpSeq,
                             onJumpConsumed = { pendingJumpSeq = null },
                         )
-                        ChatTab.Trajectory -> TrajectoryTab(
-                            conversation = conversation,
-                            stats = sessionStats,
-                            usage = tokenUsage,
-                            cwd = workingDirectory,
-                            listState = trajectoryListState,
-                        )
-                    }
-                }
-
-                conversation?.let { conv ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        parseTodos(conv.projections["todos"])?.let { TodoDock(it) }
-                        parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
-                        QueueDock(conv.queue, store)
-                    }
-                }
-
-                // Server-initiated requests take over the bottom of the screen: they block the turn,
-                // so burying them behind a scroll would strand the session.
-                val approval = pendingApproval
-                if (approval != null && approval.sessionId == currentSessionId) {
-                    // A refusal is said out loud here rather than swallowed, for the reason [refusalOf]
-                    // gives: the host's wait — and the tool call behind it — stays open, and a panel
-                    // that reported nothing would read as two buttons that do nothing.
-                    fun decide(allow: Boolean) = scope.launch {
-                        refusalOf(store.respondApproval(approval.sessionId, approval.approvalId, allow))
-                            ?.let { toast.second(it) }
-                    }
-                    ApprovalPanel(
-                        toolName = approval.toolName,
-                        reason = approval.reason,
-                        onAllow = { decide(true) },
-                        onReject = { decide(false) },
+                        .togetherWith(fadeOut(DsAnimations.fade)) using SizeTransform(clip = false)
+                },
+                modifier = Modifier.weight(1f),
+                label = "chatTab",
+            ) { current ->
+                when (current) {
+                    ChatTab.Chat -> ChatTranscript(
+                        conversation = conversation,
+                        loading = conversation == null && currentSessionId != null,
+                        loadingOlder = loadingOlder,
+                        loadOlderFailed = loadOlderFailed,
+                        context = nodeContext,
+                        listState = chatListState,
+                        onLoadOlder = { scope.launch { store.loadOlder() } },
+                        focusSeq = currentMatch?.seq,
+                    )
+                    ChatTab.Trajectory -> TrajectoryTab(
+                        conversation = conversation,
+                        stats = sessionStats,
+                        usage = tokenUsage,
+                        cwd = currentSession?.cwd,
+                        listState = trajectoryListState,
                     )
                 }
-                val questions = pendingQuestions
-                if (questions != null && questions.sessionId == currentSessionId) {
-                    var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
-                    // A plan review rides the question channel but is a different decision, so it gets
-                    // the card built for it. The narrowing decides which — and hands back anything the
-                    // card could not answer in full, because the card answers one question and the host
-                    // refuses an answer batch shorter than the request it resolves.
-                    val review = remember(questions.rpcId) { planReviewOf(questions.items) }
-                    if (review != null) {
-                        fun settle(block: suspend () -> QuestionOutcome) {
-                            planBusy = true
-                            scope.launch {
-                                refusalOf(block())?.let {
-                                    planBusy = false
-                                    toast.second(it)
-                                }
+            }
+
+            conversation?.let { conv ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    // The to-do list lives in the pinned bar above the transcript, not here:
+                    // two renderings of the same list on one screen read as two different lists.
+                    parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
+                    QueueDock(conv.queue, store)
+                }
+            }
+
+            // Server-initiated requests take over the bottom of the screen: they block the turn,
+            // so burying them behind a scroll would strand the session.
+            val approval = pendingApproval
+            if (approval != null && approval.sessionId == currentSessionId) {
+                // A refusal is said out loud here rather than swallowed, for the reason [refusalOf]
+                // gives: the host's wait — and the tool call behind it — stays open, and a panel
+                // that reported nothing would read as two buttons that do nothing.
+                fun decide(allow: Boolean) = scope.launch {
+                    refusalOf(store.respondApproval(approval.sessionId, approval.approvalId, allow))
+                        ?.let { toast.second(it) }
+                }
+                ApprovalPanel(
+                    toolName = approval.toolName,
+                    reason = approval.reason,
+                    // The page inset lives here, at the call site, because the panel is one of
+                    // several stacked in the same column: a composable that inset itself would
+                    // fight whichever container also holds it.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                    onAllow = { decide(true) },
+                    onReject = { decide(false) },
+                )
+            }
+            val questions = pendingQuestions
+            if (questions != null && questions.sessionId == currentSessionId) {
+                var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
+                // A plan review rides the question channel but is a different decision, so it gets
+                // the card built for it. The narrowing decides which — and hands back anything the
+                // card could not answer in full, because the card answers one question and the host
+                // refuses an answer batch shorter than the request it resolves.
+                val review = remember(questions.rpcId) { planReviewOf(questions.items) }
+                if (review != null) {
+                    fun settle(block: suspend () -> QuestionOutcome) {
+                        planBusy = true
+                        scope.launch {
+                            refusalOf(block())?.let {
+                                planBusy = false
+                                toast.second(it)
                             }
                         }
                         fun decide(option: AskUserQuestionOption) = settle {
@@ -606,89 +703,63 @@ fun ChatScreen(
                             onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
                         )
                     }
-                }
-
-                // Weighted questions are measured after the composer, so long questions cannot
-                // consume its controls. The question area scrolls within its allotted height.
-                ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
-
-                // The `/` autocomplete sits where the web's does: directly above the composer,
-                // only while the draft is a slash token being typed.
-                activeSlash(draft, composer.selection)?.let { slash ->
-                    SlashMenu(
-                        query = slash,
-                        commands = if (commandsAvailable) commands else emptyList(),
-                        skills = skills,
-                        onPick = { row ->
-                            when (row) {
-                                is SlashRow.Command -> if (row.descriptor.input == null) {
-                                    draft = ""
-                                    send(row.descriptor.line)
-                                } else {
-                                    draft = row.descriptor.draftPrefix
-                                    composer.selection = draft.length
-                                }
-                                is SlashRow.Skill -> {
-                                    draft = "/${row.entry.name} "
-                                    composer.selection = draft.length
-                                }
-                            }
+                    PlanReviewPanel(
+                        review = review,
+                        busy = planBusy,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                        onApprove = { decide(review.approve) },
+                        onDecline = { review.decline?.let { decide(it) } },
+                        // Wanting to talk it over first is not one of the options the asker stated,
+                        // so it ends the request rather than answering it with the refusal.
+                        onDiscuss = {
+                            draft = ""
+                            settle { store.dismissQuestions(questions.sessionId) }
                         },
                     )
-                }
-
-                Composer(
-                    modifier = Modifier.heightIn(max = composerMaxHeight),
-                    references = composer.references,
-                    onAddReference = {
-                        referencePicker = activeReference(draft, composer.selection) ?: AtQuery(composer.selection, composer.selection, "")
-                    },
-                    onOpenReference = { reference ->
-                        if (reference.kind == "session") scope.launch { store.openSession(reference.target) }
-                        else {
-                            val panel = store.panels.get(composer.key)
-                            if (reference.kind == "folder") {
-                                panel.directory = reference.target
-                                panel.section = 0
-                                // Reopening the panel must load this target, not reuse the previous
-                                // directory's cached rows. Its existing launch effect loads null listings.
-                                panel.listing = null
-                            } else panel.open(reference.target)
-                            panelKey = composer.key
-                        }
-                    },
-                    draft = draft,
-                    onDraftChange = { draft = it },
-                    cursor = composer.selection,
-                    onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
-                    attachments = attachments,
-                    onRemoveAttachment = { index -> attachments.removeAt(index) },
-                    onRetryAttachment = { index ->
-                        (attachments.getOrNull(index) as? PendingAttachment.File)?.let { startUpload(it) }
-                    },
-                    permissions = permissions,
-                    pendingPermission = pendingPermission,
-                    onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
-                    contextBreakdown = contextBreakdown,
-                    contextPressure = contextPressure,
-                    running = conversation?.running == true,
-                    enabled = currentSessionId != null && !composer.submitting,
-                    preparing = composer.preparing,
-                    onOpenSheet = { sheet = ChatSheet.Commands },
-                    // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
-                    // which keeps what it has when the new value is equal to it, and a reference to a
-                    // local function equals every other reference to that function whatever it
-                    // captured. Each session's `::send` compared equal to the first and was dropped, so
-                    // the button went on sending with the attachment list of whichever session was
-                    // open when this screen first composed. A lambda is rebuilt when what it captures
-                    // changes and compares by identity, so the composer always holds the current one.
-                    onSend = { text -> send(text) },
-                    onStop = { scope.launch { store.cancelTurn() } },
-                )
-
-                StatsFooter(stats = sessionStats, usage = tokenUsage)
+                } else {
+                    QuestionsPanel(
+                        requestKey = questions.rpcId,
+                        questions = questions.items,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                        onSubmit = { answer ->
+                            refusalOf(store.answerQuestions(questions.sessionId, answer))
+                        },
+                        onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
+                    )
                 }
             }
+
+            Composer(
+                draft = draft,
+                onDraftChange = { draft = it },
+                attachments = attachments,
+                onRemoveAttachment = { index -> attachments.removeAt(index) },
+                onRetryAttachment = { index ->
+                    (attachments.getOrNull(index) as? PendingAttachment.File)?.let { startUpload(it) }
+                },
+                permissions = permissions,
+                pendingPermission = pendingPermission,
+                onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
+                contextBreakdown = contextBreakdown,
+                contextPressure = contextPressure,
+                running = conversation?.running == true,
+                enterToSend = appSettings.enterToSend,
+                enabled = currentSessionId != null && !composer.submitting,
+                preparing = composer.preparing,
+                onOpenCommands = { sheet = ChatSheet.Commands },
+                onOpenAttachments = { sheet = ChatSheet.Attachments },
+                // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
+                // which keeps what it has when the new value is equal to it, and a reference to a
+                // local function equals every other reference to that function whatever it
+                // captured. Each session's `::send` compared equal to the first and was dropped, so
+                // the button went on sending with the attachment list of whichever session was
+                // open when this screen first composed. A lambda is rebuilt when what it captures
+                // changes and compares by identity, so the composer always holds the current one.
+                onSend = { text -> send(text) },
+                onStop = { scope.launch { store.cancelTurn() } },
+            )
+
+            StatsFooter(stats = sessionStats, usage = tokenUsage)
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
     }
@@ -710,17 +781,6 @@ fun ChatScreen(
             commands = commands,
             commandsAvailable = commandsAvailable,
             skills = skills,
-            mode = mode,
-            running = conversation?.running == true,
-            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
-            onModeChange = { mode = it },
-            onAttach = {
-                if (!composer.preparing && store.composers.imagePickTarget == null) {
-                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
-                    imagePicker.launch("image/*")
-                }
-            },
-            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             // The sheet only auto-runs commands that take no input at all, and a command that
             // takes no input takes no attachments either — so a pending attachment refuses here
             // for the same reason it refuses at the composer, rather than being silently dropped.
@@ -733,6 +793,19 @@ fun ChatScreen(
                 }
             },
             onPrefillDraft = { prefix -> draft = prefix },
+            onDismiss = { sheet = null },
+        )
+        ChatSheet.Attachments -> AttachmentSheet(
+            // Both rows upload against an open session, so both need one; and a pick already in
+            // flight has to finish before another starts.
+            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
+            onAttachImage = {
+                if (!composer.preparing && store.composers.imagePickTarget == null) {
+                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
+                    imagePicker.launch("image/*")
+                }
+            },
+            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })
@@ -776,7 +849,7 @@ fun ChatScreen(
 }
 
 /** Which sheet, if any, is open over the chat surface. */
-private enum class ChatSheet { Commands, Models, History, Presets, Subagents }
+private enum class ChatSheet { Commands, Attachments, Models, Presets, Subagents }
 
 /**
  * A picked document's display name and size, as its provider reports them.

@@ -64,6 +64,7 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionItem
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.launch
@@ -211,7 +212,9 @@ internal fun QuestionsPanel(
             shadowElevation = 2.dp,
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                // Inner padding only: the outer inset that aligns this panel with the composer
+                // and the transcript is applied by the caller (see DsSpacing.pageHorizontal).
+                modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 QuestionHeader(

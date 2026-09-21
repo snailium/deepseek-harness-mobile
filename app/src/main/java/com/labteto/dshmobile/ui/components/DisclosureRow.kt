@@ -67,6 +67,13 @@ fun DisclosureRow(
     state: DisclosureState = DisclosureState.Idle,
     expanded: Boolean = false,
     onToggle: (() -> Unit)? = null,
+    /**
+     * Pinned to the trailing edge of the header row, on the same line as the title.
+     *
+     * A caller-supplied slot rather than a `String?` because it holds more than text — the tool
+     * row puts its elapsed time here, and a chevron or badge would want the same place.
+     */
+    trailing: (@Composable () -> Unit)? = null,
     modifier: Modifier = Modifier,
     content: (@Composable () -> Unit)? = null,
 ) {
@@ -134,12 +141,24 @@ fun DisclosureRow(
             }
             Spacer(Modifier.width(8.dp))
             val titleModifier = if (running) Modifier.shimmer(runningBrush(colors)) else Modifier
+            // `fill = true` on the title is what keeps the row full width. With `fill = false` the
+            // title hugs its text, so a row whose title is short and whose summary is absent —
+            // every failed call with no preview, a compaction, an archived session — ended its
+            // content early and the trailing slot floated in the middle of the line.
+            // The title is what identifies the row (`Bash`, `Read`, `Edit`) and is short by
+            // construction; the summary is the detail (`app/build.gradle.kts`) and is the part
+            // worth spending width on. So the title hugs its text and the summary absorbs the
+            // slack — the opposite of the obvious arrangement, and the reason two `weight(1f)`
+            // siblings were wrong: weight reserves its share *before* anything is measured, so a
+            // short title still claimed half the line and left the gap the reader saw between the
+            // name and the `::` separator, while the summary ellipsised at half width.
             Text(
                 title,
                 style = DsType.std14,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                // `fill = false`: take only the space the text needs, never reserve a share.
                 modifier = Modifier.weight(1f, fill = false).then(titleModifier),
             )
             if (summary != null) {
@@ -152,8 +171,19 @@ fun DisclosureRow(
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // Fills: the summary is the row's flexible part, so it takes whatever the title
+                    // and the trailing slot left and ellipsises only when genuinely out of room.
                     modifier = Modifier.weight(1f),
                 )
+            } else {
+                // No summary: absorb the slack so the trailing slot stays at the right edge.
+                Spacer(Modifier.weight(1f))
+            }
+            // Trailing edge of the same line: keeps the elapsed time out of the header's own
+            // vertical rhythm, so a long title and a long duration cannot push each other around.
+            if (trailing != null) {
+                Spacer(Modifier.width(8.dp))
+                trailing()
             }
         }
         // Every disclosure in the app routes through here — tool cards, compaction, workflows,
