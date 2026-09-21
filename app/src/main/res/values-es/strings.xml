@@ -490,4 +490,13 @@
     <string name="chatlist_pinned">Fijadas</string>
     <string name="chatlist_session_pin">Fijar sesión</string>
     <string name="chatlist_session_unpin">Desfijar sesión</string>
+    <string name="todo_progress_done">%1$d completadas</string>
+    <string name="todo_progress_active">%1$d en curso</string>
+    <string name="todo_progress_pending">%1$d pendientes</string>
+    <string name="todo_close">Cerrar tareas</string>
+    <string name="debug_dialog_title">Información de depuración</string>
+    <string name="debug_buffer_empty">(vacío)</string>
+    <string name="settings_composer">Redacción</string>
+    <string name="settings_enter_to_send">La tecla Intro envía el mensaje</string>
+    <string name="settings_enter_to_send_hint">Desactivado, Intro inserta un salto de línea y envía el botón.</string>
 </resources>
