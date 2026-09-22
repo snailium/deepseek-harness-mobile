@@ -445,10 +445,15 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
     }
     val startedAt = context.eventTimes[node.seq]
     val endedAt = result?.let { context.eventTimes[it.seq] }
-    if (startedAt != null && endedAt != null) Text(
-        com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0)),
-        style = DsType.caption11, color = colors.labelCaption,
-    )
+    // The elapsed time rides the header line's trailing edge, not a line of its own: as its own
+    // line it read as a separate item above the call and broke the card's scan rhythm. It also
+    // drifted to the *left* margin, outside the card, because it was emitted before `ToolCard` as a
+    // sibling in the column rather than passed into it.
+    val elapsed = if (startedAt != null && endedAt != null) {
+        com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0))
+    } else {
+        null
+    }
     ToolCard(
         view = card,
         expanded = expanded,
@@ -457,6 +462,15 @@ private fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext) {
         summaryOverride = row.summary,
         iconOverride = row.variant.featherIcon(),
         state = state,
+        trailing = elapsed?.let { text ->
+            {
+                Text(
+                    text,
+                    style = DsType.caption11,
+                    color = colors.labelCaption,
+                )
+            }
+        },
     )
     if (expanded) {
         result?.content?.let { JsonDisclosure(stringResource(R.string.chat_output_placeholder), it) }
