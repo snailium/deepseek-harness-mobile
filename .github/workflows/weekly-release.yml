@@ -1,0 +1,171 @@
+name: Weekly release
+
+# One signed release a week, built from `master`.
+#
+# Why weekly rather than per change: shipping an APK for every fix produced six builds in one
+# session, five of them differing by a few lines, which buries the releases worth reading. The rule
+# in RELEASE-POLICY.md — a batch worth describing, or a week since the last one — is what this
+# implements. Changes still go to the local :7777 server as they are made; this is the slower,
+# versioned channel.
+#
+# Sunday 12:00 in the repository owner's timezone. GitHub cron is UTC-only, so the hour is the UTC
+# equivalent of noon US Eastern in standard time; it drifts by an hour through daylight saving,
+# which is noted rather than fought — a weekly build does not care whether it lands at 11:00 or
+# 12:00 local.
+on:
+  schedule:
+    - cron: '0 16 * * 0'
+  # Also runnable by hand, for the case where a week's work is worth shipping early.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  # A scheduled run and a manual one must not race for the same tag.
+  group: weekly-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # The default GITHUB_TOKEN cannot trigger downstream workflows, but it can push a tag —
+          # which is all this needs.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+        with:
+          # The legacy `tools` package is no longer published on current runners.
+          packages: platform-tools
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # --- Skip a week with nothing to ship ------------------------------------------------------
+      #
+      # The version file records the commit the last release was built from. If `master` has not
+      # moved since, there is nothing to say and no reason to spend a build on it — a release whose
+      # notes are "same as last week" trains people to ignore releases.
+      - name: Has anything changed since the last release?
+        id: changed
+        run: |
+          RELEASED_SHA="$(sed -n 's/^releasedFrom=//p' version.properties | tr -d '[:space:]')"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ -n "$RELEASED_SHA" ] && [ "$RELEASED_SHA" = "$HEAD_SHA" ]; then
+            echo "master is unchanged since $RELEASED_SHA — nothing to release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "building from $HEAD_SHA (last released $RELEASED_SHA)"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Bump the patch version
+        if: steps.changed.outputs.skip == 'false'
+        id: bump
+        run: |
+          FORK="$(sed -n 's/^forkVersion=//p' version.properties | tr -d '[:space:]')"
+          HARNESS="$(sed -n 's/^harnessVersion=//p' version.properties | tr -d '[:space:]')"
+          # patch + 1: monotonic, and `versionCode` derives from this half, so it rises with it.
+          MAJOR="${FORK%%.*}"
+          REST="${FORK#*.}"
+          MINOR="${REST%%.*}"
+          PATCH="${REST#*.}"
+          NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+          VERSION="$NEXT-dsh.$HARNESS"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "fork=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "$FORK -> $NEXT ($VERSION)"
+
+      - name: Write the new version and the released commit
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          FORK="${{ steps.bump.outputs.fork }}"
+          # `releasedFrom` may be absent on an older checkout, so append rather than assume.
+          grep -q '^releasedFrom=' version.properties \
+            || printf '\nreleasedFrom=\n' >> version.properties
+          sed -i "s/^forkVersion=.*/forkVersion=$FORK/" version.properties
+          sed -i "s|^releasedFrom=.*|releasedFrom=$(git rev-parse HEAD)|" version.properties
+          cat version.properties
+
+      - name: Unit tests
+        if: steps.changed.outputs.skip == 'false'
+        run: ./gradlew :core:test :mock-harness:test :app:testReleaseUnitTest --stacktrace
+
+      - name: Lint
+        if: steps.changed.outputs.skip == 'false'
+        run: ./gradlew :app:lintDebug --stacktrace
+
+      # --- Signing ------------------------------------------------------------------------------
+      #
+      # The keystore is required, not optional. Upstream's script falls back to an unsigned APK when
+      # the keystore is missing, which installs fine and then refuses to upgrade over a signed
+      # build — a failure that only appears on the phone, days later. Failing here instead names
+      # the cause while it is still in front of us.
+      - name: Restore the signing keystore
+        if: steps.changed.outputs.skip == 'false'
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "RELEASE_KEYSTORE is not set — see RELEASE-POLICY.md for how to add it" >&2
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build the release APK
+        if: steps.changed.outputs.skip == 'false'
+        env:
+          DSH_VERSION_NAME: ${{ steps.bump.outputs.version }}
+          DSH_KEYSTORE: ${{ runner.temp }}/release.jks
+          DSH_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          DSH_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          DSH_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Verify the signature
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK"
+          "$ANDROID_HOME"/build-tools/*/aapt2 dump badging "$APK" | grep -E '^package'
+
+      - name: Checksums
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          cd app/build/outputs/apk/release
+          sha256sum *.apk > SHA256SUMS.txt
+
+      - name: Tag and push
+        if: steps.changed.outputs.skip == 'false'
+        run: |
+          VERSION="${{ steps.bump.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.properties
+          git commit -m "Release $VERSION"
+          git push
+          git tag "v$VERSION"
+          git push origin "v$VERSION"
+
+      - name: Publish the GitHub Release
+        if: steps.changed.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          files: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/SHA256SUMS.txt
+          generate_release_notes: true
+
+      - name: Nothing to do
+        if: steps.changed.outputs.skip == 'true'
+        run: echo "No changes on master since the last release; skipping."
