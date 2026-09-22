@@ -131,12 +131,24 @@ jobs:
           DSH_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: ./gradlew :app:assembleRelease --stacktrace
 
+      # The signature is checked here rather than assumed from "it built". An unsigned APK installs
+      # and then refuses to upgrade over a signed one — a failure that only shows up on a phone, days
+      # later, with nothing connecting it back to this build.
+      #
+      # The tool is resolved rather than globbed. `"$ANDROID_HOME"/build-tools/*/apksigner` expands
+      # to *every* installed version on a runner image that ships more than one, so the wrapper
+      # received its siblings' paths as leading arguments and treated the first as a subcommand —
+      # which is what produced "Unsupported command: .../35.0.0/apksigner" on the first run.
+      # `sort -V | tail -1` picks the newest, the right default when several are installed.
       - name: Verify the signature
         if: steps.changed.outputs.skip == 'false'
         run: |
           APK=app/build/outputs/apk/release/app-release.apk
-          "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK"
-          "$ANDROID_HOME"/build-tools/*/aapt2 dump badging "$APK" | grep -E '^package'
+          APKSIGNER="$(ls -1d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          AAPT2="$(ls -1d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK"
+          "$AAPT2" dump badging "$APK" | grep -E '^package'
 
       - name: Checksums
         if: steps.changed.outputs.skip == 'false'
