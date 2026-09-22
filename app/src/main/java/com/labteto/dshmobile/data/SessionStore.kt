@@ -298,6 +298,22 @@ class SessionStore @Inject constructor(
     /** Coalesces transcript rebuilds during a stream; see [observeRebuildTicks]. */
     private val rebuildTicks = Channel<Unit>(Channel.CONFLATED)
 
+    /**
+     * A session id the app was launched to open — e.g. from a notification tap — which may not be
+     * connected yet when it arrives, so it is held here and opened on the first successful connect
+     * of this process instead of being dropped. Cleared once [openSession] consumes it.
+     */
+    private var pendingDeepLink: String? = null
+
+    /** Stash a session to open as soon as (or after) the app connects; see [pendingDeepLink]. */
+    fun requestOpenSession(sessionId: String) {
+        if (currentSessionId.value == sessionId && connectionState.value.hasConnected) return
+        pendingDeepLink = sessionId
+        scope.launch {
+            if (connectionManager.state.value.phase == ConnectionPhase.CONNECTED) triggerBaseline()
+        }
+    }
+
     // ------------------------------------------------------------------ public StateFlows
     private val _sessions = MutableStateFlow<List<SessionRow>>(emptyList())
     val sessions: StateFlow<List<SessionRow>> = _sessions.asStateFlow()
@@ -666,6 +682,13 @@ class SessionStore @Inject constructor(
             launch { refreshPermissionCatalog() }
             // The list is the one read the landing session is chosen from, so it alone is awaited.
             refreshSessions()
+            // A deep link (notification tap) outranks the remembered-session resolver: it names
+            // the session the user asked for, and may have arrived before this connect finished.
+            pendingDeepLink?.let { sid ->
+                pendingDeepLink = null
+                openSession(sid)
+                return@coroutineScope
+            }
             // On a reconnect `currentSessionId` is already set, so the resolver only ever runs on
             // the first connect of a process — no double-open, and reconnect keeps reopening what
             // was open.
@@ -1352,6 +1375,7 @@ class SessionStore @Inject constructor(
     private fun applyWorkspaceValue(value: WorkspaceValue) = upsertWorkspace(value.workspace)
 
     suspend fun openSession(sessionId: String) = withContext(Dispatchers.Default) {
+        if (pendingDeepLink == sessionId) pendingDeepLink = null
         val api = apiOrNull() ?: return@withContext
         _loadOlderFailed.value = false
         synchronized(lock) {

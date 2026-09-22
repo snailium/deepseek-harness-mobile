@@ -1,5 +1,6 @@
 package com.labteto.dshmobile
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.core.os.LocaleListCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.labteto.dshmobile.connection.HostsStore
+import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.notify.DshNotifications
 import com.labteto.dshmobile.ui.AppRoot
 import dagger.hilt.android.AndroidEntryPoint
@@ -22,6 +24,7 @@ class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var hostsStore: HostsStore
     @Inject lateinit var notifications: DshNotifications
+    @Inject lateinit var sessionStore: SessionStore
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -63,9 +66,21 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // A notification tap carries the session id as an extra (the URI is only for external
+        // launchers); hand it to the store, which opens it once a connection exists. Re-delivery
+        // of the same intent is harmless — the store ignores a request that matches what is open.
+        intent?.getStringExtra(DshNotifications.EXTRA_SESSION_ID)?.let { sessionStore.requestOpenSession(it) }
+
         setContent {
             AppRoot()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // The activity is SINGLE_TOP + CLEAR_TOP, so a notification tap while it is already
+        // foregrounded arrives here rather than in onCreate.
+        intent.getStringExtra(DshNotifications.EXTRA_SESSION_ID)?.let { sessionStore.requestOpenSession(it) }
     }
 
     /**
