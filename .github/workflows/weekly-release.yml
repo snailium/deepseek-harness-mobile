@@ -57,15 +57,28 @@ jobs:
       - name: Has anything changed since the last release?
         id: changed
         run: |
+          # `releasedFrom` records the source commit a release was built from, not the release
+          # commit itself — the release commit is the one that *writes* this value, so it cannot
+          # name itself. Comparing against it therefore asks the right question: "has anything
+          # landed since the code we last shipped?" A week in which the only new commit is the
+          # previous bump is correctly a no-op, because that commit changed no code.
           RELEASED_SHA="$(sed -n 's/^releasedFrom=//p' version.properties | tr -d '[:space:]')"
           HEAD_SHA="$(git rev-parse HEAD)"
           if [ -n "$RELEASED_SHA" ] && [ "$RELEASED_SHA" = "$HEAD_SHA" ]; then
-            echo "master is unchanged since $RELEASED_SHA — nothing to release"
+            echo "unchanged since $RELEASED_SHA — nothing to release"
             echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "building from $HEAD_SHA (last released $RELEASED_SHA)"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          # Nothing has changed if every commit since the last release only touched the version
+          # bookkeeping. `git log` over the range, filtered to the paths that matter.
+          if [ -n "$RELEASED_SHA" ] && \
+             [ -z "$(git log --oneline "$RELEASED_SHA..HEAD" -- . ':(exclude)version.properties')" ]; then
+            echo "only version bookkeeping since $RELEASED_SHA — nothing to release"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "building from $HEAD_SHA (last released ${RELEASED_SHA:-never})"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Bump the patch version
         if: steps.changed.outputs.skip == 'false'
