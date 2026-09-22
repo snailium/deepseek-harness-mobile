@@ -119,6 +119,14 @@ NAME="dsh-mobile-$VERSION-$STAMP.apk"
 mkdir -p "$WORKSPACE_ROOT/apk"
 cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
 
+# Record what was shipped, so the weekly CI job can tell whether `master` has moved since. Without
+# this the workflow would either rebuild an identical APK every Sunday or need a tag lookup it
+# cannot do before it has decided whether to run.
+FORK_PART="${VERSION%%-dsh.*}"
+sed -i "s/^forkVersion=.*/forkVersion=$FORK_PART/" version.properties
+sed -i "s/^releasedFrom=.*/releasedFrom=$(git rev-parse HEAD)/" version.properties
+echo "recorded: forkVersion=$FORK_PART releasedFrom=$(git rev-parse --short HEAD)"
+
 echo
 echo "published: $NAME"
 echo "url:       http://192.168.111.90:7777/$NAME"
