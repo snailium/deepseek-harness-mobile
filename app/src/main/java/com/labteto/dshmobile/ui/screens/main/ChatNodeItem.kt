@@ -568,10 +568,15 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
     }
     val startedAt = context.eventTimes[node.seq]
     val endedAt = result?.let { context.eventTimes[it.seq] }
+    // The elapsed time rides the header line's trailing edge, not a line of its own: as its own
+    // line it read as a separate item above the call and broke the card's scan rhythm. It also
+    // drifted to the *left* margin, outside the card, because it was emitted before `ToolCard` as a
+    // sibling in the column rather than passed into it.
     val elapsed = if (startedAt != null && endedAt != null) {
         com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0))
-    } else null
-    if (!compact && elapsed != null) Text(elapsed, style = DsType.caption11, color = colors.labelCaption)
+    } else {
+        null
+    }
     ToolCard(
         view = card,
         expanded = expanded,
@@ -593,6 +598,15 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
                 Icon(FeatherIcons.ChevronRight, null, Modifier.size(14.dp).graphicsLayer { rotationZ = if (expanded) 90f else 0f }, tint = colors.labelTertiary)
             }
         }) else null,
+        trailing = elapsed?.let { text ->
+            {
+                Text(
+                    text,
+                    style = DsType.caption11,
+                    color = colors.labelCaption,
+                )
+            }
+        },
     )
     if (expanded) {
         // What the call returned, not the file as it is now: the durable attachment survives the
