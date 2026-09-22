@@ -339,9 +339,14 @@ internal class ComposerSubmitter(
         }
     }
 
-    /** Prefill the draft, used by the model picker's "switch and ask" path. */
+    /**
+     * Prepend [prefix] to whatever is already in the draft — never replace it — so a command or
+     * skill picked from the sheet lands at the start of an in-progress message and the user keeps
+     * typing where they were. The field's text grows on the left, so its own caret tracking lands
+     * at the end of the new text: exactly where continued typing belongs.
+     */
     fun prefill(prefix: String) {
-        composer.text = prefix
+        composer.text = prefix + composer.text
     }
 }
 
