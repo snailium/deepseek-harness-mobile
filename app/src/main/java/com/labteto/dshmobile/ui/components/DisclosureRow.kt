@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -141,25 +142,37 @@ fun DisclosureRow(
             }
             Spacer(Modifier.width(8.dp))
             val titleModifier = if (running) Modifier.shimmer(runningBrush(colors)) else Modifier
-            // `fill = true` on the title is what keeps the row full width. With `fill = false` the
-            // title hugs its text, so a row whose title is short and whose summary is absent —
-            // every failed call with no preview, a compaction, an archived session — ended its
-            // content early and the trailing slot floated in the middle of the line.
-            // The title is what identifies the row (`Bash`, `Read`, `Edit`) and is short by
-            // construction; the summary is the detail (`app/build.gradle.kts`) and is the part
-            // worth spending width on. So the title hugs its text and the summary absorbs the
-            // slack — the opposite of the obvious arrangement, and the reason two `weight(1f)`
-            // siblings were wrong: weight reserves its share *before* anything is measured, so a
-            // short title still claimed half the line and left the gap the reader saw between the
-            // name and the `::` separator, while the summary ellipsised at half width.
+            // Six elements share this line, and the width contract is worth stating plainly because
+            // getting it subtly wrong is invisible until a long name meets a short description:
+            //
+            //   A chevron      — fixed
+            //   B tool glyph   — fixed
+            //   C tool name    — **hugs its text**, never ellipsised
+            //   D separator    — fixed
+            //   E description  — **absorbs all remaining width**, ellipsised
+            //   F elapsed time — fixed, right edge
+            //
+            // Only E carries `weight`. C must not: a weighted child is *allocated* a share of the
+            // line before anything is measured, so two weighted siblings split the space evenly and
+            // a short name still claimed half the line — leaving the gap between the name and the
+            // separator that this row kept showing, while a long description ellipsised at half the
+            // width it should have had. `fill = false` does not fix that; it only lets a child use
+            // *less* than its allocation, not take what its text actually needs.
+            //
+            // Measured without a weight, C gets its intrinsic width and E receives every pixel they
+            // leave. `maxLines`/`Ellipsis` stay as a safety net for the pathological case — a
+            // 200-character tool name would otherwise overflow the row — but they are a backstop,
+            // not the normal path.
             Text(
                 title,
                 style = DsType.std14,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                // `fill = false`: take only the space the text needs, never reserve a share.
-                modifier = Modifier.weight(1f, fill = false).then(titleModifier),
+                // Tagged so `DisclosureHeaderWidthTest` can assert the width contract on real
+                // geometry — the failure it guards against is a name that quietly claims a share of
+                // the line, which no screenshot review catches reliably.
+                modifier = titleModifier.testTag(DISCLOSURE_TITLE_TAG),
             )
             if (summary != null) {
                 Spacer(Modifier.width(6.dp))
@@ -171,16 +184,18 @@ fun DisclosureRow(
                     color = colors.labelTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    // Fills: the summary is the row's flexible part, so it takes whatever the title
-                    // and the trailing slot left and ellipsises only when genuinely out of room.
-                    modifier = Modifier.weight(1f),
+                    // Fills: the description is the row's only flexible part, so it takes whatever
+                    // the four fixed elements and the name left, and ellipsises only when it is
+                    // genuinely out of room.
+                    modifier = Modifier.weight(1f).testTag(DISCLOSURE_SUMMARY_TAG),
                 )
             } else {
-                // No summary: absorb the slack so the trailing slot stays at the right edge.
+                // No summary: absorb the slack so the trailing slot stays at the right edge rather
+                // than floating mid-line.
                 Spacer(Modifier.weight(1f))
             }
             // Trailing edge of the same line: keeps the elapsed time out of the header's own
-            // vertical rhythm, so a long title and a long duration cannot push each other around.
+            // vertical rhythm, so a long name and a long duration cannot push each other around.
             if (trailing != null) {
                 Spacer(Modifier.width(8.dp))
                 trailing()
@@ -261,3 +276,7 @@ private fun DisclosureRowPreview() {
         }
     }
 }
+
+/** Test tags for the width contract asserted in `DisclosureHeaderWidthTest`. */
+internal const val DISCLOSURE_TITLE_TAG = "disclosure-title"
+internal const val DISCLOSURE_SUMMARY_TAG = "disclosure-summary"
