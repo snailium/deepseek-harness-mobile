@@ -1,49 +1,52 @@
 #!/usr/bin/env bash
 #
-# Build and publish a signed release APK for the snailium fork.
+# Build and publish a signed APK to the local :7777 server.
 #
-# Usage:  scripts/release.sh <version>        e.g. scripts/release.sh 0.2.0-dsh.0.1.6
+# Usage:  scripts/release.sh              build, stamp, publish
+#         scripts/release.sh --dry-run    show the version it would use, build nothing
 #
-# The version is `<fork>-dsh.<harness>`: our own release count, then the harness line the app
-# speaks. The harness half is a **compatibility claim, not a counter** — `0.1.7` means "for DSH
-# 0.1.7", and it must match the upstream baseline the tree is actually built on. This script checks
-# that, because the failure is silent: a wrong harness half produces an APK that installs fine and
-# misinforms everyone who reads the version.
+# **This path does not version.** It is the everyday channel: every change worth putting on a phone
+# gets a build, and most of those changes are not releases. The version is taken as-is from
+# `version.properties` and the timestamp goes into the *filename*, so a phone sees a build number
+# that never lies about where the code came from, and the release history stays a list of releases
+# rather than a list of afternoons.
 #
-# What it does: runs the test suite, builds a signed release APK, copies it into the served `apk/`
-# directory with a timestamped name, and prints the download URL. It refuses to build if the
-# keystore is missing rather than silently producing an unsigned APK that Android will not upgrade
-# over — upstream's build script falls back to unsigned, which is the right default for them and
-# the wrong one for us.
+# The versioned channel is the weekly GitHub release — see RELEASE-POLICY.md. It is the only thing
+# that writes a new `forkVersion`, and it does so once a week.
+#
+# What it does: runs the test suite, builds a signed APK, verifies the signature, copies it into the
+# served `apk/` directory as `<version>-<timestamp>.apk`, and prints the download URL. It refuses to
+# build if the keystore is missing rather than silently producing an unsigned APK that Android will
+# not upgrade over — upstream's build script falls back to unsigned, which is the right default for
+# them and the wrong one for us.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKSPACE_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 
-VERSION="${1:-}"
-if [[ -z "$VERSION" ]]; then
-  echo "usage: $(basename "$0") <version>   e.g. 0.2.0-dsh.0.1.6" >&2
-  exit 2
-fi
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-dsh\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "version must look like 0.2.0-dsh.0.1.6 (fork line -dsh. harness line)" >&2
-  exit 2
-fi
+DRY_RUN=false
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN=true ;;
+    -h|--help) sed -n '3,20p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    *) echo "unknown argument: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
 
-# `version.properties` is the fork's own record of the scheme — see its header for why the values
-# live outside `app/build.gradle.kts`. The argument's harness half must match it, and that file in
-# turn must match upstream's compatibility table below.
+# The version is read, never written. This path publishes builds, not releases — bumping here is
+# what produced six "releases" in one afternoon, five of them a few lines apart.
 cd "$REPO_ROOT"
 if [[ ! -f version.properties ]]; then
   echo "version.properties is missing — see FORK-NOTES for the scheme" >&2
   exit 2
 fi
-FILE_HARNESS="$(sed -n 's/^harnessVersion=//p' version.properties | tr -d '[:space:]')"
-VERSION_HARNESS="${VERSION##*-dsh.}"
-if [[ -n "$FILE_HARNESS" && "$VERSION_HARNESS" != "$FILE_HARNESS" ]]; then
-  echo "harness half is $VERSION_HARNESS but version.properties says $FILE_HARNESS" >&2
+FORK_HALF="$(sed -n 's/^forkVersion=//p' version.properties | tr -d '[:space:]')"
+VERSION_HARNESS="$(sed -n 's/^harnessVersion=//p' version.properties | tr -d '[:space:]')"
+if [[ -z "$FORK_HALF" || -z "$VERSION_HARNESS" ]]; then
+  echo "version.properties must define forkVersion and harnessVersion" >&2
   exit 2
 fi
+VERSION="$FORK_HALF-dsh.$VERSION_HARNESS"
 
 # The harness half must name the harness baseline this tree is built on. Read from
 # `docs/COMPATIBILITY.md`, which is upstream's own record of "this app version targets this harness
@@ -92,6 +95,13 @@ export DSH_VERSION_NAME="$VERSION"
 
 cd "$REPO_ROOT"
 
+if $DRY_RUN; then
+  echo "would publish: dsh-mobile-$VERSION+$(date +%Y%m%d-%H%M%S).apk"
+  echo "version:       $VERSION (from version.properties)"
+  echo "commit:        $(git rev-parse --short HEAD)"
+  exit 0
+fi
+
 echo "==> tests"
 ./gradlew :core:test :mock-harness:test :app:testDebugUnitTest --console=plain
 
@@ -114,21 +124,19 @@ if ! "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$APK" >/dev/n
   exit 1
 fi
 
+# The timestamp is the only thing that distinguishes one build from the next, so it goes in the
+# filename. `apk/` is a flat directory served as-is, and sorting it by name sorts it by time.
 STAMP="$(date +%Y%m%d-%H%M%S)"
-NAME="dsh-mobile-$VERSION-$STAMP.apk"
+SHORT_SHA="$(git rev-parse --short HEAD)"
+NAME="dsh-mobile-$VERSION+$STAMP.apk"
 mkdir -p "$WORKSPACE_ROOT/apk"
 cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
-
-# Record what was shipped, so the weekly CI job can tell whether `master` has moved since. Without
-# this the workflow would either rebuild an identical APK every Sunday or need a tag lookup it
-# cannot do before it has decided whether to run.
-FORK_PART="${VERSION%%-dsh.*}"
-sed -i "s/^forkVersion=.*/forkVersion=$FORK_PART/" version.properties
-sed -i "s/^releasedFrom=.*/releasedFrom=$(git rev-parse HEAD)/" version.properties
-echo "recorded: forkVersion=$FORK_PART releasedFrom=$(git rev-parse --short HEAD)"
 
 echo
 echo "published: $NAME"
 echo "url:       http://192.168.111.90:7777/$NAME"
+echo "version:   $VERSION  (unchanged — this path does not version)"
+echo "commit:    $SHORT_SHA"
 echo
 echo "The APK server serves from inside apk/, so the URL carries no /apk/ segment."
+echo "The versioned channel is the weekly GitHub release; see RELEASE-POLICY.md."
