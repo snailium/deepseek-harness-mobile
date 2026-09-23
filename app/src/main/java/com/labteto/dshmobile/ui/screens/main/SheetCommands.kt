@@ -68,7 +68,7 @@ internal fun CommandSheet(
     val filteredSkills = remember(skills, query) { skills.filterByQuery(query) { it.name to it.description } }
     val searchable = commands.size + skills.size > 12
 
-    DsBottomSheet(title = stringResource(R.string.chat_composer_commands), onDismiss = onDismiss) {
+    DsBottomSheet(title = null, onDismiss = onDismiss) {
         if (searchable) {
             // The app's own search pill, not a Material3 TextField: that one is a 56dp outlined
             // box, so it read as a control from a different app sitting above the list.
@@ -87,7 +87,7 @@ internal fun CommandSheet(
 
         // Commands and Skills share the settings page's card shape: title, then a raised block of
         // rows. The sheet's 8dp gap between children is what separates one card from the next.
-        SettingsCard(stringResource(R.string.chat_composer_commands)) {
+        SettingsCard("Commands") {
             when {
                 !commandsAvailable -> Text(
                     stringResource(R.string.chat_commands_unavailable),
@@ -167,10 +167,7 @@ internal fun AttachmentSheet(
     onDismiss: () -> Unit,
 ) {
     val colors = DsTheme.colors
-    DsBottomSheet(title = stringResource(R.string.chat_composer_attach_title), onDismiss = onDismiss) {
-        // The sheet's own 8dp gap between children is too tight here: the title sits on top of a
-        // two-row list, and at that distance it reads as one block. An extra row of air separates
-        // "what this is" from "what you can do".
+    DsBottomSheet(title = null, onDismiss = onDismiss) {
         Spacer(Modifier.height(DsSpacing.small))
         SheetRow(
             leading = {
