@@ -270,6 +270,30 @@ internal fun nextHasMore(freshCount: Int, hostHasMore: Boolean, overDelivered: B
 private const val INBOX_PROJECTION = "inbox"
 
 /**
+ * Projection key carrying the preset a session's agent was composed from.
+ *
+ * This is the only place the id reaches the client: `SessionSummary` has no `agentPreset` field,
+ * so a client that does not read this projection shows no preset at all.
+ */
+private const val AGENT_PRESET_PROJECTION = "agentPreset"
+
+/**
+ * Read one string out of a session's projection block.
+ *
+ * The values are usually bare JSON strings, but the object form is accepted because the shape has
+ * varied across harness versions. Top-level rather than a private method so the parsing can be
+ * tested without standing up a whole [SessionStore].
+ */
+internal fun projectionString(block: SessionProjectionsBlock?, key: String): String? {
+    val value = block?.values?.get(key) ?: return null
+    return when (value) {
+        is JsonPrimitive -> value.contentOrNull
+        is JsonObject -> value[key]?.jsonPrimitive?.contentOrNull
+        else -> null
+    }
+}
+
+/**
  * Single source of truth for the connected harness's live state. All public surface is
  * [StateFlow]; every RPC error becomes [connectionError] and never throws. The store survives
  * reconnects by re-baselining on the connection state transition and on `session/subscribed`.
@@ -489,6 +513,11 @@ class SessionStore @Inject constructor(
     private val sessionRows = LinkedHashMap<String, SessionRow>()
     private val runningBySession = HashMap<String, Boolean>()
     private val titleBySession = HashMap<String, String>()
+    /**
+     * Preset id per session, cached from the row projection so a live projection update — which
+     * carries no `agentPreset` of its own on every frame — does not erase what the list said.
+     */
+    private val presetBySession = HashMap<String, String>()
     private val workspaceRows = LinkedHashMap<String, WorkspaceRow>()
     private val workspaceOrder = ArrayList<String>()
     private var archived = emptySet<String>()
@@ -888,6 +917,15 @@ class SessionStore @Inject constructor(
                     val items = InboxProjection.itemsFrom(frame.value).map(::queuedInboxItemToQueueItem)
                     queuesBySession.value = queuesBySession.value + (frame.sessionId to items)
                 }
+                // The preset projection arrives for every live session, and it is the only way the
+                // chrome learns that a session switched preset after its row was fetched. Read
+                // outside the `currentId` guard below for exactly that reason: the session whose
+                // preset changed need not be the one on screen.
+                if (frame.key == AGENT_PRESET_PROJECTION) {
+                    (frame.value as? JsonPrimitive)?.contentOrNull
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { setAgentPreset(frame.sessionId, it) }
+                }
                 synchronized(lock) {
                     if (frame.sessionId == currentId) {
                         mergeProjectionLocked(frame.key, frame.seq, frame.value)
@@ -1089,13 +1127,20 @@ class SessionStore @Inject constructor(
         synchronized(lock) {
             val existing = sessionRows[item.sessionId]
             val title = titleBySession[item.sessionId]
+            // Same three-step resolution as the list refresh: the projection is authoritative, the
+            // cache covers a frame that omits it, and the row's own field is the last resort for a
+            // host that sends one.
+            val preset = extractAgentPreset(item.projections)
+                ?.also { presetBySession[item.sessionId] = it }
+                ?: presetBySession[item.sessionId]
+                ?: item.agentPreset
             val row = existing?.copy(
                 title = title ?: existing.title,
                 blank = item.blank,
                 parentSessionId = item.parentSessionId,
                 origin = item.origin,
                 cwd = item.cwd,
-                agentPreset = item.agentPreset,
+                agentPreset = preset ?: existing.agentPreset,
             ) ?: SessionRow(
                 sessionId = item.sessionId,
                 title = title,
@@ -1104,7 +1149,7 @@ class SessionStore @Inject constructor(
                 parentSessionId = item.parentSessionId,
                 origin = item.origin,
                 cwd = item.cwd,
-                agentPreset = item.agentPreset,
+                agentPreset = preset,
                 updatedAt = item.updatedAt,
                 pendingInteraction = null,
             )
@@ -1162,6 +1207,22 @@ class SessionStore @Inject constructor(
         synchronized(lock) {
             titleBySession[sessionId] = title
             sessionRows[sessionId]?.let { if (it.title != title) sessionRows[sessionId] = it.copy(title = title) }
+            emitSessionsLocked()
+        }
+    }
+
+    /**
+     * Record the preset a session is running, from the live `agentPreset` projection.
+     *
+     * The projection updates when a preset is switched mid-session, which is the only way the
+     * chrome can stay correct without reopening the session.
+     */
+    private fun setAgentPreset(sessionId: String, preset: String) {
+        synchronized(lock) {
+            presetBySession[sessionId] = preset
+            sessionRows[sessionId]?.let {
+                if (it.agentPreset != preset) sessionRows[sessionId] = it.copy(agentPreset = preset)
+            }
             emitSessionsLocked()
         }
     }
@@ -1304,14 +1365,23 @@ class SessionStore @Inject constructor(
         if (pendingKinds[sessionId].isNullOrEmpty()) pendingKinds.remove(sessionId)
     }
 
-    private fun extractTitle(block: SessionProjectionsBlock?): String? {
-        val value = block?.values?.get("title") ?: return null
-        return when (value) {
-            is JsonPrimitive -> value.contentOrNull
-            is JsonObject -> value["title"]?.jsonPrimitive?.contentOrNull
-            else -> null
-        }
-    }
+    /**
+     * The preset a session's agent was composed from, out of its projection block.
+     *
+     * This is the *projection*, not a field on the row. The harness's `SessionSummary` carries no
+     * `agentPreset` at all — the id only reaches the client as the `agentPreset` entry of
+     * `SessionProjectionMap`, riding the row's `projections.values` (or a live projection update).
+     * A `SessionWireHeader` carries it too, but only on the `session/follow` snapshot, so reading
+     * it there would leave the value empty until the session had been opened once.
+     *
+     * The value is a bare JSON string, but the object form is accepted for the same reason
+     * [extractTitle] accepts it: the projection's shape has varied across harness versions.
+     */
+    private fun extractAgentPreset(block: SessionProjectionsBlock?): String? =
+        projectionString(block, AGENT_PRESET_PROJECTION)
+
+    private fun extractTitle(block: SessionProjectionsBlock?): String? =
+        projectionString(block, "title")
 
     // ------------------------------------------------------------------ public RPC surface
     /**
@@ -1341,6 +1411,13 @@ class SessionStore @Inject constructor(
                     for (item in r.value.items) {
                         val title = titleBySession[item.sessionId]
                             ?: extractTitle(item.projections)?.also { titleBySession[item.sessionId] = it }
+                        // The row's own `agentPreset` field is always null against a real harness —
+                        // `SessionSummary` has no such field — so the projection is the only source.
+                        // Falling back to the field keeps a host that does send it working.
+                        val preset = extractAgentPreset(item.projections)
+                            ?.also { presetBySession[item.sessionId] = it }
+                            ?: presetBySession[item.sessionId]
+                            ?: item.agentPreset
                         runningBySession.putIfAbsent(item.sessionId, item.running)
                         sessionRows[item.sessionId] = SessionRow(
                             sessionId = item.sessionId,
@@ -1350,7 +1427,7 @@ class SessionStore @Inject constructor(
                             parentSessionId = item.parentSessionId,
                             origin = item.origin,
                             cwd = item.cwd,
-                            agentPreset = item.agentPreset,
+                            agentPreset = preset,
                             updatedAt = item.updatedAt,
                             pendingInteraction = null,
                         )

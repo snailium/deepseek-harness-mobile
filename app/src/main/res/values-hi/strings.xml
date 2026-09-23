@@ -360,6 +360,7 @@
     <string name="chatlist_search_empty">कोई सत्र मेल नहीं खाता।</string>
     <string name="chatlist_search_content_off">इस हार्नेस में कॉन्टेंट खोज बंद है, इसलिए केवल सत्र और फ़ोल्डर नाम मिलाए जाते हैं।</string>
     <string name="chatlist_search_refine">और भी मिलान हैं — देखने के लिए खोज को सीमित करें।</string>
+    <string name="preset_unknown">प्रीसेट</string>
     <string name="preset_standard_name">मानक मोड</string>
     <string name="preset_standard_desc">फ़ाइल संपादन, शेल, फ़ाइल और वेब खोज, स्किल्स, योजना, लक्ष्य, सबएजेंट और वर्कफ़्लो के साथ पूर्ण कोडिंग एजेंट।</string>
     <string name="preset_code_name">PTC मोड</string>

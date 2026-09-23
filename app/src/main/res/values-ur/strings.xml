@@ -360,6 +360,7 @@
     <string name="chatlist_search_empty">کوئی سیشن میل نہیں کھاتا۔</string>
     <string name="chatlist_search_content_off">اس ہارنیس میں مواد کی تلاش بند ہے، اس لیے صرف سیشن اور فولڈر کے نام ملائے جاتے ہیں۔</string>
     <string name="chatlist_search_refine">مزید نتائج موجود ہیں — دیکھنے کے لیے تلاش محدود کریں۔</string>
+    <string name="preset_unknown">پری سیٹ</string>
     <string name="preset_standard_name">اسٹینڈرڈ موڈ</string>
     <string name="preset_standard_desc">مکمل کوڈنگ ایجنٹ: فائل ایڈیٹنگ، شیل، فائل و ویب تلاش، اسکلز، منصوبہ بندی، اہداف، سب ایجنٹس اور ورک فلو۔</string>
     <string name="preset_code_name">PTC موڈ</string>
