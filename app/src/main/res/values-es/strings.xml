@@ -360,6 +360,7 @@
     <string name="chatlist_search_empty">Ninguna sesión coincide.</string>
     <string name="chatlist_search_content_off">Este harness tiene la búsqueda de contenido desactivada, así que solo se buscan nombres de sesión y de carpeta.</string>
     <string name="chatlist_search_refine">Hay más coincidencias: acota la búsqueda para verlas.</string>
+    <string name="preset_unknown">Preajuste</string>
     <string name="preset_standard_name">Modo estándar</string>
     <string name="preset_standard_desc">Agente de programación completo con edición de archivos, shell, búsqueda de archivos y web, habilidades, planificación, objetivos, subagentes y flujos de trabajo.</string>
     <string name="preset_code_name">Modo PTC</string>

@@ -339,9 +339,22 @@ private fun SessionCard(
                 val name = group?.models?.firstOrNull { it.id == value.current.model }?.name
                 DsPill(text = name ?: value.current.model, onClick = onOpenModels)
             }
-            session.agentPreset?.let {
-                DsPill(text = agentPresetLabel(it, presets), onClick = onOpenPresets)
-            }
+            // Always drawn, never conditional on the session reporting a preset. It used to be
+            // `session.agentPreset?.let { … }`, and against a real harness that field is null —
+            // `SessionSummary` carries no `agentPreset`, so the projection read in SessionStore is
+            // what fills it — which meant the pill silently never appeared and the only way to
+            // change a preset was unreachable. A control that is absent exactly when the data is
+            // missing is the worst case: it hides the route to fixing the thing it reports.
+            //
+            // The fallback is the roster's default preset, which is what a session with no
+            // recorded preset is running.
+            val presetId = session.agentPreset
+                ?: presets?.presets?.firstOrNull { it.isDefault }?.id
+            DsPill(
+                text = presetId?.let { agentPresetLabel(it, presets) }
+                    ?: stringResource(R.string.preset_unknown),
+                onClick = onOpenPresets,
+            )
         }
         if (session.running) {
             Row(verticalAlignment = Alignment.CenterVertically) {
