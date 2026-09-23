@@ -203,15 +203,10 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 models = models,
-                agentPresetLabel = currentSession?.agentPreset?.takeIf { agentPresets?.modeSelectionEnabled != false }?.let { agentPresetLabel(it, agentPresets) },
                 detailsOpen = detailsOpen,
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
                 onOpenModels = { sheet = ChatSheet.Models },
-                onOpenPresets = {
-                    scope.launch { store.refreshAgentPresets() }
-                    sheet = ChatSheet.Presets
-                },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
                 // Null when there is no session to point at, which hides the button rather than

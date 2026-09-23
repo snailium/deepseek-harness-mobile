@@ -130,6 +130,46 @@ class ComposerTrailingRowTest {
         assertFalse("the tab row must not take a subagent count", topBar.contains("subagentCount"))
     }
 
+    @Test
+    fun `the preset chip is gone from the chrome but still reachable from the details panel`() {
+        val topBar = source("ChatTopBar.kt")
+        // A preset is chosen once per session and then left alone, so it does not earn a permanent
+        // row above the conversation. It used to have one, and the row cost vertical space in
+        // exactly the band a phone has least of.
+        assertFalse(
+            "the top bar must not draw a preset chip any more — it belongs in the details panel",
+            topBar.contains("agentPresetLabel"),
+        )
+        assertFalse("the top bar must not offer a preset route", topBar.contains("onOpenPresets"))
+
+        // Removing the chrome copy must not remove the only route: the details panel carries the
+        // pill and the sheet it opens. Without this the preset would become unreachable entirely.
+        val details = source("DetailsPanel.kt")
+        assertTrue(
+            "the details panel must still render a preset pill",
+            details.contains("agentPresetLabel(it, presets)"),
+        )
+        assertTrue(
+            "the details panel must still open the preset sheet",
+            details.contains("DetailsSheet.Presets"),
+        )
+        assertTrue(
+            "the details panel must refresh the roster before opening the sheet, or it lists stale presets",
+            details.contains("store.refreshAgentPresets()"),
+        )
+    }
+
+    @Test
+    fun `no dead chrome imports are left behind`() {
+        val topBar = source("ChatTopBar.kt")
+        // `Dashboard` was the preset chip's glyph and `Groups` the subagent chip's; both chips have
+        // left the chrome, so both imports are dead weight that reads as "still in use".
+        assertFalse("unused Dashboard import", topBar.contains("icons.outlined.Dashboard"))
+        assertFalse("unused Groups import", topBar.contains("icons.outlined.Groups"))
+        // `KeyboardArrowDown` must stay: ModelChip still draws it.
+        assertTrue("ModelChip still needs its chevron import", topBar.contains("icons.filled.KeyboardArrowDown"))
+    }
+
     private fun occurrences(haystack: String, needle: String): Int {
         var count = 0
         var index = haystack.indexOf(needle)
