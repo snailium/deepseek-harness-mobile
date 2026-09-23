@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
@@ -322,27 +321,17 @@ internal fun Composer(
                 // (subagents, permission, context ring, send) are pinned to the right edge.
                 Spacer(Modifier.weight(1f))
 
-                // The subagent chip sits immediately left of the permission trigger, with no gap
-                // between the two: it is the same kind of control — a round glyph that opens a
-                // sheet — and the pair reads as one group, set apart from the context ring and
-                // send beyond it. `Arrangement.spacedBy` is `compact` (8dp), so the grouping is
-                // expressed by cancelling exactly that gap rather than by asking the row for a
-                // second arrangement. The offset is layout-only: it shifts the drawn chip without
-                // shrinking its 28dp hit target or changing the row's own measurement.
-                //
-                // Only when there is a trigger to touch, though. `PermissionChip` draws nothing
-                // when the harness composes no permission service, and cancelling a gap against
-                // an absent sibling would just push the chip 8dp into the context ring.
+                // The subagent chip sits immediately left of the permission trigger. It used to
+                // cancel the row's gap so the two round buttons touched, on the reasoning that
+                // identical circles read as one group. As a pill it no longer needs that: the
+                // shape difference already separates it from the circle beside it, and butting a
+                // pill flush against a circle reads as a collision rather than a pair. So it
+                // keeps the row's normal `compact` gap.
                 if (subagentCount > 0) {
                     SubagentChip(
                         count = subagentCount,
                         enabled = enabled,
                         onClick = onOpenSubagents,
-                        modifier = if (permissions != null) {
-                            Modifier.offset(x = DsSpacing.compact)
-                        } else {
-                            Modifier
-                        },
                     )
                 }
 
@@ -457,15 +446,16 @@ private fun ComposerRoundButton(
 }
 
 /**
- * The subagent chip: a 28dp round target carrying the child count.
+ * The subagent chip: a pill carrying a group glyph and the child count.
  *
- * Deliberately built from the same parts as [ComposerRoundButton] and the permission trigger —
- * a 28dp circle, a 1dp `borderL2` ring, a 14dp glyph — because it stands shoulder to shoulder
- * with them in one row and any other height reads as a control that does not belong.
+ * A pill rather than the round 28dp target its neighbours use, because it has to say two things at
+ * once — *what* this opens and *how many* are running — and a 28dp circle cannot hold a glyph and
+ * a number without crowding both. The height still matches the row at 28dp and the ring, fill and
+ * glyph size are the same recipe, so it reads as part of the group even though its outline
+ * differs; the width is the only thing that changed.
  *
- * The count is drawn rather than an icon: the glyph alone would say "subagents" but not "three of
- * them", and how many are running is the whole reason to look. It replaced a wider pill that sat
- * in the tab row; the pill's icon and chevron are gone with the room it needed.
+ * The icon is load-bearing, not decoration: the count alone ("3") does not say what it counts, and
+ * this control sits among three others that are identified purely by their glyph.
  */
 @Composable
 private fun SubagentChip(
@@ -476,28 +466,38 @@ private fun SubagentChip(
 ) {
     val colors = DsTheme.colors
     // Reuses the sheet's own title rather than a new `Subagents (%d)` resource: this is an
-    // accessibility label, the visible content is the bare count, and a new translatable string
-    // would ship untranslated in the nine locales that do not have it.
+    // accessibility label, and a new translatable string would ship untranslated in the nine
+    // locales that do not have it.
     val label = "${stringResource(R.string.subagents_title)} ($count)"
-    Box(
+    Row(
         modifier = modifier
-            .size(28.dp)
-            .clip(CircleShape)
+            .height(28.dp)
+            .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
-            .border(1.dp, colors.borderL2, CircleShape)
+            .border(1.dp, colors.borderL2, DsShapes.pillFull)
             .clickable(
                 enabled = enabled,
                 role = Role.Button,
                 onClickLabel = label,
                 onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
+            )
+            .padding(horizontal = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+        // The gap the icon needs: without it the glyph touches the digit and the two read as one
+        // smudged mark rather than "subagents, three of them".
+        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
     ) {
+        Icon(
+            FeatherIcons.Users,
+            contentDescription = null,
+            tint = if (enabled) colors.labelSecondary else colors.labelTertiary,
+            modifier = Modifier.size(14.dp),
+        )
         Text(
-            // Past nine the count stops being a digit and starts being a number, so it is capped
-            // rather than allowed to wrap or squeeze the glyph out of its circle.
+            // Past nine the count stops being a digit and starts being a number; the pill would
+            // grow a character wider for no added meaning.
             text = if (count > 9) "9+" else count.toString(),
-            style = DsType.caption11,
+            style = DsType.small13,
             color = if (enabled) colors.labelSecondary else colors.labelTertiary,
             maxLines = 1,
         )
