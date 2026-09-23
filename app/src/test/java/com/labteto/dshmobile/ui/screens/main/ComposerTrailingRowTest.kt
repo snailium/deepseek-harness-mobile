@@ -67,44 +67,58 @@ class ComposerTrailingRowTest {
     }
 
     @Test
-    fun `every trailing control is a 28dp circle`() {
-        // The three fixed-size controls, each of which draws its own 28dp circle by hand.
+    fun `the round controls are 28dp and the subagent pill matches their height`() {
+        // The two controls that are still circles draw their own 28dp circle by hand.
         assertEquals(
             "ComposerRoundButton lost its 28dp circle",
             1,
             occurrences(bodyOf(composer, "ComposerRoundButton"), ".size(28.dp)"),
         )
         assertEquals("PermissionChip lost its 28dp circle", 1, occurrences(bodyOf(composer, "PermissionChip"), ".size(28.dp)"))
-        assertEquals("SubagentChip is not 28dp across", 1, occurrences(bodyOf(composer, "SubagentChip"), ".size(28.dp)"))
+        // The subagent chip is a pill now, so it is sized by height rather than by a square. It
+        // still has to be 28dp tall or the row steps.
+        val chip = bodyOf(composer, "SubagentChip")
+        assertEquals("SubagentChip is not 28dp tall", 1, occurrences(chip, ".height(28.dp)"))
+        assertFalse(
+            "SubagentChip must not be a fixed square any more — it has to fit a glyph and a count",
+            chip.contains(".size(28.dp)"),
+        )
     }
 
     @Test
-    fun `the subagent chip cancels exactly the row's gap so it touches the permission trigger`() {
-        val row = bodyOf(composer, "Composer")
-        // The row's gap and the offset that cancels it have to be the same token. They are today
-        // (`compact`, 8dp); pinning the *relationship* rather than the number is what makes this
-        // test survive a spacing retune that keeps the two buttons touching.
-        assertTrue("the action row's gap is no longer DsSpacing.compact", row.contains("Arrangement.spacedBy(DsSpacing.compact)"))
+    fun `the subagent pill shows a glyph and a count, separated`() {
+        val chip = bodyOf(composer, "SubagentChip")
+        // Both halves are the point of the pill: the glyph says what the control opens and the
+        // count says how many are running. Dropping either leaves a control that cannot be read.
+        assertTrue("the pill must draw a group glyph", chip.contains("FeatherIcons.Users"))
+        assertTrue("the pill must draw the count", chip.contains("count.toString()"))
+        // The gap is what keeps the glyph from touching the digit.
         assertTrue(
-            "the subagent chip no longer offsets by the row's own gap, so a gap reappears between it and the permission trigger",
-            row.contains("Modifier.offset(x = DsSpacing.compact)"),
+            "the pill must space its glyph from its count",
+            chip.contains("Arrangement.spacedBy(DsSpacing.tiny)"),
         )
-        // The chip is placed before the permission trigger, not after it.
+        // A pill, not a circle.
+        assertTrue("the pill must be fully rounded", chip.contains("DsShapes.pillFull"))
+    }
+
+    @Test
+    fun `the subagent chip precedes the permission trigger and keeps the row's gap`() {
+        val row = bodyOf(composer, "Composer")
         val chip = row.indexOf("SubagentChip(")
         val permission = row.indexOf("PermissionChip(")
         assertTrue("SubagentChip must precede PermissionChip in the row", chip in 1 until permission)
+        // As a pill it no longer cancels the row's gap: butting a pill against a circle reads as a
+        // collision, and the shape difference already groups the two.
+        assertFalse(
+            "the pill must not cancel the row's gap any more",
+            row.contains("Modifier.offset(x = DsSpacing.compact)"),
+        )
     }
 
     @Test
-    fun `the gap is only cancelled when the permission trigger is actually drawn`() {
-        val row = bodyOf(composer, "Composer")
-        // `PermissionChip` returns early when `select == null`, so with no permission service the
-        // chip has no left-hand neighbour. Cancelling a gap against an absent sibling would push
-        // it into the context ring instead.
-        assertTrue(
-            "the offset must be conditional on permissions != null",
-            row.contains("if (permissions != null)"),
-        )
+    fun `the permission trigger still hides itself when there is no permission service`() {
+        // The pill no longer offsets against this, but the early return is still load-bearing: a
+        // dead control would be worse than none.
         assertTrue(
             "PermissionChip must still draw nothing when there is no permission select",
             bodyOf(composer, "PermissionChip").contains("if (select == null) return"),
