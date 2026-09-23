@@ -70,13 +70,11 @@ internal fun ChatTopBar(
     running: Boolean,
     models: SessionModelsValue?,
     agentPresetLabel: String?,
-    subagentCount: Int,
     detailsOpen: Boolean,
     tab: ChatTab,
     onOpenDrawer: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenPresets: () -> Unit,
-    onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
     /** Opens the session's workspace file panel; null hides the button. */
@@ -177,9 +175,7 @@ internal fun ChatTopBar(
         }
 
         // The preset chip keeps its own row: it is session metadata that can be long (a full agent
-        // preset name) and does not compete with the model for the reader's attention. The subagent
-        // chip moved into the tab row, where it belongs — it is one of the things you switch *to*,
-        // sitting between the view switcher and the model switcher.
+        // preset name) and does not compete with the model for the reader's attention.
         if (agentPresetLabel != null) {
             Row(
                 modifier = Modifier
@@ -199,9 +195,7 @@ internal fun ChatTopBar(
             tab = tab,
             onTabChange = onTabChange,
             models = models,
-            subagentCount = subagentCount,
             onOpenModels = onOpenModels,
-            onOpenSubagents = onOpenSubagents,
         )
     }
 }
@@ -306,17 +300,20 @@ private fun String.trimStartForDisplay(): String {
     return if (length <= MODEL_LABEL_TAIL + 4) this else "\u2026" + takeLast(MODEL_LABEL_TAIL)
 }
 
-/** The preset and subagent chips. Same reasoning as [ModelChip]: a tap target has to look like one. */
+/**
+ * The preset chip. Same reasoning as [ModelChip]: a tap target has to look like one.
+ *
+ * Its one caller lets it hug its content, so it takes no modifier.
+ */
 @Composable
 private fun MetaChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
     Row(
-        modifier = modifier
+        modifier = Modifier
             .heightIn(min = 28.dp)
             .clip(DsShapes.pillFull)
             .background(colors.hoverSolid)
@@ -348,9 +345,7 @@ private fun ChatTabRow(
     tab: ChatTab,
     onTabChange: (ChatTab) -> Unit,
     models: SessionModelsValue?,
-    subagentCount: Int,
     onOpenModels: () -> Unit,
-    onOpenSubagents: () -> Unit,
 ) {
     val colors = DsTheme.colors
     Row(
@@ -387,26 +382,13 @@ private fun ChatTabRow(
             // under 144 means "Trajector…". Narrower than that has to come out of the 40/60 ratio,
             // not out of the track.
             stretch = true,
-            // Fixed at its floor: the subagent chip now sits between this control and the model
-            // chip, and a stretching segment would eat the room the two chips need. 144dp is the
-            // narrowest width that still shows "Trajectory" whole (see the ratio note above).
+            // Fixed at its floor: a stretching segment would leave the model chip hugging its
+            // text with a dead band to its right. 144dp is the narrowest width that still shows
+            // "Trajectory" whole (see the ratio note above).
             modifier = Modifier
                 .width(144.dp)
                 .heightIn(max = 32.dp),
         )
-        // The subagent chip claims the model chip's slot: it is a destination, like the model, and
-        // sits where the eye already looks for "what am I switching to". It appears only when the
-        // session actually has children.
-        // Pinned to the row's 32dp like its two neighbours: heightIn(min) alone would let it hug
-        // its text and sit a few dp shorter than the segmented control and the model chip.
-        if (subagentCount > 0) {
-            MetaChip(
-                icon = Icons.Outlined.Groups,
-                label = "$subagentCount",
-                onClick = onOpenSubagents,
-                modifier = Modifier.height(32.dp),
-            )
-        }
         // The model selector lives here rather than in the composer: it configures the session,
         // not the next keystroke, so it belongs in the tab row where the reader's eye already goes.
         // 32dp matches the segmented control's height; the font stays small13Strong. It keeps the
