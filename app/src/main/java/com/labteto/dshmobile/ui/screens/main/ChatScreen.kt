@@ -221,7 +221,6 @@ fun ChatScreen(
                 running = conversation?.running == true,
                 models = models,
                 agentPresetLabel = currentSession?.agentPreset?.takeIf { agentPresets?.modeSelectionEnabled != false }?.let { agentPresetLabel(it, agentPresets) },
-                subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
@@ -230,7 +229,6 @@ fun ChatScreen(
                     scope.launch { store.refreshAgentPresets() }
                     sheet = ChatSheet.Presets
                 },
-                onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
                 // Null when there is no session to point at, which hides the button rather than
@@ -462,6 +460,11 @@ fun ChatScreen(
                 preparing = composer.preparing,
                 onOpenCommands = { sheet = ChatSheet.Commands },
                 onOpenAttachments = { sheet = ChatSheet.Attachments },
+                // The subagent chip lives in the composer, immediately left of the permission
+                // trigger: both are round glyphs opening a sheet, so they read as one group there,
+                // and the tab row gets its width back for the model name.
+                subagentCount = subagents.size,
+                onOpenSubagents = { sheet = ChatSheet.Subagents },
                 // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
                 // which keeps what it has when the new value is equal to it, and a reference to a
                 // local function equals every other reference to that function whatever it
