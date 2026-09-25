@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Dashboard
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,12 +67,10 @@ internal fun ChatTopBar(
     title: String,
     running: Boolean,
     models: SessionModelsValue?,
-    agentPresetLabel: String?,
     detailsOpen: Boolean,
     tab: ChatTab,
     onOpenDrawer: () -> Unit,
     onOpenModels: () -> Unit,
-    onOpenPresets: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
     /** Opens the session's workspace file panel; null hides the button. */
@@ -174,23 +170,10 @@ internal fun ChatTopBar(
             Spacer(Modifier.width(0.dp))
         }
 
-        // The preset chip keeps its own row: it is session metadata that can be long (a full agent
-        // preset name) and does not compete with the model for the reader's attention.
-        if (agentPresetLabel != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.tiny),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                MetaChip(
-                    icon = Icons.Outlined.Dashboard,
-                    label = agentPresetLabel,
-                    onClick = onOpenPresets,
-                )
-            }
-        }
-
+        // The agent preset chip is gone from the chrome. A preset is chosen when a session is set
+        // up and then left alone, so it does not earn a permanent row above the conversation. The
+        // details panel already carries a working preset pill beside the model pill, which is
+        // where "what is this session configured as" belongs.
         ChatTabRow(
             tab = tab,
             onTabChange = onTabChange,
@@ -298,40 +281,6 @@ private fun String.trimStartForDisplay(): String {
         if (tail.length <= MODEL_LABEL_TAIL) return "\u2026$tail"
     }
     return if (length <= MODEL_LABEL_TAIL + 4) this else "\u2026" + takeLast(MODEL_LABEL_TAIL)
-}
-
-/**
- * The preset chip. Same reasoning as [ModelChip]: a tap target has to look like one.
- *
- * Its one caller lets it hug its content, so it takes no modifier.
- */
-@Composable
-private fun MetaChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    onClick: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier
-            .heightIn(min = 28.dp)
-            .clip(DsShapes.pillFull)
-            .background(colors.hoverSolid)
-            .border(1.dp, colors.borderL2, DsShapes.pillFull)
-            .clickable(onClick = onClick)
-            .padding(horizontal = DsSpacing.compact, vertical = DsSpacing.tiny),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-    ) {
-        Icon(icon, contentDescription = null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
-        Text(label, style = DsType.small13, color = colors.labelSecondary, maxLines = 1)
-        Icon(
-            Icons.Filled.KeyboardArrowDown,
-            contentDescription = null,
-            tint = colors.labelSecondary,
-            modifier = Modifier.size(12.dp),
-        )
-    }
 }
 
 /**
