@@ -16,7 +16,11 @@ object DshCore {
      * session format v2 replaced per-token durable events with one settlement per model attempt,
      * so a client that does not opt into the live assistant stream never sees a reply being
      * written.
+     *
+     * 0.1.7 is the third: session format v4 flattened the `tool/result` message, and several
+     * endpoints this client read moved onto projections or streams. The client still reads the
+     * 0.1.6 shapes wherever it can tell them apart on the wire.
      */
-    const val PROTOCOL_BASELINE = "0.1.6-alpha.1"
-    const val PROTOCOL_COMMIT = "0d1f50007f9bca3f52b06e1c3074fa14d5fb0720"
+    const val PROTOCOL_BASELINE = "0.1.7-rc.2"
+    const val PROTOCOL_COMMIT = "477b4f420553e8a52c2fbccc464d7561b239c443"
 }

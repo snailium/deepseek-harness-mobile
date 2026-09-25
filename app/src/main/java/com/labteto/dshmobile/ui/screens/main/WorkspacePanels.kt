@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
-import android.util.Base64
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -60,21 +59,46 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
     LaunchedEffect(key) { if (state.listing == null) listDirectory(state.directory) }
     // Invalidate previews when the host reports a file observation. OS-only changes are checked
     // by stat each time a tab opens and by the explicit Refresh action.
-    LaunchedEffect(key, store.muxForHost(key.host)) {
-        val mux = store.muxForHost(key.host) ?: return@LaunchedEffect
-        try {
-            mux.openStream("workspaceFiles/changes", kotlinx.serialization.json.buildJsonObject {
-                put("workspaceFileScopeId", kotlinx.serialization.json.JsonPrimitive(key.sessionId))
-            }).collect { raw ->
-                val frame = com.labteto.dshmobile.core.wire.decodeFromJsonElement(WorkspaceFileWatchFrame.serializer(), raw)
-                frame.change?.let { change ->
-                    state.previews.filter { it.stat?.absolutePath == change.absolutePath }.forEach {
-                        if (change.absent || it.stat?.version != change.version) { it.stat = null; it.bytes = null; it.text = null }
-                    }
-                }
+    //
+    // Harness 0.1.7 watches one named target per stream rather than the whole workspace, so each
+    // open preview gets a watch of its own; the set follows the tabs. A 0.1.6 host refuses the
+    // `path` argument and is watched workspace-wide instead, once.
+    val mux = store.muxForHost(key.host)
+    val watched = state.previews.map { it.path }.distinct()
+    var workspaceWide by remember(key, mux) { mutableStateOf(false) }
+    fun invalidate(raw: kotlinx.serialization.json.JsonElement) {
+        val frame = com.labteto.dshmobile.core.wire.decodeFromJsonElement(WorkspaceFileWatchFrame.serializer(), raw)
+        frame.change?.let { change ->
+            state.previews.filter { it.stat?.absolutePath == change.absolutePath }.forEach {
+                if (change.absent || it.stat?.version != change.version) { it.stat = null; it.bytes = null; it.text = null }
             }
-        } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { /* File reads remain available without the optional observation feed. */ }
+        }
+    }
+    if (mux != null && !workspaceWide) {
+        watched.forEach { path -> key(path) {
+            LaunchedEffect(key, mux, path) {
+                try {
+                    mux.openStream("workspaceFiles/changes", kotlinx.serialization.json.buildJsonObject {
+                        put("workspaceFileScopeId", kotlinx.serialization.json.JsonPrimitive(key.sessionId))
+                        put("path", kotlinx.serialization.json.JsonPrimitive(path))
+                    }).collect { invalidate(it) }
+                } catch (e: CancellationException) { throw e }
+                catch (e: com.labteto.dshmobile.core.wire.RemoteStreamException) {
+                    if (e.error.code == "gateway/arguments-invalid") workspaceWide = true
+                }
+                catch (_: Exception) { /* File reads remain available without the optional observation feed. */ }
+            }
+        } }
+    }
+    if (mux != null && workspaceWide) {
+        LaunchedEffect(key, mux) {
+            try {
+                mux.openStream("workspaceFiles/changes", kotlinx.serialization.json.buildJsonObject {
+                    put("workspaceFileScopeId", kotlinx.serialization.json.JsonPrimitive(key.sessionId))
+                }).collect { invalidate(it) }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* As above: the feed is an optimisation, not a dependency. */ }
+        }
     }
     CompositionLocalProvider(com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
         state.open(activeDocument?.let { com.labteto.dshmobile.core.session.resolvePreviewReference(it, path) } ?: path)
@@ -158,10 +182,10 @@ private fun DocumentPreview(store: SessionStore, key: ComposerKey, tab: PreviewT
                 tab.stat = stat
                 if (binary && tab.bytes == null) {
                     if ((stat.bytes ?: 0) > 32L * 1024 * 1024) error(context.getString(R.string.panel_too_large))
-                    val data = api.workspaceFileReadAll(key.sessionId, tab.path).requireValue()
+                    val data = api.workspaceFileReadBytes(key.sessionId, tab.path).requireValue()
                     if (data.version != stat.version) error(context.getString(R.string.panel_changed))
-                    if (data.data.length > 45 * 1024 * 1024) error(context.getString(R.string.panel_too_large))
-                    tab.bytes = withContext(Dispatchers.Default) { Base64.decode(data.data, Base64.DEFAULT) }
+                    if (data.data.size > 32 * 1024 * 1024) error(context.getString(R.string.panel_too_large))
+                    tab.bytes = data.data
                     tab.eof = true
                 } else if (!binary && (tab.text == null || more)) {
                     val data = api.workspaceFileRead(key.sessionId, tab.path, WorkspaceFileRange(tab.nextLine)).requireValue()
@@ -225,9 +249,11 @@ private fun DocumentPreview(store: SessionStore, key: ComposerKey, tab: PreviewT
                                     val bytes = runBlocking(Dispatchers.IO) {
                                         withTimeout(10000) {
                                             val api = store.apiForHost(key.host) ?: return@withTimeout null
-                                            val data = api.workspaceFileReadRelated(key.sessionId, tab.path, relative).requireValue()
-                                            if ((data.bytes ?: 0) > 4 * 1024 * 1024 || data.data.length > 6 * 1024 * 1024) return@withTimeout null
-                                            Base64.decode(data.data, Base64.DEFAULT)
+                                            val data = api.workspaceFileReadBytes(
+                                                key.sessionId, relative, WorkspaceByteReadOptions(baseFile = tab.path),
+                                            ).requireValue()
+                                            if ((data.bytes ?: 0) > 4 * 1024 * 1024 || data.data.size > 4 * 1024 * 1024) return@withTimeout null
+                                            data.data
                                         }
                                     } ?: return denied()
                                     synchronized(this) { totalBytes += bytes.size; if (totalBytes > 32 * 1024 * 1024) return denied() }

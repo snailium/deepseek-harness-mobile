@@ -134,6 +134,47 @@ private fun JsonElement.withKind(kind: String): JsonElement = JsonObject(
     },
 )
 
+/**
+ * One row of the parent's `subagentCatalog` projection (harness 0.1.7), which replaced
+ * `subagents/list`: membership only, in creation order. Whether a child is running is not part of
+ * it; that comes from the child's own session row.
+ */
+@Serializable
+data class SubagentCatalogEntry(
+    @SerialName("id") val id: String,
+    @SerialName("createdAt") val createdAt: Long = 0,
+    /** `one-shot`, `continuable`, or `unknown` for a child whose descriptor could not be read. */
+    @SerialName("mode") val mode: String = "unknown",
+    @SerialName("label") val label: String? = null,
+)
+
+/**
+ * The `subagentCatalog` projection value as the rows the subagent sheet already renders.
+ *
+ * [running] answers whether a child session is running, from the session list and
+ * `api-session/status`; a child it knows nothing about reads as inactive. A child of `unknown`
+ * mode has no transcript this client can open, so it becomes a [SubagentListEntry.Diagnostic],
+ * which the sheet shows without offering to open it. Rows that do not decode are skipped rather
+ * than failing the list. Null when [value] is not a catalog at all.
+ */
+fun subagentEntriesFromCatalog(value: JsonElement?, running: (String) -> Boolean): List<SubagentListEntry>? {
+    val rows = value as? kotlinx.serialization.json.JsonArray ?: return null
+    return rows.mapNotNull { row ->
+        val entry = runCatching { decodeFromJsonElement(SubagentCatalogEntry.serializer(), row) }.getOrNull()
+            ?: return@mapNotNull null
+        val activity = if (running(entry.id)) "running" else "inactive"
+        when (entry.mode) {
+            "continuable" -> SubagentListEntry.ChildContinuable(
+                id = entry.id, activity = activity, hasChildren = false, label = entry.label ?: entry.id,
+            )
+            "one-shot" -> SubagentListEntry.ChildOneShot(
+                id = entry.id, activity = activity, hasChildren = false, label = entry.label,
+            )
+            else -> SubagentListEntry.Diagnostic(id = entry.id, reason = entry.label ?: entry.mode)
+        }
+    }
+}
+
 /** Complete direct-child catalog plus the delivery-time parent availability hint. */
 @Serializable
 data class SubagentCatalog(

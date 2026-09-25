@@ -476,4 +476,18 @@
     <string name="image_offload">تم حذف الصور السابقة من الطلب</string>
     <string name="panel_open_host">فتح على المضيف</string>
     <string name="tool_copy_code">نسخ الكود</string>
+    <string name="jobs_stop">إيقاف المهمة</string>
+    <string name="jobs_stopping">جارٍ الإيقاف</string>
+    <string name="jobs_output_empty">لا يوجد إخراج بعد</string>
+    <string name="jobs_output_dropped">تم تجاهل الإخراج السابق</string>
+    <string name="archive_busy_title">لا تزال قيد التشغيل</string>
+    <string name="archive_busy_body">لا يزال في هذه الجلسة عمل قيد التشغيل: %1$s. تؤدي أرشفتها إلى إيقاف هذا العمل أولًا.</string>
+    <string name="archive_busy_confirm">إيقاف وأرشفة</string>
+    <string name="archive_activity_turn">الدور الحالي</string>
+    <string name="archive_activity_subagent">الوكلاء الفرعيون</string>
+    <string name="archive_activity_job">المهام الخلفية</string>
+    <string name="archive_activity_schedule">الجداول الزمنية</string>
+    <string name="chatlist_pinned">المثبّتة</string>
+    <string name="chatlist_session_pin">تثبيت الجلسة</string>
+    <string name="chatlist_session_unpin">إلغاء تثبيت الجلسة</string>
 </resources>

@@ -90,6 +90,9 @@ import kotlinx.serialization.serializer
 private fun encodeQueryComponent(value: String): String =
     URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 
+/** The gateway's refusal of an argument object that does not match the host method's parameters. */
+private const val ARGUMENTS_INVALID = "gateway/arguments-invalid"
+
 /** The streaming file-upload route (`packages/client/file-upload/src/protocol.ts`). */
 const val FILE_UPLOAD_PATH: String = "/api/session/uploadFileBinary"
 
@@ -122,14 +125,28 @@ class DshApiClient(
     // ------------------------------------------------------------------ unary machinery
 
     /** POST one unary call with a raw [JsonElement] payload and decode the typed value. */
-    private suspend fun <T> unary(endpoint: String, payload: JsonElement, value: KSerializer<T>): RpcResult<T> {
+    private suspend fun <T> unary(endpoint: String, payload: JsonElement, value: KSerializer<T>): RpcResult<T> =
+        unaryWith(endpoint, payload) { json, _ -> decodeFromJsonElement(value, json) }
+
+    /**
+     * POST one unary call and hand the result value, plus any raw-byte attachments, to [decode].
+     *
+     * Attachments exist only on harness 0.1.7's multipart answers (see [RpcMultipart]); for every
+     * JSON answer the map is empty.
+     */
+    private suspend fun <T> unaryWith(
+        endpoint: String,
+        payload: JsonElement,
+        decode: (value: JsonElement, attachments: Map<List<String>, ByteArray>) -> T,
+    ): RpcResult<T> {
         val request = ClientRequest(rpcId = newRpcId(), method = endpoint, payload = payload)
         return try {
             val response = transport.post("/api/$endpoint", encodeEnvelope(request))
-            val envelope = decodeServerResponse(response.body)
+            val multipart = response.multipart?.let { RpcMultipart.decode(response.contentType.orEmpty(), it) }
+            val envelope = decodeServerResponse(multipart?.envelope?.toString() ?: response.body)
             when (val result = envelope.result) {
                 is RpcResult.Ok -> try {
-                    RpcResult.Ok(decodeFromJsonElement(value, result.value))
+                    RpcResult.Ok(decode(result.value, multipart?.attachments.orEmpty()))
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -346,6 +363,10 @@ class DshApiClient(
      * `subagents/list` — lists direct session-backed children without loading either side.
      *
      * Takes the parent id as a bare argument rather than a request object.
+     *
+     * Harness 0.1.7 removed it: membership is the parent's `subagentCatalog` projection, which
+     * arrives with the rest of the session's projections. Kept as the fallback for a 0.1.6 host,
+     * whose projection map has no such key.
      */
     suspend fun subagentList(parentSessionId: String): RpcResult<SubagentCatalog> =
         call("subagents/list", args { put("parentSessionId", JsonPrimitive(parentSessionId)) })
@@ -397,10 +418,36 @@ class DshApiClient(
         request: WorkspaceInsertSessionBeforeRequest,
     ): RpcResult<WorkspaceValue> = callRequest("workspace/insertSessionBefore", request)
 
-    /** `workspace/archiveSession` — adds one session to the registry-global archive set. */
+    /**
+     * `workspace/archiveSession` — adds one session to the registry-global archive set.
+     *
+     * From harness 0.1.7 a session with running work (its turn, a subagent, a job) is refused as
+     * `workspace/session-active` unless the request sets `stopActivity`, which stops that work
+     * first. The flag is omitted when unset, so an older host that does not declare it is
+     * unaffected.
+     */
     suspend fun workspaceArchiveSession(
         request: WorkspaceArchiveSessionRequest,
     ): RpcResult<WorkspaceArchiveValue> = callRequest("workspace/archiveSession", request)
+
+    /** `workspace/pinSession` (harness 0.1.7) — answers the complete pin set, most recent first. */
+    suspend fun workspacePinSession(sessionId: String): RpcResult<WorkspacePinValue> =
+        callRequest("workspace/pinSession", WorkspacePinSessionRequest(sessionId))
+
+    /** `workspace/unpinSession` (harness 0.1.7) — answers the complete pin set after removal. */
+    suspend fun workspaceUnpinSession(sessionId: String): RpcResult<WorkspacePinValue> =
+        callRequest("workspace/unpinSession", WorkspacePinSessionRequest(sessionId))
+
+    // ------------------------------------------------------------------ jobs
+
+    /**
+     * `job/kill` (harness 0.1.7) — stop one background job on a person's behalf.
+     *
+     * The session is the fence the host reads the job through, so it must be one whose job list
+     * carries the row; `job/not-found` means the row has already gone.
+     */
+    suspend fun jobKill(sessionId: String, jobId: String): RpcResult<JobKillValue> =
+        callRequest("job/kill", JobKillRequest(sessionId, jobId))
 
     // ------------------------------------------------------------------ skills
 
@@ -428,33 +475,8 @@ class DshApiClient(
     suspend fun agentPresetRead(agentPreset: String): RpcResult<AgentPresetDocument> =
         call("agentPresets/read", args { put("agentPreset", JsonPrimitive(agentPreset)) })
 
-    /** `agentPresets/copy` — copies one preset into a new user preset. */
-    suspend fun agentPresetCopy(from: String, id: String, name: String? = null): RpcResult<JsonElement> =
-        call(
-            "agentPresets/copy",
-            args {
-                put("from", JsonPrimitive(from))
-                put("id", JsonPrimitive(id))
-                if (name != null) put("name", JsonPrimitive(name))
-            },
-        )
-
-    /** `agentPresets/deletePreset` — removes a user preset. */
-    suspend fun agentPresetRemove(id: String): RpcResult<JsonElement> =
-        call("agentPresets/deletePreset", args { put("id", JsonPrimitive(id)) })
-
-    /**
-     * `settings/openAgentPresetDirectory` — opens a user preset's directory on the host desktop.
-     *
-     * Owned by the settings controller rather than the preset service, because selecting an
-     * authorized filesystem target is a settings concern; the browser never names the path.
-     */
-    suspend fun agentPresetOpenDirectory(agentPreset: String): RpcResult<JsonElement> =
-        call("settings/openAgentPresetDirectory", args { put("agentPreset", JsonPrimitive(agentPreset)) })
-
-    /** `settings/canOpenAgentPresetDirectory` — whether native opening is available. */
-    suspend fun settingsCanOpenAgentPresetDirectory(): RpcResult<Boolean> =
-        call("settings/canOpenAgentPresetDirectory", JsonObject(emptyMap()), Boolean.serializer())
+    // Harness 0.1.7 declares presets in profile YAML: `agentPresets/copy`, `deletePreset` and the
+    // `settings/*AgentPresetDirectory` pair are gone, and this client never offered authoring.
 
     // ------------------------------------------------------------------ goals
 
@@ -689,12 +711,51 @@ class DshApiClient(
         call("workspaceFiles/stat", fileArgs(sessionId, path))
     suspend fun workspaceFileRead(sessionId: String, path: String, range: WorkspaceFileRange = WorkspaceFileRange()): RpcResult<WorkspaceFileText> =
         call("workspaceFiles/read", JsonObject(fileArgs(sessionId, path) + ("range" to encodeToJsonElement(WorkspaceFileRange.serializer(), range))))
-    suspend fun workspaceFileReadBytes(sessionId: String, path: String, range: WorkspaceByteRange = WorkspaceByteRange()): RpcResult<WorkspaceFileBytes> =
-        call("workspaceFiles/readBytes", JsonObject(fileArgs(sessionId, path) + ("range" to encodeToJsonElement(WorkspaceByteRange.serializer(), range))))
-    suspend fun workspaceFileReadAll(sessionId: String, path: String): RpcResult<WorkspaceFileBytes> =
-        call("workspaceFiles/readAll", fileArgs(sessionId, path))
-    suspend fun workspaceFileReadRelated(sessionId: String, path: String, relativePath: String): RpcResult<WorkspaceFileBytes> =
-        call("workspaceFiles/readRelated", JsonObject(fileArgs(sessionId, path) + ("relativePath" to JsonPrimitive(relativePath))))
+
+    /**
+     * `workspaceFiles/readBytes` — a file's raw bytes: the whole file, one byte window, or a file
+     * named relative to another.
+     *
+     * Harness 0.1.7 folded `readAll` and `readRelated` into this call's `options` and began
+     * answering it as multipart, the bytes riding as their own part rather than as base64 in the
+     * JSON (see [RpcMultipart]). A 0.1.6 host refuses `options` as an unknown argument, and then
+     * the same read is made the way that host spelled it, so the caller gets the same value from
+     * either.
+     */
+    suspend fun workspaceFileReadBytes(
+        sessionId: String,
+        path: String,
+        options: WorkspaceByteReadOptions = WorkspaceByteReadOptions(),
+    ): RpcResult<WorkspaceFileContent> {
+        val args = JsonObject(
+            fileArgs(sessionId, path) + ("options" to encodeToJsonElement(WorkspaceByteReadOptions.serializer(), options)),
+        )
+        val result = unaryWith("workspaceFiles/readBytes", buildJsonObject { put("args", args) }, ::fileContentOf)
+        if (result !is RpcResult.Err || result.error.code != ARGUMENTS_INVALID) return result
+        // A 0.1.6 host: one endpoint per read shape, and base64 data in a JSON answer.
+        val baseFile = options.baseFile
+        val range = options.range
+        val (endpoint, legacy) = when {
+            baseFile != null -> "workspaceFiles/readRelated" to JsonObject(
+                fileArgs(sessionId, baseFile) + ("relativePath" to JsonPrimitive(path)),
+            )
+            range == null -> "workspaceFiles/readAll" to fileArgs(sessionId, path)
+            else -> "workspaceFiles/readBytes" to JsonObject(
+                fileArgs(sessionId, path) + ("range" to encodeToJsonElement(WorkspaceByteRange.serializer(), range)),
+            )
+        }
+        return unaryWith(endpoint, buildJsonObject { put("args", legacy) }, ::fileContentOf)
+    }
+
+    /** A `readBytes` value from either host: the bytes from their part, or from base64 `data`. */
+    private fun fileContentOf(value: JsonElement, attachments: Map<List<String>, ByteArray>): WorkspaceFileContent {
+        val meta = decodeFromJsonElement(WorkspaceFileBytesMeta.serializer(), value)
+        val data = attachments[listOf("data")]
+            ?: ((value as? JsonObject)?.get("data") as? JsonPrimitive)?.takeIf { it.isString }
+                ?.let { java.util.Base64.getDecoder().decode(it.content) }
+            ?: ByteArray(0)
+        return WorkspaceFileContent(meta.absolutePath, meta.version, meta.bytes, meta.offset, meta.eof, data)
+    }
 
     private fun terminalArgs(sessionId: String, id: String? = null, attachmentId: String? = null) = args {
         put("agentId", JsonPrimitive(sessionId))

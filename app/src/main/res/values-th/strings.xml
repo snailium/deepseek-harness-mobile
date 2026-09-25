@@ -476,4 +476,18 @@
     <string name="image_offload">ละภาพในประวัติออกจากคำขอ</string>
     <string name="panel_open_host">เปิดบนโฮสต์</string>
     <string name="tool_copy_code">คัดลอกโค้ด</string>
+    <string name="jobs_stop">หยุดงาน</string>
+    <string name="jobs_stopping">กำลังหยุด</string>
+    <string name="jobs_output_empty">ยังไม่มีเอาต์พุต</string>
+    <string name="jobs_output_dropped">เอาต์พุตก่อนหน้าถูกตัดทิ้งแล้ว</string>
+    <string name="archive_busy_title">ยังทำงานอยู่</string>
+    <string name="archive_busy_body">เซสชันนี้ยังมีงานที่ทำงานอยู่: %1$s การเก็บถาวรจะหยุดงานเหล่านั้นก่อน</string>
+    <string name="archive_busy_confirm">หยุดและเก็บถาวร</string>
+    <string name="archive_activity_turn">เทิร์นปัจจุบัน</string>
+    <string name="archive_activity_subagent">ซับเอเจนต์</string>
+    <string name="archive_activity_job">งานเบื้องหลัง</string>
+    <string name="archive_activity_schedule">งานตามกำหนดเวลา</string>
+    <string name="chatlist_pinned">ปักหมุดแล้ว</string>
+    <string name="chatlist_session_pin">ปักหมุดเซสชัน</string>
+    <string name="chatlist_session_unpin">เลิกปักหมุดเซสชัน</string>
 </resources>

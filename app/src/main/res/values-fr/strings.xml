@@ -476,4 +476,18 @@
     <string name="image_offload">Images historiques omises de la requête</string>
     <string name="panel_open_host">Ouvrir sur l’hôte</string>
     <string name="tool_copy_code">Copier le code</string>
+    <string name="jobs_stop">Arrêter la tâche</string>
+    <string name="jobs_stopping">Arrêt en cours</string>
+    <string name="jobs_output_empty">Aucune sortie pour l’instant</string>
+    <string name="jobs_output_dropped">La sortie antérieure a été supprimée</string>
+    <string name="archive_busy_title">Toujours en cours</string>
+    <string name="archive_busy_body">Cette session a encore du travail en cours : %1$s. L’archiver arrête d’abord ce travail.</string>
+    <string name="archive_busy_confirm">Arrêter et archiver</string>
+    <string name="archive_activity_turn">le tour en cours</string>
+    <string name="archive_activity_subagent">les sous-agents</string>
+    <string name="archive_activity_job">les tâches en arrière-plan</string>
+    <string name="archive_activity_schedule">les planifications</string>
+    <string name="chatlist_pinned">Épinglées</string>
+    <string name="chatlist_session_pin">Épingler la session</string>
+    <string name="chatlist_session_unpin">Désépingler la session</string>
 </resources>
