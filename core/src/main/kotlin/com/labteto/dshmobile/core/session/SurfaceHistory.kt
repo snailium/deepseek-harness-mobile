@@ -2,7 +2,7 @@ package com.labteto.dshmobile.core.session
 
 import kotlinx.serialization.json.*
 
-private val surfaceTypes = setOf("system/message", "user/message", "assistant/message", "tool/result")
+private val surfaceTypes = setOf("system/message", "user/message", "developer/message", "assistant/message", "tool/result")
 private fun SessionEventEnvelope.replacement(): JsonObject? = (surfaceIntent as? JsonObject)
     ?: surfaceOp?.takeIf { it.startsWith("{") }?.let { runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull() }
 fun SessionEventEnvelope.isSurfaceReplacement(): Boolean = type in surfaceTypes && replacement()?.get("op")?.let { (it as? JsonPrimitive)?.contentOrNull } == "replace"

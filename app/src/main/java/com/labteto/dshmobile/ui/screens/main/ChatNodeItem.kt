@@ -42,6 +42,7 @@ import com.labteto.dshmobile.core.session.AssistantMessageNode
 import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.CommandNode
 import com.labteto.dshmobile.core.session.CompactionNode
+import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
 import com.labteto.dshmobile.core.session.OtherNode
 import com.labteto.dshmobile.core.session.PlanModeNode
@@ -202,6 +203,8 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
         is CommandNode -> CommandRow(node)
 
         is WorkflowNode -> WorkflowRow(node.data, context.onOpenSubagent)
+
+        is DeveloperMessageNode -> ToolSetChangeRow(node)
 
         is TitleNode -> Text(node.title, style = DsType.caption11, color = colors.labelTertiary)
         is SubagentNode -> Text(
@@ -574,17 +577,11 @@ private fun WorkflowRow(
 /**
  * The readable failure text out of a `tool/result` body, or null when it carries none.
  *
- * The body is one level deeper than it looks. `ToolResultNode.content` is the message's content
- * *array*, whose element is a `tool-result` part that holds the actual result parts inside its own
- * `content` array:
- *
- *     [ { type: "tool-result", isError: true,
- *         content: [ { type: "text", text: "Error: …" } ] } ]
- *
- * Reading only the outer array — the obvious first pass — sees a part whose `type` is
- * `tool-result`, skips it as non-prose, and returns null, so every failure falls back to the
- * generic string. The walk below therefore recurses through nested `content` arrays and takes the
- * first `text` part it finds, at any depth.
+ * `ToolResultNode.content` is the result body, `[ { type: "text", text: "Error: …" }, … ]`, in
+ * both session formats: the fold unwraps the `tool-result` part that format v3 nested it in. The
+ * walk still recurses through any `content` array it meets and takes the first `text` part at any
+ * depth, so a tool that nests its own parts, or a container kind this build has not seen, still
+ * yields its prose rather than the generic string.
  *
  * A bare string body is accepted too: some tools answer with one.
  */
@@ -636,5 +633,25 @@ private fun InjectedContextRow(node: UserMessageNode, text: String) {
         onToggle = { expanded = !expanded },
     ) {
         MarkdownText(text)
+    }
+}
+
+/**
+ * A change to the agent's tool set, harness 0.1.7's `developer/message`. It is context the model
+ * sees rather than anything a person said, so it sits in the same collapsed row as other injected
+ * context; the summary names the tools so the row is informative without opening it.
+ */
+@Composable
+private fun ToolSetChangeRow(node: DeveloperMessageNode) {
+    var expanded by remember(node.seq) { mutableStateOf(false) }
+    val summary = (node.addedTools.map { "+$it" } + node.removedTools.map { "−$it" }).joinToString(", ")
+    DisclosureRow(
+        title = stringResource(R.string.chat_context_title),
+        summary = stringResource(R.string.chat_context_tools) + " · " + summary,
+        icon = FeatherIcons.Info,
+        expanded = expanded,
+        onToggle = { expanded = !expanded },
+    ) {
+        Text(summary, style = DsType.small13, color = DsTheme.colors.labelSecondary)
     }
 }

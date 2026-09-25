@@ -105,11 +105,28 @@ data class ToolCallNode(
 data class ToolResultNode(
     override val seq: Long,
     val callId: String,
+    /**
+     * The result body: the tool's own content blocks, or a bare string. Session format v3 nested
+     * these inside a `tool-result` wrapper; the fold unwraps it, so this is the body in either
+     * format.
+     */
     val content: JsonElement?,
     val isError: Boolean,
     val turn: Int,
     val step: Int,
     val meta: JsonElement? = null,
+) : ChatNode
+
+/**
+ * A `developer/message` (harness 0.1.7): tools made available to, or withdrawn from, the agent
+ * partway through a session. Model-visible context rather than conversation.
+ */
+data class DeveloperMessageNode(
+    override val seq: Long,
+    val addedTools: List<String>,
+    val removedTools: List<String>,
+    val sourceKind: String?,
+    val data: JsonElement,
 ) : ChatNode
 
 data class TodoNode(override val seq: Long, val todos: JsonElement) : ChatNode
