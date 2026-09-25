@@ -70,6 +70,10 @@ data class JobView(
     @SerialName("status") val status: JobStatus = JobStatus.UNKNOWN,
     /** Kind-specific status detail ('exit code: 3'), present once the producer supplied one. */
     @SerialName("detail") val detail: String? = null,
+    /** Harness 0.1.7: the producer's live progress line (`3/10`), cleared at settlement. */
+    @SerialName("progress") val progress: String? = null,
+    /** Harness 0.1.7: the owning session; absent for an unowned job every session can see. */
+    @SerialName("owner") val owner: String? = null,
     /** Epoch ms when the task was registered. */
     @SerialName("startedAt") val startedAt: Long,
     /** Epoch ms when the task settled; absent while live. */

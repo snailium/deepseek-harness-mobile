@@ -26,6 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -57,6 +59,7 @@ import com.labteto.dshmobile.core.wire.dto.ContextPressureView
 import com.labteto.dshmobile.core.DshCore
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.dto.JobView
+import com.labteto.dshmobile.core.wire.dto.JobStatus
 import com.labteto.dshmobile.core.wire.dto.SessionStatsView
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
 import com.labteto.dshmobile.core.wire.dto.TokenUsageView
@@ -79,6 +82,7 @@ import com.labteto.dshmobile.ui.components.formatDurationMs
 import com.labteto.dshmobile.ui.components.formatTokens
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsTitleBar
@@ -115,6 +119,7 @@ fun DetailsPanel(
 
     val conversation by store.currentConversation.collectAsState()
     val jobs by store.jobs.collectAsState()
+    val jobControls by store.jobControls.collectAsState()
     val hostInfo by store.hostInfo.collectAsState()
     val subagents by store.subagents.collectAsState()
     val sessions by store.sessions.collectAsState()
@@ -130,6 +135,8 @@ fun DetailsPanel(
     // This panel owns its own sheets rather than reaching back into ChatScreen's: it is reachable
     // on its own on a phone, where the chat surface is not even composed behind it.
     var sheet by remember { mutableStateOf<DetailsSheet?>(null) }
+    var openJob by remember { mutableStateOf<JobView?>(null) }
+    var archiveBusy by remember { mutableStateOf<com.labteto.dshmobile.data.ArchiveOutcome.Busy?>(null) }
 
     val savedLabel = stringResource(R.string.chat_export_saved)
     val failedLabel = stringResource(R.string.chat_export_failed)
@@ -173,7 +180,12 @@ fun DetailsPanel(
                         scope.launch { currentSessionId?.let { store.renameSession(it, title) } }
                     },
                     onFork = { scope.launch { currentSessionId?.let { store.forkSession(it) } } },
-                    onArchive = { scope.launch { currentSessionId?.let { store.archiveSession(it) } } },
+                    onArchive = {
+                        scope.launch {
+                            val sid = currentSessionId ?: return@launch
+                            (store.archiveSession(sid) as? com.labteto.dshmobile.data.ArchiveOutcome.Busy)?.let { archiveBusy = it }
+                        }
+                    },
                     onOpenModels = { sheet = DetailsSheet.Models },
                     onOpenPresets = {
                         scope.launch { store.refreshAgentPresets() }
@@ -221,7 +233,12 @@ fun DetailsPanel(
                         scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
                     }
                     SendModeCard()
-                    JobsCard(jobs)
+                    JobsCard(
+                        jobs = jobs,
+                        controls = jobControls,
+                        onStop = { job -> scope.launch { store.killJob(job.id) } },
+                        onOpen = { job -> openJob = job },
+                    )
                     QueueCard(conv.queue, store)
                     SubagentsCard(subagents) { id -> scope.launch { store.openSubagentTranscript(id) } }
                     WorkflowCard(conv.nodes)
@@ -243,6 +260,27 @@ fun DetailsPanel(
             onDismiss = { sheet = null },
         )
         null -> Unit
+    }
+
+    openJob?.let { job ->
+        // The live row, so the sheet's stop button agrees with the card once the job settles.
+        JobOutputSheet(
+            job = jobs.firstOrNull { it.id == job.id } ?: job,
+            store = store,
+            canStop = jobControls,
+            onDismiss = { openJob = null },
+        )
+    }
+
+    archiveBusy?.let { busy ->
+        ArchiveBusyDialog(
+            busy = busy,
+            onDismiss = { archiveBusy = null },
+            onConfirm = {
+                archiveBusy = null
+                scope.launch { store.archiveSession(busy.sessionId, stopActivity = true) }
+            },
+        )
     }
 }
 
@@ -562,8 +600,19 @@ private fun SendModeCard() {
     }
 }
 
+/**
+ * The session's background jobs.
+ *
+ * With [controls] (harness 0.1.7) a row opens its live output and a running job can be stopped
+ * from here; against an older harness the card is read-only, as it always was.
+ */
 @Composable
-private fun JobsCard(jobs: List<JobView>) {
+private fun JobsCard(
+    jobs: List<JobView>,
+    controls: Boolean,
+    onStop: (JobView) -> Unit,
+    onOpen: (JobView) -> Unit,
+) {
     val colors = DsTheme.colors
     Card(
         title = stringResource(R.string.jobs_title),
@@ -584,7 +633,10 @@ private fun JobsCard(jobs: List<JobView>) {
             }
         }
         jobs.forEach { job ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = if (controls) Modifier.clip(DsShapes.row).clickable { onOpen(job) } else Modifier,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 StateDot(jobStatusDot(job.status))
                 Spacer(Modifier.width(DsSpacing.small))
                 Column(Modifier.weight(1f)) {
@@ -596,7 +648,7 @@ private fun JobsCard(jobs: List<JobView>) {
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        job.detail?.let { "${job.kind} · $it" } ?: job.kind,
+                        (job.progress ?: job.detail)?.let { "${job.kind} · $it" } ?: job.kind,
                         style = DsType.caption11,
                         color = colors.labelCaption,
                         maxLines = 1,
@@ -609,6 +661,14 @@ private fun JobsCard(jobs: List<JobView>) {
                     style = DsType.caption11,
                     color = colors.labelCaption,
                 )
+                if (controls && job.status == JobStatus.RUNNING) {
+                    DsIconButton(
+                        icon = Icons.Filled.Stop,
+                        contentDescription = stringResource(R.string.jobs_stop),
+                        onClick = { onStop(job) },
+                        tint = colors.labelTertiary,
+                    )
+                }
             }
         }
     }

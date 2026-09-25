@@ -1,10 +1,9 @@
 package com.labteto.dshmobile.mockharness
 
 import kotlinx.serialization.json.*
-import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 
-/** Stateful, credential-free fixtures for the 0d1f500 contracts. Never runs a shell. */
+/** Stateful, credential-free fixtures for the panel contracts, at harness 0.1.7. Never runs a shell. */
 class PanelScenario(private val harness: MockHarness) {
     val archived = mutableSetOf("archived-demo")
     val feedback = ConcurrentHashMap<String, JsonObject>()
@@ -13,6 +12,16 @@ class PanelScenario(private val harness: MockHarness) {
         put("index.html", "<h1>Isolated preview</h1><script>document.body.innerHTML='UNSAFE'</script>".toByteArray())
     }
     val terminals = ConcurrentHashMap<String, JsonObject>()
+    /** Sessions with work still running, which `workspace/archiveSession` refuses without `stopActivity`. */
+    val busy = mutableSetOf("busy-demo")
+    /** The registry-global pin set, most recently pinned first. */
+    val pinned = mutableListOf<String>()
+    /** Jobs by id; `bash-1` runs until killed. */
+    val jobs = ConcurrentHashMap<String, JsonObject>().apply {
+        put("bash-1", Json.parseToJsonElement(
+            """{"id":"bash-1","kind":"bash","label":"npm test","owner":"s","status":"running","startedAt":1000,"output":{"total":12,"earliest":0}}""",
+        ).jsonObject)
+    }
     val terminalInputs = mutableListOf<String>()
     private var revision = 0
     private fun JsonObject.string(key: String) = getValue(key).jsonPrimitive.content
@@ -62,15 +71,11 @@ class PanelScenario(private val harness: MockHarness) {
                 }))
             }
         }
-        for (method in listOf("stat", "read", "readBytes", "readAll", "readRelated")) {
-            val args = setOf("workspaceFileScopeId", "path") + when (method) {
-                "read", "readBytes" -> setOf("range")
-                "readRelated" -> setOf("relativePath")
-                else -> emptySet()
-            }
+        for (method in listOf("stat", "read")) {
+            val args = setOf("workspaceFileScopeId", "path") + if (method == "read") setOf("range") else emptySet()
             harness.remote("workspaceFiles", method, args) { request ->
-                val path = if (method == "readRelated") request.string("relativePath") else request.string("path").removePrefix("./")
-                val bytes = files[path] ?: throw IllegalStateException("workspace-file/not-found")
+                val path = request.string("path").removePrefix("./")
+                val bytes = files[path] ?: throw MockHarness.RemoteFailure("workspace-file/not-found", "\"$path\" not found")
                 buildJsonObject {
                     put("absolutePath", "/workspace/$path"); put("bytes", bytes.size); put("version", bytes.contentHashCode().toString())
                     if (method == "read") {
@@ -80,15 +85,72 @@ class PanelScenario(private val harness: MockHarness) {
                         val lines = bytes.toString(Charsets.UTF_8).lines()
                         val page = lines.drop(offset - 1).take(limit)
                         put("offset", offset); put("text", page.joinToString("\n")); put("lines", page.size); put("eof", offset - 1 + page.size >= lines.size)
-                    } else if (method != "stat") {
-                        val range = request["range"] as? JsonObject
-                        val offset = range?.get("offset")?.jsonPrimitive?.int ?: 0
-                        val length = range?.get("length")?.jsonPrimitive?.int ?: bytes.size
-                        val end = (offset + length).coerceAtMost(bytes.size)
-                        put("offset", offset); put("data", Base64.getEncoder().encodeToString(bytes.copyOfRange(offset.coerceAtMost(end), end))); put("eof", end == bytes.size)
                     }
                 }
             }
+        }
+        // Harness 0.1.7: one binary read with `options` (a byte window, and a base file to resolve a
+        // relative path against), answered as multipart. `readAll` and `readRelated` are gone.
+        harness.binaryRemote("workspaceFiles", "readBytes", setOf("workspaceFileScopeId", "path", "options")) { request ->
+            val options = request.getValue("options").jsonObject
+            val base = options["baseFile"]?.jsonPrimitive?.content
+            val requested = request.string("path").removePrefix("./")
+            val path = if (base == null) requested else (base.substringBeforeLast('/', "") + "/" + requested).removePrefix("/")
+            val bytes = files[path] ?: throw MockHarness.RemoteFailure("workspace-file/not-found", "\"$path\" not found")
+            val range = options["range"] as? JsonObject
+            val offset = range?.get("offset")?.jsonPrimitive?.int ?: 0
+            val length = range?.get("length")?.jsonPrimitive?.int ?: bytes.size
+            val end = (offset + length).coerceAtMost(bytes.size)
+            val value = buildJsonObject {
+                put("absolutePath", "/workspace/$path"); put("bytes", bytes.size); put("version", bytes.contentHashCode().toString())
+                put("offset", offset); put("data", JsonNull); put("eof", end == bytes.size)
+            }
+            value to bytes.copyOfRange(offset.coerceAtMost(end), end)
+        }
+        harness.requestRemote("workspace", "archiveSession", setOf("sessionId"), optional = setOf("stopActivity")) { request ->
+            val sessionId = request.string("sessionId")
+            if (sessionId in busy && request["stopActivity"]?.jsonPrimitive?.booleanOrNull != true) {
+                throw MockHarness.RemoteFailure(
+                    "workspace/session-active",
+                    "Session $sessionId has running work",
+                    Json.parseToJsonElement("""{"sessionId":"$sessionId","activity":[{"kind":"turn"},{"kind":"job","items":[{"id":"bash-1","label":"npm test"}]}]}""").jsonObject,
+                )
+            }
+            busy.remove(sessionId)
+            archived.add(sessionId)
+            buildJsonObject { put("archivedSessionIds", JsonArray(archived.map(::JsonPrimitive))) }
+        }
+        for (method in listOf("pinSession", "unpinSession")) {
+            harness.requestRemote("workspace", method, setOf("sessionId")) { request ->
+                val sessionId = request.string("sessionId")
+                synchronized(pinned) {
+                    pinned.remove(sessionId)
+                    if (method == "pinSession") pinned.add(0, sessionId)
+                    buildJsonObject { put("pinnedSessionIds", JsonArray(pinned.map(::JsonPrimitive))) }
+                }
+            }
+        }
+        harness.requestRemote("job", "kill", setOf("sessionId", "jobId")) { request ->
+            val id = request.string("jobId")
+            val job = jobs[id] ?: throw MockHarness.RemoteFailure("job/not-found", "unknown job $id")
+            val finished = job.getValue("status").jsonPrimitive.content != "running"
+            if (!finished) jobs[id] = JsonObject(job + mapOf("status" to JsonPrimitive("killed"), "finishedAt" to JsonPrimitive(2000)))
+            buildJsonObject { put("outcome", if (finished) "already-finished" else "requested") }
+        }
+        harness.onStream("job/list") { args ->
+            val request = args["request"] as? JsonObject
+                ?: throw MockHarness.ArgumentsInvalid("typert gateway: job/list: args fields do not match the descriptor: missing \"request\"")
+            request.string("sessionId")
+            listOf(buildJsonObject { put("type", "rows"); put("jobs", JsonArray(jobs.values.toList())) })
+        }
+        harness.onStream("job/follow") { args ->
+            val request = args["request"] as? JsonObject
+                ?: throw MockHarness.ArgumentsInvalid("typert gateway: job/follow: args fields do not match the descriptor: missing \"request\"")
+            val job = jobs[request.string("jobId")] ?: throw MockHarness.RemoteFailure("job/not-found", "unknown job")
+            listOf(
+                buildJsonObject { put("type", "opened"); put("job", job); put("from", 0) },
+                Json.parseToJsonElement("""{"type":"output","chunks":[{"at":0,"text":"PASS  a.test\n","channel":"stdout"}],"next":12}"""),
+            )
         }
         val shell = Json.parseToJsonElement("""{"path":"/mock/sh","args":[],"name":"Fixture shell"}""")
         harness.remote("terminal", "environment", setOf("agentId")) {
@@ -135,6 +197,14 @@ class PanelScenario(private val harness: MockHarness) {
             terminals[key] = info
             listOf(buildJsonObject { put("type", "snapshot"); put("sequence", 0); put("screen", "Fixture terminal\r\n$ "); put("info", info) })
         }
-        harness.onStream("workspaceFiles/changes") { listOf(buildJsonObject { put("kind", "ready") }) }
+        // Harness 0.1.7 watches one named target per stream, and refuses the old workspace-wide form.
+        harness.onStream("workspaceFiles/changes") { args ->
+            if ("path" !in args) {
+                throw MockHarness.ArgumentsInvalid(
+                    "typert gateway: workspaceFiles/changes: args fields do not match the descriptor: missing \"path\"",
+                )
+            }
+            listOf(buildJsonObject { put("kind", "ready") })
+        }
     }
 }

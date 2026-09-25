@@ -499,4 +499,20 @@
     <string name="settings_composer">কম্পোজার</string>
     <string name="settings_enter_to_send">এন্টার কী বার্তা পাঠায়</string>
     <string name="settings_enter_to_send_hint">বন্ধ থাকলে এন্টার কী নতুন লাইন যোগ করে এবং পাঠানোর বোতাম পাঠায়।</string>
+    <string name="connect_fail_relay_session_title">হারনেস রিলেকে ফিরিয়ে দিয়েছে</string>
+    <string name="connect_fail_relay_session">%1$s-এ থাকা রিলে এই ডিভাইসটি গ্রহণ করেছে, কিন্তু এর পেছনের হারনেস 401 ফিরিয়েছে: রিলে তাতে সাইন ইন করতে পারেনি। আবার জোড়া লাগালে কাজ হবে না — ওই কম্পিউটারে dsh-relay হালনাগাদ করুন এবং dsh web আবার চালু করুন।</string>
+    <string name="jobs_stop">কাজ থামান</string>
+    <string name="jobs_stopping">থামানো হচ্ছে</string>
+    <string name="jobs_output_empty">এখনও কোনো আউটপুট নেই</string>
+    <string name="jobs_output_dropped">আগের আউটপুট বাদ দেওয়া হয়েছে</string>
+    <string name="archive_busy_title">এখনও চলছে</string>
+    <string name="archive_busy_body">এই সেশনে এখনও কাজ চলছে: %1$s। আর্কাইভ করলে আগে সেই কাজ থামানো হবে।</string>
+    <string name="archive_busy_confirm">থামান ও আর্কাইভ করুন</string>
+    <string name="archive_activity_turn">বর্তমান টার্ন</string>
+    <string name="archive_activity_subagent">সাবএজেন্ট</string>
+    <string name="archive_activity_job">ব্যাকগ্রাউন্ড কাজ</string>
+    <string name="archive_activity_schedule">সময়সূচি</string>
+    <string name="chatlist_pinned">পিন করা</string>
+    <string name="chatlist_session_pin">সেশন পিন করুন</string>
+    <string name="chatlist_session_unpin">সেশন আনপিন করুন</string>
 </resources>

@@ -79,3 +79,32 @@ internal fun ConfirmDialog(
         }
     }
 }
+
+/**
+ * Harness 0.1.7 refused to archive a session because work is still running in it. Names that work
+ * and offers to stop it; confirming archives again with `stopActivity`, which stops it first.
+ */
+@Composable
+internal fun ArchiveBusyDialog(
+    busy: com.labteto.dshmobile.data.ArchiveOutcome.Busy,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val names = busy.activity.map { activity ->
+        when (activity.kind) {
+            "turn" -> stringResource(R.string.archive_activity_turn)
+            "subagent" -> stringResource(R.string.archive_activity_subagent)
+            "job" -> stringResource(R.string.archive_activity_job)
+            "schedule" -> stringResource(R.string.archive_activity_schedule)
+            // A family this build does not know: the host's own word beats saying nothing.
+            else -> activity.kind
+        }
+    }.distinct()
+    ConfirmDialog(
+        title = stringResource(R.string.archive_busy_title),
+        body = stringResource(R.string.archive_busy_body, names.joinToString(", ").ifEmpty { "\u2026" }),
+        confirmLabel = stringResource(R.string.archive_busy_confirm),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+    )
+}

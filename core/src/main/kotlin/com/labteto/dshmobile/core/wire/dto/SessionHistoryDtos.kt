@@ -609,6 +609,11 @@ sealed class WorkspaceFollowFrame {
         @SerialName("workspaces") val workspaces: List<WorkspaceView> = emptyList(),
         @SerialName("workspaceIds") val workspaceIds: List<String> = emptyList(),
         @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
+        /**
+         * Harness 0.1.7's registry-global pin set, most recently pinned first. Null when the host
+         * predates pinning, which is how the app knows to offer no pin controls.
+         */
+        @SerialName("pinnedSessionIds") val pinnedSessionIds: List<String>? = null,
     ) : WorkspaceFollowFrame()
 
     /** One workspace was added or changed. */
@@ -639,6 +644,13 @@ sealed class WorkspaceFollowFrame {
         @SerialName("archivedSessionIds") val archivedSessionIds: List<String> = emptyList(),
     ) : WorkspaceFollowFrame()
 
+    /** The complete registry-global pin set (harness 0.1.7), most recently pinned first. */
+    @Serializable
+    data class Pinned(
+        @SerialName("type") override val type: String = "pinned",
+        @SerialName("pinnedSessionIds") val pinnedSessionIds: List<String> = emptyList(),
+    ) : WorkspaceFollowFrame()
+
     /** A frame of an unknown `type`, preserved verbatim. */
     data class Unknown(
         override val type: String,
@@ -664,6 +676,8 @@ object WorkspaceFollowFrameSerializer : KSerializer<WorkspaceFollowFrame> {
                 encodeToJsonElement(WorkspaceFollowFrame.Order.serializer(), value)
             is WorkspaceFollowFrame.Archived ->
                 encodeToJsonElement(WorkspaceFollowFrame.Archived.serializer(), value)
+            is WorkspaceFollowFrame.Pinned ->
+                encodeToJsonElement(WorkspaceFollowFrame.Pinned.serializer(), value)
             is WorkspaceFollowFrame.Unknown -> value.raw
         }
         (encoder as JsonEncoder).encodeJsonElement(json)
@@ -678,12 +692,14 @@ object WorkspaceFollowFrameSerializer : KSerializer<WorkspaceFollowFrame> {
                 else WorkspaceFollowFrame.Baseline(
                     workspaces = (value["items"] as? JsonArray).orEmpty().map { decodeFromJsonElement(WorkspaceView.serializer(), it) },
                     archivedSessionIds = (value["archivedSessionIds"] as? JsonArray).orEmpty().map { it.jsonPrimitive.content },
+                    pinnedSessionIds = (value["pinnedSessionIds"] as? JsonArray)?.map { it.jsonPrimitive.content },
                 )
             }
             "upsert" -> decodeFromJsonElement(WorkspaceFollowFrame.Upsert.serializer(), json)
             "remove" -> decodeFromJsonElement(WorkspaceFollowFrame.Remove.serializer(), json)
             "order" -> decodeFromJsonElement(WorkspaceFollowFrame.Order.serializer(), json)
             "archived" -> decodeFromJsonElement(WorkspaceFollowFrame.Archived.serializer(), json)
+            "pinned" -> decodeFromJsonElement(WorkspaceFollowFrame.Pinned.serializer(), json)
             else -> WorkspaceFollowFrame.Unknown(type, json)
         }
     }

@@ -8,7 +8,9 @@ checked against.
 
 | DSH Mobile | Harness version | Status |
 |---|---|---|
-| 0.11.5 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`; also checked against `0.1.6-alpha.2` | Current target. First release whose wire surface is checked against a *running* harness rather than against a description of one — see [Automated conformance](#automated-conformance) |
+| 0.12.0 | 0.1.7-rc.2 (tag `dsh-v0.1.7-rc.2`, `477b4f420553e8a52c2fbccc464d7561b239c443`); still reads 0.1.6-alpha.x | Current target. See [What 0.1.7 changed](#what-017-changed) |
+| 0.11.6 – 0.11.7 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`; also checked against `0.1.6-alpha.2` | Against 0.1.7: every tool card loses its result, the preset roster fails to decode, the subagent sheet and Jobs card stay empty, image and PDF previews fail, and archiving a running session silently does nothing |
+| 0.11.5 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`; also checked against `0.1.6-alpha.2` | First release whose wire surface is checked against a *running* harness rather than against a description of one — see [Automated conformance](#automated-conformance) |
 | 0.11.4 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720` | The queue dock is empty against a harness at or past the commit that removed `session/control`'s `queues` map; PTC dispatch metadata renders as raw rows in the transcript |
 | 0.11.3 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720` | Every answered, dismissed or skipped question card sticks: the host never tells the answering client its request resolved, and the card waited for that frame |
 | 0.11.1 – 0.11.2 | 0.1.6-alpha.1 + master `0d1f50007f9bca3f52b06e1c3074fa14d5fb0720` | Question answers and approvals are refused by any harness ≥ 0.1.2: `$events/result` was posted without its `args` wrapper |
@@ -40,9 +42,10 @@ handshake rather than partway through a session (see 0.9.0 in the changelog).
 
 ## Current-master scope
 
-The release label alone does not identify this target: the exact commit above includes
-subsequent master changes inspected on September 15, 2026. Version 0.11.0 adds no new
-compatibility guarantee for older harnesses. Optional endpoints may be unavailable in a
+From 0.12.0 the target is a tagged release again (`dsh-v0.1.7-rc.2`), so the tag and the
+commit name the same thing. 0.11.x targeted 0.1.6-alpha.1 plus master at the commit above,
+inspected on September 15, 2026. 0.12.0 keeps reading the 0.1.6 shapes where it can tell
+them apart on the wire, but its conformance runs are against rc.2. Optional endpoints may be unavailable in a
 particular host composition; failures remain visible and unknown event payloads remain
 inspectable. Host-owned model adapters, SSH, MCP, Browser/Computer Use, subprocesses and
 session-log migrations remain in the harness.
@@ -55,6 +58,7 @@ mounted beside the harness rather than part of it.
 
 | DSH Mobile | [dsh-relay](https://github.com/sorsama/deepseek-harness-relay) | Notes |
 |---|---|---|
+| 0.11.5 – 0.12.0 | 0.2.1 | As 0.11.4. From 0.12.0 `workspaceFiles/readBytes` answers as multipart/form-data, which the relay passes through as it does any body |
 | 0.11.0 – 0.11.4 | 0.2.1 | As 0.10.x. From 0.11.2 the `Host` header brackets an IPv6 literal, without which the relay's fence refuses every `/api` call as `unparsable-host` |
 | 0.10.0 – 0.10.1 | 0.2.1 | Pairing payload `v: 1`; mDNS TXT `v: 1`. File uploads need the relay to proxy `/api/session/uploadFileBinary`, or the app falls back to the `fileUploads/upload` Remote |
 | 0.9.2 – 0.9.3 | 0.2.1 | |
@@ -67,6 +71,16 @@ harness authenticates its whole `/api` surface against a browser-session
 cookie, and the relay deliberately strips the client's `Cookie` header before
 forwarding — so every proxied request is answered 401 until the relay supplies
 a harness session of its own. That is a relay change, not an app one.
+
+A relay build that lacks the session signing fails the same way whatever its
+version says. **`dsh-relay` 0.2.1 as published to npm is one**: the tarball was
+packed from a stale build, so pairing succeeds and every proxied call — both mux
+upgrades included — comes back 401
+([deepseek-harness-relay#6](https://github.com/sorsama/deepseek-harness-relay/pull/6)).
+Install it from source instead,
+`dsh plugin --profile web add github:sorsama/deepseek-harness-relay#v0.2.1`, or
+any later release that carries the fix. The app reports this as the harness
+refusing the relay, not as a pairing problem (see `docs/PROTOCOL.md`).
 
 Both versions are checked, unlike the harness baseline. A pairing payload is a
 credential exchange, so a `kind` other than `dsh-relay-pair` or a `v` above the
@@ -88,16 +102,26 @@ skips unless `DSH_HARNESS_SRC` names a built checkout — so ordinary CI is unch
 DSH_HARNESS_SRC=/path/to/deepseek-harness ./gradlew :conformance:test
 ```
 
-What it establishes today, against `0.1.6-alpha.2`:
+What it establishes today, against `0.1.7-rc.2` (and, before 0.12.0, against `0.1.6-alpha.2`):
 
 - the launch-token exchange really does buy a session, and that session really does open `/api` —
   a tier `mock-harness` cannot model, because it implements no `GET /?token=` at all;
-- an unauthenticated call is a 401 and reads as "pair again", not as a broken connection;
+- an unauthenticated call is a 401 and reads as a missing session, not as a broken connection;
 - `$events` opens with a `ready` frame carrying a usable `clientId` and host home;
 - **every endpoint this client calls is understood by the harness** — the gateway matches args
   against the host method's own parameter names, exactly, so a rename or a moved shape is a refusal
   the test sees immediately;
-- work waiting behind a busy agent reaches the queue dock through the `inbox` projection.
+- work waiting behind a busy agent reaches the queue dock through the `inbox` projection;
+- the streams the app opens beyond `$events` and `session/control` (`job/list`, `job/follow`,
+  per-file `workspaceFiles/changes`, `workspace/follow`) accept its arguments;
+- a file read through `workspaceFiles/readBytes` comes back byte for byte through the multipart
+  answer, as a whole file, a window, and relative to another file;
+- a real tool-calling turn (the harness's own mock model, no key) folds to a tool call and a
+  result that pair, which is the session format v4 check.
+
+Checks against rc.2 need the mock model to speak the Messages API, which rc.2's mock does; the
+suite stops writing `llm-deepseek: {protocol: chat-completions}` when the checkout's adapter
+refuses that setting.
 
 What it does not yet cover, and what the older caveats still apply to: live assistant streaming,
 tool approvals, question answering against the real acceptance law, attachments, and message
@@ -135,6 +159,30 @@ What the app does:
   choose by.
 - **Re-checks on each harness release** with the fixture capture tool
   (`tools/capture`), and moves the baseline once the shapes have been verified.
+
+## What 0.1.7 changed
+
+Session format v4, plus several endpoints moved onto projections and streams.
+`docs/PROTOCOL.md` has the shapes under "0.12.0 contract additions"; this is the summary.
+
+- **Tool results are tool-role messages.** The call id and error flag moved off the
+  `tool-result` wrapper and onto the message. A client that reads the wrapper pairs no result
+  with its call, which is what 0.11.x does against 0.1.7.
+- **A new durable event, `developer/message`,** records the agent's tool set changing.
+- **Subagents** come from the parent's `subagentCatalog` projection; `subagents/list` is gone.
+- **Jobs** moved off `session/control` onto `job/list`, with `job/follow` and `job/kill`
+  beside it.
+- **Binary file reads** are one call, `workspaceFiles/readBytes` with `options`, answered as
+  multipart/form-data; `readAll` and `readRelated` are gone, and the file watch names a path.
+- **Archiving** a session with running work is refused unless the request asks to stop it.
+- **Pins**, a localized approval reason, and a smaller preset roster (no `authorable`, no
+  `trust`, no authoring calls).
+- **The DeepSeek adapter** speaks only the Messages API and refuses a `protocol` setting; this
+  affects the conformance harness, not the app.
+
+0.12.0 reads both generations: the fold accepts v3 and v4 tool results, the jobs card listens to
+both sources, the subagent sheet falls back to `subagents/list`, and file reads repeat the 0.1.6
+call when the host refuses `options`. None of it depends on a version string.
 
 ## What 0.1.3 changed
 

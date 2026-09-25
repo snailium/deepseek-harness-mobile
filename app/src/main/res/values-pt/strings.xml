@@ -499,4 +499,20 @@
     <string name="settings_composer">Composição</string>
     <string name="settings_enter_to_send">A tecla Enter envia a mensagem</string>
     <string name="settings_enter_to_send_hint">Desativada, Enter insere uma nova linha e o botão envia.</string>
+    <string name="connect_fail_relay_session_title">O harness recusou o relay</string>
+    <string name="connect_fail_relay_session">O relay em %1$s aceitou este dispositivo, mas o harness por trás dele respondeu 401: o relay não conseguiu se autenticar nele. Parear de novo não vai ajudar — atualize o dsh-relay naquele computador e reinicie o dsh web.</string>
+    <string name="jobs_stop">Parar trabalho</string>
+    <string name="jobs_stopping">Parando</string>
+    <string name="jobs_output_empty">Ainda sem saída</string>
+    <string name="jobs_output_dropped">A saída anterior foi descartada</string>
+    <string name="archive_busy_title">Ainda em execução</string>
+    <string name="archive_busy_body">Esta sessão ainda tem trabalho em execução: %1$s. Arquivá-la interrompe esse trabalho primeiro.</string>
+    <string name="archive_busy_confirm">Parar e arquivar</string>
+    <string name="archive_activity_turn">o turno atual</string>
+    <string name="archive_activity_subagent">subagentes</string>
+    <string name="archive_activity_job">trabalhos em segundo plano</string>
+    <string name="archive_activity_schedule">agendamentos</string>
+    <string name="chatlist_pinned">Fixadas</string>
+    <string name="chatlist_session_pin">Fixar sessão</string>
+    <string name="chatlist_session_unpin">Desafixar sessão</string>
 </resources>

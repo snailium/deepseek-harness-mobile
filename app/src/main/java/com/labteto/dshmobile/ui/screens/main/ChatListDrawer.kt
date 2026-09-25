@@ -124,6 +124,8 @@ fun ChatListDrawer(
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
     val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
     val refreshing by store.refreshingSessions.collectAsStateWithLifecycle()
+    // Null against a harness without pinning (before 0.1.7), which hides the section and the menu row.
+    val pinnedIds by store.pinnedSessionIds.collectAsStateWithLifecycle()
 
     // Pull-to-refresh: the session list is a snapshot of the harness's state, and a session created
     // elsewhere (another client, the web UI) only appears once we ask again.
@@ -353,6 +355,24 @@ fun ChatListDrawer(
                 }
 
                 var anyShown = false
+                // Pinned sessions lead, in pin order, as a shortcut: each stays in its own group too.
+                val pinnedRows = pinnedIds.orEmpty().mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
+                if (pinnedRows.isNotEmpty()) {
+                    anyShown = true
+                    item(key = "pinned-header") { SectionHeader(stringResource(R.string.chatlist_pinned)) }
+                    items(pinnedRows, key = { "pinned-${it.sessionId}" }) { session ->
+                        Box(Modifier.animateItem()) {
+                            SessionRowItem(
+                                session = session,
+                                isCurrent = session.sessionId == currentSessionId,
+                                store = store,
+                                scope = scope,
+                                onClose = onClose,
+                                pinned = true,
+                            )
+                        }
+                    }
+                }
                 for (workspace in workspaces) {
                     val roots = workspace.sessionIds
                         .mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
@@ -397,6 +417,7 @@ fun ChatListDrawer(
                                     childCount = childrenByParent[session.sessionId].orEmpty().size,
                                     childrenExpanded = isExpanded(session.sessionId),
                                     onToggleChildren = { toggleChildren(session.sessionId) },
+                                    pinned = pinnedIds?.let { session.sessionId in it },
                                 )
                             }
                         }
@@ -434,6 +455,7 @@ fun ChatListDrawer(
                                     childCount = childrenByParent[session.sessionId].orEmpty().size,
                                     childrenExpanded = isExpanded(session.sessionId),
                                     onToggleChildren = { toggleChildren(session.sessionId) },
+                                    pinned = pinnedIds?.let { session.sessionId in it },
                                 )
                             }
                         }
@@ -755,11 +777,14 @@ private fun SessionRowItem(
     childCount: Int = 0,
     childrenExpanded: Boolean = false,
     onToggleChildren: () -> Unit = {},
+    /** Whether the session is pinned; null when the harness has no pinning to offer. */
+    pinned: Boolean? = null,
 ) {
     val colors = DsTheme.colors
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+    var archiveBusy by remember { mutableStateOf<com.labteto.dshmobile.data.ArchiveOutcome.Busy?>(null) }
     val chevronRotation by animateFloatAsState(
         targetValue = if (childrenExpanded) 90f else 0f,
         animationSpec = DsAnimations.chevron,
@@ -877,6 +902,14 @@ private fun SessionRowItem(
                     menuOpen = false
                     scope.launch { store.forkSession(session.sessionId) }
                 }
+                if (pinned != null) {
+                    SheetRow(
+                        title = stringResource(if (pinned) R.string.chatlist_session_unpin else R.string.chatlist_session_pin),
+                    ) {
+                        menuOpen = false
+                        scope.launch { store.setPinned(session.sessionId, !pinned) }
+                    }
+                }
                 SheetRow(title = stringResource(R.string.chatlist_session_archive)) {
                     menuOpen = false
                     archiveConfirmOpen = true
@@ -904,8 +937,22 @@ private fun SessionRowItem(
             confirmLabel = stringResource(R.string.common_archive),
             onDismiss = { archiveConfirmOpen = false },
             onConfirm = {
-                scope.launch { store.archiveSession(session.sessionId) }
                 archiveConfirmOpen = false
+                scope.launch {
+                    (store.archiveSession(session.sessionId) as? com.labteto.dshmobile.data.ArchiveOutcome.Busy)
+                        ?.let { archiveBusy = it }
+                }
+            },
+        )
+    }
+
+    archiveBusy?.let { busy ->
+        ArchiveBusyDialog(
+            busy = busy,
+            onDismiss = { archiveBusy = null },
+            onConfirm = {
+                archiveBusy = null
+                scope.launch { store.archiveSession(busy.sessionId, stopActivity = true) }
             },
         )
     }

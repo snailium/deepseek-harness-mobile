@@ -4,6 +4,7 @@ import com.labteto.dshmobile.core.session.AssistantMessageNode
 import com.labteto.dshmobile.core.session.ChatNode
 import com.labteto.dshmobile.core.session.CommandNode
 import com.labteto.dshmobile.core.session.CompactionNode
+import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
 import com.labteto.dshmobile.core.session.OtherNode
 import com.labteto.dshmobile.core.session.PlanModeNode
@@ -52,8 +53,9 @@ internal fun ChatNode.rendersContent(): Boolean = when (this) {
     is TurnStartNode -> false
     // Rendered inside the matching call's card.
     is ToolResultNode -> false
-    // Only an unclean ending says anything; a completed turn is the frame.
-    is TurnEndNode -> reasonKind != "completed"
+    // Only an unclean ending says anything; a completed turn is the frame. Kinds [ChatNodeItem]
+    // draws nothing for (harness 0.1.7's `forked`, or one this build has never seen) cost a gap.
+    is TurnEndNode -> reasonKind in DRAWN_TURN_END_KINDS
     // Bookkeeping event types are not "unknown" — they are noise between the tool calls.
     is OtherNode -> type !in STRUCTURAL_EVENT_TYPES
 
@@ -71,6 +73,7 @@ internal fun ChatNode.rendersContent(): Boolean = when (this) {
     is TodoNode -> parseTodos(todos) != null
     is GoalNode -> parseGoal(data) != null
     is WorkflowNode -> data is JsonObject
+    is DeveloperMessageNode -> addedTools.isNotEmpty() || removedTools.isNotEmpty()
 
     // Always draws.
     is ToolCallNode -> true
@@ -82,3 +85,6 @@ internal fun ChatNode.rendersContent(): Boolean = when (this) {
     is TitleNode -> true
     is SubagentNode -> true
 }
+
+/** The `turn/end` reasons [ChatNodeItem] draws something for. */
+internal val DRAWN_TURN_END_KINDS = setOf("aborted", "interrupted", "error", "max-tokens")

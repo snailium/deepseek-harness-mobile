@@ -386,7 +386,24 @@ data class ApprovalRequestEvent(
     @SerialName("callId") val callId: String? = null,
     /** Human-readable reason supplied by the asker. */
     @SerialName("reason") val reason: String? = null,
-)
+    /**
+     * Harness 0.1.7: the reason localized for display, keyed by language (`en` always present).
+     * Presentation only; the host never persists it. Set by sandbox escalation and Auto review.
+     */
+    @SerialName("displayReason") val displayReason: Map<String, String>? = null,
+) {
+    /**
+     * The reason to show a person reading in [language] (an ISO 639 code such as `zh`): the
+     * localized text in that language, else its English, else the raw [reason].
+     */
+    fun reasonFor(language: String): String? {
+        val localized = displayReason.orEmpty()
+        return localized[language]?.takeIf { it.isNotBlank() }
+            ?: localized[language.substringBefore('-')]?.takeIf { it.isNotBlank() }
+            ?: localized["en"]?.takeIf { it.isNotBlank() }
+            ?: reason
+    }
+}
 
 /** The `user-questions/request` waterfall body, after the gateway strips `agent` and `signal`. */
 @Serializable

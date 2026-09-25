@@ -499,4 +499,20 @@
     <string name="settings_composer">Redacción</string>
     <string name="settings_enter_to_send">La tecla Intro envía el mensaje</string>
     <string name="settings_enter_to_send_hint">Desactivado, Intro inserta un salto de línea y envía el botón.</string>
+    <string name="connect_fail_relay_session_title">El harness rechazó el relé</string>
+    <string name="connect_fail_relay_session">El relé en %1$s aceptó este dispositivo, pero el harness que tiene detrás respondió 401: el relé no pudo iniciar sesión en él. Volver a emparejar no servirá — actualiza dsh-relay en ese ordenador y reinicia dsh web.</string>
+    <string name="jobs_stop">Detener trabajo</string>
+    <string name="jobs_stopping">Deteniendo</string>
+    <string name="jobs_output_empty">Aún no hay salida</string>
+    <string name="jobs_output_dropped">Se descartó la salida anterior</string>
+    <string name="archive_busy_title">Aún en ejecución</string>
+    <string name="archive_busy_body">Esta sesión todavía tiene trabajo en ejecución: %1$s. Al archivarla, primero se detiene ese trabajo.</string>
+    <string name="archive_busy_confirm">Detener y archivar</string>
+    <string name="archive_activity_turn">el turno actual</string>
+    <string name="archive_activity_subagent">subagentes</string>
+    <string name="archive_activity_job">trabajos en segundo plano</string>
+    <string name="archive_activity_schedule">programaciones</string>
+    <string name="chatlist_pinned">Fijadas</string>
+    <string name="chatlist_session_pin">Fijar sesión</string>
+    <string name="chatlist_session_unpin">Desfijar sesión</string>
 </resources>

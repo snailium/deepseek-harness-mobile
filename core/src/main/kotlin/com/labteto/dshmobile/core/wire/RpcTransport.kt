@@ -33,6 +33,13 @@ import okio.BufferedSink
 data class RpcHttpResponse(
     val status: Int,
     val body: String,
+    /** The response `Content-Type`, when the carrier reported one. */
+    val contentType: String? = null,
+    /**
+     * The undecoded body of a multipart answer, harness 0.1.7's shape for a result that carries
+     * raw bytes (see [RpcMultipart]); [body] is empty then. Null for every JSON answer.
+     */
+    val multipart: ByteArray? = null,
 )
 
 /** Thrown by [RpcTransport] on a non-2xx carrier response or a network-level failure. */
@@ -151,9 +158,22 @@ class OkHttpRpcTransport(
 
                 override fun onResponse(call: Call, response: Response) {
                     response.use { resp ->
+                        val contentType = resp.header("Content-Type")
+                        if (resp.isSuccessful && RpcMultipart.isMultipart(contentType)) {
+                            val bytes = try {
+                                resp.body?.bytes() ?: ByteArray(0)
+                            } catch (e: IOException) {
+                                continuation.resumeWithException(
+                                    RpcTransportException(0, "transport failure: ${e.message}", e),
+                                )
+                                return
+                            }
+                            continuation.resume(RpcHttpResponse(resp.code, "", contentType, bytes))
+                            return
+                        }
                         val responseBody = resp.body?.string().orEmpty()
                         if (resp.isSuccessful) {
-                            continuation.resume(RpcHttpResponse(resp.code, responseBody))
+                            continuation.resume(RpcHttpResponse(resp.code, responseBody, contentType))
                         } else {
                             continuation.resumeWithException(
                                 RpcTransportException(

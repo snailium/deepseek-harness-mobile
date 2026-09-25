@@ -64,6 +64,11 @@ data class WorkspaceInsertSessionBeforeRequest(
 @Serializable
 data class WorkspaceArchiveSessionRequest(
     @SerialName("sessionId") val sessionId: String,
+    /**
+     * Harness 0.1.7: stop the session's running work instead of refusing the archive as
+     * `workspace/session-active`. Null is omitted on the wire, which an older host requires.
+     */
+    @SerialName("stopActivity") val stopActivity: Boolean? = null,
 )
 
 // ---- workspace.* response values ----

@@ -499,4 +499,20 @@
     <string name="settings_composer">المحرر</string>
     <string name="settings_enter_to_send">مفتاح الإدخال يرسل الرسالة</string>
     <string name="settings_enter_to_send_hint">عند الإيقاف، يُدرج مفتاح الإدخال سطرًا جديدًا ويرسل زر الإرسال.</string>
+    <string name="connect_fail_relay_session_title">رفض الخادم المُرحِّل</string>
+    <string name="connect_fail_relay_session">قبِل المُرحِّل على %1$s هذا الجهاز، لكن الخادم الذي خلفه ردّ بالرمز 401: لم يتمكّن المُرحِّل من تسجيل الدخول إليه. إعادة الاقتران لن تفيد — حدِّث dsh-relay على ذلك الكمبيوتر ثم أعد تشغيل dsh web.</string>
+    <string name="jobs_stop">إيقاف المهمة</string>
+    <string name="jobs_stopping">جارٍ الإيقاف</string>
+    <string name="jobs_output_empty">لا يوجد إخراج بعد</string>
+    <string name="jobs_output_dropped">تم تجاهل الإخراج السابق</string>
+    <string name="archive_busy_title">لا تزال قيد التشغيل</string>
+    <string name="archive_busy_body">لا يزال في هذه الجلسة عمل قيد التشغيل: %1$s. تؤدي أرشفتها إلى إيقاف هذا العمل أولًا.</string>
+    <string name="archive_busy_confirm">إيقاف وأرشفة</string>
+    <string name="archive_activity_turn">الدور الحالي</string>
+    <string name="archive_activity_subagent">الوكلاء الفرعيون</string>
+    <string name="archive_activity_job">المهام الخلفية</string>
+    <string name="archive_activity_schedule">الجداول الزمنية</string>
+    <string name="chatlist_pinned">المثبّتة</string>
+    <string name="chatlist_session_pin">تثبيت الجلسة</string>
+    <string name="chatlist_session_unpin">إلغاء تثبيت الجلسة</string>
 </resources>

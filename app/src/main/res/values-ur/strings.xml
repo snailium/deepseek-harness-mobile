@@ -499,4 +499,20 @@
     <string name="settings_composer">کمپوزر</string>
     <string name="settings_enter_to_send">انٹر کلید پیغام بھیجتی ہے</string>
     <string name="settings_enter_to_send_hint">بند ہونے پر انٹر کلید نئی سطر ڈالتا ہے اور بھیجیں بٹن بھیجتا ہے۔</string>
+    <string name="connect_fail_relay_session_title">ہارنیس نے ریلے کو مسترد کر دیا</string>
+    <string name="connect_fail_relay_session">%1$s پر موجود ریلے نے اس ڈیوائس کو قبول کر لیا، لیکن اس کے پیچھے موجود ہارنیس نے 401 واپس کیا: ریلے اس میں سائن ان نہیں کر سکا۔ دوبارہ جوڑا بنانے سے کچھ نہیں ہوگا — اُس کمپیوٹر پر dsh-relay اپ ڈیٹ کریں اور dsh web دوبارہ شروع کریں۔</string>
+    <string name="jobs_stop">کام روکیں</string>
+    <string name="jobs_stopping">روکا جا رہا ہے</string>
+    <string name="jobs_output_empty">ابھی کوئی آؤٹ پٹ نہیں</string>
+    <string name="jobs_output_dropped">پہلے کا آؤٹ پٹ ہٹا دیا گیا</string>
+    <string name="archive_busy_title">ابھی بھی چل رہا ہے</string>
+    <string name="archive_busy_body">اس سیشن میں ابھی بھی کام چل رہا ہے: %1$s۔ آرکائیو کرنے سے پہلے وہ کام روک دیا جائے گا۔</string>
+    <string name="archive_busy_confirm">روکیں اور آرکائیو کریں</string>
+    <string name="archive_activity_turn">موجودہ ٹرن</string>
+    <string name="archive_activity_subagent">سب ایجنٹس</string>
+    <string name="archive_activity_job">پس منظر کے کام</string>
+    <string name="archive_activity_schedule">شیڈول</string>
+    <string name="chatlist_pinned">پن شدہ</string>
+    <string name="chatlist_session_pin">سیشن پن کریں</string>
+    <string name="chatlist_session_unpin">سیشن ان پن کریں</string>
 </resources>

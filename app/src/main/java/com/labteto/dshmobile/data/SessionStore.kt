@@ -75,6 +75,14 @@ import com.labteto.dshmobile.core.wire.dto.SessionUpdateQueueRequest
 import com.labteto.dshmobile.core.wire.dto.SkillEntry
 import com.labteto.dshmobile.core.wire.dto.SkillListRequest
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
+import com.labteto.dshmobile.core.wire.dto.JobFollowFrame
+import com.labteto.dshmobile.core.wire.dto.JobFollowFrameSerializer
+import com.labteto.dshmobile.core.wire.dto.JobFollowRequest
+import com.labteto.dshmobile.core.wire.dto.JobListRequest
+import com.labteto.dshmobile.core.wire.dto.SessionActivity
+import com.labteto.dshmobile.core.wire.dto.WorkspaceSessionActiveDetails
+import com.labteto.dshmobile.core.wire.dto.jobRowsOf
+import com.labteto.dshmobile.core.wire.dto.subagentEntriesFromCatalog
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
 import com.labteto.dshmobile.core.wire.dto.TodoItem
 import com.labteto.dshmobile.core.wire.dto.TokenUsageView
@@ -269,6 +277,21 @@ internal fun nextHasMore(freshCount: Int, hostHasMore: Boolean, overDelivered: B
 /** Projection key carrying the agent's pending input; the queue dock's source since 0.1.6-alpha.2. */
 private const val INBOX_PROJECTION = "inbox"
 
+/** Projection key carrying a parent's direct subagents; `subagents/list` was removed in 0.1.7. */
+private const val SUBAGENT_CATALOG_PROJECTION = "subagentCatalog"
+
+/**
+ * What became of an archive request.
+ *
+ * [Busy] is harness 0.1.7's refusal to archive a session that still has work running; the caller
+ * asks the person whether to stop that work, and archives again with `stopActivity` if they agree.
+ */
+sealed interface ArchiveOutcome {
+    data object Archived : ArchiveOutcome
+    data class Busy(val sessionId: String, val activity: List<SessionActivity>) : ArchiveOutcome
+    data object Failed : ArchiveOutcome
+}
+
 /**
  * Projection key carrying the preset a session's agent was composed from.
  *
@@ -384,6 +407,20 @@ class SessionStore @Inject constructor(
 
     private val _jobs = MutableStateFlow<List<JobView>>(emptyList())
     val jobs: StateFlow<List<JobView>> = _jobs.asStateFlow()
+
+    /**
+     * Whether jobs can be stopped and followed from here: true once the harness has answered a
+     * `job/list` stream (0.1.7). A 0.1.6 host reports jobs on `session/control` and offers neither.
+     */
+    private val _jobControls = MutableStateFlow(false)
+    val jobControls: StateFlow<Boolean> = _jobControls.asStateFlow()
+
+    /**
+     * The registry-global pin set, most recently pinned first, or null when the harness has no
+     * pinning (anything before 0.1.7) and the drawer should offer none.
+     */
+    private val _pinnedSessionIds = MutableStateFlow<List<String>?>(null)
+    val pinnedSessionIds: StateFlow<List<String>?> = _pinnedSessionIds.asStateFlow()
 
     private val _skills = MutableStateFlow<List<SkillEntry>>(emptyList())
     val skills: StateFlow<List<SkillEntry>> = _skills.asStateFlow()
@@ -570,6 +607,9 @@ class SessionStore @Inject constructor(
     /** Host-wide live control (queue, jobs, projections). One per connection generation. */
     private var controlJob: Job? = null
 
+    /** The open session's `job/list` stream (harness 0.1.7). Replaced with the open session. */
+    private var jobsJob: Job? = null
+
     /** Workspace registry stream. One per connection generation. */
     private var workspaceJob: Job? = null
 
@@ -696,6 +736,7 @@ class SessionStore @Inject constructor(
         // Whether content search works is a fact about the harness we just reached, so a fresh
         // connection re-earns the answer rather than inheriting the previous host's.
         _contentSearchAvailable.value = true
+        _jobControls.value = false
         // Before the list read: the workspace and control streams each open with their own
         // complete baseline, and the list is what their increments are applied on top of.
         startHostStreams()
@@ -1000,8 +1041,10 @@ class SessionStore @Inject constructor(
                 workspaceOrder.addAll(frame.workspaceIds.ifEmpty { frame.workspaces.map { it.workspaceId } })
                 archived = frame.archivedSessionIds.toSet()
                 _archivedSessionIds.value = archived
+                _pinnedSessionIds.value = frame.pinnedSessionIds
                 emitWorkspacesLocked()
             }
+            is WorkspaceFollowFrame.Pinned -> _pinnedSessionIds.value = frame.pinnedSessionIds
             is WorkspaceFollowFrame.Upsert -> upsertWorkspace(frame.workspace)
             is WorkspaceFollowFrame.Remove -> removeWorkspace(frame.workspaceId)
             is WorkspaceFollowFrame.Order -> setWorkspaceOrder(frame.workspaceIds)
@@ -1062,9 +1105,12 @@ class SessionStore @Inject constructor(
     var notificationSink: ((String, SessionEventEnvelope) -> Unit)? = null
 
     private fun handleApprovalRequested(eventId: String, sessionId: String, request: ApprovalRequestEvent) {
+        // Harness 0.1.7 sends a localized `displayReason` beside the raw one (an Auto review
+        // denial, a sandbox escalation); the reader's own language wins, then English, then raw.
+        val reason = request.reasonFor(java.util.Locale.getDefault().language)
         synchronized(lock) {
             approvalRequests[eventId] =
-                ApprovalRequest(sessionId, eventId, request.toolName, request.reason)
+                ApprovalRequest(sessionId, eventId, request.toolName, reason)
             addPendingLocked(sessionId, "approval")
             emitSessionsLocked()
         }
@@ -1075,7 +1121,7 @@ class SessionStore @Inject constructor(
             approvalId = eventId,
             rpcId = eventId,
             toolName = request.toolName,
-            reason = request.reason,
+            reason = reason,
         )
     }
 
@@ -1182,6 +1228,8 @@ class SessionStore @Inject constructor(
             runningBySession[sessionId] = running
             sessionRows[sessionId]?.let { if (it.running != running) sessionRows[sessionId] = it.copy(running = running) }
             if (sessionId == currentId) rebuildCurrentLocked()
+            // A child's own status is what says whether it is running; the catalog only lists it.
+            else publishCatalogSubagentsLocked()
             emitSessionsLocked()
         }
     }
@@ -1331,6 +1379,21 @@ class SessionStore @Inject constructor(
             projections = currentProjections.mapValues { it.value.value },
         )
         _currentConversation.value = merged
+        publishCatalogSubagentsLocked()
+    }
+
+    /**
+     * The open session's subagents from its `subagentCatalog` projection (harness 0.1.7), with
+     * each child's activity read off that child's own running state.
+     *
+     * Does nothing when the projection is absent, which is a 0.1.6 host: there [refreshSubagents]
+     * reads `subagents/list` instead, and that answer must not be overwritten with an empty list.
+     */
+    private fun publishCatalogSubagentsLocked() {
+        val rows = subagentEntriesFromCatalog(currentProjections[SUBAGENT_CATALOG_PROJECTION]?.value) {
+            runningBySession[it] == true
+        } ?: return
+        if (_subagents.value != rows) _subagents.value = rows
     }
 
     private fun emitSessionsLocked() {
@@ -1478,6 +1541,7 @@ class SessionStore @Inject constructor(
             }
         }
         startFollow(sessionId)
+        startJobs(sessionId)
         // Everything past the follow stream furnishes the chrome around the transcript — the skill
         // and model pickers, the subagent list, the command catalog — and none of it is needed to
         // paint a single message. Run in series they stacked four round trips onto every session
@@ -1549,6 +1613,61 @@ class SessionStore @Inject constructor(
                 log("session/follow ended for $sessionId", failure)
                 setConnectionError(failure.message)
             }
+        }
+    }
+
+    /**
+     * Mirror the open session's background jobs from `job/list` (harness 0.1.7).
+     *
+     * 0.1.7 took jobs off `session/control`; the stream answers with the complete set the session
+     * can see on open and after every change. A 0.1.6 host refuses the endpoint, which only ends
+     * this stream: its control-stream jobs frames still feed [jobs] through [applyJobs].
+     */
+    private fun startJobs(sessionId: String) {
+        jobsJob?.cancel()
+        val mux = connectionManager.generation?.mux ?: return
+        val args = buildJsonObject {
+            put("request", encodeToJsonElement(JobListRequest.serializer(), JobListRequest(sessionId)))
+        }
+        jobsJob = scope.launch {
+            runCatching {
+                mux.openStream("job/list", args).collect { item ->
+                    val rows = jobRowsOf(item) ?: return@collect
+                    _jobControls.value = true
+                    applyJobs(sessionId, rows)
+                }
+            }.onFailure { failure ->
+                if (failure is kotlinx.coroutines.CancellationException) throw failure
+                log("job/list ended for $sessionId", failure)
+            }
+        }
+    }
+
+    /**
+     * One job's retained output and then its settlement, from `job/follow` (harness 0.1.7).
+     *
+     * Cold: nothing is opened until the flow is collected, and cancelling the collector cancels
+     * the stream. Frames this build cannot read are skipped.
+     */
+    fun followJob(jobId: String): kotlinx.coroutines.flow.Flow<JobFollowFrame> = kotlinx.coroutines.flow.flow {
+        val sid = currentSessionId.value ?: return@flow
+        val mux = connectionManager.generation?.mux ?: return@flow
+        val args = buildJsonObject {
+            put("request", encodeToJsonElement(JobFollowRequest.serializer(), JobFollowRequest(jobId = jobId, sessionId = sid)))
+        }
+        mux.openStream("job/follow", args).collect { item ->
+            decodeOrNull(JobFollowFrameSerializer, item)?.let { emit(it) }
+        }
+    }
+
+    /** Stop one background job of the open session. False when the harness refused. */
+    suspend fun killJob(jobId: String): Boolean {
+        val sid = currentSessionId.value ?: return false
+        val api = apiOrNull() ?: return false
+        return when (val r = api.jobKill(sid, jobId)) {
+            is RpcResult.Ok -> true
+            // The row went away first; the next `job/list` frame shows that, so it is not a failure.
+            is RpcResult.Err -> if (r.error.code == "job/not-found") true else { setConnectionError(r.error.message); false }
         }
     }
 
@@ -1719,14 +1838,43 @@ class SessionStore @Inject constructor(
         }
     }
 
-    suspend fun archiveSession(sessionId: String) {
-        val api = apiOrNull() ?: return
-        when (val r = api.workspaceArchiveSession(WorkspaceArchiveSessionRequest(sessionId))) {
+    /**
+     * Archive one session.
+     *
+     * Harness 0.1.7 refuses a session that still has work running (its turn, a subagent, a job) as
+     * `workspace/session-active`, naming the work, and that comes back as [ArchiveOutcome.Busy]
+     * for the caller to confirm. Archiving again with [stopActivity] stops the work first.
+     */
+    suspend fun archiveSession(sessionId: String, stopActivity: Boolean = false): ArchiveOutcome {
+        val api = apiOrNull() ?: return ArchiveOutcome.Failed
+        val request = WorkspaceArchiveSessionRequest(sessionId, stopActivity = stopActivity.takeIf { it })
+        return when (val r = api.workspaceArchiveSession(request)) {
             is RpcResult.Ok -> {
                 setArchived(r.value.archivedSessionIds)
                 refreshSessions()
+                ArchiveOutcome.Archived
             }
-            is RpcResult.Err -> setConnectionError(r.error.message)
+            is RpcResult.Err -> {
+                if (r.error.code == SESSION_ACTIVE && !stopActivity) {
+                    val details = runCatching {
+                        decodeFromJsonElement(WorkspaceSessionActiveDetails.serializer(), r.error.details)
+                    }.getOrNull()
+                    ArchiveOutcome.Busy(sessionId, details?.activity.orEmpty())
+                } else {
+                    setConnectionError(r.error.message)
+                    ArchiveOutcome.Failed
+                }
+            }
+        }
+    }
+
+    /** Pin or unpin one session (harness 0.1.7); the answer is the complete pin set. */
+    suspend fun setPinned(sessionId: String, pinned: Boolean) {
+        val api = apiOrNull() ?: return
+        val result = if (pinned) api.workspacePinSession(sessionId) else api.workspaceUnpinSession(sessionId)
+        when (result) {
+            is RpcResult.Ok -> _pinnedSessionIds.value = result.value.pinnedSessionIds
+            is RpcResult.Err -> setConnectionError(result.error.message)
         }
     }
 
@@ -2075,14 +2223,31 @@ class SessionStore @Inject constructor(
         loadSkills(sid)
     }
 
+    /**
+     * Bring the open session's subagent list up to date.
+     *
+     * From harness 0.1.7 the list is the session's `subagentCatalog` projection, which arrives with
+     * the rest of its projections and is republished on every change; there is nothing to fetch.
+     * A 0.1.6 host publishes no such projection and answers `subagents/list` instead. On 0.1.7 that
+     * call is a 404, which only means the snapshot carrying the catalog has not landed yet.
+     */
     suspend fun refreshSubagents() {
         val sid = currentSessionId.value ?: return
+        val hasCatalog = synchronized(lock) {
+            currentId == sid && currentProjections.containsKey(SUBAGENT_CATALOG_PROJECTION)
+        }
+        if (hasCatalog) {
+            synchronized(lock) { publishCatalogSubagentsLocked() }
+            return
+        }
         val api = apiOrNull() ?: return
         when (val r = api.subagentList(sid)) {
             is RpcResult.Ok -> synchronized(lock) {
-                if (currentId == sid) _subagents.value = r.value.entries
+                if (currentId == sid && !currentProjections.containsKey(SUBAGENT_CATALOG_PROJECTION)) {
+                    _subagents.value = r.value.entries
+                }
             }
-            is RpcResult.Err -> setConnectionError(r.error.message)
+            is RpcResult.Err -> if (r.error.code != CAPABILITY_UNAVAILABLE) setConnectionError(r.error.message)
         }
     }
 
@@ -2565,6 +2730,12 @@ class SessionStore @Inject constructor(
          * `attachment-error` through 0.1.2). Every business code is namespaced now.
          */
         const val ATTACHMENT_INVALID = "session/attachment-invalid"
+
+        /** Harness 0.1.7's refusal to archive a session with running work; see [archiveSession]. */
+        const val SESSION_ACTIVE = "workspace/session-active"
+
+        /** Minted by the client from a 404: no route claimed the endpoint. */
+        const val CAPABILITY_UNAVAILABLE = "capability-unavailable"
 
         /** Largest file the base64 Remote fallback will carry; anything bigger needs the route. */
         const val MAX_ENCODED_UPLOAD_BYTES = 20L * 1024 * 1024

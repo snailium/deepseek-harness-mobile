@@ -499,4 +499,20 @@
     <string name="settings_composer">कंपोज़र</string>
     <string name="settings_enter_to_send">एंटर कुंजी संदेश भेजती है</string>
     <string name="settings_enter_to_send_hint">बंद होने पर एंटर कुंजी नई पंक्ति जोड़ती है और भेजें बटन भेजता है।</string>
+    <string name="connect_fail_relay_session_title">हार्नेस ने रिले को अस्वीकार किया</string>
+    <string name="connect_fail_relay_session">%1$s पर मौजूद रिले ने इस डिवाइस को स्वीकार किया, लेकिन उसके पीछे के हार्नेस ने 401 लौटाया: रिले उसमें साइन इन नहीं कर सका। दोबारा पेयर करने से कुछ नहीं होगा — उस कंप्यूटर पर dsh-relay अपडेट करें और dsh web को फिर से शुरू करें।</string>
+    <string name="jobs_stop">कार्य रोकें</string>
+    <string name="jobs_stopping">रोका जा रहा है</string>
+    <string name="jobs_output_empty">अभी कोई आउटपुट नहीं</string>
+    <string name="jobs_output_dropped">पहले का आउटपुट हटा दिया गया</string>
+    <string name="archive_busy_title">अभी भी चल रहा है</string>
+    <string name="archive_busy_body">इस सेशन में अभी भी काम चल रहा है: %1$s। आर्काइव करने से पहले वह काम रोका जाएगा।</string>
+    <string name="archive_busy_confirm">रोकें और आर्काइव करें</string>
+    <string name="archive_activity_turn">मौजूदा टर्न</string>
+    <string name="archive_activity_subagent">सबएजेंट</string>
+    <string name="archive_activity_job">बैकग्राउंड कार्य</string>
+    <string name="archive_activity_schedule">शेड्यूल</string>
+    <string name="chatlist_pinned">पिन किए गए</string>
+    <string name="chatlist_session_pin">सेशन पिन करें</string>
+    <string name="chatlist_session_unpin">सेशन अनपिन करें</string>
 </resources>

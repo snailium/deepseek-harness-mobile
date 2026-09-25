@@ -264,15 +264,22 @@ private class FoldState(private val sessionId: String) {
             }
 
             "tool/result" -> {
-                val message = data.jsonObject["message"]?.jsonObject
-                val content = message?.get("content")
-                val toolCallId = (content as? JsonArray)?.firstOrNull()?.jsonObject?.get("toolCallId")
-                    ?.jsonPrimitive?.contentOrNull
-                val isError = (content as? JsonArray)?.firstOrNull()?.jsonObject?.get("isError")
-                    ?.jsonPrimitive?.booleanOrNull ?: false
+                val result = toolResultOf(data.jsonObject["message"] as? JsonObject)
                 val turn = data.jsonObject["turn"]?.jsonPrimitive?.intOrNull ?: 0
                 val step = data.jsonObject["step"]?.jsonPrimitive?.intOrNull ?: 0
-                nodes.add(ToolResultNode(event.seq, toolCallId.orEmpty(), content, isError, turn, step, data.jsonObject["meta"]))
+                nodes.add(ToolResultNode(event.seq, result.callId, result.content, result.isError, turn, step, data.jsonObject["meta"]))
+            }
+
+            // Harness 0.1.7: the agent's tool set changed mid-session. Model-visible context, not
+            // something anyone said, so it folds to a disclosure row rather than a bubble.
+            "developer/message" -> {
+                val message = data.jsonObject["message"] as? JsonObject
+                val blocks = (message?.get("content") as? JsonArray).orEmpty().mapNotNull { it as? JsonObject }
+                fun named(type: String) = blocks
+                    .filter { it["type"]?.jsonPrimitive?.contentOrNull == type }
+                    .mapNotNull { it["toolName"]?.jsonPrimitive?.contentOrNull }
+                val sourceKind = (message?.get("source") as? JsonObject)?.get("kind")?.jsonPrimitive?.contentOrNull
+                nodes.add(DeveloperMessageNode(event.seq, named("tool-addition"), named("tool-removal"), sourceKind, data))
             }
 
             "todo/write" -> {
@@ -319,6 +326,38 @@ private class FoldState(private val sessionId: String) {
     }
 
     private fun key(turn: Int, step: Int) = "$turn.$step"
+
+    private class ToolResult(val callId: String, val content: JsonElement?, val isError: Boolean)
+
+    /**
+     * The call id, error flag and body of a `tool/result` message, in either session format.
+     *
+     * Through format v3 the message was user-role and held one `tool-result` wrapper whose own
+     * `content` carried the body:
+     *
+     *     { role: "user", source: { kind: "tool", callId },
+     *       content: [ { type: "tool-result", toolCallId, isError?, content: [ …body… ] } ] }
+     *
+     * Format v4 (harness 0.1.7) made it a tool-role message with the wrapper's fields hoisted:
+     *
+     *     { role: "tool", source: { kind: "tool", callId }, toolCallId, isError?, content: [ …body… ] }
+     *
+     * Both fold to the same node, whose `content` is always the body itself, so nothing downstream
+     * has to know which harness wrote the log.
+     */
+    private fun toolResultOf(message: JsonObject?): ToolResult {
+        val content = message?.get("content")
+        val wrapper = ((content as? JsonArray)?.singleOrNull() as? JsonObject)
+            ?.takeIf { it["type"]?.jsonPrimitive?.contentOrNull == "tool-result" }
+        val sourceCallId = (message?.get("source") as? JsonObject)?.get("callId")?.jsonPrimitive?.contentOrNull
+        val callId = message?.get("toolCallId")?.jsonPrimitive?.contentOrNull
+            ?: wrapper?.get("toolCallId")?.jsonPrimitive?.contentOrNull
+            ?: sourceCallId
+        val isError = message?.get("isError")?.jsonPrimitive?.booleanOrNull
+            ?: wrapper?.get("isError")?.jsonPrimitive?.booleanOrNull
+            ?: false
+        return ToolResult(callId.orEmpty(), wrapper?.get("content") ?: content, isError)
+    }
 
     private fun mergeChunk(turn: Int, step: Int, chunk: JsonObject) {
         val type = chunk["type"]?.jsonPrimitive?.contentOrNull ?: return

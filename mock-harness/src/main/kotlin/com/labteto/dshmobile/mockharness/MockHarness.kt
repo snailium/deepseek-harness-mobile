@@ -51,7 +51,9 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * A scriptable stand-in for the DeepSeek Harness HTTP/WebSocket protocol.
  *
- * Speaks harness **0.1.3-alpha.1**:
+ * Speaks harness **0.1.3-alpha.1**, plus the 0.1.7 shapes the client now depends on — multipart
+ * answers for results that carry raw bytes ([binaryRemote]) and business refusals thrown from a
+ * handler ([RemoteFailure]):
  *  - unary calls: `POST /api/<namespace>/<method>` with a `client-request` envelope, answered
  *    with a `server-response` envelope carrying `{"ok": true, "value": ...}` or
  *    `{"ok": false, "error": {"code", "message", "details"}}`, where gateway refusals carry
@@ -92,6 +94,7 @@ class MockHarness(
     fun onStream(endpoint: String, handler: (JsonObject) -> List<JsonElement>) { streamHandlers[endpoint] = handler }
 
     private val okHandlers = ConcurrentHashMap<String, (JsonElement) -> JsonElement>()
+    private val binaryHandlers = ConcurrentHashMap<String, (JsonElement) -> Pair<JsonElement, ByteArray>>()
     private val failHandlers = ConcurrentHashMap<String, (JsonElement) -> RpcErrorData>()
     private val asyncHandlers = ConcurrentHashMap<String, suspend (JsonElement) -> JsonElement>()
     private val pendingQuestions = ConcurrentHashMap<String, PendingQuestion>()
@@ -470,6 +473,42 @@ class MockHarness(
         }
     }
 
+    /**
+     * Registers a remote whose result carries raw bytes, answered the way harness 0.1.7 answers
+     * one: `multipart/form-data` with the envelope in a `metadata` part, `null` where the bytes
+     * sat, and the bytes in a `bytes-0` part (`packages/client/connection/src/rpc-host.ts`).
+     *
+     * [handler] returns the value with its `data` slot left null, and the bytes that fill it.
+     */
+    fun binaryRemote(
+        namespace: String,
+        method: String,
+        expectedArgs: Set<String>,
+        handler: (JsonObject) -> Pair<JsonElement, ByteArray>,
+    ) {
+        val endpoint = "$namespace/$method"
+        okHandlers.remove(endpoint)
+        asyncHandlers.remove(endpoint)
+        failHandlers.remove(endpoint)
+        binaryHandlers[endpoint] = { payload ->
+            val args = (payload as? JsonObject)?.get("args") as? JsonObject
+                ?: throw IllegalArgumentException("args must be a plain object")
+            val missing = expectedArgs.filterNot { it in args.keys }
+            val unexpected = args.keys.filterNot { it in expectedArgs }
+            if (missing.isNotEmpty() || unexpected.isNotEmpty()) {
+                throw ArgumentsInvalid(argumentsInvalidMessage(endpoint, missing, unexpected))
+            }
+            handler(args)
+        }
+    }
+
+    /** A business refusal thrown out of any handler, answered as `ok: false` with this code. */
+    class RemoteFailure(
+        val code: String,
+        override val message: String,
+        val details: JsonObject = JsonObject(emptyMap()),
+    ) : RuntimeException(message)
+
     /** The gateway's `gateway/arguments-invalid` refusal, thrown out of a [remote] handler. */
     class ArgumentsInvalid(override val message: String) : RuntimeException(message)
 
@@ -767,8 +806,18 @@ class MockHarness(
         when {
             asyncHandlers.containsKey(method) ->
                 respondJson(okEnvelope(rpcId, asyncHandlers[method]!!(payload)))
+            binaryHandlers.containsKey(method) -> try {
+                val (value, bytes) = binaryHandlers[method]!!(payload)
+                respondMultipart(rpcId, value, bytes)
+            } catch (invalid: ArgumentsInvalid) {
+                respondJson(errorEnvelope(rpcId, "gateway/arguments-invalid", invalid.message))
+            } catch (failure: RemoteFailure) {
+                respondJson(errorEnvelope(rpcId, failure.code, failure.message, failure.details))
+            }
             okHandlers.containsKey(method) -> try {
                 respondJson(okEnvelope(rpcId, okHandlers[method]!!(payload)))
+            } catch (failure: RemoteFailure) {
+                respondJson(errorEnvelope(rpcId, failure.code, failure.message, failure.details))
             } catch (invalid: ArgumentsInvalid) {
                 // Since 0.1.3 every gateway refusal carries its own namespaced code; the
                 // messages are unchanged, and still name the field rather than the fault.
@@ -809,7 +858,16 @@ class MockHarness(
                         // `$events` proves readiness by answering immediately; every other
                         // stream stays silent until a test pushes to it.
                         if (endpoint == EVENTS_ENDPOINT) send(streamItem(streamId, readyFrame()))
-                        streamHandlers[endpoint]?.invoke((message["payload"] as? JsonObject)?.get("args") as? JsonObject ?: JsonObject(emptyMap()))?.forEach { send(streamItem(streamId, it)) }
+                        val args = (message["payload"] as? JsonObject)?.get("args") as? JsonObject ?: JsonObject(emptyMap())
+                        try {
+                            streamHandlers[endpoint]?.invoke(args)?.forEach { send(streamItem(streamId, it)) }
+                        } catch (invalid: ArgumentsInvalid) {
+                            streams.remove(streamId)
+                            send(streamError(streamId, "gateway/arguments-invalid", invalid.message))
+                        } catch (failure: RemoteFailure) {
+                            streams.remove(streamId)
+                            send(streamError(streamId, failure.code, failure.message))
+                        }
                     }
                     "cancel" -> {
                         streams.remove(streamId)
@@ -1006,6 +1064,45 @@ private const val REFUSED_BAD_RESPONSE = """{"accepted":false,"reason":"bad-resp
 
 private suspend fun ApplicationCall.respondJson(json: String) {
     respondText(json, ContentType.Application.Json, HttpStatusCode.OK)
+}
+
+/** A stream generation's failure frame, as the gateway ends a stream it refused. */
+private fun streamError(streamId: String, code: String, message: String): String = buildJsonObject {
+    put("type", "error")
+    put("streamId", streamId)
+    put("error", buildJsonObject { put("code", code); put("message", message); put("details", JsonObject(emptyMap())) })
+}.toString()
+
+/**
+ * A successful result whose `data` is raw bytes, laid out as undici writes `new Response(formData)`:
+ * the blob part first with a filename, then the `metadata` envelope naming where it goes.
+ */
+private suspend fun ApplicationCall.respondMultipart(rpcId: String, value: JsonElement, bytes: ByteArray) {
+    val boundary = "----formdata-undici-${UUID.randomUUID().toString().replace("-", "").take(12)}"
+    val metadata = buildJsonObject {
+        put("type", "server-response")
+        put("rpcId", rpcId)
+        put("result", buildJsonObject { put("ok", true); put("value", value) })
+        put("attachments", JsonArray(listOf(buildJsonObject {
+            put("path", JsonArray(listOf(JsonPrimitive("data"))))
+            put("codec", "bytes")
+            put("part", "bytes-0")
+        })))
+    }.toString()
+    val out = java.io.ByteArrayOutputStream()
+    fun line(text: String) = out.write((text + "\r\n").toByteArray())
+    line("--$boundary")
+    line("Content-Disposition: form-data; name=\"bytes-0\"; filename=\"blob\"")
+    line("Content-Type: application/octet-stream")
+    line("")
+    out.write(bytes)
+    line("")
+    line("--$boundary")
+    line("Content-Disposition: form-data; name=\"metadata\"")
+    line("")
+    line(metadata)
+    out.write("--$boundary--\r\n".toByteArray())
+    respondBytes(out.toByteArray(), ContentType.parse("multipart/form-data; boundary=$boundary"), HttpStatusCode.OK)
 }
 
 private fun okEnvelope(rpcId: String, value: JsonElement): String = buildJsonObject {

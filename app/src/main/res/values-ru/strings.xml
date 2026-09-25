@@ -499,4 +499,20 @@
     <string name="settings_composer">Ввод</string>
     <string name="settings_enter_to_send">Клавиша Enter отправляет сообщение</string>
     <string name="settings_enter_to_send_hint">Если выключено, Enter вставляет новую строку, а отправляет кнопка.</string>
+    <string name="connect_fail_relay_session_title">Harness отклонил реле</string>
+    <string name="connect_fail_relay_session">Реле на %1$s приняло это устройство, но harness за ним ответил 401: реле не смогло в нём авторизоваться. Повторное сопряжение не поможет — обновите dsh-relay на том компьютере и перезапустите dsh web.</string>
+    <string name="jobs_stop">Остановить задачу</string>
+    <string name="jobs_stopping">Останавливается</string>
+    <string name="jobs_output_empty">Вывода пока нет</string>
+    <string name="jobs_output_dropped">Более ранний вывод был отброшен</string>
+    <string name="archive_busy_title">Ещё выполняется</string>
+    <string name="archive_busy_body">В этом сеансе ещё выполняется работа: %1$s. Перед архивацией она будет остановлена.</string>
+    <string name="archive_busy_confirm">Остановить и архивировать</string>
+    <string name="archive_activity_turn">текущий ход</string>
+    <string name="archive_activity_subagent">субагенты</string>
+    <string name="archive_activity_job">фоновые задачи</string>
+    <string name="archive_activity_schedule">расписания</string>
+    <string name="chatlist_pinned">Закреплённые</string>
+    <string name="chatlist_session_pin">Закрепить сеанс</string>
+    <string name="chatlist_session_unpin">Открепить сеанс</string>
 </resources>

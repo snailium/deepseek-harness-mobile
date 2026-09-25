@@ -1,7 +1,7 @@
 # LAN setup for DSH Mobile
 
-This guide targets harness `0.1.6-alpha.1` plus master commit
-`0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`.
+This guide targets harness `0.1.7-rc.2` (tag `dsh-v0.1.7-rc.2`,
+`477b4f420553e8a52c2fbccc464d7561b239c443`), and still applies to `0.1.6-alpha.x`.
 
 The harness authenticates every API call and WebSocket stream. On startup it prints a
 root URL containing a launch token. In DSH Mobile, connect to the host, choose **Sign in**,

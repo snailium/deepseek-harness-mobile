@@ -499,4 +499,20 @@
     <string name="settings_composer">ตัวเขียนข้อความ</string>
     <string name="settings_enter_to_send">ปุ่ม Enter ส่งข้อความ</string>
     <string name="settings_enter_to_send_hint">เมื่อปิด ปุ่ม Enter จะขึ้นบรรทัดใหม่ และปุ่มส่งจะเป็นตัวส่ง</string>
+    <string name="connect_fail_relay_session_title">ฮาร์เนสปฏิเสธรีเลย์</string>
+    <string name="connect_fail_relay_session">รีเลย์ที่ %1$s ยอมรับอุปกรณ์นี้แล้ว แต่ฮาร์เนสที่อยู่เบื้องหลังตอบกลับ 401: รีเลย์ลงชื่อเข้าใช้ฮาร์เนสไม่ได้ การจับคู่ใหม่ไม่ช่วยอะไร — อัปเดต dsh-relay บนคอมพิวเตอร์เครื่องนั้นแล้วรีสตาร์ต dsh web</string>
+    <string name="jobs_stop">หยุดงาน</string>
+    <string name="jobs_stopping">กำลังหยุด</string>
+    <string name="jobs_output_empty">ยังไม่มีเอาต์พุต</string>
+    <string name="jobs_output_dropped">เอาต์พุตก่อนหน้าถูกตัดทิ้งแล้ว</string>
+    <string name="archive_busy_title">ยังทำงานอยู่</string>
+    <string name="archive_busy_body">เซสชันนี้ยังมีงานที่ทำงานอยู่: %1$s การเก็บถาวรจะหยุดงานเหล่านั้นก่อน</string>
+    <string name="archive_busy_confirm">หยุดและเก็บถาวร</string>
+    <string name="archive_activity_turn">เทิร์นปัจจุบัน</string>
+    <string name="archive_activity_subagent">ซับเอเจนต์</string>
+    <string name="archive_activity_job">งานเบื้องหลัง</string>
+    <string name="archive_activity_schedule">งานตามกำหนดเวลา</string>
+    <string name="chatlist_pinned">ปักหมุดแล้ว</string>
+    <string name="chatlist_session_pin">ปักหมุดเซสชัน</string>
+    <string name="chatlist_session_unpin">เลิกปักหมุดเซสชัน</string>
 </resources>

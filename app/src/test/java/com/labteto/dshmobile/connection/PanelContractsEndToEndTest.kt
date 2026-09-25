@@ -26,8 +26,32 @@ class PanelContractsEndToEndTest {
             val rest = (api.workspaceFileRead("cold-child", "README.md", WorkspaceFileRange(2, 500)) as RpcResult.Ok).value
             assertTrue(rest.eof)
             assertEquals(page.version, rest.version)
-            assertTrue(api.workspaceFileReadAll("cold-child", "README.md") is RpcResult.Ok)
-            assertTrue(api.workspaceFileReadRelated("cold-child", "index.html", "README.md") is RpcResult.Ok)
+            // Harness 0.1.7: one binary read, answered as multipart, in both of the file panel's shapes.
+            val readme = scenario.files.getValue("README.md")
+            val whole = (api.workspaceFileReadBytes("cold-child", "README.md") as RpcResult.Ok).value
+            assertArrayEquals(readme, whole.data)
+            assertTrue(whole.eof)
+            val related = (api.workspaceFileReadBytes("cold-child", "README.md", WorkspaceByteReadOptions(baseFile = "index.html")) as RpcResult.Ok).value
+            assertArrayEquals(readme, related.data)
+            val window = (api.workspaceFileReadBytes("cold-child", "README.md", WorkspaceByteReadOptions(range = WorkspaceByteRange(2, 7))) as RpcResult.Ok).value
+            assertArrayEquals(readme.copyOfRange(2, 9), window.data)
+            assertEquals("workspace-file/not-found", (api.workspaceFileReadBytes("cold-child", "gone.png") as RpcResult.Err).error.code)
+
+            // A session with running work is refused until the archive asks to stop it.
+            val refused = api.workspaceArchiveSession(WorkspaceArchiveSessionRequest("busy-demo")) as RpcResult.Err
+            assertEquals("workspace/session-active", refused.error.code)
+            val details = decodeFromJsonElement(WorkspaceSessionActiveDetails.serializer(), refused.error.details)
+            assertEquals(listOf("turn", "job"), details.activity.map { it.kind })
+            val archived = api.workspaceArchiveSession(WorkspaceArchiveSessionRequest("busy-demo", stopActivity = true)) as RpcResult.Ok
+            assertTrue("busy-demo" in archived.value.archivedSessionIds)
+
+            assertEquals(listOf("a"), (api.workspacePinSession("a") as RpcResult.Ok).value.pinnedSessionIds)
+            assertEquals(listOf("b", "a"), (api.workspacePinSession("b") as RpcResult.Ok).value.pinnedSessionIds)
+            assertEquals(listOf("b"), (api.workspaceUnpinSession("a") as RpcResult.Ok).value.pinnedSessionIds)
+
+            assertEquals("requested", (api.jobKill("s", "bash-1") as RpcResult.Ok).value.outcome)
+            assertEquals("already-finished", (api.jobKill("s", "bash-1") as RpcResult.Ok).value.outcome)
+            assertEquals("job/not-found", (api.jobKill("s", "bash-9") as RpcResult.Err).error.code)
             val first = (api.messageFeedbackPut(MessageFeedbackPutRequest("s", "m", "positive", null, "Keep this note")) as RpcResult.Ok).value
             assertTrue(first.ok)
             val conflict = (api.messageFeedbackPut(MessageFeedbackPutRequest("s", "m", "negative", null, "Do not discard")) as RpcResult.Ok).value

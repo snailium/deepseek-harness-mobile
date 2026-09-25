@@ -499,4 +499,20 @@
     <string name="settings_composer">Rédaction</string>
     <string name="settings_enter_to_send">La touche Entrée envoie le message</string>
     <string name="settings_enter_to_send_hint">Désactivé, Entrée insère un saut de ligne et le bouton envoie.</string>
+    <string name="connect_fail_relay_session_title">Le harness a refusé le relais</string>
+    <string name="connect_fail_relay_session">Le relais à %1$s a accepté cet appareil, mais le harness derrière lui a répondu 401 : le relais n\'a pas pu s\'y connecter. Réappairer n\'y changera rien — mettez à jour dsh-relay sur cet ordinateur et redémarrez dsh web.</string>
+    <string name="jobs_stop">Arrêter la tâche</string>
+    <string name="jobs_stopping">Arrêt en cours</string>
+    <string name="jobs_output_empty">Aucune sortie pour l’instant</string>
+    <string name="jobs_output_dropped">La sortie antérieure a été supprimée</string>
+    <string name="archive_busy_title">Toujours en cours</string>
+    <string name="archive_busy_body">Cette session a encore du travail en cours : %1$s. L’archiver arrête d’abord ce travail.</string>
+    <string name="archive_busy_confirm">Arrêter et archiver</string>
+    <string name="archive_activity_turn">le tour en cours</string>
+    <string name="archive_activity_subagent">les sous-agents</string>
+    <string name="archive_activity_job">les tâches en arrière-plan</string>
+    <string name="archive_activity_schedule">les planifications</string>
+    <string name="chatlist_pinned">Épinglées</string>
+    <string name="chatlist_session_pin">Épingler la session</string>
+    <string name="chatlist_session_unpin">Désépingler la session</string>
 </resources>

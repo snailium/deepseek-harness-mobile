@@ -3,7 +3,7 @@ package com.labteto.dshmobile.core.wire.dto
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
-/** Browser-safe contracts at upstream 0d1f500. */
+/** Browser-safe contracts, first transcribed at upstream 0d1f500. */
 @Serializable data class PermissionCatalog(val options: List<PresetOption> = emptyList())
 @Serializable data class WorkspaceUnarchiveSessionRequest(val sessionId: String)
 @Serializable data class WorkspaceFileRange(val offset: Int = 1, val limit: Int = 500)
@@ -11,8 +11,6 @@ import kotlinx.serialization.json.JsonElement
 @Serializable data class WorkspaceFileStat(val absolutePath: String, val version: String, val bytes: Long? = null)
 @Serializable data class WorkspaceFileText(val absolutePath: String, val version: String, val bytes: Long? = null,
     val offset: Int, val text: String, val lines: Int, val eof: Boolean)
-@Serializable data class WorkspaceFileBytes(val absolutePath: String, val version: String, val bytes: Long? = null,
-    val offset: Long, val data: String, val eof: Boolean)
 @Serializable data class WorkspaceDirectoryEntry(val name: String, val type: String, val size: Long? = null)
 @Serializable data class WorkspaceDirectoryListing(val path: String, val entries: List<WorkspaceDirectoryEntry>, val truncated: Boolean)
 @Serializable data class WorkspaceFileChange(val absolutePath: String, val version: String? = null, val absent: Boolean = false)
