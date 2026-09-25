@@ -43,8 +43,13 @@ data class AgentPresetEntry(
 @Serializable
 data class AgentPresetListValue(
     @SerialName("presets") val presets: List<AgentPresetEntry> = emptyList(),
-    @SerialName("authorable") val authorable: Boolean,
+    /**
+     * Whether presets can be authored from a client. Harness 0.1.7 declares presets in profile YAML
+     * and dropped the field, so its absence means "no", not a malformed roster.
+     */
+    @SerialName("authorable") val authorable: Boolean = false,
     @SerialName("hasDocument") val hasDocument: Boolean = false,
+    /** Dropped in harness 0.1.7, which gates the picker client-side; absent reads as enabled. */
     @SerialName("modeSelectionEnabled") val modeSelectionEnabled: Boolean = true,
 )
 

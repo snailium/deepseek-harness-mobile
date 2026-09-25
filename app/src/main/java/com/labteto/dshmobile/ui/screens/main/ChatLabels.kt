@@ -40,6 +40,17 @@ internal fun jobStatusDot(status: JobStatus): StateDotState = when (status) {
     JobStatus.UNKNOWN -> StateDotState.Idle
 }
 
+/** A job's lifecycle in words, or null for a state this build cannot name. */
+@Composable
+internal fun jobStatusLabel(status: JobStatus): String? = when (status) {
+    JobStatus.RUNNING -> stringResource(R.string.jobs_running)
+    JobStatus.STOPPING -> stringResource(R.string.jobs_stopping)
+    JobStatus.COMPLETED -> stringResource(R.string.jobs_completed)
+    JobStatus.KILLED -> stringResource(R.string.jobs_killed)
+    JobStatus.FAILED -> stringResource(R.string.jobs_failed)
+    JobStatus.UNKNOWN -> null
+}
+
 @Composable
 internal fun workflowStatusLabel(status: String?): String? = when (status) {
     "running" -> stringResource(R.string.workflow_running)

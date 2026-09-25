@@ -1,7 +1,12 @@
 package com.labteto.dshmobile.conformance
 
+import com.labteto.dshmobile.core.wire.RemoteStreamException
 import com.labteto.dshmobile.core.wire.RpcError
 import com.labteto.dshmobile.core.wire.RpcResult
+import com.labteto.dshmobile.core.wire.WireJson
+import com.labteto.dshmobile.core.wire.dto.JobFollowRequest
+import com.labteto.dshmobile.core.wire.dto.JobListFrame
+import com.labteto.dshmobile.core.wire.dto.JobListRequest
 import com.labteto.dshmobile.core.wire.dto.GoalRef
 import com.labteto.dshmobile.core.wire.dto.MessageFeedbackDeleteRequest
 import com.labteto.dshmobile.core.wire.dto.MessageFeedbackPutRequest
@@ -13,14 +18,23 @@ import com.labteto.dshmobile.core.wire.dto.SessionRenameRequest
 import com.labteto.dshmobile.core.wire.dto.SessionSelectModelRequest
 import com.labteto.dshmobile.core.wire.dto.SkillListRequest
 import com.labteto.dshmobile.core.wire.dto.TerminalCreateRequest
+import com.labteto.dshmobile.core.wire.dto.WorkspaceArchiveSessionRequest
+import com.labteto.dshmobile.core.wire.dto.WorkspaceByteRange
+import com.labteto.dshmobile.core.wire.dto.WorkspaceByteReadOptions
 import com.labteto.dshmobile.core.wire.dto.WorkspaceCreateRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceDeleteRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceRenameRequest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
@@ -109,6 +123,25 @@ class EndpointCatalogueConformanceTest {
         }
     }
 
+    /**
+     * The same verdict for a stream Remote: open it, and wait for its first item or its end.
+     *
+     * A stream that does not understand its arguments fails its generation with the same gateway
+     * codes a unary call gets, so the first signal is enough. A stream that stays open without
+     * sending anything is a pass too: it was accepted, and some streams wait for news.
+     */
+    private suspend fun checkStream(endpoint: String, args: JsonObject): JsonElement? {
+        val stream = client.mux.open(endpoint, args)
+        return try {
+            withTimeoutOrNull(STREAM_BUDGET_MS) { stream.receive() }
+        } catch (e: RemoteStreamException) {
+            if (e.error.code in misunderstood) failures += "$endpoint (stream) -> ${e.error.code}: ${e.error.message}"
+            null
+        } finally {
+            stream.cancel()
+        }
+    }
+
     @Test
     fun `the harness understands every call this client makes`() = runBlocking {
         val missing = "00000000-0000-4000-8000-000000000000"
@@ -122,7 +155,6 @@ class EndpointCatalogueConformanceTest {
         check("permissionPresets/catalog", client.api.permissionCatalog())
         check("pluginInventory/list", client.api.pluginInventoryList())
         check("settings/describe", client.api.settingsDescribe())
-        check("settings/canOpenAgentPresetDirectory", client.api.settingsCanOpenAgentPresetDirectory())
         check("llm/listProviders", client.api.llmListProviders())
         check("llm/listConfigurableProviders", client.api.llmListConfigurableProviders())
         check("directoryPicker/list", client.api.hostListDirectory())
@@ -140,7 +172,6 @@ class EndpointCatalogueConformanceTest {
         // Session-addressed reads.
         check("commands/list", client.api.commandsList(sessionId))
         check("skills/list", client.api.skillList(SkillListRequest(sessionId)))
-        check("subagents/list", client.api.subagentList(sessionId))
         check("fileReferences/list", client.api.fileReferencesList(sessionId, "R"))
         check("messageFeedback/list", client.api.messageFeedbackList(sessionId))
         check("terminal/environment", client.api.terminalEnvironment(sessionId))
@@ -149,14 +180,24 @@ class EndpointCatalogueConformanceTest {
         check("workspaceFiles/list", client.api.workspaceFileList(sessionId, "."))
         check("workspaceFiles/stat", client.api.workspaceFileStat(sessionId, "."))
         check("workspaceFiles/read", client.api.workspaceFileRead(sessionId, "missing.txt"))
+        // `readBytes` in each of the three shapes the file panel asks for: a whole file, a window,
+        // and a file named relative to another (harness 0.1.7 folded `readAll`/`readRelated` in).
         check("workspaceFiles/readBytes", client.api.workspaceFileReadBytes(sessionId, "missing.txt"))
-        check("workspaceFiles/readAll", client.api.workspaceFileReadAll(sessionId, "missing.txt"))
-        check("workspaceFiles/readRelated", client.api.workspaceFileReadRelated(sessionId, "a.html", "b.png"))
+        check(
+            "workspaceFiles/readBytes (range)",
+            client.api.workspaceFileReadBytes(sessionId, "missing.txt", WorkspaceByteReadOptions(range = WorkspaceByteRange())),
+        )
+        check(
+            "workspaceFiles/readBytes (baseFile)",
+            client.api.workspaceFileReadBytes(sessionId, "b.png", WorkspaceByteReadOptions(baseFile = "a.html")),
+        )
 
         // Session-addressed writes, aimed at things that do not exist.
         check("session/rename", client.api.sessionRename(SessionRenameRequest(sessionId, "conformance")))
         check("session/cancel", client.api.sessionCancel(SessionCancelRequest(sessionId)))
         check("session/fork", client.api.sessionFork(SessionForkRequest(missing)))
+        check("session/fork (atSeq)", client.api.sessionFork(SessionForkRequest(missing, atSeq = 1)))
+        check("job/kill", client.api.jobKill(sessionId, "bash-999"))
         check("session/attachment", client.api.sessionAttachment(SessionAttachmentRequest(sessionId, missing)))
         check(
             "session/selectModel",
@@ -193,19 +234,87 @@ class EndpointCatalogueConformanceTest {
         // Presets and workspaces, aimed at identities that cannot exist.
         check("agentPresets/select", client.api.agentPresetSelect(sessionId, "no-such-preset"))
         check("agentPresets/read", client.api.agentPresetRead("no-such-preset"))
-        check("agentPresets/copy", client.api.agentPresetCopy(from = "no-such-preset", id = "copy"))
-        check("agentPresets/deletePreset", client.api.agentPresetRemove("no-such-preset"))
-        check("settings/openAgentPresetDirectory", client.api.agentPresetOpenDirectory("no-such-preset"))
         check("workspace/rename", client.api.workspaceRename(WorkspaceRenameRequest(missing, "x")))
+        check("workspace/archiveSession", client.api.workspaceArchiveSession(WorkspaceArchiveSessionRequest(missing)))
+        check(
+            "workspace/archiveSession (stopActivity)",
+            client.api.workspaceArchiveSession(WorkspaceArchiveSessionRequest(missing, stopActivity = true)),
+        )
+        check("workspace/pinSession", client.api.workspacePinSession(missing))
+        check("workspace/unpinSession", client.api.workspaceUnpinSession(missing))
         check("workspace/delete", client.api.workspaceDelete(WorkspaceDeleteRequest(missing)))
         check("workspace/unarchiveSession", client.api.workspaceUnarchiveSession(missing))
         check("credentials/set", client.api.credentialsSet("CONFORMANCE_ONLY", "value"))
         check("credentials/unset", client.api.credentialsUnset("CONFORMANCE_ONLY"))
+
+        // The streams the app opens beyond `$events` and `session/control`, which have tests of
+        // their own. `job/list` and the file watch are harness 0.1.7 shapes.
+        client.mux.start()
+        withTimeoutOrNull(STREAM_BUDGET_MS) { client.mux.awaitOpen() }
+            ?: error("the mux did not open")
+        val jobs = checkStream(
+            "job/list",
+            buildJsonObject { put("request", WireJson.encodeToJsonElement(JobListRequest.serializer(), JobListRequest(sessionId))) },
+        )
+        if (jobs != null) {
+            val frame = WireJson.decodeFromJsonElement(JobListFrame.serializer(), jobs)
+            assertEquals("job/list opens with a whole-set rows frame", "rows", frame.type)
+        }
+        checkStream(
+            "job/follow",
+            buildJsonObject {
+                put("request", WireJson.encodeToJsonElement(JobFollowRequest.serializer(), JobFollowRequest("bash-999", sessionId)))
+            },
+        )
+        checkStream(
+            "workspaceFiles/changes",
+            buildJsonObject {
+                put("workspaceFileScopeId", JsonPrimitive(sessionId))
+                put("path", JsonPrimitive("."))
+            },
+        )
+        checkStream(
+            "workspace/follow",
+            JsonObject(emptyMap()),
+        )
 
         assertEquals(
             "the harness did not understand these calls:\n" + failures.joinToString("\n"),
             emptyList<String>(),
             failures,
         )
+    }
+
+    /**
+     * A whole file comes back as its exact bytes, which on harness 0.1.7 means through the
+     * multipart answer rather than base64 in JSON. Every byte value is written so an encoding
+     * mistake anywhere in the path (a charset, a text decode, a truncation at a zero byte) shows.
+     */
+    @Test
+    fun `readBytes returns a file's exact bytes`() = runBlocking {
+        val bytes = ByteArray(512) { (it % 256).toByte() }
+        java.io.File(harness.workspacePath, "blob.bin").writeBytes(bytes)
+        java.io.File(harness.workspacePath, "page.html").writeText("<img src=\"blob.bin\">")
+        val created = client.api.sessionCreate(SessionCreateRequest(cwd = harness.workspacePath))
+        val sessionId = (created as? RpcResult.Ok)?.value?.sessionId ?: error("no session: $created")
+
+        val whole = client.api.workspaceFileReadBytes(sessionId, "blob.bin")
+        assertTrue("whole-file read failed: $whole", whole is RpcResult.Ok)
+        assertArrayEquals(bytes, (whole as RpcResult.Ok).value.data)
+        assertTrue(whole.value.eof)
+
+        val window = client.api.workspaceFileReadBytes(
+            sessionId, "blob.bin", WorkspaceByteReadOptions(range = WorkspaceByteRange(offset = 256, length = 16)),
+        )
+        assertTrue("windowed read failed: $window", window is RpcResult.Ok)
+        assertArrayEquals(bytes.copyOfRange(256, 272), (window as RpcResult.Ok).value.data)
+
+        val related = client.api.workspaceFileReadBytes(sessionId, "blob.bin", WorkspaceByteReadOptions(baseFile = "page.html"))
+        assertTrue("relative read failed: $related", related is RpcResult.Ok)
+        assertArrayEquals(bytes, (related as RpcResult.Ok).value.data)
+    }
+
+    private companion object {
+        const val STREAM_BUDGET_MS = 5_000L
     }
 }

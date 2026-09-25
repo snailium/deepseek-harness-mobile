@@ -55,6 +55,8 @@ object EventClassification {
         "tool-workflow/agent-start",
         "tool-workflow/agent-end",
         "subagent/descriptor",
+        // Harness 0.1.7: the agent's tool set changed. Folded to a context disclosure row.
+        "developer/message",
     )
 
     /**

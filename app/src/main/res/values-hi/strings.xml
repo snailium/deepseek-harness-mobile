@@ -476,4 +476,18 @@
     <string name="image_offload">अनुरोध से पुरानी छवियाँ हटाई गईं</string>
     <string name="panel_open_host">होस्ट पर खोलें</string>
     <string name="tool_copy_code">कोड कॉपी करें</string>
+    <string name="jobs_stop">कार्य रोकें</string>
+    <string name="jobs_stopping">रोका जा रहा है</string>
+    <string name="jobs_output_empty">अभी कोई आउटपुट नहीं</string>
+    <string name="jobs_output_dropped">पहले का आउटपुट हटा दिया गया</string>
+    <string name="archive_busy_title">अभी भी चल रहा है</string>
+    <string name="archive_busy_body">इस सेशन में अभी भी काम चल रहा है: %1$s। आर्काइव करने से पहले वह काम रोका जाएगा।</string>
+    <string name="archive_busy_confirm">रोकें और आर्काइव करें</string>
+    <string name="archive_activity_turn">मौजूदा टर्न</string>
+    <string name="archive_activity_subagent">सबएजेंट</string>
+    <string name="archive_activity_job">बैकग्राउंड कार्य</string>
+    <string name="archive_activity_schedule">शेड्यूल</string>
+    <string name="chatlist_pinned">पिन किए गए</string>
+    <string name="chatlist_session_pin">सेशन पिन करें</string>
+    <string name="chatlist_session_unpin">सेशन अनपिन करें</string>
 </resources>

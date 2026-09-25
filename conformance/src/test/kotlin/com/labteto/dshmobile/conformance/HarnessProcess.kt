@@ -110,6 +110,19 @@ class HarnessProcess private constructor(
         fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
         /**
+         * Whether this checkout's DeepSeek adapter still takes a `protocol` setting.
+         *
+         * Harness 0.1.7 speaks only the Messages API and refuses the whole profile at load when
+         * the key is present at all ("protocol is not configurable"); its mock model server moved
+         * to the same API, so no setting is needed. Read off the source rather than a version
+         * string, since a checkout carries no version the harness reports.
+         */
+        private fun namesItsProtocol(root: File): Boolean {
+            val config = File(root, "packages/llm/llm-deepseek/src/config.ts")
+            return !config.isFile || !config.readText().contains("protocol is not configurable")
+        }
+
+        /**
          * Boot a harness and wait for it to announce itself.
          *
          * @param model a scriptable model server to point the harness at, or null to leave it with
@@ -122,9 +135,9 @@ class HarnessProcess private constructor(
             val home = createTempDir("dsh-home")
             val workspace = createTempDir("dsh-workspace")
 
-            if (model != null) {
-                // The provider's protocol has to be named, or the adapter picks its own default and
-                // the mock server answers a shape the harness will not read.
+            if (model != null && namesItsProtocol(root)) {
+                // Through 0.1.6 the provider's protocol had to be named, or the adapter picked its
+                // own default and the mock server answered a shape the harness would not read.
                 File(home, "settings.yaml").writeText("llm-deepseek:\n  protocol: chat-completions\n")
             }
 

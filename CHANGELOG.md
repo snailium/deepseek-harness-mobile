@@ -3,6 +3,68 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [0.12.0] - 2026-09-25
+
+Moves the protocol baseline to DeepSeek Harness 0.1.7-rc.2. A 0.1.6 harness still works: where
+0.1.7 changed a shape, the app reads both, and it picks one from what the host answers. There is
+no version check.
+
+### Fixed
+
+- **Against 0.1.7, every tool card lost its result.** Session format v4 moved a tool result's
+  call id and error flag off the wrapper block inside its content and onto the message itself.
+  The fold still read the wrapper, so each result folded with an empty call id and paired with no
+  call, and the card showed no output, error text or exit code. Nothing crashed, so a
+  conformance test now drives a real tool-calling turn against the harness and checks that the
+  two pair up.
+- **The preset list failed to load on 0.1.7.** The roster dropped `authorable`, which this client
+  required, and that one missing field failed the whole list. A missing value now reads as false.
+- **The subagent sheet and the Jobs card stayed empty on 0.1.7.** `subagents/list` was removed in
+  favour of the parent's `subagentCatalog` projection, and jobs moved off `session/control` onto a
+  `job/list` stream. The app reads both, and still asks a 0.1.6 host the old way.
+- **Image and PDF previews, and the pictures inside an HTML preview, failed on 0.1.7.** `readAll`
+  and `readRelated` were folded into `readBytes`, which now answers as multipart/form-data with
+  the raw bytes in their own part. The client decodes that, and repeats the read the 0.1.6 way
+  when the host refuses the new argument. The live file watch now takes a path, so each open
+  preview gets its own watch. Before this, the host's refusal was swallowed and previews went
+  stale.
+- **Archiving a running session did nothing.** 0.1.7 refuses to archive a session whose turn,
+  subagents or jobs are still running. The app now says what is running and offers to stop it
+  and archive.
+- **A harness 401 behind a relay was reported as a device-token problem**, which sent people to
+  re-pair when re-pairing could not help. The app now says the harness refused the relay and
+  points at updating `dsh-relay`. The Recent list also re-checks its rows every time the connect
+  screen resumes, so one failed attempt no longer marks a harness unavailable for the rest of the
+  process. (#40, #41, from @js-easy-school)
+
+### Added
+
+- **Stop a background job, and watch its output.** On 0.1.7 the Jobs card has a stop button on
+  running rows, and tapping a job opens its output live. The view follows the tail and notes
+  when earlier output was already dropped.
+- **Pinned sessions.** Pin and unpin from a session's menu, and pinned sessions lead the drawer
+  in their own section. The option is hidden against a harness without pinning.
+- **Localized approval reasons.** When the harness sends a localized reason with an approval (an
+  Auto review denial or a sandbox escalation), the card shows it in your language.
+- **Tool-set changes in the transcript.** 0.1.7's new `developer/message` event records the
+  agent's tools changing mid-session, and it shows as a collapsed context row naming the tools.
+
+### Changed
+
+- The protocol baseline in Settings → About reads 0.1.7-rc.2.
+- A turn that ends in a way the transcript has nothing to say about (0.1.7's `forked`, or
+  anything newer) no longer leaves an empty row.
+- The preset authoring calls that 0.1.7 deleted are removed from the client. Nothing in the app
+  used them.
+
+### Internal
+
+- The conformance suite runs against 0.1.7-rc.2. It no longer writes the `protocol` setting that
+  0.1.7 refuses, it covers every call and stream above, and it reads a file back byte for byte
+  through the multipart answer.
+- The mock harness speaks the 0.1.7 shapes, multipart included, and the pinned protocol fixture
+  is re-transcribed from rc.2.
+
 ## [0.11.7] - 2026-09-21
 
 Contributions from @snailium, offered from a long-lived fork and split into reviewable pieces.

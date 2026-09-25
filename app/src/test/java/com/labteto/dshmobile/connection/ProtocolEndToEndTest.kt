@@ -10,6 +10,7 @@ import com.labteto.dshmobile.core.wire.LoopConfig
 import com.labteto.dshmobile.core.wire.LoopSinks
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.RemoteStreamMux
+import com.labteto.dshmobile.core.wire.RemoteStreamException
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.WsChannel
 import com.labteto.dshmobile.core.wire.dto.APPROVAL_REQUEST_EVENT
@@ -25,10 +26,15 @@ import com.labteto.dshmobile.core.wire.dto.SessionPromptValue
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
 import com.labteto.dshmobile.core.wire.dto.PromptContentPart
 import com.labteto.dshmobile.core.wire.dto.SessionAssistantStreamFrame
+import com.labteto.dshmobile.core.wire.dto.JobFollowFrame
+import com.labteto.dshmobile.core.wire.dto.JobFollowFrameSerializer
+import com.labteto.dshmobile.core.wire.dto.JobStatus
+import com.labteto.dshmobile.core.wire.dto.jobRowsOf
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
 import com.labteto.dshmobile.core.wire.newPromptRequestId
 import com.labteto.dshmobile.mockharness.ARGS_REQUIRED
 import com.labteto.dshmobile.mockharness.MockHarness
+import com.labteto.dshmobile.mockharness.PanelScenario
 import com.labteto.dshmobile.core.session.AssistantLiveState
 import com.labteto.dshmobile.core.session.AssistantMessageNode
 import com.labteto.dshmobile.core.session.EventFold
@@ -586,6 +592,51 @@ class ProtocolEndToEndTest {
             .jsonObject["result"]!!.jsonObject["error"]!!.jsonObject
         assertEquals("gateway/internal", error["code"]!!.jsonPrimitive.content)
         assertEquals(ARGS_REQUIRED, error["message"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `harness 0_1_7 streams carry jobs and refuse a workspace-wide file watch`() = runBlocking {
+        PanelScenario(harness)
+        val mux = mux()
+        mux.start()
+        try {
+            withTimeoutOrNull(10_000) { mux.awaitOpen() } ?: error("mux did not open")
+            val list = mux.open(
+                "job/list",
+                buildJsonObject { putJsonObject("request") { put("sessionId", "s") } },
+            )
+            val rows = jobRowsOf(withTimeoutOrNull(10_000) { list.receive() } ?: error("no rows frame"))!!
+            assertEquals(listOf("bash-1"), rows.map { it.id })
+            assertEquals(JobStatus.RUNNING, rows.single().status)
+            list.cancel()
+
+            val follow = mux.open(
+                "job/follow",
+                buildJsonObject { putJsonObject("request") { put("sessionId", "s"); put("jobId", "bash-1") } },
+            )
+            val opened = decodeFromJsonElement(JobFollowFrameSerializer, withTimeoutOrNull(10_000) { follow.receive() }!!)
+            assertTrue(opened is JobFollowFrame.Opened)
+            val output = decodeFromJsonElement(JobFollowFrameSerializer, withTimeoutOrNull(10_000) { follow.receive() }!!)
+            assertEquals("PASS  a.test\n", (output as JobFollowFrame.Output).chunks.single().text)
+            follow.cancel()
+
+            // The shape `WorkspacePanels` falls back to only after the per-file watch is refused.
+            val wide = mux.open(
+                "workspaceFiles/changes",
+                buildJsonObject { put("workspaceFileScopeId", "s") },
+            )
+            val refusal = runCatching { withTimeoutOrNull(10_000) { wide.receive() } }.exceptionOrNull()
+            assertEquals("gateway/arguments-invalid", (refusal as RemoteStreamException).error.code)
+            val one = mux.open(
+                "workspaceFiles/changes",
+                buildJsonObject { put("workspaceFileScopeId", "s"); put("path", "README.md") },
+            )
+            val ready = withTimeoutOrNull(10_000) { one.receive() }!!.jsonObject
+            assertEquals("ready", ready["kind"]!!.jsonPrimitive.content)
+            one.cancel()
+        } finally {
+            mux.close()
+        }
     }
 
     @Test
