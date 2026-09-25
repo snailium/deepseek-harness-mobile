@@ -134,9 +134,9 @@ cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
 
 echo
 echo "published: $NAME"
-echo "url:       http://192.168.111.90:7777/$NAME"
+echo "url:       http://192.168.111.90:7777/apk/$NAME"
 echo "version:   $VERSION  (unchanged — this path does not version)"
 echo "commit:    $SHORT_SHA"
 echo
-echo "The APK server serves from inside apk/, so the URL carries no /apk/ segment."
+echo "The APK server serves the workspace root, so the /apk/ segment is part of the URL."
 echo "The versioned channel is the weekly GitHub release; see RELEASE-POLICY.md."
