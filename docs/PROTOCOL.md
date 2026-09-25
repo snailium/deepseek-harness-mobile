@@ -4,8 +4,10 @@ What DSH Mobile speaks, in one page. Authoritative shapes live in the harness
 repository — `packages/api/*/src/types.ts`,
 `packages/api/gateway/src/stream-protocol.ts`, `packages/llm/llm/src/assistant-stream.ts`
 and `packages/client/file-upload/src/*` — and this document records the
-subset the app implements, against harness **0.1.6-alpha.1 + master** at
-`0d1f50007f9bca3f52b06e1c3074fa14d5fb0720`.
+subset the app implements, against harness **0.1.7-rc.2** (tag `dsh-v0.1.7-rc.2`,
+`477b4f420553e8a52c2fbccc464d7561b239c443`). Where 0.1.7 changed a shape the app
+still reads the 0.1.6 one too; [0.12.0 contract additions](#0120-contract-additions-harness-017)
+lists both.
 
 ## Envelopes
 
@@ -68,6 +70,8 @@ this client reads:
 |---|---|---|
 | `session/attachment-invalid` | `attachment-error` | a prompt's or command's attachments were refused; `details.reason` names the bound (`IMAGE_TOO_LARGE`, `FILE_NOT_STAGED`, `SUBAGENT_FILE_UNSUPPORTED`, …) |
 | `session/agent-busy` | `agent-busy` | the agent cannot take the request now |
+| `workspace/session-active` | (0.1.7) | archive refused: the session still has work running; `details.activity` names it |
+| `job/not-found` | (0.1.7) | `job/kill` found no row under that id; the client treats it as already gone |
 | `session/not-found` | `session-not-found` | no such session |
 | `gateway/arguments-invalid` | `internal` | the args object did not match the descriptor |
 | `gateway/input-invalid` | `internal` | a `request` object failed its codec |
@@ -146,6 +150,26 @@ the log as a content block:
 
 There is no read-back route for a file; the bytes are for the agent's own file
 tools, and the client renders the block as a name-and-size chip.
+
+### Answers that carry bytes (multipart)
+
+From harness 0.1.7 a Remote whose result holds raw bytes is answered as
+`multipart/form-data` rather than JSON. Today that is `workspaceFiles/readBytes`
+(and `officeToPdf/render`, which this client does not call). The `metadata` part is
+the ordinary envelope with `null` wherever a byte array sat, plus a list saying
+which part fills it; each array rides in its own `bytes-N` part:
+
+```
+Content-Type: multipart/form-data; boundary=…
+--…  name="bytes-0"; filename="blob"   <raw bytes>
+--…  name="metadata"
+{"type":"server-response","rpcId":"…","result":{"ok":true,"value":{…,"data":null}},
+ "attachments":[{"path":["data"],"codec":"bytes","part":"bytes-0"}]}
+```
+
+A failure is still a JSON envelope. `RpcMultipart` (`core/.../wire/`) splits the
+body; the transport hands it over undecoded whenever the `Content-Type` is
+multipart.
 
 ### Downloads (no envelope)
 
@@ -269,9 +293,12 @@ The streams this app opens:
 | Endpoint | Opens with | Carries |
 |---|---|---|
 | `$events` | `ready` | host notifications and pending waterfalls |
-| `session/control` | complete `baseline` | queue, jobs and projections for every live session |
+| `session/control` | complete `baseline` | projections for every live session (and queue and jobs from a 0.1.6 host) |
 | `session/follow` | complete `snapshot` (+ `assistantStream` baseline) | one session's journal, and the reply being written |
-| `workspace/follow` | complete `baseline` | the workspace registry |
+| `workspace/follow` | complete `baseline` | the workspace registry, its archive set and (0.1.7) its pin set |
+| `job/list` | `{type:"rows",jobs}` | the open session's background jobs, whole-set on every change (0.1.7) |
+| `job/follow` | `opened` | one job's retained output, then its settled state (0.1.7; opened from the Jobs card) |
+| `workspaceFiles/changes` | `{kind:"ready"}` | invalidations for one open preview's file (0.1.7 takes a `path`) |
 
 **`$events`** is the connection's liveness source, opened unconditionally rather
 than on demand. Its four frame kinds:
@@ -429,7 +456,8 @@ watermark.
 | `goal`, `todos`, `plan`, `title`, `sessionListMetadata` | the docks and list metadata |
 | `inbox` | `{"next-turn": [UserMessage], "next-step": [UserMessage]}` — the agent's pending input, and the queue dock's source since current master deleted `session/control`'s `queues` map and its `queue` frame. Placement is the client's to derive: next-turn is `queued`, next-step is `steering` from a `user` source and `context` otherwise |
 | `agentPreset` | `string \| null` — the preset this session runs |
-| `subagentCatalog`, `subagentTiming`, `subagent` | the child roster, a child's active-turn duration, and a descriptor-backed child's identity |
+| `subagentCatalog` | `[{id, createdAt, mode: one-shot\|continuable\|unknown, label?}]` — the direct children, and since 0.1.7 the **only** source of them (`subagents/list` is gone). Activity is not in it: a child's running state is its own session row's `running` and `api-session/status` |
+| `subagentTiming`, `subagent` | a child's active-turn duration, and a descriptor-backed child's identity |
 | `turnOutline`, `schedule` | new in 0.1.2–0.1.3; carried but not yet read by this client |
 
 `turnBoundary` is **not** on this list, though 0.11.4 said it was: it is declared
@@ -627,7 +655,8 @@ the phone's own /24.
 
 HTML/SVG previews disable JavaScript, file/content access, external network loads, and
 navigation; they have no native bridge. Related assets are fetched by Kotlin through
-`workspaceFiles/readRelated` with bounded size and timeout. Unsupported files retain
+`workspaceFiles/readBytes` with `options.baseFile` (`readRelated` on a 0.1.6 host) with
+bounded size and timeout. Unsupported files retain
 the path, retry, and an explicit host-open action, subject to host availability.
 
 Photo picking uses `GetMultipleContents("image/*")`. URI reads, bounds decoding and
@@ -635,3 +664,64 @@ thumbnail decoding run sequentially off the main thread. The image admission led
 includes staged and newly accepted images, excluding file receipts. Valid results are
 staged together in picker order and sent in one prompt. Drafts and asynchronous work
 belong to a `(host, session)` composer for the lifetime of the app process.
+
+## 0.12.0 contract additions (harness 0.1.7)
+
+Harness 0.1.7 writes session format v4 and moved several endpoints. Each item also says
+what the app does with a 0.1.6 host, which it still serves. The app decides by what the
+host answers; it never checks a version.
+
+- **`tool/result` (format v4).** The message is tool-role, and the call id and error flag
+  sit on it rather than on a wrapper block:
+  `{role:"tool", source:{kind:"tool",callId}, toolCallId, isError?, content:[…body…]}`.
+  Format v3 nested the body in `content:[{type:"tool-result", toolCallId, isError?,
+  content:[…]}]`. The fold reads both and always hands the body itself to the tool card.
+  A fork cut mid-turn closes each open call with a synthetic failed result
+  (`ToolNotStartedError`), which pairs like any other.
+- **`developer/message` (new durable type).** `{turn, step, headerSeq?, message:{role:
+  "developer", source:{kind:"tool-registry"}, content:[{type:"tool-addition"|
+  "tool-removal", toolName}]}}`: the agent's tool set changed. It is a surface message and
+  renders as a context row naming the tools.
+- **Message sources.** `{kind:"plugin", plugin:X}` became `{kind:X}` (`goal`,
+  `runtime-context`, `compact-checkpoint`, …). Injected context is still "anything but
+  `user`", so nothing changed in how those render.
+- **`turn/end`** gains `reason.kind: "forked"`. The transcript draws only the kinds it has
+  words for; others no longer cost an empty row.
+- **Subagents.** `subagents/list` is removed (a plain-text 404). The list comes from the
+  `subagentCatalog` projection; on a host without that projection the app still calls
+  `subagents/list`.
+- **Jobs.** `session/control` no longer carries `jobs` or `jobs` frames. The app opens
+  `job/list` with `{request:{sessionId}}` for the open session; a host that refuses it
+  keeps feeding the card from `session/control`. With `job/list` present the card can
+  stop a job (`job/kill`, `{request:{sessionId, jobId}}` → `{outcome: requested |
+  already-finished}`) and follow one (`job/follow`, `{request:{jobId, sessionId?, from?}}`
+  → `opened{job, from}`, `output{chunks[{at, text, channel?, gapBefore?}], next, lossy?}`,
+  `status{job}`). `JobView` gains `progress` and `owner`.
+- **Files.** `readAll` and `readRelated` are gone. `readBytes` takes
+  `{workspaceFileScopeId, path, options:{range?, baseFile?}}`: no `range` reads the whole
+  file under the host's cap, and `baseFile` resolves a relative `path` from that file's
+  directory. It answers as multipart (above). A 0.1.6 host refuses `options` with
+  `gateway/arguments-invalid`, and the client repeats the read as `readAll`, `readRelated`
+  or `readBytes{range}` and decodes base64. `workspaceFiles/changes` watches one target
+  per stream (`{workspaceFileScopeId, path}`) and opens with `{kind:"ready"}`; the app
+  opens one per preview tab and falls back to the path-less form when refused.
+- **Archive.** `workspace/archiveSession` refuses a session with running work as
+  `workspace/session-active {sessionId, activity:[{kind, items?}]}`. The app names the
+  work and, if the person agrees, archives again with `stopActivity: true`. The flag is
+  omitted otherwise, which a 0.1.6 host requires.
+- **Pins.** `workspace/pinSession` / `unpinSession` (`{request:{sessionId}}` →
+  `{pinnedSessionIds}`), plus `pinnedSessionIds` on the `workspace/follow` baseline and a
+  `{type:"pinned"}` frame. A baseline without the key means the host has no pinning, and
+  the drawer offers none.
+- **Approvals.** `approval/request` may carry `displayReason: {en, zh, …}`, a localized
+  presentation of `reason` (Auto review denials, sandbox escalation). The card shows the
+  reader's language, then English, then `reason`.
+- **Presets.** The roster is `{presets:[{id, isDefault, name?, description?, broken?}]}`:
+  `trust`, `authorable` and `modeSelectionEnabled` are gone, and `agentPresets/copy`,
+  `deletePreset` and the `settings/*AgentPresetDirectory` pair were removed.
+- **Also changed, nothing to do.** `session/fork`'s `atSeq` is now an exact inclusive cut
+  (`session/fork-unavailable` for a seq that does not exist); `session/selectModel` may
+  answer `session/model-unavailable`; session-list projection hints carry
+  `kind: cached | sequenced`; the mux accepts a socket only once the host is ready, so a
+  socket opened too early is dropped once and the connection loop reconnects; the token
+  exchange redirects to `./` instead of `/`, and the client does not follow it anyway.
