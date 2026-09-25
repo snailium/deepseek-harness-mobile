@@ -225,21 +225,11 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 models = models,
-                // The harness pins the preset once a session has started, so the chip — which
-                // reads as a picker — is only offered while the session is still blank. After
-                // that the preset is a fact, and the Details panel states it as one.
-                agentPresetLabel = currentSession?.agentPreset
-                    ?.takeIf { agentPresets?.modeSelectionEnabled != false && currentSession.blank }
-                    ?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
                 onOpenModels = { sheet = ChatSheet.Models },
-                onOpenPresets = {
-                    scope.launch { store.refreshAgentPresets() }
-                    sheet = ChatSheet.Presets
-                },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
                 // Disabled rather than hidden when there is no session to point at, which is what
