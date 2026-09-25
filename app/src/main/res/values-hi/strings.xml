@@ -510,7 +510,6 @@
     <string name="chat_search_counter">%1$d/%2$d</string>
     <string name="debug_dialog_title">डिबग जानकारी</string>
     <string name="debug_buffer_empty">(खाली)</string>
-    <string name="tool_copy_code">कोड कॉपी करें</string>
     <string name="tool_copy">कॉपी</string>
     <string name="settings_composer">कंपोज़र</string>
     <string name="settings_enter_to_send">एंटर कुंजी संदेश भेजती है</string>
