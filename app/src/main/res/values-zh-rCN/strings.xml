@@ -473,6 +473,8 @@
     <string name="terminal_control">获取控制权</string>
     <string name="feedback_note">反馈说明（可选）</string>
     <string name="feedback_send">提交反馈</string>
+    <string name="workspace_changes">第 %1$d 轮文件变更</string>
+    <string name="workspace_changes_unknown">文件变更已汇总</string>
     <string name="system_prompt">系统提示词</string>
     <string name="image_offload">请求中已省略历史图片</string>
     <string name="panel_open_host">在主机上打开</string>

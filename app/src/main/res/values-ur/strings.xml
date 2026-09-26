@@ -473,6 +473,8 @@
     <string name="terminal_control">کنٹرول لیں</string>
     <string name="feedback_note">رائے (اختیاری)</string>
     <string name="feedback_send">رائے بھیجیں</string>
+    <string name="workspace_changes">ٹرن %1$d کی فائل تبدیلیاں</string>
+    <string name="workspace_changes_unknown">فائل تبدیلیوں کا خلاصہ</string>
     <string name="system_prompt">سسٹم ہدایات</string>
     <string name="image_offload">درخواست سے پرانی تصاویر خارج کی گئیں</string>
     <string name="panel_open_host">ہوسٹ پر کھولیں</string>

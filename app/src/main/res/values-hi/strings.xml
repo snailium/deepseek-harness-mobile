@@ -473,6 +473,8 @@
     <string name="terminal_control">नियंत्रण लें</string>
     <string name="feedback_note">प्रतिक्रिया (वैकल्पिक)</string>
     <string name="feedback_send">प्रतिक्रिया भेजें</string>
+    <string name="workspace_changes">टर्न %1$d की फ़ाइल परिवर्तन</string>
+    <string name="workspace_changes_unknown">फ़ाइल परिवर्तन संक्षेपित</string>
     <string name="system_prompt">सिस्टम निर्देश</string>
     <string name="image_offload">अनुरोध से पुरानी छवियाँ हटाई गईं</string>
     <string name="panel_open_host">होस्ट पर खोलें</string>

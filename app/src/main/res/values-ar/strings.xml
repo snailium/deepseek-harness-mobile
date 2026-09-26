@@ -473,6 +473,8 @@
     <string name="terminal_control">تولي التحكم</string>
     <string name="feedback_note">ملاحظة التقييم (اختيارية)</string>
     <string name="feedback_send">إرسال التقييم</string>
+    <string name="workspace_changes">تغييرات الملفات في الدور %1$d</string>
+    <string name="workspace_changes_unknown">تم تلخيص تغييرات الملفات</string>
     <string name="system_prompt">تعليمات النظام</string>
     <string name="image_offload">تم حذف الصور السابقة من الطلب</string>
     <string name="panel_open_host">فتح على المضيف</string>

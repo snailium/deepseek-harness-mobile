@@ -79,6 +79,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Everything one transcript row needs that is not on the node itself. */
@@ -236,6 +237,24 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
                         }
                     }
                 }
+            } else if (node.type == "workspace/changes") {
+                // The event carries only `{turn}`, and it used to fall through to the raw
+                // disclosure below — a block titled `workspace/changes` holding `{"turn": 5}`,
+                // which tells a reader nothing. It records that a turn's changed files were
+                // summarized; the summary itself is served separately by
+                // `workspaceChanges.summary` for that turn's seq, which this build does not call
+                // yet. Labelling it is the honest middle ground: it says what happened without
+                // claiming to show a file list that was never fetched.
+                val turn = (node.data as? JsonObject)?.get("turn")?.jsonPrimitive?.intOrNull
+                Text(
+                    if (turn != null) {
+                        stringResource(R.string.workspace_changes, turn)
+                    } else {
+                        stringResource(R.string.workspace_changes_unknown)
+                    },
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
             } else JsonDisclosure(when (node.type) {
                 "system/message", "request/context" -> stringResource(R.string.system_prompt)
                 "image/offload" -> stringResource(R.string.image_offload)

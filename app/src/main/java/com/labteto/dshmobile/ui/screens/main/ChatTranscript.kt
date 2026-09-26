@@ -164,13 +164,34 @@ internal fun ChatTranscript(
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
-    // that was open before. Nothing else scrolls the transcript any more: following the tail costs
-    // no scroll, which is the point of the reversal.
+    // that was open before.
     var lastSession by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(sessionId) {
         if (sessionId == lastSession) return@LaunchedEffect
         lastSession = sessionId
         if (itemCount > 0) listState.scrollToItem(0)
+    }
+
+    // Follow the tail while the reader is already at it.
+    //
+    // The reverse layout was assumed to make this unnecessary: newest is index 0, so a new row
+    // appears where the list is anchored and "following the tail costs no scroll". That holds only
+    // while the viewport is *exactly* at index 0. It stops holding as soon as anything moves the
+    // list off it — and adding content does: a tool call appends a row and the streaming row grows
+    // one line at a time, both of which push the anchored position past the anchor. Once that
+    // happens nothing brings it back, so a running turn stops following and the reader is left
+    // behind a "Jump to newest" button they did not ask for.
+    //
+    // `newCount` is the trigger rather than a scroll listener: this should fire when the transcript
+    // gains a row, not on every pixel of a scroll the reader is driving. `atNewest` is read outside
+    // the effect so the decision uses the position from *before* the new row landed, which is the
+    // one that says whether the reader was following.
+    val followTail = atNewest.value
+    LaunchedEffect(itemCount, sessionId) {
+        if (itemCount == 0 || !followTail) return@LaunchedEffect
+        // Not animated: the row is being appended as it arrives, and an animation would lag the
+        // content it is chasing — the list would visibly trail the streaming reply.
+        listState.scrollToItem(0)
     }
 
     // Reaching the oldest loaded message pulls the next page. The guard matters: this effect sits

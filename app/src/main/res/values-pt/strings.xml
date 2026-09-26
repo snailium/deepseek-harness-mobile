@@ -473,6 +473,8 @@
     <string name="terminal_control">Assumir controle</string>
     <string name="feedback_note">Comentário (opcional)</string>
     <string name="feedback_send">Enviar comentário</string>
+    <string name="workspace_changes">Alterações de ficheiros do turno %1$d</string>
+    <string name="workspace_changes_unknown">Alterações de ficheiros resumidas</string>
     <string name="system_prompt">Instruções do sistema</string>
     <string name="image_offload">Imagens históricas omitidas da solicitação</string>
     <string name="panel_open_host">Abrir no host</string>

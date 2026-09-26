@@ -473,6 +473,8 @@
     <string name="terminal_control">Получить управление</string>
     <string name="feedback_note">Отзыв (необязательно)</string>
     <string name="feedback_send">Отправить отзыв</string>
+    <string name="workspace_changes">Изменения файлов за ход %1$d</string>
+    <string name="workspace_changes_unknown">Изменения файлов обобщены</string>
     <string name="system_prompt">Системные инструкции</string>
     <string name="image_offload">Из запроса исключены прежние изображения</string>
     <string name="panel_open_host">Открыть на хосте</string>
