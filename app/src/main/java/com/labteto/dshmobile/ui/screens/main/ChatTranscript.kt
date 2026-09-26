@@ -172,8 +172,7 @@ internal fun ChatTranscript(
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
-    // that was open before. Following the tail is handled just below, where the anchoring the
-    // reversal buys is overridden only when it would otherwise cost the reader the newest row.
+    // that was open before.
     var lastSession by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(sessionId) {
         if (sessionId == lastSession) return@LaunchedEffect
@@ -181,42 +180,26 @@ internal fun ChatTranscript(
         if (itemCount > 0) listState.scrollToItem(0)
     }
 
-    // Following the tail is free only while the tail is one growing row. The layout keeps the first
-    // visible *key* anchored, and in a reversed list that key is the bottom row: insert a row below
-    // it — a tool card, the next message segment, a question card, the reader's own message — and
-    // the new row takes index 0 while the viewport holds the old bottom row exactly where it was,
-    // leaving the arrival one scroll past the edge. Nothing animated it into place either, so the
-    // reader watching a reply arrives at a dead screen until they drag.
+    // Follow the tail while the reader is already at it.
     //
-    // Pin index 0 again while the reader is at the bottom. `requestScrollToItem` is the one call
-    // that overrides the key anchoring for the coming measure; it is instant and schedules no
-    // animation, so it cannot race the next delta the way a per-frame scroll would.
+    // The reverse layout was assumed to make this unnecessary: newest is index 0, so a new row
+    // appears where the list is anchored and "following the tail costs no scroll". That holds only
+    // while the viewport is *exactly* at index 0. It stops holding as soon as anything moves the
+    // list off it — and adding content does: a tool call appends a row and the streaming row grows
+    // one line at a time, both of which push the anchored position past the anchor. Once that
+    // happens nothing brings it back, so a running turn stops following and the reader is left
+    // behind a "Jump to newest" button they did not ask for.
     //
-    // Following is intent, not position: the anchoring above moves the first visible index to 1 on
-    // its own when a row lands below, and reading that as "the reader scrolled away" would switch
-    // following off at the exact moment it is needed. Only a scroll session — a drag, or the fling
-    // that follows one, both of which `isScrollInProgress` covers — moves the reader on purpose, so
-    // where the list comes to rest at the end of one is the whole of the signal.
-    //
-    // Primed from the position rather than assumed: the list state is hoisted above the tab swap
-    // and outlives this composition. Today the session-open scroll above lands every new
-    // composition on the tail anyway, so this only matters if that scroll ever stops doing so.
-    fun atTail(): Boolean =
-        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
-    var followTail by remember(sessionId) { mutableStateOf(true) }
-    LaunchedEffect(listState, sessionId) {
-        followTail = atTail()
-        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (scrolling) return@collect
-            followTail = atTail()
-        }
-    }
-    LaunchedEffect(itemCount, followTail) {
-        // itemCount rather than the rows themselves: a delta changes the text of a row, not how
-        // many rows there are, and only the arrival of a row can land the tail out of view.
-        if (followTail && itemCount > 0 && !listState.isScrollInProgress) {
-            listState.requestScrollToItem(0)
-        }
+    // `newCount` is the trigger rather than a scroll listener: this should fire when the transcript
+    // gains a row, not on every pixel of a scroll the reader is driving. `atNewest` is read outside
+    // the effect so the decision uses the position from *before* the new row landed, which is the
+    // one that says whether the reader was following.
+    val followTail = atNewest.value
+    LaunchedEffect(itemCount, sessionId) {
+        if (itemCount == 0 || !followTail) return@LaunchedEffect
+        // Not animated: the row is being appended as it arrives, and an animation would lag the
+        // content it is chasing — the list would visibly trail the streaming reply.
+        listState.scrollToItem(0)
     }
 
     // Reaching the oldest loaded message pulls the next page. The guard matters: this effect sits
