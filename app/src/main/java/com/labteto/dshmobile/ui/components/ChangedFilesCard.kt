@@ -162,6 +162,12 @@ fun ChangedFilesCard(
  * The path is mono, like the body of a code block — these are file paths, and the mono face is what
  * makes a column of them scannable. The counts use [DsType.codeFont] too, so `+12` and `−3` line up
  * between rows instead of drifting with proportional digits.
+ *
+ * Long paths truncate from the **left** (`…src/somefile.md`), not the right: the file name is what
+ * identifies a change, and a default ellipsis would hide exactly that part while keeping the
+ * directory prefix. [tailEllipsis] drops whole leading segments until the remainder fits in the
+ * measured row width; the final segment (the name) is never cut — if even it overflows on its own,
+ * Compose's right-ellipsis takes over and cuts inside the name.
  */
 @Composable
 private fun ChangedFileLine(file: ChangedFileRowModel) {
@@ -171,7 +177,7 @@ private fun ChangedFileLine(file: ChangedFileRowModel) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            file.display,
+            tailEllipsis(file.display),
             style = DsType.small13.copy(fontFamily = DsType.codeFont),
             color = colors.labelSecondary,
             maxLines = 1,
@@ -209,6 +215,49 @@ private fun DiffCount(text: String, color: Color) {
         maxLines = 1,
         modifier = Modifier.widthIn(min = 30.dp),
     )
+}
+
+/**
+ * Left-truncate a slash-separated path so the tail (the file name) survives.
+ *
+ * Compose's `TextOverflow.Ellipsis` cuts from the right, which hides exactly the part that
+ * identifies a change — the name — and keeps the directory prefix. That is backwards for this
+ * column: two rows both ending in `…/Foo.kt` would be indistinguishable by their visible text,
+ * while two rows sharing a long common prefix are still told apart by the name. So we drop whole
+ * leading segments until the remainder fits the available width, and prepend a single `…` to mark
+ * the cut. If even the final segment alone overflows, we return it as-is and let Compose's own
+ * right-ellipsis finish the job inside the name — at that point the path is so long that no
+ * truncation strategy can save both ends.
+ *
+ * The budget is a **character count**, not pixels: the row renders in [DsType.codeFont], a
+ * monospace face, where every character has the same advance. Counting characters is exact, pure
+ * and testable without a layout pass — no density, no text-measurer, no composable state. The
+ * number itself is calibrated against the row's geometry (card padding, gap to the counts, the
+ * counts' 30dp floor) and rounded down so that a path at the budget never overflows; if a future
+ * change tightens the row's layout, [MAX_PATH_CHARS] is the single knob to adjust.
+ */
+internal const val MAX_PATH_CHARS = 28
+
+internal fun tailEllipsis(path: String): String {
+    if (path.length <= MAX_PATH_CHARS) return path
+    val segments = path.split('/')
+    // Keep the longest suffix that fits under the budget once the leading `…` is accounted for.
+    val budget = MAX_PATH_CHARS - 1
+    var kept = segments.last()
+    if (kept.length > budget) {
+        // Even the name alone overflows: hand it to Compose's right-ellipsis rather than cut it
+        // ourselves — a mid-name `…` is at least honest about where the cut landed.
+        return kept
+    }
+    for (i in (segments.lastIndex - 1) downTo 0) {
+        val candidate = "${segments[i]}/$kept"
+        if (candidate.length <= budget) {
+            kept = candidate
+        } else {
+            break
+        }
+    }
+    return "…$kept"
 }
 
 @Preview(showBackground = true, widthDp = 360)
