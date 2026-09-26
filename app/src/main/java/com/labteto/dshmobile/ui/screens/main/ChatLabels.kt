@@ -7,7 +7,6 @@ import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.AgentPresetEntry
 import com.labteto.dshmobile.core.wire.dto.AgentPresetListValue
-import com.labteto.dshmobile.core.wire.dto.AgentPresetTrust
 import com.labteto.dshmobile.core.wire.dto.GoalPhase
 import com.labteto.dshmobile.core.wire.dto.JobStatus
 import com.labteto.dshmobile.core.wire.dto.SubagentListEntry
@@ -98,12 +97,16 @@ internal fun subagentRunning(entry: SubagentListEntry): Boolean = when (entry) {
  * Localized copy for the four presets the harness ships.
  *
  * The host does *not* localize these. It reads `name`/`description` straight out of each preset's
- * `preset.yml`, and those files are written in Chinese — so `agentPreset.list` answers `标准模式`
- * whatever language the client is in. The harness's own web UI covers this by overriding the
- * built-ins with its own translations, and this is the same table for the same four ids.
+ * `preset.yml`, so `agentPresets/list` answers whatever those files say — and the shipped four
+ * declare no `name` at all, which is why they need this table. The harness's own web UI carries the
+ * same table for the same four ids.
  *
- * Keyed on `trust == SYSTEM` exactly as the reference is: a preset someone wrote themselves and
- * happened to call `standard` is theirs, and keeps the name they gave it.
+ * **Keyed on the id, not on a trust tier.** Harness 0.1.7 dropped `trust` from the roster row
+ * entirely, so every entry now reads as `UNKNOWN`; gating on `trust == SYSTEM` therefore stopped
+ * matching anything and every preset fell through to its raw wire id — the picker listed
+ * `standard`, `ptc`, `minimal`, `cordis` in lowercase. The protection the gate was there for is
+ * kept by [AgentPresetEntry.displayName], which prefers a name the deployment actually declared:
+ * someone who writes their own preset called `standard` still sees their own name.
  */
 private fun builtInPresetStrings(id: String): Pair<Int, Int>? = when (id) {
     "standard" -> R.string.preset_standard_name to R.string.preset_standard_desc
@@ -113,14 +116,36 @@ private fun builtInPresetStrings(id: String): Pair<Int, Int>? = when (id) {
     else -> null
 }
 
-private fun builtInPresetStrings(entry: AgentPresetEntry): Pair<Int, Int>? =
-    if (entry.trust == AgentPresetTrust.SYSTEM) builtInPresetStrings(entry.id) else null
+/**
+ * What to call a preset: whatever the deployment named it, else the app's translation for a shipped
+ * id, else the raw id.
+ *
+ * The declared `name` wins over the built-in table, which is what keeps a self-authored preset that
+ * reuses a shipped id labelled as its author intended. The wire ids and the built-in table also
+ * disagree for one entry — the shipped preset is `ptc` on the wire and `code` in this table — so
+ * both spellings are accepted [in builtInPresetStrings]; see [PRESET_ID_ALIASES].
+ */
+@Composable
+internal fun AgentPresetEntry.displayName(): String =
+    name?.takeIf { it.isNotBlank() }
+        ?: builtInPresetStrings(PRESET_ID_ALIASES[id] ?: id)?.let { stringResource(it.first) }
+        ?: id
+
+/**
+ * Wire id → the id this app's built-in table is keyed on.
+ *
+ * The harness ships the Code-Mode preset as `ptc`; this table (and the strings) call it `code`.
+ * Before 0.1.7 the mismatch was invisible because `trust` gated the lookup and a missing entry just
+ * fell back to the wire name — which the host rendered from `preset.yml`. With `trust` gone, the
+ * table is the only source of a readable label, so the alias has to be explicit.
+ */
+internal val PRESET_ID_ALIASES = mapOf("ptc" to "code")
 
 /**
  * What to call the preset a session is pinned to, given only its id.
  *
  * The roster is host-scoped and arrives on its own schedule, and the chip renders as soon as the
- * session does — so without this the top bar showed a raw wire id (`standard`) until something
+ * session does — so without this the chrome showed a raw wire id (`standard`) until something
  * happened to fetch the list. Falling back to the shipped name for a shipped id is right in every
  * deployment that has not replaced that preset, and corrects itself the moment the roster lands.
  */
@@ -128,24 +153,19 @@ private fun builtInPresetStrings(entry: AgentPresetEntry): Pair<Int, Int>? =
 internal fun agentPresetLabel(id: String, roster: AgentPresetListValue?): String {
     val entry = roster?.presets?.firstOrNull { it.id == id }
     if (entry != null) return entry.displayName()
-    return builtInPresetStrings(id)?.let { stringResource(it.first) } ?: id
+    return builtInPresetStrings(PRESET_ID_ALIASES[id] ?: id)?.let { stringResource(it.first) } ?: id
 }
 
 /**
- * What to call a preset: the app's own translation for a shipped one, else whatever the deployment
- * named it, else the raw id.
+ * The preset's one-line summary, translated for the shipped four. Null when there is none.
+ *
+ * Mirrors [displayName]: a description the deployment declared wins over the built-in table, so a
+ * self-authored preset keeps its own words.
  */
 @Composable
-internal fun AgentPresetEntry.displayName(): String =
-    builtInPresetStrings(this)?.let { stringResource(it.first) }
-        ?: name?.takeIf { it.isNotBlank() }
-        ?: id
-
-/** The preset's one-line summary, translated for the shipped four. Null when there is none. */
-@Composable
 internal fun AgentPresetEntry.displayDescription(): String? =
-    builtInPresetStrings(this)?.let { stringResource(it.second) }
-        ?: description?.takeIf { it.isNotBlank() }
+    description?.takeIf { it.isNotBlank() }
+        ?: builtInPresetStrings(PRESET_ID_ALIASES[id] ?: id)?.let { stringResource(it.second) }
 
 // ---------------------------------------------------------------------------
 // Shared field styling
