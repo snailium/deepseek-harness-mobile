@@ -93,12 +93,12 @@ fun ChangedFilesCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(colors.codeBlockBanner)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 title,
-                style = DsType.caption11Strong.copy(
+                style = DsType.small13Strong.copy(
                     fontFamily = DsType.codeFont,
                     color = colors.labelCaption,
                 ),
@@ -113,29 +113,29 @@ fun ChangedFilesCard(
             if (files != null && files.isNotEmpty() && (added!! > 0 || deleted!! > 0)) {
                 Text(
                     "+$added",
-                    style = DsType.caption11Strong.copy(fontFamily = DsType.codeFont),
+                    style = DsType.small13Strong.copy(fontFamily = DsType.codeFont),
                     color = colors.success,
                 )
                 Spacer(Modifier.width(DsSpacing.xsmall))
                 Text(
                     "\u2212$deleted",
-                    style = DsType.caption11Strong.copy(fontFamily = DsType.codeFont),
+                    style = DsType.small13Strong.copy(fontFamily = DsType.codeFont),
                     color = colors.error,
                 )
             }
         }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
             when {
                 files == null -> Text(
                     unavailableLabel.orEmpty(),
-                    style = DsType.caption11,
+                    style = DsType.small13,
                     color = colors.labelTertiary,
                 )
                 files.isEmpty() -> Text(
                     // The host answered and the turn changed nothing. Distinct from "unavailable",
                     // and the caller supplies the wording for its own locale.
                     unavailableLabel.orEmpty(),
-                    style = DsType.caption11,
+                    style = DsType.small13,
                     color = colors.labelTertiary,
                 )
                 else -> {
@@ -145,7 +145,7 @@ fun ChangedFilesCard(
                     moreLabel?.let {
                         Text(
                             it,
-                            style = DsType.caption11,
+                            style = DsType.small13,
                             color = colors.labelTertiary,
                             modifier = Modifier.padding(top = DsSpacing.tiny),
                         )
@@ -167,12 +167,12 @@ fun ChangedFilesCard(
 private fun ChangedFileLine(file: ChangedFileRowModel) {
     val colors = DsTheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             file.display,
-            style = DsType.caption11.copy(fontFamily = DsType.codeFont),
+            style = DsType.small13.copy(fontFamily = DsType.codeFont),
             color = colors.labelSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -186,7 +186,7 @@ private fun ChangedFileLine(file: ChangedFileRowModel) {
         } else {
             Text(
                 file.uncountedLabel.orEmpty(),
-                style = DsType.caption11.copy(fontFamily = DsType.codeFont),
+                style = DsType.small13.copy(fontFamily = DsType.codeFont),
                 color = colors.labelTertiary,
                 maxLines = 1,
             )
@@ -204,10 +204,10 @@ private fun ChangedFileLine(file: ChangedFileRowModel) {
 private fun DiffCount(text: String, color: Color) {
     Text(
         text,
-        style = DsType.caption11.copy(fontFamily = DsType.codeFont),
+        style = DsType.small13.copy(fontFamily = DsType.codeFont),
         color = color,
         maxLines = 1,
-        modifier = Modifier.widthIn(min = 26.dp),
+        modifier = Modifier.widthIn(min = 30.dp),
     )
 }
 
