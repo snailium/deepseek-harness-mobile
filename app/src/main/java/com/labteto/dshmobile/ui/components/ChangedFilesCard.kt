@@ -236,7 +236,7 @@ private fun DiffCount(text: String, color: Color) {
  * counts' 30dp floor) and rounded down so that a path at the budget never overflows; if a future
  * change tightens the row's layout, [MAX_PATH_CHARS] is the single knob to adjust.
  */
-internal const val MAX_PATH_CHARS = 28
+internal const val MAX_PATH_CHARS = 40
 
 internal fun tailEllipsis(path: String): String {
     if (path.length <= MAX_PATH_CHARS) return path
