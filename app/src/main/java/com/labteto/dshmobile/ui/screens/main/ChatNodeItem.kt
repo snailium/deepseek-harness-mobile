@@ -284,8 +284,11 @@ private fun WorkspaceChangesRow(node: OtherNode) {
     val summary = key?.let { summaries[it] }
 
     ChangedFilesCard(
+        // The card is anchored to the row's own event, so "this turn" already names the right
+        // one — no need to repeat the number in the title. The fallback covers a snapshot that
+        // lost its `turn` field; it still says what the card shows without claiming a number.
         title = if (turn != null) {
-            stringResource(R.string.workspace_changes, turn)
+            stringResource(R.string.workspace_changes)
         } else {
             stringResource(R.string.workspace_changes_unknown)
         },

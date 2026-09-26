@@ -492,7 +492,7 @@
     <string name="terminal_control">เข้าควบคุม</string>
     <string name="feedback_note">ความคิดเห็น (ไม่บังคับ)</string>
     <string name="feedback_send">ส่งความคิดเห็น</string>
-    <string name="workspace_changes">การเปลี่ยนแปลงไฟล์เทิร์น %1$d</string>
+    <string name="workspace_changes">การเปลี่ยนแปลงไฟล์ในเทิร์นนี้</string>
     <string name="workspace_changes_unknown">สรุปการเปลี่ยนแปลงไฟล์แล้ว</string>
     <string name="workspace_changes_more">อีก %1$d รายการไม่แสดง</string>
     <string name="workspace_changes_gone">ไม่มีรายการไฟล์แล้ว</string>

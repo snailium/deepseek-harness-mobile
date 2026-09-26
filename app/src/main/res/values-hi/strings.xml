@@ -492,7 +492,7 @@
     <string name="terminal_control">नियंत्रण लें</string>
     <string name="feedback_note">प्रतिक्रिया (वैकल्पिक)</string>
     <string name="feedback_send">प्रतिक्रिया भेजें</string>
-    <string name="workspace_changes">टर्न %1$d की फ़ाइल परिवर्तन</string>
+    <string name="workspace_changes">इस टर्न में फ़ाइल परिवर्तन</string>
     <string name="workspace_changes_unknown">फ़ाइल परिवर्तन संक्षेपित</string>
     <string name="workspace_changes_more">%1$d और नहीं दिखाए गए</string>
     <string name="workspace_changes_gone">फ़ाइल सूची अब उपलब्ध नहीं</string>

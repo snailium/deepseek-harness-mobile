@@ -502,7 +502,7 @@
     <string name="terminal_control">Take control</string>
     <string name="feedback_note">Feedback note (optional)</string>
     <string name="feedback_send">Submit feedback</string>
-    <string name="workspace_changes">Turn %1$d file changes</string>
+    <string name="workspace_changes">File changes in this turn</string>
     <string name="workspace_changes_unknown">File changes summarized</string>
     <string name="workspace_changes_more">%1$d more not shown</string>
     <string name="workspace_changes_gone">File list no longer available</string>

@@ -492,7 +492,7 @@
     <string name="terminal_control">Tomar control</string>
     <string name="feedback_note">Comentario (opcional)</string>
     <string name="feedback_send">Enviar comentario</string>
-    <string name="workspace_changes">Cambios de archivos del turno %1$d</string>
+    <string name="workspace_changes">Cambios de archivos en este turno</string>
     <string name="workspace_changes_unknown">Cambios de archivos resumidos</string>
     <string name="workspace_changes_more">%1$d más sin mostrar</string>
     <string name="workspace_changes_gone">Lista de archivos no disponible</string>

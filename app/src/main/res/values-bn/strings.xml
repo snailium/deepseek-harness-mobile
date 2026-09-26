@@ -492,7 +492,7 @@
     <string name="terminal_control">নিয়ন্ত্রণ নিন</string>
     <string name="feedback_note">মতামত (ঐচ্ছিক)</string>
     <string name="feedback_send">মতামত পাঠান</string>
-    <string name="workspace_changes">টার্ন %1$d এর ফাইল পরিবর্তন</string>
+    <string name="workspace_changes">এই টার্নের ফাইল পরিবর্তন</string>
     <string name="workspace_changes_unknown">ফাইল পরিবর্তন সংক্ষিপ্ত</string>
     <string name="workspace_changes_more">আরও %1$d দেখানো হয়নি</string>
     <string name="workspace_changes_gone">ফাইল তালিকা আর নেই</string>

@@ -492,7 +492,7 @@
     <string name="terminal_control">Prendre le contrôle</string>
     <string name="feedback_note">Commentaire (facultatif)</string>
     <string name="feedback_send">Envoyer le commentaire</string>
-    <string name="workspace_changes">Modifications de fichiers du tour %1$d</string>
+    <string name="workspace_changes">Modifications de fichiers de ce tour</string>
     <string name="workspace_changes_unknown">Modifications de fichiers résumées</string>
     <string name="workspace_changes_more">%1$d autres non affichés</string>
     <string name="workspace_changes_gone">Liste de fichiers indisponible</string>
