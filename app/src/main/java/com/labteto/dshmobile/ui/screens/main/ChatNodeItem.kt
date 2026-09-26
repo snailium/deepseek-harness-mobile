@@ -24,11 +24,14 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.labteto.dshmobile.ui.rememberSessionStore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +48,7 @@ import com.labteto.dshmobile.core.session.CompactionNode
 import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
 import com.labteto.dshmobile.core.session.OtherNode
+import com.labteto.dshmobile.core.wire.dto.WorkspaceChangedFile
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
 import com.labteto.dshmobile.core.session.SubagentNode
@@ -238,28 +242,113 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
                     }
                 }
             } else if (node.type == "workspace/changes") {
-                // The event carries only `{turn}`, and it used to fall through to the raw
-                // disclosure below — a block titled `workspace/changes` holding `{"turn": 5}`,
-                // which tells a reader nothing. It records that a turn's changed files were
-                // summarized; the summary itself is served separately by
-                // `workspaceChanges.summary` for that turn's seq, which this build does not call
-                // yet. Labelling it is the honest middle ground: it says what happened without
-                // claiming to show a file list that was never fetched.
-                val turn = (node.data as? JsonObject)?.get("turn")?.jsonPrimitive?.intOrNull
-                Text(
-                    if (turn != null) {
-                        stringResource(R.string.workspace_changes, turn)
-                    } else {
-                        stringResource(R.string.workspace_changes_unknown)
-                    },
-                    style = DsType.caption11,
-                    color = colors.labelTertiary,
-                )
+                WorkspaceChangesRow(node)
             } else JsonDisclosure(when (node.type) {
                 "system/message", "request/context" -> stringResource(R.string.system_prompt)
                 "image/offload" -> stringResource(R.string.image_offload)
                 else -> node.type
             }, node.data)
+        }
+    }
+}
+
+/**
+ * One turn's changed files.
+ *
+ * The durable event carries only `{turn}`, so the file list has to be fetched from
+ * `GET /api/changes.summary?sessionId=…&seq=…`, addressed by the *announcing event's* sequence.
+ * That fetch is deliberately lazy — a long transcript can hold dozens of these events, and asking
+ * for all of them on open would issue dozens of requests for turns the reader never scrolls to.
+ *
+ * Three states, shown distinctly because they mean different things: still fetching (nothing yet),
+ * the host has no summary (a plain line — normal for an old transcript, since the host drops
+ * summaries once a session is disposed), and a real file list.
+ */
+@Composable
+private fun WorkspaceChangesRow(node: OtherNode) {
+    val colors = DsTheme.colors
+    val store = rememberSessionStore()
+    val sessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    val summaries by store.changesSummaries.collectAsStateWithLifecycle()
+    val turn = (node.data as? JsonObject)?.get("turn")?.jsonPrimitive?.intOrNull
+
+    val key = sessionId?.let { it to node.seq.toInt() }
+    LaunchedEffect(key) {
+        val k = key ?: return@LaunchedEffect
+        store.loadWorkspaceChanges(k.first, k.second)
+    }
+    // `containsKey`, not a null check: absent means "not fetched", null means "the host has none".
+    val loaded = key != null && summaries.containsKey(key)
+    val summary = key?.let { summaries[it] }
+
+    Column(Modifier.fillMaxWidth().padding(vertical = DsSpacing.tiny)) {
+        Text(
+            if (turn != null) {
+                stringResource(R.string.workspace_changes, turn)
+            } else {
+                stringResource(R.string.workspace_changes_unknown)
+            },
+            style = DsType.caption11,
+            color = colors.labelTertiary,
+        )
+        Column(Modifier.padding(start = DsSpacing.medium, top = DsSpacing.tiny)) {
+            when {
+                summary != null -> {
+                    summary.files.forEach { file -> ChangedFileRow(file) }
+                    // The host caps the list, and `total` counts the ones it dropped. Saying so is
+                    // the difference between a truncated list and a wrong one.
+                    if (summary.total > summary.files.size) {
+                        Text(
+                            stringResource(R.string.workspace_changes_more, summary.total - summary.files.size),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                    }
+                }
+                // Unavailable is a fact about the transcript, not a failure to report.
+                loaded -> Text(
+                    stringResource(R.string.workspace_changes_gone),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+            }
+        }
+    }
+}
+
+/** One changed file: its path, then its line counts. */
+@Composable
+private fun ChangedFileRow(file: WorkspaceChangedFile) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            // The harness's `display` form: relative inside the session's cwd, `../` above it,
+            // `~` under home. Already slash-separated, so it needs no rewriting for a phone.
+            file.display,
+            style = DsType.caption11,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        if (file.hasCounts) {
+            // Only when the harness actually counted. A binary or oversized file reports 0/0, and
+            // rendering that blindly would claim "nothing changed" about a file it could not read.
+            Text("+${file.added}", style = DsType.caption11, color = colors.success)
+            Spacer(Modifier.width(DsSpacing.tiny))
+            Text("\u2212${file.deleted}", style = DsType.caption11, color = colors.error)
+        } else {
+            Text(
+                stringResource(
+                    if (file.binary) R.string.workspace_changes_binary else R.string.workspace_changes_oversized,
+                ),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
         }
     }
 }
