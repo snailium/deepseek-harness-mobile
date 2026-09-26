@@ -96,6 +96,7 @@ import com.labteto.dshmobile.core.wire.dto.WorkspaceFollowFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.WorkspaceRenameRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceView
+import com.labteto.dshmobile.core.wire.dto.WorkspaceChangesSummary
 import com.labteto.dshmobile.core.wire.dto.imageRejectionOf
 import com.labteto.dshmobile.core.wire.RpcError
 import com.labteto.dshmobile.core.wire.TransportFailures
@@ -296,6 +297,15 @@ sealed interface ArchiveOutcome {
 }
 
 /**
+ * The `RpcError.code` a 404 from an HTTP route carries.
+ *
+ * `transportError()` maps a 404 status to this string rather than to a `session/not-found`-style
+ * domain code, because for a route the distinction is "this capability answered nothing" rather
+ * than "this named thing does not exist". Compared as a string, like every other code check here.
+ */
+private const val CHANGES_UNAVAILABLE = "capability-unavailable"
+
+/**
  * Single source of truth for the connected harness's live state. All public surface is
  * [StateFlow]; every RPC error becomes [connectionError] and never throws. The store survives
  * reconnects by re-baselining on the connection state transition and on `session/subscribed`.
@@ -454,6 +464,18 @@ class SessionStore @Inject constructor(
 
     private val _agentPresets = MutableStateFlow<AgentPresetListValue?>(null)
     val agentPresets: StateFlow<AgentPresetListValue?> = _agentPresets.asStateFlow()
+
+    /**
+     * `(sessionId, event seq)` → the turn's changed files, or `null` when the host has none.
+     *
+     * A missing key means "not fetched yet"; `null` means "fetched, nothing to show". See
+     * [loadWorkspaceChanges].
+     */
+    private val _changesSummaries =
+        MutableStateFlow<Map<Pair<String, Int>, WorkspaceChangesSummary?>>(emptyMap())
+
+    /** Coordinates already asked for, so a recomposition cannot re-issue the same request. */
+    private val changesSummaryAttempted = HashSet<Pair<String, Int>>()
 
     private val _plugins = MutableStateFlow<PluginInventorySnapshot?>(null)
 
@@ -2509,6 +2531,60 @@ class SessionStore @Inject constructor(
             is RpcResult.Err -> log("agentPreset.list unavailable (${r.error.code}): ${r.error.message}")
         }
     }
+
+    /**
+     * One turn's changed files, fetched on demand for a `workspace/changes` row.
+     *
+     * Keyed by `(sessionId, seq)` because the route is addressed by the *announcing event's*
+     * sequence, not by the turn number the event carries. Results are cached for the process's
+     * life: a summary is immutable once written — the host keeps it only while the session lives,
+     * and the latest event for a turn replaces earlier ones, so a re-fetch of the same coordinates
+     * could only ever return the same value or a 404.
+     *
+     * A 404 is expected rather than exceptional. The host drops summaries when the session is
+     * disposed, so scrolling back through an old transcript finds nothing to show. That is
+     * recorded as an explicit empty state so the row can say "unavailable" instead of spinning or
+     * silently rendering nothing.
+     */
+    suspend fun loadWorkspaceChanges(sessionId: String, seq: Int) {
+        val key = sessionId to seq
+        synchronized(lock) {
+            if (key in changesSummaryAttempted) return
+            changesSummaryAttempted.add(key)
+        }
+        val api = apiOrNull() ?: return
+        when (val r = api.workspaceChangesSummary(sessionId, seq)) {
+            is RpcResult.Ok -> _changesSummaries.value = _changesSummaries.value + (key to r.value)
+            is RpcResult.Err ->
+                if (r.error.code == CHANGES_UNAVAILABLE) {
+                    // Normal: the session was disposed, or this host never recorded the turn.
+                    _changesSummaries.value = _changesSummaries.value + (key to null)
+                } else {
+                    // A transport failure is not a "no changes" answer. Forget the attempt so a
+                    // later recomposition can retry rather than caching the outage as a fact.
+                    synchronized(lock) { changesSummaryAttempted.remove(key) }
+                    log("workspaceChanges.summary unavailable (${r.error.code}): ${r.error.message}")
+                }
+        }
+    }
+
+    /**
+     * A loaded summary, `null` for "the host has none", or absent for "not asked yet".
+     *
+     * The three states are distinct on purpose: the row must be able to tell "still loading" from
+     * "there is nothing to show", because only one of them is worth waiting for.
+     */
+    fun workspaceChanges(sessionId: String, seq: Int): WorkspaceChangesSummary? =
+        _changesSummaries.value[sessionId to seq]
+
+    /**
+     * The same map, exposed as state so a composing row recomposes when its summary lands.
+     *
+     * [workspaceChanges] answers the question; this is what makes the answer arrive. A row that
+     * only called the former would read "not fetched yet" once and never look again.
+     */
+    val changesSummaries: StateFlow<Map<Pair<String, Int>, WorkspaceChangesSummary?>> =
+        _changesSummaries.asStateFlow()
 
     /**
      * Pin an agent preset onto the open session. The harness only allows this while the session is

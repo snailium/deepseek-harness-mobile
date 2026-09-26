@@ -475,6 +475,10 @@
     <string name="feedback_send">ส่งความคิดเห็น</string>
     <string name="workspace_changes">การเปลี่ยนแปลงไฟล์เทิร์น %1$d</string>
     <string name="workspace_changes_unknown">สรุปการเปลี่ยนแปลงไฟล์แล้ว</string>
+    <string name="workspace_changes_more">อีก %1$d รายการไม่แสดง</string>
+    <string name="workspace_changes_gone">ไม่มีรายการไฟล์แล้ว</string>
+    <string name="workspace_changes_binary">ไบนารี</string>
+    <string name="workspace_changes_oversized">ใหญ่เกินไป</string>
     <string name="system_prompt">คำสั่งระบบ</string>
     <string name="image_offload">ละภาพในประวัติออกจากคำขอ</string>
     <string name="panel_open_host">เปิดบนโฮสต์</string>

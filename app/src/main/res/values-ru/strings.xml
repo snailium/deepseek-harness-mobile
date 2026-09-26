@@ -475,6 +475,10 @@
     <string name="feedback_send">Отправить отзыв</string>
     <string name="workspace_changes">Изменения файлов за ход %1$d</string>
     <string name="workspace_changes_unknown">Изменения файлов обобщены</string>
+    <string name="workspace_changes_more">ещё %1$d не показано</string>
+    <string name="workspace_changes_gone">Список файлов недоступен</string>
+    <string name="workspace_changes_binary">двоичный</string>
+    <string name="workspace_changes_oversized">слишком большой</string>
     <string name="system_prompt">Системные инструкции</string>
     <string name="image_offload">Из запроса исключены прежние изображения</string>
     <string name="panel_open_host">Открыть на хосте</string>

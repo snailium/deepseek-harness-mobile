@@ -475,6 +475,10 @@
     <string name="feedback_send">رائے بھیجیں</string>
     <string name="workspace_changes">ٹرن %1$d کی فائل تبدیلیاں</string>
     <string name="workspace_changes_unknown">فائل تبدیلیوں کا خلاصہ</string>
+    <string name="workspace_changes_more">%1$d مزید نہیں دکھائے گئے</string>
+    <string name="workspace_changes_gone">فائل فہرست اب دستیاب نہیں</string>
+    <string name="workspace_changes_binary">بائنری</string>
+    <string name="workspace_changes_oversized">بہت بڑی</string>
     <string name="system_prompt">سسٹم ہدایات</string>
     <string name="image_offload">درخواست سے پرانی تصاویر خارج کی گئیں</string>
     <string name="panel_open_host">ہوسٹ پر کھولیں</string>

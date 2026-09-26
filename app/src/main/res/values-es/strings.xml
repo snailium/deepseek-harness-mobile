@@ -475,6 +475,10 @@
     <string name="feedback_send">Enviar comentario</string>
     <string name="workspace_changes">Cambios de archivos del turno %1$d</string>
     <string name="workspace_changes_unknown">Cambios de archivos resumidos</string>
+    <string name="workspace_changes_more">%1$d más sin mostrar</string>
+    <string name="workspace_changes_gone">Lista de archivos no disponible</string>
+    <string name="workspace_changes_binary">binario</string>
+    <string name="workspace_changes_oversized">demasiado grande</string>
     <string name="system_prompt">Instrucciones del sistema</string>
     <string name="image_offload">Imágenes históricas omitidas de la solicitud</string>
     <string name="panel_open_host">Abrir en el host</string>

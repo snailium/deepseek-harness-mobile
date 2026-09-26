@@ -479,6 +479,10 @@
     <string name="feedback_send">Submit feedback</string>
     <string name="workspace_changes">Turn %1$d file changes</string>
     <string name="workspace_changes_unknown">File changes summarized</string>
+    <string name="workspace_changes_more">%1$d more not shown</string>
+    <string name="workspace_changes_gone">File list no longer available</string>
+    <string name="workspace_changes_binary">binary</string>
+    <string name="workspace_changes_oversized">too large</string>
     <string name="system_prompt">System prompt</string>
     <string name="image_offload">Historical images omitted from request</string>
     <string name="panel_open_host">Open on host</string>

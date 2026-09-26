@@ -947,4 +947,39 @@ class DshApiClient(
     } catch (e: IOException) {
         RpcResult.Err(RpcError("internal", e.message ?: "download failed", JsonObject(emptyMap())))
     }
+
+    /**
+     * `workspace/changes` — one turn's changed-file summary, over
+     * `GET /api/changes.summary?sessionId=…&seq=…`.
+     *
+     * A GET route rather than an RPC, like [sessionExport]: the summary is kept on the Host only
+     * while its session lives, and the durable event announces it with nothing but a turn number.
+     * The handler answers a **bare** summary object — not the `{ok, value}` envelope the POST
+     * routes use — and strips `cwd` and the snapshot ids on purpose, so the DTO models only what
+     * actually arrives.
+     *
+     * `seq` is the *announcing event's* sequence, not the turn number; the two differ, and the
+     * route needs the former.
+     *
+     * Answers [RpcError.Code.NOT_FOUND] once the session was disposed or the host never recorded
+     * the turn, which is a normal outcome for an old transcript rather than a failure to surface.
+     */
+    suspend fun workspaceChangesSummary(
+        sessionId: String,
+        seq: Int,
+    ): RpcResult<WorkspaceChangesSummary> = try {
+        val query = "sessionId=${encodeQueryComponent(sessionId)}&seq=$seq"
+        // The route answers JSON; `download` is the only authenticated GET this transport has, so
+        // the body is read here rather than at the call site.
+        val text = transport.download("/api/changes.summary?$query") { _, _, body ->
+            body.bufferedReader().use { it.readText() }
+        }
+        RpcResult.Ok(WireJson.decodeFromString(WorkspaceChangesSummary.serializer(), text))
+    } catch (e: RpcTransportException) {
+        RpcResult.Err(transportError(e))
+    } catch (e: SerializationException) {
+        RpcResult.Err(RpcError("internal", e.message ?: "malformed change summary", JsonObject(emptyMap())))
+    } catch (e: IOException) {
+        RpcResult.Err(RpcError("internal", e.message ?: "download failed", JsonObject(emptyMap())))
+    }
 }
