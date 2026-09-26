@@ -490,7 +490,7 @@
     <string name="terminal_control">Assumir controle</string>
     <string name="feedback_note">Comentário (opcional)</string>
     <string name="feedback_send">Enviar comentário</string>
-    <string name="workspace_changes">Alterações de ficheiros do turno %1$d</string>
+    <string name="workspace_changes">Alterações de ficheiros neste turno</string>
     <string name="workspace_changes_unknown">Alterações de ficheiros resumidas</string>
     <string name="workspace_changes_more">%1$d mais não mostrados</string>
     <string name="workspace_changes_gone">Lista de ficheiros indisponível</string>

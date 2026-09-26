@@ -496,7 +496,7 @@
     <string name="terminal_control">获取控制权</string>
     <string name="feedback_note">反馈说明（可选）</string>
     <string name="feedback_send">提交反馈</string>
-    <string name="workspace_changes">第 %1$d 轮文件变更</string>
+    <string name="workspace_changes">本轮文件变更</string>
     <string name="workspace_changes_unknown">文件变更已汇总</string>
     <string name="workspace_changes_more">另有 %1$d 个未显示</string>
     <string name="workspace_changes_gone">文件清单已不可用</string>

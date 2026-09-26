@@ -490,7 +490,7 @@
     <string name="terminal_control">تولي التحكم</string>
     <string name="feedback_note">ملاحظة التقييم (اختيارية)</string>
     <string name="feedback_send">إرسال التقييم</string>
-    <string name="workspace_changes">تغييرات الملفات في الدور %1$d</string>
+    <string name="workspace_changes">تغييرات الملفات في هذا الدور</string>
     <string name="workspace_changes_unknown">تم تلخيص تغييرات الملفات</string>
     <string name="workspace_changes_more">%1$d أخرى غير معروضة</string>
     <string name="workspace_changes_gone">قائمة الملفات لم تعد متاحة</string>

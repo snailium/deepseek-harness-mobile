@@ -490,7 +490,7 @@
     <string name="terminal_control">Получить управление</string>
     <string name="feedback_note">Отзыв (необязательно)</string>
     <string name="feedback_send">Отправить отзыв</string>
-    <string name="workspace_changes">Изменения файлов за ход %1$d</string>
+    <string name="workspace_changes">Изменения файлов в этом ходе</string>
     <string name="workspace_changes_unknown">Изменения файлов обобщены</string>
     <string name="workspace_changes_more">ещё %1$d не показано</string>
     <string name="workspace_changes_gone">Список файлов недоступен</string>

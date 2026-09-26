@@ -266,7 +266,7 @@ private fun ChangedFilesCardPreview() {
     DshTheme {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ChangedFilesCard(
-                title = "Turn 4 file changes",
+                title = "File changes in this turn",
                 files = listOf(
                     ChangedFileRowModel("app/src/main/java/Foo.kt", added = 12, deleted = 3),
                     ChangedFileRowModel("core/src/main/kotlin/Bar.kt", added = 120, deleted = 0),
@@ -276,7 +276,7 @@ private fun ChangedFilesCardPreview() {
                 moreLabel = "3 more not shown",
             )
             ChangedFilesCard(
-                title = "Turn 5 file changes",
+                title = "File changes in this turn",
                 files = null,
                 unavailableLabel = "File list no longer available",
             )
