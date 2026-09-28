@@ -1,7 +1,17 @@
 package com.labteto.dshmobile.core.wire.dto
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /**
  * Plugin-inventory DTOs, ported from `packages/host/plugin-inventory/src/types.ts`.
@@ -40,17 +50,97 @@ enum class PluginFiberPhase {
 }
 
 /**
- * Display identity of an entry's owning package, read from its `package.json`.
+ * One display string that a manifest may declare either plainly or per locale.
  *
- * Both fields mirror the manifest verbatim — the title is usually the package name and the
- * description is the line the package author wrote — so this is display copy rather than anything
- * structural. `plugin-packages` resolves it at request time and leaves it off entirely for a loose
- * module with no owning manifest, which is why the whole object is optional on a row.
+ * The two shapes coexist in a stock profile: a third-party package's manifest writes
+ * `"title": "dsh-relay"`, while an official bundle writes `"title": {"en": "Voice input", "zh": "语音输入"}`
+ * so the harness's own UI can follow its language. A plain `String?` field rejects the second
+ * outright — and because these sit inside a larger object, that rejection costs the whole bundle,
+ * which is how seven of a live profile's seventeen bundles disappeared from a list of seventeen.
+ *
+ * Decoding is deliberately permissive and never fails: a value of an unexpected shape reads as
+ * absent rather than throwing. Resolution takes the preferred locale, then the first declared one,
+ * so a locale the manifest does not carry still gets a readable name.
+ */
+@Serializable(with = LocalizedTextSerializer::class)
+data class LocalizedText(
+    /** The plain form, when the manifest declared one. */
+    val plain: String? = null,
+    /** The per-locale form, keyed by BCP-47 tag. */
+    val byLocale: Map<String, String> = emptyMap(),
+) {
+    /** Whether there is any text at all. */
+    val isBlank: Boolean get() = resolve() == null
+
+    /**
+     * The best string for [locale], falling back through its language, then any declared value.
+     *
+     * The middle step matters: a phone set to `zh-rCN` should match a manifest's `zh` entry, and a
+     * manifest declaring only `zh` should still name itself on an English phone rather than vanish.
+     */
+    fun resolve(locale: String? = null): String? {
+        plain?.takeIf { it.isNotBlank() }?.let { return it }
+        if (byLocale.isEmpty()) return null
+        val tag = locale?.replace('_', '-')
+        if (tag != null) {
+            byLocale[tag]?.takeIf { it.isNotBlank() }?.let { return it }
+            val language = tag.substringBefore('-')
+            byLocale[language]?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        // Deterministic fallback: the manifest's own first entry, ordered by key so the same
+        // manifest always resolves the same way regardless of map iteration order.
+        return byLocale.toSortedMap().values.firstOrNull { it.isNotBlank() }
+    }
+}
+
+/**
+ * Reads [LocalizedText] from either shape a manifest uses.
+ *
+ * Written by hand rather than generated because the type is a union the serializer generator cannot
+ * express, and because the failure mode it prevents is silent: a strict decoder drops the enclosing
+ * object rather than the field.
+ */
+object LocalizedTextSerializer : KSerializer<LocalizedText> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("LocalizedText", PrimitiveKind.STRING)
+
+    override fun deserialize(decoder: Decoder): LocalizedText {
+        val element = (decoder as JsonDecoder).decodeJsonElement()
+        return when (element) {
+            is JsonPrimitive -> LocalizedText(plain = element.contentOrNull)
+            is JsonObject -> LocalizedText(
+                byLocale = element.mapNotNull { (key, value) ->
+                    (value as? JsonPrimitive)?.contentOrNull?.let { key to it }
+                }.toMap(),
+            )
+            else -> LocalizedText()
+        }
+    }
+
+    override fun serialize(encoder: Encoder, value: LocalizedText) {
+        // The app only ever reads these, but the compiler needs a body: emit the plain form when
+        // there is one and the first locale otherwise, matching the shape a manifest would use.
+        val text = value.plain ?: value.resolve()
+        if (text == null) encoder.encodeNull() else encoder.encodeString(text)
+    }
+}
+
+/**
+ * Display identity of an entry's owning package, read from its manifest.
+ *
+ * Every field mirrors the manifest verbatim and is display copy rather than anything structural.
+ * `plugin-packages` resolves it at request time and leaves it off entirely for a loose module with
+ * no owning manifest, which is why the whole object is optional on a row.
+ *
+ * The fields are [LocalizedText] because the two shapes coexist — see that type for why a plain
+ * string field is not enough. [icon] is an inline `data:` URI on the official bundles and is not
+ * decoded here: nothing in the app renders it, and carrying a base64 SVG per bundle through the
+ * wire format would cost more than it is worth.
  */
 @Serializable
 data class PluginInventoryMeta(
-    @SerialName("title") val title: String? = null,
-    @SerialName("description") val description: String? = null,
+    @SerialName("title") val title: LocalizedText? = null,
+    @SerialName("description") val description: LocalizedText? = null,
 )
 
 /** One row of `pluginInventory/list`, and of each row list under `agentPresets`. */
@@ -73,7 +163,7 @@ data class PluginInventoryEntry(
      * it buys nothing there; it matters for the handful of rows whose package declares a friendlier
      * title, and it is the only name available when a row has no module name to shorten.
      */
-    val displayTitle: String get() = meta?.title?.takeIf { it.isNotBlank() } ?: moduleName
+    val displayTitle: String get() = meta?.title?.resolve() ?: moduleName
 }
 
 /**

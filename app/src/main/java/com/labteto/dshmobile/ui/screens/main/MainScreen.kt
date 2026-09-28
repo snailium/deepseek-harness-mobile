@@ -54,7 +54,7 @@ import kotlinx.coroutines.launch
  * never conflict.
  */
 @Composable
-fun MainScreen(onOpenSettings: () -> Unit) {
+fun MainScreen(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var automationsOpen by remember { mutableStateOf(false) }
@@ -94,6 +94,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
             ChatListDrawer(
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
+                onOpenPlugins = onOpenPlugins,
                 modifier = Modifier.fillMaxHeight().width(306.dp),
             )
         },

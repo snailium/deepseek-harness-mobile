@@ -38,6 +38,7 @@ import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.screens.connect.ConnectScreen
 import com.labteto.dshmobile.ui.screens.main.MainScreen
+import com.labteto.dshmobile.ui.screens.settings.PluginsScreen
 import com.labteto.dshmobile.ui.screens.pair.PairScreen
 import com.labteto.dshmobile.ui.screens.settings.SettingsScreen
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -84,23 +85,28 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         // remembered. `pairUrl` is saveable because the scan launches another activity, and coming
         // back to an empty address field would lose the one thing the user had already supplied.
         var showPair by rememberSaveable { mutableStateOf(false) }
+        // Plugins is its own route rather than a section of Settings: the drawer opens it directly,
+        // and it is the one settings-shaped page a user reaches while working rather than while
+        // configuring. Making it a route keeps the drawer's button a plain navigation.
+        var showPlugins by rememberSaveable { mutableStateOf(false) }
         var pairUrl by rememberSaveable { mutableStateOf<String?>(null) }
         val showMain = connection.phase == ConnectionPhase.CONNECTED ||
             (connection.phase == ConnectionPhase.RECONNECTING && connection.hasConnected)
-        Box(Modifier.fillMaxSize()) {
-            when {
-                showSettings -> SettingsScreen(onClose = { showSettings = false })
-                showPair -> PairScreen(onClose = { showPair = false }, prefillUrl = pairUrl)
-                showMain -> MainScreen(onOpenSettings = { showSettings = true })
-                else -> ConnectScreen(
-                    onOpenSettings = { showSettings = true },
-                    onPair = { url ->
-                        pairUrl = url
-                        showPair = true
-                    },
-                )
-            }
-            DsToastHost(toast, modifier = Modifier.fillMaxWidth())
+        when {
+            showPlugins -> PluginsScreen(onClose = { showPlugins = false })
+            showSettings -> SettingsScreen(onClose = { showSettings = false })
+            showPair -> PairScreen(onClose = { showPair = false }, prefillUrl = pairUrl)
+            showMain -> MainScreen(
+                onOpenSettings = { showSettings = true },
+                onOpenPlugins = { showPlugins = true },
+            )
+            else -> ConnectScreen(
+                onOpenSettings = { showSettings = true },
+                onPair = { url ->
+                    pairUrl = url
+                    showPair = true
+                },
+            )
         }
 
         // Offered over whatever is on screen, and only once per release: dismissing records the

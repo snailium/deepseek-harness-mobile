@@ -136,8 +136,8 @@ class PluginInventoryDecodeTest {
                 """"description":"Provider-neutral LLM service"}}]}""",
         )
         val entry = snapshot.entries.single()
-        assertEquals("@deepseek-ai/dsh-llm", entry.meta?.title)
-        assertEquals("Provider-neutral LLM service", entry.meta?.description)
+        assertEquals("@deepseek-ai/dsh-llm", entry.meta?.title?.resolve())
+        assertEquals("Provider-neutral LLM service", entry.meta?.description?.resolve())
     }
 
     /**
@@ -159,8 +159,8 @@ class PluginInventoryDecodeTest {
         val snapshot = listOrFail(
             """{"entries":[{"entryId":"e1","moduleName":"m","enabled":true,"meta":{"title":"T"}}]}""",
         )
-        assertEquals("T", snapshot.entries.single().meta?.title)
-        assertNull(snapshot.entries.single().meta?.description)
+        assertEquals("T", snapshot.entries.single().meta?.title?.resolve())
+        assertNull(snapshot.entries.single().meta?.description?.resolve())
     }
 
     /** A blank title is not a name; preferring it would print an empty row. */
@@ -190,7 +190,7 @@ class PluginInventoryDecodeTest {
         )
         assertEquals(listOf("standard", "minimal"), snapshot.agentPresets.map { it.id })
         assertTrue(snapshot.agentPresets[0].isDefault)
-        assertEquals("persona", snapshot.agentPresets[0].rows.single().meta?.title)
+        assertEquals("persona", snapshot.agentPresets[0].rows.single().meta?.title?.resolve())
         // An omitted `isDefault` is a non-default preset, not a decode failure.
         assertEquals(false, snapshot.agentPresets[1].isDefault)
     }
@@ -251,10 +251,10 @@ class PluginInventoryDecodeTest {
 
         // A row with meta keeps the manifest title and description.
         val described = snapshot.entries.first { it.entryId == "include:plugin-manager" }
-        assertEquals("@deepseek-ai/dsh-plugin-manager", described.meta?.title)
+        assertEquals("@deepseek-ai/dsh-plugin-manager", described.meta?.title?.resolve())
         assertEquals(
             "Current-profile plugin and bundle management shared by dsh CLI, Web and agent tools",
-            described.meta?.description,
+            described.meta?.description?.resolve(),
         )
 
         // All four standing presets arrive, in the order the harness lists them, with `standard`
