@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">ان لوڈ ہو رہا ہے</string>
     <string name="plugins_empty">یہ ہارنیس کوئی پلگ ان درج نہیں کرتا۔</string>
     <string name="plugins_search_hint">پلگ ان فلٹر کریں</string>
+    <string name="plugins_unavailable">یہ harness کوئی پلگ ان منیجر فراہم نہیں کرتا۔</string>
+    <string name="plugins_locked_generic">مقفل</string>
+    <string name="plugins_toggle_failed">اس پلگ ان کو ٹوگل نہیں کیا جا سکا۔</string>
+    <string name="plugins_tab_bundles">بنڈل</string>
+    <string name="plugins_section_installed">انسٹال شدہ</string>
+    <string name="plugins_section_available">دستیاب</string>
+    <string name="plugins_bundle_rows">%1$d پلگ ان</string>
+    <string name="plugins_locked_management">مقفل: پروفائل اسی پر بنی ہے</string>
+    <string name="plugins_locked_unaddressable">مقفل: اس قطار کا کوئی پیکیج مالک نہیں</string>
     <string name="plugins_tab_composed">مرکب</string>
     <string name="plugins_tab_presets">ایجنٹ پریسیٹ</string>
     <string name="plugins_count">%2$d میں سے %1$d پلگ ان</string>

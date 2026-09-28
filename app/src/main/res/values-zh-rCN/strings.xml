@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">卸载中</string>
     <string name="plugins_empty">此 Harness 未列出任何插件。</string>
     <string name="plugins_search_hint">筛选插件</string>
+    <string name="plugins_unavailable">该 harness 未提供插件管理器。</string>
+    <string name="plugins_locked_generic">已锁定</string>
+    <string name="plugins_toggle_failed">无法切换该插件。</string>
+    <string name="plugins_tab_bundles">插件包</string>
+    <string name="plugins_section_installed">已安装</string>
+    <string name="plugins_section_available">可安装</string>
+    <string name="plugins_bundle_rows">%1$d 个插件</string>
+    <string name="plugins_locked_management">已锁定：配置基于它构建</string>
+    <string name="plugins_locked_unaddressable">已锁定：没有包拥有该条目</string>
     <string name="plugins_tab_composed">已装配</string>
     <string name="plugins_tab_presets">智能体预设</string>
     <string name="plugins_count">%1$d / %2$d 个插件</string>

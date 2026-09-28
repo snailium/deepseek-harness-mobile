@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">अनलोड हो रहा है</string>
     <string name="plugins_empty">यह हार्नेस कोई प्लगइन सूचीबद्ध नहीं करता।</string>
     <string name="plugins_search_hint">प्लगइन फ़िल्टर करें</string>
+    <string name="plugins_unavailable">यह harness कोई प्लगइन प्रबंधक उपलब्ध नहीं कराता।</string>
+    <string name="plugins_locked_generic">लॉक</string>
+    <string name="plugins_toggle_failed">इस प्लगइन को टॉगल नहीं किया जा सका।</string>
+    <string name="plugins_tab_bundles">बंडल</string>
+    <string name="plugins_section_installed">इंस्टॉल किए गए</string>
+    <string name="plugins_section_available">उपलब्ध</string>
+    <string name="plugins_bundle_rows">%1$d प्लगइन</string>
+    <string name="plugins_locked_management">लॉक: प्रोफ़ाइल इस पर बना है</string>
+    <string name="plugins_locked_unaddressable">लॉक: इस पंक्ति का कोई पैकेज मालिक नहीं है</string>
     <string name="plugins_tab_composed">संयोजित</string>
     <string name="plugins_tab_presets">एजेंट प्रीसेट</string>
     <string name="plugins_count">%2$d में से %1$d प्लगइन</string>

@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">Déchargement</string>
     <string name="plugins_empty">Ce harness ne liste aucun plugin.</string>
     <string name="plugins_search_hint">Filtrer les plugins</string>
+    <string name="plugins_unavailable">Ce harness n’expose pas de gestionnaire d’extensions.</string>
+    <string name="plugins_locked_generic">Verrouillé</string>
+    <string name="plugins_toggle_failed">Impossible de basculer cette extension.</string>
+    <string name="plugins_tab_bundles">Paquets</string>
+    <string name="plugins_section_installed">Installés</string>
+    <string name="plugins_section_available">Disponibles</string>
+    <string name="plugins_bundle_rows">%1$d extensions</string>
+    <string name="plugins_locked_management">Verrouillé : le profil repose dessus</string>
+    <string name="plugins_locked_unaddressable">Verrouillé : aucun paquet ne possède cette ligne</string>
     <string name="plugins_tab_composed">Composés</string>
     <string name="plugins_tab_presets">Préréglages d\'agent</string>
     <string name="plugins_count">%1$d sur %2$d extensions</string>

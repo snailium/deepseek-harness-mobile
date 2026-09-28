@@ -381,6 +381,15 @@
     <string name="plugins_phase_unloading">Unloading</string>
     <string name="plugins_empty">This harness lists no plugins.</string>
     <string name="plugins_search_hint">Filter plugins</string>
+    <string name="plugins_unavailable">This harness does not expose a plugin manager.</string>
+    <string name="plugins_locked_generic">Locked</string>
+    <string name="plugins_toggle_failed">This plugin could not be toggled.</string>
+    <string name="plugins_tab_bundles">Bundles</string>
+    <string name="plugins_section_installed">Installed</string>
+    <string name="plugins_section_available">Available</string>
+    <string name="plugins_bundle_rows">%1$d plugins</string>
+    <string name="plugins_locked_management">Locked: the profile is built on it</string>
+    <string name="plugins_locked_unaddressable">Locked: no package owns this row</string>
     <string name="plugins_tab_composed">Composed</string>
     <string name="plugins_tab_presets">Agent presets</string>
     <string name="plugins_count">%1$d of %2$d plugins</string>

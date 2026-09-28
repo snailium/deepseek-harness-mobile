@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">Выгрузка</string>
     <string name="plugins_empty">Этот harness не перечисляет плагины.</string>
     <string name="plugins_search_hint">Фильтр плагинов</string>
+    <string name="plugins_unavailable">Этот harness не предоставляет менеджер плагинов.</string>
+    <string name="plugins_locked_generic">Заблокировано</string>
+    <string name="plugins_toggle_failed">Не удалось переключить этот плагин.</string>
+    <string name="plugins_tab_bundles">Пакеты</string>
+    <string name="plugins_section_installed">Установленные</string>
+    <string name="plugins_section_available">Доступные</string>
+    <string name="plugins_bundle_rows">%1$d плагинов</string>
+    <string name="plugins_locked_management">Заблокировано: профиль построен на нём</string>
+    <string name="plugins_locked_unaddressable">Заблокировано: этой строкой не владеет ни один пакет</string>
     <string name="plugins_tab_composed">Собранные</string>
     <string name="plugins_tab_presets">Профили агента</string>
     <string name="plugins_count">%1$d из %2$d плагинов</string>

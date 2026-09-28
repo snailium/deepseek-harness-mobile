@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">Descargando</string>
     <string name="plugins_empty">Este harness no lista complementos.</string>
     <string name="plugins_search_hint">Filtrar complementos</string>
+    <string name="plugins_unavailable">Este harness no expone un gestor de complementos.</string>
+    <string name="plugins_locked_generic">Bloqueado</string>
+    <string name="plugins_toggle_failed">No se pudo cambiar este complemento.</string>
+    <string name="plugins_tab_bundles">Paquetes</string>
+    <string name="plugins_section_installed">Instalados</string>
+    <string name="plugins_section_available">Disponibles</string>
+    <string name="plugins_bundle_rows">%1$d complementos</string>
+    <string name="plugins_locked_management">Bloqueado: el perfil se basa en él</string>
+    <string name="plugins_locked_unaddressable">Bloqueado: ningún paquete es dueño de esta fila</string>
     <string name="plugins_tab_composed">Compuestos</string>
     <string name="plugins_tab_presets">Ajustes del agente</string>
     <string name="plugins_count">%1$d de %2$d complementos</string>

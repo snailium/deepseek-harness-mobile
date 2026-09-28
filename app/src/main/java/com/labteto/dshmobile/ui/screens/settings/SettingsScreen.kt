@@ -96,9 +96,10 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 
     val hostsCleared = stringResource(R.string.settings_forget_hosts_done)
     val sessionsCleared = stringResource(R.string.settings_clear_last_sessions_done)
+    val refusalUnaddressable = stringResource(R.string.plugins_locked_unaddressable)
 
-    // Fetched on open rather than kept live: the inventory only changes when the harness is
-    // restarted with a different composition, and nothing pushes that over the wire.
+    // Fetched on open rather than kept live: the composition only changes when the harness restarts
+    // or when a toggle is applied here, and a toggle reloads explicitly.
     LaunchedEffect(Unit) { store.refreshPlugins() }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
@@ -253,8 +254,11 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
         }
     }
 
-    plugins?.takeIf { pluginsOpen }?.let {
-        PluginsScreen(inventory = it, onClose = { pluginsOpen = false })
+    plugins?.takeIf { pluginsOpen }?.let { snapshot ->
+        // The inspection view, not the editable one: this entry point is inside Settings, matching
+        // where the harness puts its "Built-in plugins" tab. The bundle page with switches is reached
+        // from the chat list's plugin button.
+        BuiltInPluginsScreen(inventory = snapshot, onClose = { pluginsOpen = false })
     }
 
     if (showDisconnectDialog) {

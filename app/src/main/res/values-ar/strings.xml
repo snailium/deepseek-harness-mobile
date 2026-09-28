@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">جارٍ إلغاء التحميل</string>
     <string name="plugins_empty">لا يعرض هذا الـ Harness أي إضافات.</string>
     <string name="plugins_search_hint">تصفية الإضافات</string>
+    <string name="plugins_unavailable">هذا الـ harness لا يوفّر مدير إضافات.</string>
+    <string name="plugins_locked_generic">مقفل</string>
+    <string name="plugins_toggle_failed">تعذّر تبديل هذه الإضافة.</string>
+    <string name="plugins_tab_bundles">الحزم</string>
+    <string name="plugins_section_installed">المثبَّتة</string>
+    <string name="plugins_section_available">المتاحة</string>
+    <string name="plugins_bundle_rows">%1$d إضافة</string>
+    <string name="plugins_locked_management">مقفل: البنية الأساسية للملف الشخصي</string>
+    <string name="plugins_locked_unaddressable">مقفل: لا حزمة تملك هذا السطر</string>
     <string name="plugins_tab_composed">المُركَّبة</string>
     <string name="plugins_tab_presets">إعدادات الوكيل</string>
     <string name="plugins_count">%1$d من %2$d إضافة</string>

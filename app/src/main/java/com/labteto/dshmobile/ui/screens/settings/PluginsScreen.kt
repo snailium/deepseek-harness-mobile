@@ -3,7 +3,6 @@ package com.labteto.dshmobile.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,13 +14,14 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -37,13 +37,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.core.wire.dto.AgentPresetComposition
-import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
-import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
-import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
+import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
+import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
+import com.labteto.dshmobile.data.PluginMutationState
 import com.labteto.dshmobile.ui.components.DsIconButton
-import com.labteto.dshmobile.ui.components.DsSegment
-import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.theme.DsShapes
@@ -52,50 +50,82 @@ import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import java.util.Locale
+import kotlinx.coroutines.launch
+import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.components.rememberDsToast
+import com.labteto.dshmobile.data.PluginMutationOutcome
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 
 /**
- * The harness's plugin composition, on a page of its own.
+ * The profile's plugin bundles, with a live switch on each one.
  *
- * This replaces a bottom sheet that listed module specifiers and nothing else. The sheet was built
- * against an inventory that carried only `entryId`/`moduleName`/`enabled`/`fiberPhase`; harness
- * 0.1.7 also returns each package's manifest `meta`, the standing `agentPresets` compositions, and
- * a `managementAvailable` flag, and none of that was being decoded. With the display identity
- * available, forty screens of `@deepseek-ai/dsh-…` become rows that say what the plugin *is*.
+ * This is the harness's own top-level Plugins page — `pluginManager/listBundles`, its Official and
+ * Installed sections — and it is *not* the Settings tab called "Built-in plugins". Those are two
+ * different services and the difference is the whole design here:
  *
- * A full screen rather than a sheet, matching the harness's own Plugins page: three sections and a
- * persistent filter do not fit a sheet's height, and the list is long enough to deserve the whole
- * surface. [page] and [selectedPreset] are hoisted so the caller owns navigation.
+ * - **Bundles** ([PluginBundle]) is what an operator installs and turns on. Seventeen entries on a
+ *   stock profile, each owning a *set* of loader rows. Toggling one is the supported operation the
+ *   harness's own page offers.
+ * - **Built-in plugins** (`pluginInventory/list` / `pluginManager/listPlugins`) is the flat
+ *   Cordis loader tree — 198 rows here — shown read-only for inspection. It is deliberately not
+ *   reproduced on this page.
  *
- * Read-only throughout. `pluginInventory/list` has no counterpart that changes anything — enabling
- * or disabling a plugin means editing `cordis.patch.yml` on the harness computer — and the
- * `pluginManager` calls behind the harness's own Add/Remove actions are loopback-pinned, so a
- * connected phone is refused them even when [PluginInventorySnapshot.managementAvailable] is true.
+ * That second distinction is not academic. `listPlugins` also exposes a per-row setter, and a flat
+ * list of 198 rows where most rows report themselves as togglable reads as a menu of safe switches.
+ * It is not: `include:llm` reports no `readOnlyReason` at all, yet roughly two dozen packages inject
+ * the `llm` service, so turning that one row off stops the harness from booting. The web UI never
+ * offers a switch for it because it never shows this list as editable, and neither does this page.
+ *
+ * Read-only against a deployment that composes no manager: [bundles] is null, and the page says so
+ * rather than rendering an empty list.
  */
 @Composable
-fun PluginsScreen(
-    inventory: PluginInventorySnapshot,
-    onClose: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    var filter by remember { mutableStateOf("") }
-    var page by remember { mutableStateOf(PluginPage.COMPOSED) }
-    var selectedPreset by remember { mutableStateOf(inventory.agentPresets.firstOrNull()?.id) }
+fun PluginsScreen(onClose: () -> Unit) {
+    val store = rememberSessionStore()
+    val bundles by store.pluginBundles.collectAsStateWithLifecycle()
+    val mutation by store.pluginMutation.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val toast = rememberDsToast()
+    val toggleFailed = stringResource(R.string.plugins_toggle_failed)
+    val refusalManagement = stringResource(R.string.plugins_locked_management)
 
-    // The composed list is the live tree; a preset tab shows what that preset *would* mount. Both
-    // answer to the same filter, so the query is applied to whichever set is on screen rather than
-    // being reset on every tab change.
-    val rows = remember(inventory, page, selectedPreset) {
-        when (page) {
-            PluginPage.COMPOSED -> inventory.entries
-            PluginPage.PRESETS ->
-                inventory.agentPresets.firstOrNull { it.id == selectedPreset }?.rows.orEmpty()
+    // Fetched on open: the composition changes only when the harness restarts or when a toggle here
+    // is applied, and a toggle reloads explicitly.
+    LaunchedEffect(Unit) { store.refreshPlugins() }
+
+    // A refusal arrives inside a successful call, which is why it has to be surfaced at all: the
+    // request succeeded and the Host still declined, and a user would otherwise read that as a
+    // broken switch.
+    LaunchedEffect(store) {
+        store.pluginEvents.collect { outcome ->
+            when (outcome) {
+                is PluginMutationOutcome.Applied -> Unit
+                is PluginMutationOutcome.Refused -> toast.second(
+                    when (outcome.reason) {
+                        PluginReadOnly.MANAGEMENT_REQUIRED -> refusalManagement
+                        // An unfamiliar code is shown verbatim: the vocabulary is the Host's, and a
+                        // plausible-sounding guess is worse than an ugly but true one.
+                        else -> outcome.reason ?: toggleFailed
+                    },
+                )
+                is PluginMutationOutcome.Failed -> toast.second(toggleFailed)
+            }
         }
     }
-    val matching = remember(rows, filter) {
-        val q = filter.trim()
-        if (q.isEmpty()) rows else rows.filter { it.matches(q) }
-    }
+
+    val colors = DsTheme.colors
+    var filter by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
     val listState = rememberLazyListState()
+    val locale = Locale.getDefault().toLanguageTag()
+
+    val matching = remember(bundles, filter, locale) {
+        val all = bundles.orEmpty()
+        val query = filter.trim()
+        if (query.isEmpty()) all else all.filter { it.matches(query, locale) }
+    }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         Column(
@@ -106,39 +136,22 @@ fun PluginsScreen(
         ) {
             PluginsTitleBar(onClose)
 
-            if (inventory.agentPresets.isNotEmpty()) {
-                DsSegmented(
-                    segments = listOf(
-                        DsSegment(PluginPage.COMPOSED.key, stringResource(R.string.plugins_tab_composed)),
-                        DsSegment(PluginPage.PRESETS.key, stringResource(R.string.plugins_tab_presets)),
-                    ),
-                    selectedKey = page.key,
-                    onSelect = { key ->
-                        page = PluginPage.entries.first { it.key == key }
-                        listState.requestScrollToItem(0)
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    stretch = true,
+            val loaded = bundles
+            if (loaded == null) {
+                Text(
+                    stringResource(R.string.plugins_unavailable),
+                    style = DsType.small13,
+                    color = colors.labelTertiary,
                 )
+                return@Column
             }
-
-            if (page == PluginPage.PRESETS) {
-                PresetStrip(
-                    presets = inventory.agentPresets,
-                    selected = selectedPreset,
-                    onSelect = { id ->
-                        selectedPreset = id
-                        listState.requestScrollToItem(0)
-                    },
-                )
-            }
-
-            Spacer(Modifier.height(DsSpacing.small))
 
             TextField(
                 value = filter,
                 onValueChange = { filter = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = DsSpacing.small),
                 placeholder = {
                     Text(stringResource(R.string.plugins_search_hint), style = DsType.std14)
                 },
@@ -154,42 +167,20 @@ fun PluginsScreen(
 
             Spacer(Modifier.height(DsSpacing.small))
 
-            // Counted above the list rather than below it: the number is what tells you whether the
-            // filter is worth clearing, and a footer is off screen once the list is long.
-            Text(
-                stringResource(R.string.plugins_count, matching.size, rows.size),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
+            BundleList(
+                bundles = matching,
+                total = loaded.size,
+                mutation = mutation,
+                expanded = expanded,
+                onToggleExpand = { name ->
+                    expanded = if (name in expanded) expanded - name else expanded + name
+                },
+                onToggle = { name, enabled -> scope.launch { store.setBundleEnabled(name, enabled) } },
+                listState = listState,
+                locale = locale,
             )
-
-            Spacer(Modifier.height(DsSpacing.xsmall))
-
-            if (matching.isEmpty()) {
-                Text(
-                    stringResource(
-                        if (rows.isEmpty()) R.string.plugins_empty else R.string.plugins_no_match,
-                    ),
-                    style = DsType.small13,
-                    color = colors.labelTertiary,
-                )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-                ) {
-                    items(matching, key = { it.entryId }) { entry -> PluginCard(entry) }
-                    item { Spacer(Modifier.height(DsSpacing.xlarge)) }
-                }
-            }
         }
     }
-}
-
-/** Which set of rows the page is showing. */
-private enum class PluginPage(val key: String) {
-    COMPOSED("composed"),
-    PRESETS("presets"),
 }
 
 /** The page's own title bar, matching every other screen's 44dp row. */
@@ -221,51 +212,88 @@ private fun PluginsTitleBar(onClose: () -> Unit) {
 }
 
 /**
- * The preset picker, as a horizontal row of pills.
+ * The bundle list, grouped the way the harness groups it.
  *
- * A `DsSegmented` would be wrong here: the count varies by profile, and four presets already
- * overrun a phone's width. Pills that scroll keep every preset reachable at any count.
+ * The section headers carry counts so the shape of the profile is legible before scrolling: eight
+ * installed and nine available is a sentence; the same rows without headers is just a list.
  */
 @Composable
-private fun PresetStrip(
-    presets: List<AgentPresetComposition>,
-    selected: String?,
-    onSelect: (String) -> Unit,
+private fun BundleList(
+    bundles: List<PluginBundle>,
+    total: Int,
+    mutation: PluginMutationState?,
+    expanded: Set<String>,
+    onToggleExpand: (String) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    listState: LazyListState,
+    locale: String,
 ) {
+    val colors = DsTheme.colors
+    if (bundles.isEmpty()) {
+        Text(
+            stringResource(if (total == 0) R.string.plugins_empty else R.string.plugins_no_match),
+            style = DsType.small13,
+            color = colors.labelTertiary,
+        )
+        return
+    }
+    val installed = bundles.filter { it.group == PluginBundleGroup.INSTALLED }
+    val available = bundles.filter { it.group == PluginBundleGroup.OFFICIAL }
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+    ) {
+        if (installed.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.plugins_section_installed), installed.size) }
+            items(installed, key = { "i:${it.name}" }) { bundle ->
+                BundleCard(bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale)
+            }
+        }
+        if (available.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.plugins_section_available), available.size) }
+            items(available, key = { "o:${it.name}" }) { bundle ->
+                BundleCard(bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale)
+            }
+        }
+        item { Spacer(Modifier.height(DsSpacing.xlarge)) }
+    }
+}
+
+@Composable
+private fun SectionHeader(label: String, count: Int) {
     val colors = DsTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = DsSpacing.small),
-        horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
+            .padding(top = DsSpacing.small, bottom = DsSpacing.tiny),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        presets.forEach { preset ->
-            val active = preset.id == selected
-            Text(
-                text = preset.id,
-                style = if (active) DsType.small13Strong else DsType.small13,
-                color = if (active) colors.labelPrimary else colors.labelTertiary,
-                maxLines = 1,
-                modifier = Modifier
-                    .clip(DsShapes.pillFull)
-                    .background(if (active) colors.accentTertiary else colors.hoverSolid)
-                    .clickable { onSelect(preset.id) }
-                    .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.xsmall),
-            )
-        }
+        Text(label, style = DsType.small13Strong, color = colors.labelSecondary)
+        Spacer(Modifier.width(DsSpacing.xsmall))
+        Text(count.toString(), style = DsType.caption11, color = colors.labelTertiary)
     }
 }
 
 /**
- * One plugin, as a card.
+ * One bundle, with a switch when the Host offers one.
  *
- * The name line prefers the manifest title, then the shortened module name — which are the same
- * string on nearly every row, but a package that declares a friendlier title gets to use it. The
- * module specifier stays visible underneath, because it is what `cordis.patch.yml` actually names.
+ * The switch is drawn but disabled for a bundle the Host refuses, rather than hidden: that a bundle
+ * cannot be turned off is a fact about the profile worth seeing, and a list that silently omits the
+ * control for some rows reads as a rendering bug. The reason becomes the row's own caption.
  */
 @Composable
-private fun PluginCard(entry: PluginInventoryEntry) {
+private fun BundleCard(
+    bundle: PluginBundle,
+    mutation: PluginMutationState?,
+    expanded: Boolean,
+    onToggleExpand: (String) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    locale: String,
+) {
     val colors = DsTheme.colors
+    val busy = mutation?.target == bundle.name
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -275,114 +303,114 @@ private fun PluginCard(entry: PluginInventoryEntry) {
         verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                moduleShortName(entry.displayTitle),
-                style = DsType.small13Strong,
-                color = colors.labelPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    bundle.displayTitle(locale),
+                    style = DsType.small13Strong,
+                    color = colors.labelPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                bundle.version?.let {
+                    Text(it, style = DsType.caption11, color = colors.labelCaption)
+                }
+            }
             Spacer(Modifier.width(DsSpacing.xsmall))
-            PluginState(entry)
+            if (bundle.togglable) {
+                Switch(
+                    checked = bundle.enabled,
+                    onCheckedChange = { next -> onToggle(bundle.name, next) },
+                    enabled = !busy,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = colors.bgBase,
+                        checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.labelTertiary,
+                        uncheckedTrackColor = colors.hoverSolid,
+                        uncheckedBorderColor = colors.borderL2,
+                    ),
+                )
+            } else {
+                BundleLock(reason = bundle.readOnlyReason)
+            }
         }
-        Text(
-            entry.moduleName,
-            style = DsType.caption11,
-            color = colors.labelCaption,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        // The description is what the sheet never had: without it every row is a package name and
-        // the reader has to know the ecosystem to tell one from another.
-        entry.meta?.description?.takeIf { it.isNotBlank() }?.let { description ->
+
+        bundle.displayDescription?.let { description ->
+            Text(description, style = DsType.caption11, color = colors.labelTertiary)
+        }
+
+        // The rows this bundle contributes, behind a disclosure. A bundle can carry ninety of them
+        // (dsh-base does), and inlining that would make one bundle look like the whole page. Shown
+        // without switches: this is the bundle's contents, not a place to edit them.
+        if (bundle.rows.isNotEmpty()) {
             Text(
-                description,
+                stringResource(R.string.plugins_bundle_rows, bundle.rows.size),
                 style = DsType.caption11,
-                color = colors.labelTertiary,
+                color = if (expanded) colors.accent else colors.labelTertiary,
+                modifier = Modifier
+                    .clip(DsShapes.row)
+                    .clickable { onToggleExpand(bundle.name) }
+                    .padding(vertical = DsSpacing.tiny),
             )
+            if (expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
+                    bundle.rows.forEach { row ->
+                        Text(
+                            row.displayTitle,
+                            style = DsType.caption11,
+                            color = colors.labelCaption,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 /**
- * A row's lifecycle state, as a dot and a word.
+ * A locked bundle's state.
  *
- * Enablement and mount phase are two different facts and only one of them is ever interesting: a
- * disabled plugin is disabled whether or not it ever mounted, so the phase is reported only for
- * the ones the composition asked for.
+ * It reports *why* it is locked rather than repeating its enablement: "Enabled" beside a greyed
+ * switch tells the reader nothing they cannot already see.
  */
 @Composable
-private fun PluginState(entry: PluginInventoryEntry) {
+private fun BundleLock(reason: String?) {
     val colors = DsTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
-        StateDot(
-            when {
-                !entry.enabled -> StateDotState.Idle
-                else -> when (entry.fiberPhase) {
-                    PluginFiberPhase.ACTIVE -> StateDotState.Done
-                    PluginFiberPhase.LOADING, PluginFiberPhase.UNLOADING -> StateDotState.Running
-                    PluginFiberPhase.FAILED -> StateDotState.Error
-                    PluginFiberPhase.PENDING, null -> StateDotState.Idle
-                }
-            },
-        )
+        StateDot(StateDotState.Idle)
         Spacer(Modifier.width(DsSpacing.tiny))
         Text(
-            stringResource(
-                if (!entry.enabled) {
-                    R.string.plugins_disabled
-                } else {
-                    pluginPhaseLabel(entry.fiberPhase)
-                },
-            ),
+            text = reason?.let { readOnlyLabel(it)?.let { id -> stringResource(id) } ?: it }
+                ?: stringResource(R.string.plugins_locked_generic),
             style = DsType.caption11,
-            color = if (entry.enabled && entry.fiberPhase == PluginFiberPhase.FAILED) {
-                colors.error
-            } else {
-                colors.labelTertiary
-            },
+            color = colors.labelTertiary,
         )
     }
 }
 
 /**
- * Whether a row answers a query, comparing case-insensitively.
+ * The sentence for a read-only reason, or null when this build has no wording for it.
  *
- * The entry id is matched as well as the visible fields, because the entry id is what
- * `cordis.patch.yml` names — pasting one into the box is the natural way to find the row it
- * configures. Both sides are lower-cased here rather than by the caller: the list is a few hundred
- * rows and the whole filter re-runs on each keystroke, but a contract that requires the caller to
- * remember is one a later call site gets wrong silently.
+ * Null rather than a generic fallback so the caller can show the Host's own code instead: the codes
+ * are stable and greppable, and a plausible-sounding guess is worse than an ugly but true one.
  */
-internal fun PluginInventoryEntry.matches(query: String): Boolean {
-    val q = query.trim().lowercase(Locale.ROOT)
-    if (q.isEmpty()) return true
-    return moduleName.lowercase(Locale.ROOT).contains(q) ||
-        entryId.lowercase(Locale.ROOT).contains(q) ||
-        meta?.title?.lowercase(Locale.ROOT)?.contains(q) == true ||
-        meta?.description?.lowercase(Locale.ROOT)?.contains(q) == true
-}
-
-@Composable
-internal fun pluginPhaseLabel(phase: PluginFiberPhase?): Int = when (phase) {
-    PluginFiberPhase.PENDING -> R.string.plugins_phase_pending
-    PluginFiberPhase.LOADING -> R.string.plugins_phase_loading
-    PluginFiberPhase.ACTIVE -> R.string.plugins_phase_active
-    PluginFiberPhase.FAILED -> R.string.plugins_phase_failed
-    PluginFiberPhase.UNLOADING -> R.string.plugins_phase_unloading
-    null -> R.string.plugins_phase_unmounted
+private fun readOnlyLabel(reason: String): Int? = when (reason) {
+    PluginReadOnly.MANAGEMENT_REQUIRED -> R.string.plugins_locked_management
+    else -> null
 }
 
 /**
- * `@deepseek-ai/dsh-client-ui-plan` → `ui-plan`.
+ * Whether a bundle answers a query.
  *
- * Ported from the harness's own `moduleShortName`, prefix for prefix, so the two lists name the
- * same plugin the same way.
+ * The version is matched as well as the name: a user chasing a specific release types what they see,
+ * and the version is on the row.
  */
-internal fun moduleShortName(moduleName: String): String {
-    val prefixes = listOf("cordis:", "cordis-plugin-", "dsh-host-", "dsh-client-", "dsh-")
-    var name = moduleName.substringAfterLast('/')
-    for (prefix in prefixes) name = name.removePrefix(prefix)
-    return name.ifBlank { moduleName }
+internal fun PluginBundle.matches(query: String, locale: String? = null): Boolean {
+    val q = query.trim().lowercase(Locale.ROOT)
+    if (q.isEmpty()) return true
+    return name.lowercase(Locale.ROOT).contains(q) ||
+        version?.lowercase(Locale.ROOT)?.contains(q) == true ||
+        displayTitle(locale).lowercase(Locale.ROOT).contains(q) ||
+        displayDescription?.lowercase(Locale.ROOT)?.contains(q) == true
 }

@@ -138,6 +138,11 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
+import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
+import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.Flow
 
 /** One renderable session list row (manual order, live). */
 data class SessionRow(
@@ -481,6 +486,39 @@ class SessionStore @Inject constructor(
 
     /** The host's plugin inventory, or null when this deployment does not expose one. */
     val plugins: StateFlow<PluginInventorySnapshot?> = _plugins.asStateFlow()
+
+    private val _pluginBundles = MutableStateFlow<List<PluginBundle>?>(null)
+
+    /**
+     * The profile's bundles — the installed set and the catalog — or null when the deployment
+     * composes no plugin manager.
+     *
+     * Separate from [plugins] because they answer different questions and come from different
+     * services: the inventory says what is mounted, the manager says what a user installed and can
+     * turn off. A harness can expose either without the other.
+     */
+    val pluginBundles: StateFlow<List<PluginBundle>?> = _pluginBundles.asStateFlow()
+
+    private val _pluginRows = MutableStateFlow<List<PluginManagerRow>?>(null)
+
+    /** The manager's per-row view, which carries `patchId` and editability the inventory lacks. */
+    val pluginRows: StateFlow<List<PluginManagerRow>?> = _pluginRows.asStateFlow()
+
+    private val _pluginMutation = MutableStateFlow<PluginMutationState?>(null)
+
+    /** The plugin toggle currently in flight, for a spinner and a disabled switch. */
+    val pluginMutation: StateFlow<PluginMutationState?> = _pluginMutation.asStateFlow()
+
+    /**
+     * One-shot plugin mutation outcomes.
+     *
+     * A channel rather than a flow: a refusal is a thing that happened once and deserves a toast, and
+     * a state flow would re-deliver it on every recomposition or config change. Buffered so a
+     * mutation that lands while the page is being rebuilt is not dropped, but not conflated —
+     * two toggles in a row are two separate things to report.
+     */
+    private val _pluginEvents = Channel<PluginMutationOutcome>(Channel.BUFFERED)
+    val pluginEvents: Flow<PluginMutationOutcome> = _pluginEvents.receiveAsFlow()
 
     /** The preset a switch is in flight for, cleared when the projection reports it as effective. */
     private val _pendingPermission = MutableStateFlow<String?>(null)
@@ -2505,12 +2543,15 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Reload the host's plugin inventory.
+     * Reload the host's plugin surface: the inventory, the bundles, and the manager's rows.
      *
-     * Host-scoped and read-only — the harness offers no way to change it from here. A deployment
-     * that does not compose `@deepseek-ai/dsh-host-plugin-inventory` answers 404, which leaves the
-     * flow null and takes the settings section off the screen: absence of the capability, not a
-     * failure to report.
+     * Host-scoped. The three calls are attempted together because the page shows one screen built
+     * from all of them, but each stands alone: a deployment can compose the inventory without the
+     * manager, or the manager without the inventory, and each absence is its own capability gap
+     * rather than a failure. A 404 leaves that flow null and the corresponding section off screen.
+     *
+     * The inventory is what the read-only composition view binds to; the manager is what the
+     * editable one binds to. Nothing here is destructive, so a partial answer is still worth showing.
      */
     suspend fun refreshPlugins() {
         val api = apiOrNull() ?: return
@@ -2521,6 +2562,78 @@ class SessionStore @Inject constructor(
                 log("pluginInventory/list unavailable (${r.error.code}): ${r.error.message}")
             }
         }
+        when (val r = api.pluginManagerListBundles()) {
+            is RpcResult.Ok -> _pluginBundles.value = r.value
+            is RpcResult.Err -> {
+                _pluginBundles.value = null
+                log("pluginManager/listBundles unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+        when (val r = api.pluginManagerListPlugins()) {
+            is RpcResult.Ok -> _pluginRows.value = r.value
+            is RpcResult.Err -> {
+                _pluginRows.value = null
+                log("pluginManager/listPlugins unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+    }
+
+    /**
+     * Turn one plugin row on or off, then reload so the page shows what the Host actually did.
+     *
+     * The reload is not belt-and-braces: enabling a plugin mounts it, which changes its `fiberPhase`
+     * and can change other rows' composition, so the caller's optimistic value would be a guess. The
+     * result is reported through [pluginMutation] rather than returned, because the page mutates from
+     * a switch callback that has nowhere to put a return value.
+     *
+     * A refusal is a successful call carrying `application: failed` — see [emitMutation].
+     */
+    suspend fun setPluginEnabled(entryId: String, enabled: Boolean) {
+        val api = apiOrNull() ?: return
+        _pluginMutation.value = PluginMutationState(target = entryId, enabled = enabled)
+        try {
+            emitMutation(api.pluginManagerSetPluginEnabled(entryId, enabled))
+            refreshPlugins()
+        } finally {
+            _pluginMutation.value = null
+        }
+    }
+
+    /** Turn a whole bundle on or off, with the same reload-and-report contract as a single row. */
+    suspend fun setBundleEnabled(name: String, enabled: Boolean) {
+        val api = apiOrNull() ?: return
+        _pluginMutation.value = PluginMutationState(target = name, enabled = enabled)
+        try {
+            emitMutation(api.pluginManagerSetBundleEnabled(name, enabled))
+            refreshPlugins()
+        } finally {
+            _pluginMutation.value = null
+        }
+    }
+
+    /**
+     * Report one mutation outcome to whoever is listening.
+     *
+     * Kept separate from the two callers because the interesting branch is the same in both and is
+     * easy to get wrong: the Host answers `ok` for a row it *refused*, so treating the call's success
+     * as the change's success would tell the user a plugin was enabled when it was not.
+     */
+    private suspend fun emitMutation(result: RpcResult<PluginMutationResult>) {
+        val outcome = when (result) {
+            is RpcResult.Ok -> {
+                val value = result.value
+                if (value.applied) {
+                    PluginMutationOutcome.Applied(target = value.target, enabled = value.enabled)
+                } else {
+                    PluginMutationOutcome.Refused(
+                        target = value.target,
+                        reason = value.error?.code ?: value.application,
+                    )
+                }
+            }
+            is RpcResult.Err -> PluginMutationOutcome.Failed(code = result.error.code)
+        }
+        _pluginEvents.send(outcome)
     }
 
     /** Reload the agent-preset roster (host-scoped, so it survives session switches). */

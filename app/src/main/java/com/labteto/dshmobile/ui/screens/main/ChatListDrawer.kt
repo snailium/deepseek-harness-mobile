@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
@@ -109,6 +110,7 @@ private const val SORT_UPDATED = "updated"
 fun ChatListDrawer(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPlugins: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -254,6 +256,16 @@ fun ChatListDrawer(
                     if (!searchOpen) query = ""
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
+            )
+            // Between search and settings, matching where the harness puts its own plugin entry:
+            // it is a thing you reach while working, not while configuring the app.
+            DsIconButton(
+                icon = Icons.Filled.Extension,
+                contentDescription = stringResource(R.string.settings_plugins),
+                onClick = onOpenPlugins,
+                tint = colors.labelTertiary,
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )

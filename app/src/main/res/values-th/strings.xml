@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">กำลังยกเลิกการโหลด</string>
     <string name="plugins_empty">Harness นี้ไม่ได้แสดงปลั๊กอินใด ๆ</string>
     <string name="plugins_search_hint">กรองปลั๊กอิน</string>
+    <string name="plugins_unavailable">harness นี้ไม่มีตัวจัดการปลั๊กอิน</string>
+    <string name="plugins_locked_generic">ล็อก</string>
+    <string name="plugins_toggle_failed">ไม่สามารถสลับปลั๊กอินนี้ได้</string>
+    <string name="plugins_tab_bundles">บันเดิล</string>
+    <string name="plugins_section_installed">ติดตั้งแล้ว</string>
+    <string name="plugins_section_available">พร้อมใช้</string>
+    <string name="plugins_bundle_rows">%1$d ปลั๊กอิน</string>
+    <string name="plugins_locked_management">ล็อก: โปรไฟล์สร้างขึ้นบนสิ่งนี้</string>
+    <string name="plugins_locked_unaddressable">ล็อก: ไม่มีแพ็กเกจใดเป็นเจ้าของแถวนี้</string>
     <string name="plugins_tab_composed">ที่ประกอบ</string>
     <string name="plugins_tab_presets">พรีเซ็ตเอเจนต์</string>
     <string name="plugins_count">%1$d จาก %2$d ปลั๊กอิน</string>

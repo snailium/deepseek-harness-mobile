@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">আনলোড হচ্ছে</string>
     <string name="plugins_empty">এই হারনেস কোনো প্লাগইন তালিকাভুক্ত করে না।</string>
     <string name="plugins_search_hint">প্লাগইন ফিল্টার করুন</string>
+    <string name="plugins_unavailable">এই harness কোনও প্লাগইন ম্যানেজার দেয় না।</string>
+    <string name="plugins_locked_generic">লক করা</string>
+    <string name="plugins_toggle_failed">এই প্লাগইনটি টগল করা যায়নি।</string>
+    <string name="plugins_tab_bundles">বান্ডল</string>
+    <string name="plugins_section_installed">ইনস্টল করা</string>
+    <string name="plugins_section_available">উপলব্ধ</string>
+    <string name="plugins_bundle_rows">%1$dটি প্লাগইন</string>
+    <string name="plugins_locked_management">লক করা: প্রোফাইল এটির উপর নির্মিত</string>
+    <string name="plugins_locked_unaddressable">লক করা: কোনো প্যাকেজ এই সারির মালিক নয়</string>
     <string name="plugins_tab_composed">কম্পোজড</string>
     <string name="plugins_tab_presets">এজেন্ট প্রিসেট</string>
     <string name="plugins_count">%2$dটির মধ্যে %1$dটি প্লাগইন</string>

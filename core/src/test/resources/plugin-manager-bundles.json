@@ -1,0 +1,2443 @@
+[
+ {
+  "name": "@deepseek-ai/dsh-base",
+  "version": "0.1.7-rc.2",
+  "description": "The shared dsh core as a profile bundle: the first patch layer of base-backed profiles, inserting core rows over the empty profile root",
+  "meta": {
+   "title": "@deepseek-ai/dsh-base",
+   "description": "The shared dsh core as a profile bundle: the first patch layer of base-backed profiles, inserting core rows over the empty profile root"
+  },
+  "enabled": true,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "readOnlyReason": "management-required",
+  "rows": [
+   {
+    "rowId": "tool-plugin-manager",
+    "moduleName": "@deepseek-ai/dsh-plugin-manager/tools",
+    "entryId": "include:tool-plugin-manager"
+   },
+   {
+    "rowId": "plugin-manager",
+    "moduleName": "@deepseek-ai/dsh-plugin-manager",
+    "entryId": "include:plugin-manager",
+    "meta": {
+     "title": "@deepseek-ai/dsh-plugin-manager",
+     "description": "Current-profile plugin and bundle management shared by dsh CLI, Web and agent tools"
+    }
+   },
+   {
+    "rowId": "timer",
+    "moduleName": "@deepseek-ai/cordis-plugin-timer",
+    "entryId": "include:timer",
+    "meta": {
+     "title": "@deepseek-ai/cordis-plugin-timer",
+     "description": "Timer service for cordis"
+    }
+   },
+   {
+    "rowId": "hmr",
+    "moduleName": "@deepseek-ai/dsh-hmr",
+    "entryId": "include:hmr",
+    "meta": {
+     "title": "@deepseek-ai/dsh-hmr",
+     "description": "Coordinated module and profile configuration hot reload"
+    }
+   },
+   {
+    "rowId": "llm",
+    "moduleName": "@deepseek-ai/dsh-llm",
+    "entryId": "include:llm",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm",
+     "description": "Provider-neutral LLM service interface for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "deepseek-llm-api-extensions",
+    "moduleName": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+    "entryId": "include:deepseek-llm-api-extensions",
+    "meta": {
+     "title": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+     "description": "Additive request-field registry for the official DeepSeek LLM API adapter"
+    }
+   },
+   {
+    "rowId": "session",
+    "moduleName": "@deepseek-ai/dsh-session",
+    "entryId": "include:session",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session",
+     "description": "Event-sourced session store for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-log-deepseek",
+    "moduleName": "@deepseek-ai/dsh-session-log-deepseek",
+    "entryId": "include:session-log-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-log-deepseek",
+     "description": "Incremental lossless session-log request extension for the official DeepSeek LLM API"
+    }
+   },
+   {
+    "rowId": "typert",
+    "moduleName": "@deepseek-ai/dsh-typert-registry",
+    "entryId": "include:typert",
+    "meta": {
+     "title": "@deepseek-ai/dsh-typert-registry",
+     "description": "Runtime registry for generated package reflection and Zod schemas"
+    }
+   },
+   {
+    "rowId": "typert-loader",
+    "moduleName": "@deepseek-ai/dsh-typert-loader",
+    "entryId": "include:typert-loader",
+    "meta": {
+     "title": "@deepseek-ai/dsh-typert-loader",
+     "description": "Loader integration for generated Typert package contributions"
+    }
+   },
+   {
+    "rowId": "typert-gateway",
+    "moduleName": "@deepseek-ai/dsh-api-gateway",
+    "entryId": "include:typert-gateway",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-gateway",
+     "description": "Typert Remote Host dispatcher and Client API endpoint"
+    }
+   },
+   {
+    "rowId": "session-title",
+    "moduleName": "@deepseek-ai/dsh-session-title",
+    "entryId": "include:session-title",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-title",
+     "description": "Log-backed session title service and provider registry for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-title-llm",
+    "moduleName": "@deepseek-ai/dsh-session-title-first-prompt-llm",
+    "entryId": "include:session-title-llm",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-title-first-prompt-llm",
+     "description": "First-message LLM provider plugin for DeepSeek Harness session titles"
+    }
+   },
+   {
+    "rowId": "user-questions",
+    "moduleName": "@deepseek-ai/dsh-user-questions",
+    "entryId": "include:user-questions",
+    "meta": {
+     "title": "@deepseek-ai/dsh-user-questions",
+     "description": "Abstract user-questions seam (ctx.userQuestions) for asking the human during agent runs"
+    }
+   },
+   {
+    "rowId": "agent",
+    "moduleName": "@deepseek-ai/dsh-agent",
+    "entryId": "include:agent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent",
+     "description": "Agent interface, registry, initiator scope, and event vocabulary for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "plugin-package-inventory-deepseek",
+    "moduleName": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+    "entryId": "include:plugin-package-inventory-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+     "description": "Active Loader-backed plugin package inventory for official DeepSeek LLM API requests"
+    }
+   },
+   {
+    "rowId": "agent-default-model",
+    "moduleName": "@deepseek-ai/dsh-agent-default-model",
+    "entryId": "include:agent-default-model",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-default-model",
+     "description": "Default model selection shared by Agent entry points"
+    }
+   },
+   {
+    "rowId": "jobs",
+    "moduleName": "@deepseek-ai/dsh-jobs-local",
+    "entryId": "include:jobs",
+    "meta": {
+     "title": "@deepseek-ai/dsh-jobs-local",
+     "description": "Process-local implementation of the DeepSeek Harness background job registry seam"
+    }
+   },
+   {
+    "rowId": "llm-retry",
+    "moduleName": "@deepseek-ai/dsh-llm-retry",
+    "entryId": "include:llm-retry",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-retry",
+     "description": "Provider-routed LLM request retry policy for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "config-editor",
+    "moduleName": "@deepseek-ai/dsh-config-editor",
+    "entryId": "include:config-editor",
+    "meta": {
+     "title": "@deepseek-ai/dsh-config-editor",
+     "description": "Persist plugin configuration through profile patches and Loader reconciliation"
+    }
+   },
+   {
+    "rowId": "settings",
+    "moduleName": "@deepseek-ai/dsh-settings",
+    "entryId": "include:settings",
+    "meta": {
+     "title": "@deepseek-ai/dsh-settings",
+     "description": "Abstract user-settings seam (ctx.settings) for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "authorization",
+    "moduleName": "@deepseek-ai/dsh-authorization",
+    "entryId": "include:authorization",
+    "meta": {
+     "title": "@deepseek-ai/dsh-authorization",
+     "description": "Authorization seam (ctx.authorization): plugin-owned flows that obtain a credential through a conversation with the human"
+    }
+   },
+   {
+    "rowId": "deepseek-account",
+    "moduleName": "@deepseek-ai/dsh-deepseek-account-platform",
+    "entryId": "include:deepseek-account",
+    "meta": {
+     "title": "@deepseek-ai/dsh-deepseek-account-platform",
+     "description": "Authorize DeepSeek accounts through browser PKCE"
+    }
+   },
+   {
+    "rowId": "credentials",
+    "moduleName": "@deepseek-ai/dsh-credentials-local",
+    "entryId": "include:credentials",
+    "meta": {
+     "title": "@deepseek-ai/dsh-credentials-local",
+     "description": "File-backed credentials provider ($DSH_HOME/.env under the live process environment) for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "llm-pi-ai",
+    "moduleName": "@deepseek-ai/dsh-llm-pi-ai",
+    "entryId": "include:llm-pi-ai",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-pi-ai",
+     "description": "pi-ai-backed DeepSeek adapter for the DeepSeek Harness LLM seam (design-verification twin of dsh-llm-deepseek)"
+    }
+   },
+   {
+    "rowId": "session-persistence-jsonl",
+    "moduleName": "@deepseek-ai/dsh-session-persistence-jsonl",
+    "entryId": "include:session-persistence-jsonl",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-persistence-jsonl",
+     "description": "JSONL durable session persistence backend for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "attachment-local",
+    "moduleName": "@deepseek-ai/dsh-attachment-local",
+    "entryId": "include:attachment-local",
+    "meta": {
+     "title": "@deepseek-ai/dsh-attachment-local",
+     "description": "Private content-addressed DSH_HOME attachment storage"
+    }
+   },
+   {
+    "rowId": "session-query-sqlite",
+    "moduleName": "@deepseek-ai/dsh-session-query-sqlite",
+    "entryId": "include:session-query-sqlite",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-query-sqlite",
+     "description": "Concrete ctx.sessionQuery backend with SQLite FTS5 search"
+    }
+   },
+   {
+    "rowId": "session-projection",
+    "moduleName": "@deepseek-ai/dsh-session-projection",
+    "entryId": "include:session-projection",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-projection",
+     "description": "Session-projection seam: the merge-extensible projection type table, the provider contract, and the ctx.sessionProjections registry serving whole current values of log-derived per-session state"
+    }
+   },
+   {
+    "rowId": "storage",
+    "moduleName": "@deepseek-ai/dsh-storage",
+    "entryId": "include:storage",
+    "meta": {
+     "title": "@deepseek-ai/dsh-storage",
+     "description": "Storage hub (ctx.storage): named backend registry plus mounted data-form facilities for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "storage-json",
+    "moduleName": "@deepseek-ai/dsh-storage-json",
+    "entryId": "include:storage-json",
+    "meta": {
+     "title": "@deepseek-ai/dsh-storage-json",
+     "description": "JSON file KV storage backend for the DeepSeek Harness storage hub"
+    }
+   },
+   {
+    "rowId": "storage-domain",
+    "moduleName": "@deepseek-ai/dsh-storage-domain",
+    "entryId": "include:storage-domain",
+    "meta": {
+     "title": "@deepseek-ai/dsh-storage-domain",
+     "description": "Domain data form (ctx.storage.domain): schema-validated, event-emitting KV domains over storage backends for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-projection-cache",
+    "moduleName": "@deepseek-ai/dsh-session-projection-cache",
+    "entryId": "include:session-projection-cache",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-projection-cache",
+     "description": "Persisted projection cache (ctx.sessionProjectionCache): durable per-session checkpoint records on the session_projcache storage domain (per-record layout), throttled write-behind, and the cached listing read"
+    }
+   },
+   {
+    "rowId": "session-telemetry-otel",
+    "moduleName": "@deepseek-ai/dsh-session-telemetry-otel",
+    "entryId": "include:session-telemetry-otel",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-telemetry-otel",
+     "description": "OpenTelemetry backend for the DeepSeek Harness telemetry seam: hands captured session records to the OTel JS SDK's log pipeline"
+    }
+   },
+   {
+    "rowId": "subprocess",
+    "moduleName": "@deepseek-ai/dsh-subprocess-local",
+    "entryId": "include:subprocess",
+    "meta": {
+     "title": "@deepseek-ai/dsh-subprocess-local",
+     "description": "Local-subprocess implementation of the DeepSeek Harness subprocess seam"
+    }
+   },
+   {
+    "rowId": "sandbox",
+    "moduleName": "@deepseek-ai/dsh-sandbox-local",
+    "entryId": "include:sandbox",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sandbox-local",
+     "description": "Local process-sandbox backends for the DeepSeek Harness sandbox seam: bwrap, the npm-distributed landlock-run launcher, macOS Seatbelt, or the Windows ACL restricted-token runner — functionally probed, fail-closed"
+    }
+   },
+   {
+    "rowId": "sandbox-policy",
+    "moduleName": "@deepseek-ai/dsh-sandbox-policy",
+    "entryId": "include:sandbox-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sandbox-policy",
+     "description": "Per-call sandbox policy resolver and current model context: deployment fallbacks plus each session's mode and workspace root, shared by every enforcing capability family"
+    }
+   },
+   {
+    "rowId": "bash-sandbox",
+    "moduleName": "@deepseek-ai/dsh-bash-sandbox",
+    "entryId": "include:bash-sandbox",
+    "meta": {
+     "title": "@deepseek-ai/dsh-bash-sandbox",
+     "description": "Sandbox-consuming implementation of the DeepSeek Harness bash executor seam (confines every command via ctx.sandbox, reports denial/enforcement result facts)"
+    }
+   },
+   {
+    "rowId": "pwsh-sandbox",
+    "moduleName": "@deepseek-ai/dsh-pwsh-sandbox",
+    "entryId": "include:pwsh-sandbox",
+    "meta": {
+     "title": "@deepseek-ai/dsh-pwsh-sandbox",
+     "description": "Sandbox-consuming implementation of the DeepSeek Harness PowerShell executor seam (confines every command via ctx.sandbox, reports denial/enforcement result facts)"
+    }
+   },
+   {
+    "rowId": "approval",
+    "moduleName": "@deepseek-ai/dsh-user-approval",
+    "entryId": "include:approval",
+    "meta": {
+     "title": "@deepseek-ai/dsh-user-approval",
+     "description": "User-approval seam (ctx.approval) for the DeepSeek Harness: one-shot permission decisions dispatched to composed answerers over the approval/request waterfall, fail-closed by default"
+    }
+   },
+   {
+    "rowId": "permission",
+    "moduleName": "@deepseek-ai/dsh-permission-presets",
+    "entryId": "include:permission",
+    "meta": {
+     "title": "@deepseek-ai/dsh-permission-presets",
+     "description": "User-facing permission presets (ctx.permissionPresets) for the DeepSeek Harness: one product-level Permissions select bundling the sandbox-mode and approval-policy knobs, written through to their own session events"
+    }
+   },
+   {
+    "rowId": "shell-env",
+    "moduleName": "@deepseek-ai/dsh-shell-env",
+    "entryId": "include:shell-env",
+    "meta": {
+     "title": "@deepseek-ai/dsh-shell-env",
+     "description": "Tool-independent managed DSH_* shell environment registry"
+    }
+   },
+   {
+    "rowId": "tool-bash",
+    "moduleName": "@deepseek-ai/dsh-tool-bash",
+    "entryId": "include:tool-bash",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-bash",
+     "description": "Model-facing bash tool with optional generic background-job and sandbox-escalation support"
+    }
+   },
+   {
+    "rowId": "tool-pwsh",
+    "moduleName": "@deepseek-ai/dsh-tool-pwsh",
+    "entryId": "include:tool-pwsh",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-pwsh",
+     "description": "Model-facing pwsh tool over the bash executor seam"
+    }
+   },
+   {
+    "rowId": "tool-jobs",
+    "moduleName": "@deepseek-ai/dsh-tool-jobs",
+    "entryId": "include:tool-jobs",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-jobs",
+     "description": "Model-facing background job control tools (job_output, job_list, job_kill) over the ctx.jobs registry"
+    }
+   },
+   {
+    "rowId": "fs-observation-policy",
+    "moduleName": "@deepseek-ai/dsh-fs-observation-policy",
+    "entryId": "include:fs-observation-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-fs-observation-policy",
+     "description": "File-context policy plugin for the DeepSeek Harness — observed-state, read-before-edit, and version-guarded write/edit added over the ctx.fs provider seam through the fs/* event gate (no service API)"
+    }
+   },
+   {
+    "rowId": "tool-fs",
+    "moduleName": "@deepseek-ai/dsh-tool-fs",
+    "entryId": "include:tool-fs",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-fs",
+     "description": "Model-facing filesystem tools (read, write, edit) over the DeepSeek Harness filesystem seam (ctx.fs)"
+    }
+   },
+   {
+    "rowId": "tool-fs-search",
+    "moduleName": "@deepseek-ai/dsh-tool-fs-search",
+    "entryId": "include:tool-fs-search",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-fs-search",
+     "description": "Model-facing filesystem discovery tools (glob, grep) backed by the packaged ripgrep binary (@vscode/ripgrep)"
+    }
+   },
+   {
+    "rowId": "agent-instructions",
+    "moduleName": "@deepseek-ai/dsh-agent-instructions",
+    "entryId": "include:agent-instructions",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-instructions",
+     "description": "Workspace context loader for AGENTS.md/CLAUDE.md instruction files"
+    }
+   },
+   {
+    "rowId": "skill",
+    "moduleName": "@deepseek-ai/dsh-skill",
+    "entryId": "include:skill",
+    "meta": {
+     "title": "@deepseek-ai/dsh-skill",
+     "description": "Agent skill provider registry for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "skill-filesystem",
+    "moduleName": "@deepseek-ai/dsh-skill-filesystem",
+    "entryId": "include:skill-filesystem",
+    "meta": {
+     "title": "@deepseek-ai/dsh-skill-filesystem",
+     "description": "Local filesystem skill provider for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "skill-badge",
+    "moduleName": "@deepseek-ai/dsh-skill-badge",
+    "entryId": "include:skill-badge",
+    "meta": {
+     "title": "@deepseek-ai/dsh-skill-badge",
+     "description": "Bundled dsh badge skill provider for DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "tool-skill",
+    "moduleName": "@deepseek-ai/dsh-tool-skill",
+    "entryId": "include:tool-skill",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-skill",
+     "description": "Model-facing skill loading tool for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "commands",
+    "moduleName": "@deepseek-ai/dsh-commands",
+    "entryId": "include:commands",
+    "meta": {
+     "title": "@deepseek-ai/dsh-commands",
+     "description": "Plugin-owned human command registry for DeepSeek Harness UIs"
+    }
+   },
+   {
+    "rowId": "command-feedback",
+    "moduleName": "@deepseek-ai/dsh-command-feedback",
+    "entryId": "include:command-feedback",
+    "meta": {
+     "title": "@deepseek-ai/dsh-command-feedback",
+     "description": "Log-only session feedback: the record event, the sessionFeedback Host Remote, and the human-facing slash command"
+    }
+   },
+   {
+    "rowId": "goal",
+    "moduleName": "@deepseek-ai/dsh-goal",
+    "entryId": "include:goal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-goal",
+     "description": "Event-sourced same-session goal state and lifecycle service for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "goal-round-driver",
+    "moduleName": "@deepseek-ai/dsh-goal-round-driver",
+    "entryId": "include:goal-round-driver",
+    "meta": {
+     "title": "@deepseek-ai/dsh-goal-round-driver",
+     "description": "Race-fenced same-session goal-round driver"
+    }
+   },
+   {
+    "rowId": "command-goal",
+    "moduleName": "@deepseek-ai/dsh-command-goal",
+    "entryId": "include:command-goal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-command-goal",
+     "description": "Human-facing slash command for persisted same-session goals"
+    }
+   },
+   {
+    "rowId": "plan-mode",
+    "moduleName": "@deepseek-ai/dsh-plan-mode",
+    "entryId": "include:plan-mode",
+    "meta": {
+     "title": "@deepseek-ai/dsh-plan-mode",
+     "description": "Logged per-agent plan mode with deployment guidance, a direct slash command, and a user-reviewed exit"
+    }
+   },
+   {
+    "rowId": "token-meter",
+    "moduleName": "@deepseek-ai/dsh-token-meter",
+    "entryId": "include:token-meter",
+    "meta": {
+     "title": "@deepseek-ai/dsh-token-meter",
+     "description": "Replay-aware token measurement service (ctx.tokenMeter) for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "compaction-basic",
+    "moduleName": "@deepseek-ai/dsh-compaction-basic",
+    "entryId": "include:compaction-basic",
+    "meta": {
+     "title": "@deepseek-ai/dsh-compaction-basic",
+     "description": "Token-meter-driven compaction policy and LLM summarization backend for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "command-compact",
+    "moduleName": "@deepseek-ai/dsh-command-compact",
+    "entryId": "include:command-compact",
+    "meta": {
+     "title": "@deepseek-ai/dsh-command-compact",
+     "description": "Human-facing slash command for explicit session compaction"
+    }
+   },
+   {
+    "rowId": "subagent",
+    "moduleName": "@deepseek-ai/dsh-subagent",
+    "entryId": "include:subagent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-subagent",
+     "description": "Abstract subagent seam (ctx.subagents): named-provider registry for delegating to child agents"
+    }
+   },
+   {
+    "rowId": "subagent-spawn-in-process",
+    "moduleName": "@deepseek-ai/dsh-subagent-spawn-in-process",
+    "entryId": "include:subagent-spawn-in-process",
+    "meta": {
+     "title": "@deepseek-ai/dsh-subagent-spawn-in-process",
+     "description": "In-process spawn subagent backend: runs a fresh child agent on ctx.agents"
+    }
+   },
+   {
+    "rowId": "subagent-fork-in-process",
+    "moduleName": "@deepseek-ai/dsh-subagent-fork-in-process",
+    "entryId": "include:subagent-fork-in-process",
+    "meta": {
+     "title": "@deepseek-ai/dsh-subagent-fork-in-process",
+     "description": "In-process fork subagent backend: runs a child agent seeded with a prefix of the parent's log"
+    }
+   },
+   {
+    "rowId": "tool-subagent-control",
+    "moduleName": "@deepseek-ai/dsh-tool-subagent-control",
+    "entryId": "include:tool-subagent-control",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-subagent-control",
+     "description": "Globally named send_message, interrupt_agent, and list_agents tools over ctx.subagents continuations"
+    }
+   },
+   {
+    "rowId": "tool-subagent-list-agents",
+    "moduleName": "@deepseek-ai/dsh-tool-subagent-control/list-agents",
+    "entryId": "include:tool-subagent-list-agents"
+   },
+   {
+    "rowId": "tool-subagent",
+    "moduleName": "@deepseek-ai/dsh-tool-subagent",
+    "entryId": "include:tool-subagent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-subagent",
+     "description": "Model-facing subagent delegation tool over the ctx.subagents seam"
+    }
+   },
+   {
+    "rowId": "tool-subagent-fork",
+    "moduleName": "@deepseek-ai/dsh-tool-subagent",
+    "entryId": "include:tool-subagent-fork",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-subagent",
+     "description": "Model-facing subagent delegation tool over the ctx.subagents seam"
+    }
+   },
+   {
+    "rowId": "ptc-runtime",
+    "moduleName": "@deepseek-ai/dsh-ptc-runtime-node",
+    "entryId": "include:ptc-runtime",
+    "meta": {
+     "title": "@deepseek-ai/dsh-ptc-runtime-node",
+     "description": "Sandboxed Node process implementation of the DeepSeek Harness PTC execution capability"
+    }
+   },
+   {
+    "rowId": "workflow-ptc",
+    "moduleName": "@deepseek-ai/dsh-workflow-ptc",
+    "entryId": "include:workflow-ptc",
+    "meta": {
+     "title": "@deepseek-ai/dsh-workflow-ptc",
+     "description": "Workflow orchestration in the shared sandboxed Node PTC runtime"
+    }
+   },
+   {
+    "rowId": "tool-workflow",
+    "moduleName": "@deepseek-ai/dsh-tool-workflow",
+    "entryId": "include:tool-workflow",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-workflow",
+     "description": "Model-facing workflow tool: run a JavaScript orchestration script over ctx.workflowEngine"
+    }
+   },
+   {
+    "rowId": "timeout-policy",
+    "moduleName": "@deepseek-ai/dsh-tool-call-timeout-policy",
+    "entryId": "include:timeout-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-call-timeout-policy",
+     "description": "Tool-call timeout policy: a tools/execute wrapper that arms a per-tool deadline on exec.signal and returns TOOL_TIMEOUT when it wins"
+    }
+   },
+   {
+    "rowId": "spill-local",
+    "moduleName": "@deepseek-ai/dsh-spill-local",
+    "entryId": "include:spill-local",
+    "meta": {
+     "title": "@deepseek-ai/dsh-spill-local",
+     "description": "Local-filesystem implementation of the DeepSeek Harness spill storage seam (private session-scoped files)"
+    }
+   },
+   {
+    "rowId": "spill-policy",
+    "moduleName": "@deepseek-ai/dsh-spill-policy",
+    "entryId": "include:spill-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-spill-policy",
+     "description": "Token-budgeted tool-result retention with recoverable text and image paths"
+    }
+   },
+   {
+    "rowId": "session-checkpoint-policy",
+    "moduleName": "@deepseek-ai/dsh-session-checkpoint-policy",
+    "entryId": "include:session-checkpoint-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-checkpoint-policy",
+     "description": "Semantic session durability checkpoints before model requests and tool side effects"
+    }
+   },
+   {
+    "rowId": "tool-result-pruner",
+    "moduleName": "@deepseek-ai/dsh-compaction-tool-result-pruner",
+    "entryId": "include:tool-result-pruner",
+    "meta": {
+     "title": "@deepseek-ai/dsh-compaction-tool-result-pruner",
+     "description": "Replay-safe model-free head/middle/tail pruning for tool-result surface nodes"
+    }
+   },
+   {
+    "rowId": "image-offload",
+    "moduleName": "@deepseek-ai/dsh-compaction-image-offload",
+    "entryId": "include:image-offload",
+    "meta": {
+     "title": "@deepseek-ai/dsh-compaction-image-offload",
+     "description": "Durable image offload for image-capable routes: replace over-budget request images with placeholders and retry"
+    }
+   },
+   {
+    "rowId": "tool-todo",
+    "moduleName": "@deepseek-ai/dsh-tool-todo",
+    "entryId": "include:tool-todo",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-todo",
+     "description": "Model-facing todo_write tool over the DeepSeek Harness event-sourced session log"
+    }
+   },
+   {
+    "rowId": "tool-goal",
+    "moduleName": "@deepseek-ai/dsh-tool-goal",
+    "entryId": "include:tool-goal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-goal",
+     "description": "Model-facing same-session goal tools with execution-time authority checks"
+    }
+   },
+   {
+    "rowId": "tool-ralph",
+    "moduleName": "@deepseek-ai/dsh-tool-ralph",
+    "entryId": "include:tool-ralph",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-ralph",
+     "description": "Model-facing fresh-agent Ralph loop over the workflow and subagent seams"
+    }
+   },
+   {
+    "rowId": "repeat-tool-reminder",
+    "moduleName": "@deepseek-ai/dsh-repeat-tool-reminder",
+    "entryId": "include:repeat-tool-reminder",
+    "meta": {
+     "title": "@deepseek-ai/dsh-repeat-tool-reminder",
+     "description": "Repeat-tool-call guard plugin: advisory reminders when an agent loops on identical tool calls"
+    }
+   },
+   {
+    "rowId": "web",
+    "moduleName": "@deepseek-ai/dsh-web",
+    "entryId": "include:web",
+    "meta": {
+     "title": "@deepseek-ai/dsh-web",
+     "description": "Abstract web access capability seam (ctx.web) for the DeepSeek Harness — search/fetch provider registry, registration-order-independent selection, request/result vocabulary, and the WebError taxonomy"
+    }
+   },
+   {
+    "rowId": "web-search-deepseek",
+    "moduleName": "@deepseek-ai/dsh-web-search-deepseek",
+    "entryId": "include:web-search-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-web-search-deepseek",
+     "description": "DeepSeek-backed search provider (native web_search via the Anthropic-compatible API) for the DeepSeek Harness web capability seam (ctx.web)"
+    }
+   },
+   {
+    "rowId": "web-fetch-http",
+    "moduleName": "@deepseek-ai/dsh-web-fetch-http",
+    "entryId": "include:web-fetch-http",
+    "meta": {
+     "title": "@deepseek-ai/dsh-web-fetch-http",
+     "description": "Anonymous public HTTP(S) fetch provider for the DeepSeek Harness web capability seam (ctx.web)"
+    }
+   },
+   {
+    "rowId": "tool-web",
+    "moduleName": "@deepseek-ai/dsh-tool-web",
+    "entryId": "include:tool-web",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-web",
+     "description": "Model-facing web tools (web_search, web_fetch) over the DeepSeek Harness web capability seam (ctx.web)"
+    }
+   },
+   {
+    "rowId": "mcp-resources",
+    "moduleName": "@deepseek-ai/dsh-mcp-resources",
+    "entryId": "include:mcp-resources",
+    "meta": {
+     "title": "@deepseek-ai/dsh-mcp-resources",
+     "description": "Scoped MCP resource discovery and reading through shared model tools"
+    }
+   },
+   {
+    "rowId": "tools",
+    "moduleName": "@deepseek-ai/dsh-tools",
+    "entryId": "include:tools",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tools",
+     "description": "Tool registry and execution pipeline for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "system-prompt",
+    "moduleName": "@deepseek-ai/dsh-system-prompt",
+    "entryId": "include:system-prompt",
+    "meta": {
+     "title": "@deepseek-ai/dsh-system-prompt",
+     "description": "System prompt assembly registry for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "agent-loop",
+    "moduleName": "@deepseek-ai/dsh-agent-loop",
+    "entryId": "include:agent-loop",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-loop",
+     "description": "The concrete agent loop plugin for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "fs-sandbox",
+    "moduleName": "@deepseek-ai/dsh-fs-sandbox",
+    "entryId": "include:fs-sandbox",
+    "meta": {
+     "title": "@deepseek-ai/dsh-fs-sandbox",
+     "description": "Sandbox-enforcing implementation of the DeepSeek Harness filesystem seam: fences write/edit by the per-call sandbox mode (read-only denies mutation, workspace-write contains it to the workspace + temp roots) while reads pass through"
+    }
+   },
+   {
+    "rowId": "llm-deepseek",
+    "moduleName": "@deepseek-ai/dsh-llm-deepseek-api-key",
+    "entryId": "include:llm-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-deepseek-api-key",
+     "description": "DeepSeek api-key provider authentication and discovery"
+    }
+   },
+   {
+    "rowId": "llm-deepseek-account",
+    "moduleName": "@deepseek-ai/dsh-llm-deepseek-account",
+    "entryId": "include:llm-deepseek-account",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-deepseek-account",
+     "description": "DeepSeek account provider authentication and discovery"
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "@deepseek-ai/dsh-web-app",
+  "version": "0.1.7-rc.2",
+  "description": "The dsh browser-surface bundle: the web patch layer over dsh-base plus the runtime glue plugin (frontend dist serving, web-surface prompt, bash runtime variables, URL line)",
+  "meta": {
+   "title": "@deepseek-ai/dsh-web-app",
+   "description": "The dsh browser-surface bundle: the web patch layer over dsh-base plus the runtime glue plugin (frontend dist serving, web-surface prompt, bash runtime variables, URL line)"
+  },
+  "enabled": true,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "readOnlyReason": "management-required",
+  "rows": [
+   {
+    "rowId": "subagent-model-selection-settings",
+    "moduleName": "@deepseek-ai/dsh-tool-subagent/model-selection-settings",
+    "entryId": "include:subagent-model-selection-settings"
+   },
+   {
+    "rowId": "message-feedback",
+    "moduleName": "@deepseek-ai/dsh-message-feedback",
+    "entryId": "include:message-feedback",
+    "meta": {
+     "title": "@deepseek-ai/dsh-message-feedback",
+     "description": "Canonical Session-log ratings and notes for finalized assistant messages"
+    }
+   },
+   {
+    "rowId": "session-log-download",
+    "moduleName": "@deepseek-ai/dsh-session-log-export",
+    "entryId": "include:session-log-download",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-log-export",
+     "description": "Web Session-log export command and shared download dialog"
+    }
+   },
+   {
+    "rowId": "open-in-app",
+    "moduleName": "@deepseek-ai/dsh-host-open-in-app",
+    "entryId": "include:open-in-app",
+    "meta": {
+     "title": "@deepseek-ai/dsh-host-open-in-app",
+     "description": "Host half of open-in-app: resolved application catalog, icons, and the launch endpoint as three webServer routes"
+    }
+   },
+   {
+    "rowId": "ui-open-in-app",
+    "moduleName": "@deepseek-ai/dsh-client-ui-open-in-app",
+    "entryId": "include:ui-open-in-app",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-open-in-app",
+     "description": "Web \"Open In...\" controls: the Session-header split button opening the workspace directory in an installed application, and the document preview's default-application controls for one file"
+    }
+   },
+   {
+    "rowId": "workspace",
+    "moduleName": "@deepseek-ai/dsh-workspace",
+    "entryId": "include:workspace",
+    "meta": {
+     "title": "@deepseek-ai/dsh-workspace",
+     "description": "Workspace entity registry (ctx.workspaceRegistry): durable workspace records with validated session attachment over the domain data form for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-reference",
+    "moduleName": "@deepseek-ai/dsh-session-reference",
+    "entryId": "include:session-reference",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-reference",
+     "description": "Cross-session snapshot references and durable untrusted model context (ctx.sessionReferenceResolver)"
+    }
+   },
+   {
+    "rowId": "file-reference-local",
+    "moduleName": "@deepseek-ai/dsh-file-reference-local",
+    "entryId": "include:file-reference-local",
+    "meta": {
+     "title": "@deepseek-ai/dsh-file-reference-local",
+     "description": "Local-filesystem ctx.fileReferences provider with bounded fuzzy indexes"
+    }
+   },
+   {
+    "rowId": "session-stats",
+    "moduleName": "@deepseek-ai/dsh-session-stats",
+    "entryId": "include:session-stats",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-stats",
+     "description": "Whole-log conversation counts and wall times projection (sessionStats) for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-turn-outline",
+    "moduleName": "@deepseek-ai/dsh-session-turn-outline",
+    "entryId": "include:session-turn-outline",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-turn-outline",
+     "description": "Whole-log turn outline projection (turnOutline) for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "directory-picker",
+    "moduleName": "@deepseek-ai/dsh-host-directory-picker-auto",
+    "entryId": "include:directory-picker",
+    "meta": {
+     "title": "@deepseek-ai/dsh-host-directory-picker-auto",
+     "description": "Adaptive chooser of the directory-picker seam: resolves the host situation at boot and mounts the native or browse backend for the DeepSeek Harness web GUI host"
+    }
+   },
+   {
+    "rowId": "plugin-inventory",
+    "moduleName": "@deepseek-ai/dsh-host-plugin-inventory",
+    "entryId": "include:plugin-inventory",
+    "meta": {
+     "title": "@deepseek-ai/dsh-host-plugin-inventory",
+     "description": "Read-only Remote projection of current Cordis Loader plugin state"
+    }
+   },
+   {
+    "rowId": "session-controller",
+    "moduleName": "@deepseek-ai/dsh-api-session-controller",
+    "entryId": "include:session-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-session-controller",
+     "description": "Session Remote commands, cold reads, and live control transport"
+    }
+   },
+   {
+    "rowId": "job-controller",
+    "moduleName": "@deepseek-ai/dsh-api-job-controller",
+    "entryId": "include:job-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-job-controller",
+     "description": "Job Remote observation stream and the reference-counted client job-output service"
+    }
+   },
+   {
+    "rowId": "terminal-controller",
+    "moduleName": "@deepseek-ai/dsh-api-terminal-controller",
+    "entryId": "include:terminal-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-terminal-controller",
+     "description": "Session-owned interactive terminals with shell discovery, screen recovery and typed Remote control"
+    }
+   },
+   {
+    "rowId": "workspace-files",
+    "moduleName": "@deepseek-ai/dsh-api-workspace-files",
+    "entryId": "include:workspace-files",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-workspace-files",
+     "description": "Workspace file service and Client resource provider: bounded reads, directory listing, and live metadata over the workspaceFiles Remote namespace"
+    }
+   },
+   {
+    "rowId": "time-context",
+    "moduleName": "@deepseek-ai/dsh-time-context",
+    "entryId": "include:time-context",
+    "meta": {
+     "title": "@deepseek-ai/dsh-time-context",
+     "description": "Durable per-step context with the current time and elapsed time"
+    }
+   },
+   {
+    "rowId": "schedule",
+    "moduleName": "@deepseek-ai/dsh-schedule",
+    "entryId": "include:schedule",
+    "meta": {
+     "title": "@deepseek-ai/dsh-schedule",
+     "description": "Host-wide durable reminders with shared management and original-Session delivery"
+    }
+   },
+   {
+    "rowId": "ui-settings-account",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-account",
+    "entryId": "include:ui-settings-account",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-account",
+     "description": "Manage DeepSeek login and open Platform billing pages"
+    }
+   },
+   {
+    "rowId": "account-controller",
+    "moduleName": "@deepseek-ai/dsh-api-account-controller",
+    "entryId": "include:account-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-account-controller",
+     "description": "Expose safe account operations over authenticated Remote"
+    }
+   },
+   {
+    "rowId": "settings-controller",
+    "moduleName": "@deepseek-ai/dsh-api-settings-controller",
+    "entryId": "include:settings-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-settings-controller",
+     "description": "Remote owner for the configuration surfaces over the settings-domain seams"
+    }
+   },
+   {
+    "rowId": "workspace-controller",
+    "moduleName": "@deepseek-ai/dsh-api-workspace-controller",
+    "entryId": "include:workspace-controller",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-workspace-controller",
+     "description": "Workspace Remote commands and reconnect-safe state transport"
+    }
+   },
+   {
+    "rowId": "cordis-host-runner",
+    "moduleName": "@deepseek-ai/dsh-cordis-host-runner",
+    "entryId": "include:cordis-host-runner",
+    "meta": {
+     "title": "@deepseek-ai/dsh-cordis-host-runner",
+     "description": "Dynamic package definition registry, host-half sandbox lifecycle, and invoke handler table for model-mounted dual-half packages"
+    }
+   },
+   {
+    "rowId": "cordis-inspect-providers",
+    "moduleName": "@deepseek-ai/dsh-tool-cordis/host",
+    "entryId": "include:cordis-inspect-providers"
+   },
+   {
+    "rowId": "web-startup",
+    "moduleName": "@deepseek-ai/dsh-web-app/startup",
+    "entryId": "include:web-startup"
+   },
+   {
+    "rowId": "webserver",
+    "moduleName": "@deepseek-ai/dsh-host-webserver",
+    "entryId": "include:webserver",
+    "meta": {
+     "title": "@deepseek-ai/dsh-host-webserver",
+     "description": "Web route-registration plugin: HTTP and upgrade routes, index transform taps, and static dist fallback; knows no harness concepts"
+    }
+   },
+   {
+    "rowId": "web-runtime",
+    "moduleName": "@deepseek-ai/dsh-web-app",
+    "entryId": "include:web-runtime",
+    "meta": {
+     "title": "@deepseek-ai/dsh-web-app",
+     "description": "The dsh browser-surface bundle: the web patch layer over dsh-base plus the runtime glue plugin (frontend dist serving, web-surface prompt, bash runtime variables, URL line)"
+    }
+   },
+   {
+    "rowId": "client-hmr",
+    "moduleName": "@deepseek-ai/dsh-client-hmr",
+    "entryId": "include:client-hmr",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-hmr",
+     "description": "Web client graph synchronization and rebuilt-bundle reload transport"
+    }
+   },
+   {
+    "rowId": "modules",
+    "moduleName": "@deepseek-ai/dsh-client-modules",
+    "entryId": "include:modules",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-modules",
+     "description": "Client module system, dual-face: node half composes the __DSH_BOOT__ entry graph (incremental dsh.client scan, bundle route, index tap, webPlugins service); browser half is the lazy-CJS module table the vendored cordis Loader consumes as its internal seam"
+    }
+   },
+   {
+    "rowId": "connection",
+    "moduleName": "@deepseek-ai/dsh-client-connection",
+    "entryId": "include:connection",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-connection",
+     "description": "Authenticated RPC transport and generation lifecycle"
+    }
+   },
+   {
+    "rowId": "file-upload",
+    "moduleName": "@deepseek-ai/dsh-client-file-upload",
+    "entryId": "include:file-upload",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-file-upload",
+     "description": "Agent-scoped browser file upload, streaming intake, and staged receipt service"
+    }
+   },
+   {
+    "rowId": "api-remotes",
+    "moduleName": "@deepseek-ai/dsh-api-remotes",
+    "entryId": "include:api-remotes",
+    "meta": {
+     "title": "@deepseek-ai/dsh-api-remotes",
+     "description": "Remote BFF assembly for application-selected Host capabilities"
+    }
+   },
+   {
+    "rowId": "cordis-client-runner",
+    "moduleName": "@deepseek-ai/dsh-cordis-client-runner",
+    "entryId": "include:cordis-client-runner",
+    "meta": {
+     "title": "@deepseek-ai/dsh-cordis-client-runner",
+     "description": "Browser half of dynamic dual-half plugin packages: event subscription, closure evaluation, guard facade, and loader entries"
+    }
+   },
+   {
+    "rowId": "ui-theme",
+    "moduleName": "@deepseek-ai/dsh-client-ui-theme",
+    "entryId": "include:ui-theme",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-theme",
+     "description": "Theme plugin: Host bootstrap for the pre-plugin palette; DOM-free ThemeRuntime for light/dark/system state; --dsw-* token styles and Appearance settings row"
+    }
+   },
+   {
+    "rowId": "locale",
+    "moduleName": "@deepseek-ai/dsh-client-locale",
+    "entryId": "include:locale",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-locale",
+     "description": "Locale plugin: Host-backed preference, extensible language catalog, browser fallback, and typed built-in dictionaries"
+    }
+   },
+   {
+    "rowId": "shortcuts",
+    "moduleName": "@deepseek-ai/dsh-client-shortcuts",
+    "entryId": "include:shortcuts",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-shortcuts",
+     "description": "Application keyboard command registry and physical-key routing"
+    }
+   },
+   {
+    "rowId": "ui-shortcuts",
+    "moduleName": "@deepseek-ai/dsh-client-ui-shortcuts",
+    "entryId": "include:ui-shortcuts",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-shortcuts",
+     "description": "Keyboard shortcut reference, recording, and local preference editing"
+    }
+   },
+   {
+    "rowId": "ui-layout",
+    "moduleName": "@deepseek-ai/dsh-client-ui-layout",
+    "entryId": "include:ui-layout",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-layout",
+     "description": "Shell plugin: three-column AppFrame with drag handles, ctx.layout viewing-state service (navigation + panels)"
+    }
+   },
+   {
+    "rowId": "ui-renderer",
+    "moduleName": "@deepseek-ai/dsh-client-ui-renderer",
+    "entryId": "include:ui-renderer",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-renderer",
+     "description": "Browser UI renderer: React slot bindings, ctx.uiRenderer, and the assembled application root"
+    }
+   },
+   {
+    "rowId": "ui-session",
+    "moduleName": "@deepseek-ai/dsh-client-ui-session",
+    "entryId": "include:ui-session",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-session",
+     "description": "Session Controller adapter for React and session-scoped slots"
+    }
+   },
+   {
+    "rowId": "resources",
+    "moduleName": "@deepseek-ai/dsh-client-resources",
+    "entryId": "include:resources",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-resources",
+     "description": "Unified client resource model: protocol-registered providers turn URL addresses into live values, consumed through the useResource global standard hook"
+    }
+   },
+   {
+    "rowId": "ui-sidebar",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar",
+    "entryId": "include:ui-sidebar",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar",
+     "description": "Sidebar plugin: session multi-level tree, search, grouping, state dots"
+    }
+   },
+   {
+    "rowId": "ui-sidebar-right",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar-right",
+    "entryId": "include:ui-sidebar-right",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar-right",
+     "description": "Right Sidebar: the docking surface's session-bound state, its panel and header expand control, and the navigation service over it"
+    }
+   },
+   {
+    "rowId": "office-to-pdf",
+    "moduleName": "@deepseek-ai/dsh-office-to-pdf",
+    "entryId": "include:office-to-pdf",
+    "meta": {
+     "title": "@deepseek-ai/dsh-office-to-pdf",
+     "description": "Shared Office-to-PDF conversion with bounded queues and caching"
+    }
+   },
+   {
+    "rowId": "ui-sidebar-documentpreview",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+    "entryId": "include:ui-sidebar-documentpreview",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+     "description": "Extensible Sidebar previews for Office documents, spreadsheets, Markdown, code, images, PDF, HTML, and plain text"
+    }
+   },
+   {
+    "rowId": "ui-sidebar-browser",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar-browser",
+    "entryId": "include:ui-sidebar-browser",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar-browser",
+     "description": "Sandboxed Web browser tabs for the right Sidebar"
+    }
+   },
+   {
+    "rowId": "ui-sidebar-terminal",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar-terminal",
+    "entryId": "include:ui-sidebar-terminal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar-terminal",
+     "description": "Interactive shell tabs for the right Sidebar"
+    }
+   },
+   {
+    "rowId": "ui-sidebar-files",
+    "moduleName": "@deepseek-ai/dsh-client-ui-sidebar-files",
+    "entryId": "include:ui-sidebar-files",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-sidebar-files",
+     "description": "Workspace file tree tab type for the right Sidebar: lazy directory listing over the workspaceFiles Remote namespace, opening files into the Sidebar"
+    }
+   },
+   {
+    "rowId": "ui-settings",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings",
+    "entryId": "include:ui-settings",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings",
+     "description": "Settings domain base plugin: shared configuration forms and the canonical settings slot-type contract"
+    }
+   },
+   {
+    "rowId": "ui-settings-general",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-general",
+    "entryId": "include:ui-settings-general",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-general",
+     "description": "Settings ownerless-copy and product onboarding plugin: the General section, shell trigger/header chrome content, settings dictionaries, and the versioned welcome notice"
+    }
+   },
+   {
+    "rowId": "ui-settings-models",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-models",
+    "entryId": "include:ui-settings-models",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-models",
+     "description": "Models settings and shared product-onboarding dialogs over existing settings and credential joins"
+    }
+   },
+   {
+    "rowId": "ui-plugin-manager",
+    "moduleName": "@deepseek-ai/dsh-client-ui-plugin-manager",
+    "entryId": "include:ui-plugin-manager",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-plugin-manager",
+     "description": "Plugin management for the dsh web client: the sidebar Plugins panel installs, enables, disables, retries, and composes installed plugin packages"
+    }
+   },
+   {
+    "rowId": "ui-settings-plugin-inventory",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-plugin-inventory",
+    "entryId": "include:ui-settings-plugin-inventory",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-plugin-inventory",
+     "description": "Read-only Cordis Loader inventory tab in Web Plugins settings"
+    }
+   },
+   {
+    "rowId": "ui-conversation",
+    "moduleName": "@deepseek-ai/dsh-client-ui-conversation",
+    "entryId": "include:ui-conversation",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-conversation",
+     "description": "Target-neutral Conversation assembly, shell, composer, queue, and view navigation"
+    }
+   },
+   {
+    "rowId": "ui-approval",
+    "moduleName": "@deepseek-ai/dsh-client-ui-approval",
+    "entryId": "include:ui-approval",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-approval",
+     "description": "Approval composer takeover over the scoped Remote Event waterfall"
+    }
+   },
+   {
+    "rowId": "ui-chat",
+    "moduleName": "@deepseek-ai/dsh-client-ui-chat",
+    "entryId": "include:ui-chat",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-chat",
+     "description": "Chat Conversation target, node definitions, renderers, and details surface"
+    }
+   },
+   {
+    "rowId": "ui-brand-official",
+    "moduleName": "@deepseek-ai/dsh-client-ui-brand-official",
+    "entryId": "include:ui-brand-official",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-brand-official",
+     "description": "Official DeepSeek Harness brand occupants for the Web client's sidebar slots"
+    }
+   },
+   {
+    "rowId": "ui-attachment",
+    "moduleName": "@deepseek-ai/dsh-client-ui-attachment",
+    "entryId": "include:ui-attachment",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-attachment",
+     "description": "Dynamic attachment presentation plugin for conversation input, message-image, and trajectory image slots"
+    }
+   },
+   {
+    "rowId": "ui-tool",
+    "moduleName": "@deepseek-ai/dsh-client-ui-tool",
+    "entryId": "include:ui-tool",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-tool",
+     "description": "Client Tool call-tree renderer and keyed per-tool presentation slot"
+    }
+   },
+   {
+    "rowId": "ui-cordis",
+    "moduleName": "@deepseek-ai/dsh-client-ui-cordis",
+    "entryId": "include:ui-cordis",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-cordis",
+     "description": "Cordis dynamic-plugin definition card: the keyed cordis_define tool row with its run/stop switch"
+    }
+   },
+   {
+    "rowId": "ui-deliverables",
+    "moduleName": "@deepseek-ai/dsh-client-ui-deliverables",
+    "entryId": "include:ui-deliverables",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-deliverables",
+     "description": "Changed-files card with per-file comparison tabs, delivery cards, and clickable final-response file references for Web"
+    }
+   },
+   {
+    "rowId": "workspace-changes",
+    "moduleName": "@deepseek-ai/dsh-workspace-changes",
+    "entryId": "include:workspace-changes",
+    "meta": {
+     "title": "@deepseek-ai/dsh-workspace-changes",
+     "description": "Per-turn workspace file changes recorded from git working-tree snapshots and whole-file captures, with per-file comparisons, for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "ui-workspace",
+    "moduleName": "@deepseek-ai/dsh-client-ui-workspace",
+    "entryId": "include:ui-workspace",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-workspace",
+     "description": "Workspace picker plugin: one WorkspacePicker registered into the sidebar and empty-state workspace slots"
+    }
+   },
+   {
+    "rowId": "ui-workflow-run",
+    "moduleName": "@deepseek-ai/dsh-client-ui-workflow-run",
+    "entryId": "include:ui-workflow-run",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-workflow-run",
+     "description": "Durable workflow-run Conversation Node and nested member disclosure for dsh web"
+    }
+   },
+   {
+    "rowId": "ui-input-trigger",
+    "moduleName": "@deepseek-ai/dsh-client-ui-input-trigger",
+    "entryId": "include:ui-input-trigger",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-input-trigger",
+     "description": "Input trigger pipeline: '/' and '@' detection, candidate menu, pick routing to registered sources"
+    }
+   },
+   {
+    "rowId": "ui-commands",
+    "moduleName": "@deepseek-ai/dsh-client-ui-commands",
+    "entryId": "include:ui-commands",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-commands",
+     "description": "Client command surface: global directory cache, '/' source, three command UI kinds, popupSelect registry"
+    }
+   },
+   {
+    "rowId": "ui-skill",
+    "moduleName": "@deepseek-ai/dsh-client-ui-skill",
+    "entryId": "include:ui-skill",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-skill",
+     "description": "Web skill references and the dedicated skill tool row"
+    }
+   },
+   {
+    "rowId": "ui-subagent",
+    "moduleName": "@deepseek-ai/dsh-client-ui-subagent",
+    "entryId": "include:ui-subagent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-subagent",
+     "description": "Subagent conversation catalog, continuation routing UI, and '@' reference source"
+    }
+   },
+   {
+    "rowId": "ui-reference",
+    "moduleName": "@deepseek-ai/dsh-client-ui-reference",
+    "entryId": "include:ui-reference",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-reference",
+     "description": "Unified Web @file and @session reference source"
+    }
+   },
+   {
+    "rowId": "ui-jobs",
+    "moduleName": "@deepseek-ai/dsh-client-ui-jobs",
+    "entryId": "include:ui-jobs",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-jobs",
+     "description": "Session-header background-job list with on-demand streaming record panels"
+    }
+   },
+   {
+    "rowId": "ui-schedule",
+    "moduleName": "@deepseek-ai/dsh-client-ui-schedule",
+    "entryId": "include:ui-schedule",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-schedule",
+     "description": "Host task management page and Session reminder catalog"
+    }
+   },
+   {
+    "rowId": "ui-goal",
+    "moduleName": "@deepseek-ai/dsh-client-ui-goal",
+    "entryId": "include:ui-goal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-goal",
+     "description": "Session goal surface: GoalBar docked above the composer, read from the goal session projection"
+    }
+   },
+   {
+    "rowId": "ui-message-feedback",
+    "moduleName": "@deepseek-ai/dsh-client-ui-message-feedback",
+    "entryId": "include:ui-message-feedback",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-message-feedback",
+     "description": "The Web feedback surface: per-message Like/Dislike in the assistant-message action strip and the feedback dialog behind both ratings and /feedback, backed by the messageFeedback and sessionFeedback Host Remotes"
+    }
+   },
+   {
+    "rowId": "ui-model-selection",
+    "moduleName": "@deepseek-ai/dsh-client-ui-model-selection",
+    "entryId": "include:ui-model-selection",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-model-selection",
+     "description": "Model selection over the shared model catalog, Session projection, and session.selectModel"
+    }
+   },
+   {
+    "rowId": "ui-permission",
+    "moduleName": "@deepseek-ai/dsh-client-ui-permission-presets",
+    "entryId": "include:ui-permission",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-permission-presets",
+     "description": "Permission surfaces: a new-session default in General settings and a current-session /permission popup over the permissions projection"
+    }
+   },
+   {
+    "rowId": "ui-agent-preset",
+    "moduleName": "@deepseek-ai/dsh-client-ui-agent-preset",
+    "entryId": "include:ui-agent-preset",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-agent-preset",
+     "description": "Agent-preset surfaces: the default for later sessions, this session's seat, and the composition editor"
+    }
+   },
+   {
+    "rowId": "ui-settings-plugins",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-plugins",
+    "entryId": "include:ui-settings-plugins",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-plugins",
+     "description": "Built-in plugins settings section for the dsh web client: the Settings navigation entry and the tab chrome feature-owned tabs register into"
+    }
+   },
+   {
+    "rowId": "ui-settings-shell",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-shell",
+    "entryId": "include:ui-settings-shell",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-shell",
+     "description": "Settings page of the shell executor on the dsh web client's Plugins page: the command timeout and the per-stream output cap of the shell namespace"
+    }
+   },
+   {
+    "rowId": "ui-settings-agent-loop",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
+    "entryId": "include:ui-settings-agent-loop",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-agent-loop",
+     "description": "Settings page of the agent loop on the dsh web client's Plugins page: the parallel tool-call cap of the agent-loop namespace"
+    }
+   },
+   {
+    "rowId": "ui-settings-subagent",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-subagent",
+    "entryId": "include:ui-settings-subagent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-subagent",
+     "description": "Settings page of Subagent delegation on the dsh web client's Plugins page: recursion depth, parallel capacity, and the models agents may choose for subagents"
+    }
+   },
+   {
+    "rowId": "ui-settings-web-search",
+    "moduleName": "@deepseek-ai/dsh-client-ui-settings-web-search",
+    "entryId": "include:ui-settings-web-search",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-settings-web-search",
+     "description": "Settings page of the DeepSeek web-search provider on the dsh web client's Plugins page: its API key, endpoint, and per-request search budget"
+    }
+   },
+   {
+    "rowId": "ui-plan",
+    "moduleName": "@deepseek-ai/dsh-client-ui-plan",
+    "entryId": "include:ui-plan",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-plan",
+     "description": "Plan mode controls, persistent transcript plan cards, and sidebar Markdown previews"
+    }
+   },
+   {
+    "rowId": "ui-user-questions",
+    "moduleName": "@deepseek-ai/dsh-client-ui-user-questions",
+    "entryId": "include:ui-user-questions",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-user-questions",
+     "description": "Web ask_user_question composer takeover and plan-review presentation UI"
+    }
+   },
+   {
+    "rowId": "ui-trajectory",
+    "moduleName": "@deepseek-ai/dsh-client-ui-trajectory",
+    "entryId": "include:ui-trajectory",
+    "meta": {
+     "title": "@deepseek-ai/dsh-client-ui-trajectory",
+     "description": "Trajectory event ledger with an interactive timing overview: pure-consumer plugin registering into the conversation ViewMap (no service)"
+    }
+   },
+   {
+    "rowId": "agent-preset-registry",
+    "moduleName": "@deepseek-ai/dsh-agent-preset-registry",
+    "entryId": "include:agent-preset-registry",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-preset-registry",
+     "description": "Declarative Agent preset registry and profile-backed editing"
+    }
+   },
+   {
+    "rowId": "preset-standard",
+    "moduleName": "@deepseek-ai/dsh-agent-preset",
+    "entryId": "include:preset-standard",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-preset",
+     "description": "Declare an Agent capability composition in Cordis YAML"
+    }
+   },
+   {
+    "rowId": "preset-ptc",
+    "moduleName": "@deepseek-ai/dsh-agent-preset",
+    "entryId": "include:preset-ptc",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-preset",
+     "description": "Declare an Agent capability composition in Cordis YAML"
+    }
+   },
+   {
+    "rowId": "preset-minimal",
+    "moduleName": "@deepseek-ai/dsh-agent-preset",
+    "entryId": "include:preset-minimal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-preset",
+     "description": "Declare an Agent capability composition in Cordis YAML"
+    }
+   },
+   {
+    "rowId": "preset-cordis",
+    "moduleName": "@deepseek-ai/dsh-agent-preset",
+    "entryId": "include:preset-cordis",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-preset",
+     "description": "Declare an Agent capability composition in Cordis YAML"
+    }
+   }
+  ],
+  "overrides": [
+   "system-prompt",
+   "session-query-sqlite",
+   "tools",
+   "tool-plugin-manager",
+   "tool-bash",
+   "tool-pwsh",
+   "tool-jobs",
+   "tool-fs",
+   "tool-fs-search",
+   "skill-filesystem",
+   "tool-skill",
+   "command-goal",
+   "tool-goal",
+   "plan-mode",
+   "compaction-basic",
+   "command-compact",
+   "tool-result-pruner",
+   "tool-subagent-control",
+   "tool-subagent-list-agents",
+   "tool-subagent",
+   "tool-subagent-fork",
+   "workflow-ptc",
+   "tool-workflow",
+   "tool-ralph",
+   "agent-instructions",
+   "tool-todo",
+   "tool-web"
+  ]
+ },
+ {
+  "name": "dsh-relay",
+  "version": "0.3.0",
+  "description": "Authenticated remote access for a DeepSeek Harness web profile: TLS, QR/passcode device pairing, password sign-in, and per-device revocation in front of an untouched loopback harness.",
+  "meta": {
+   "title": "dsh-relay",
+   "description": "Authenticated remote access for a DeepSeek Harness web profile: TLS, QR/passcode device pairing, password sign-in, and per-device revocation in front of an untouched loopback harness."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "relay",
+    "moduleName": "dsh-relay",
+    "entryId": "include:relay",
+    "meta": {
+     "title": "dsh-relay",
+     "description": "Authenticated remote access for a DeepSeek Harness web profile: TLS, QR/passcode device pairing, password sign-in, and per-device revocation in front of an untouched loopback harness."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "@anweat/dsh-browser",
+  "version": "0.1.15",
+  "description": "Self-contained browser runtime plugin for DeepSeek Harness (scoped @anweat) — bundles Playwright (chromium) and OpenCLI as plugin-local dependencies (with global-reuse fallback), exposes a `browser` service and interactive browser tools.",
+  "meta": {
+   "title": "@anweat/dsh-browser",
+   "description": "Self-contained browser runtime plugin for DeepSeek Harness (scoped @anweat) — bundles Playwright (chromium) and OpenCLI as plugin-local dependencies (with global-reuse fallback), exposes a `browser` service and interactive browser tools."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "browser",
+    "moduleName": "@anweat/dsh-browser",
+    "entryId": "include:browser",
+    "meta": {
+     "title": "@anweat/dsh-browser",
+     "description": "Self-contained browser runtime plugin for DeepSeek Harness (scoped @anweat) — bundles Playwright (chromium) and OpenCLI as plugin-local dependencies (with global-reuse fallback), exposes a `browser` service and interactive browser tools."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-web-search-pro",
+  "version": "0.1.15",
+  "description": "Enhanced, persistent web search plugin for DeepSeek Harness — multi-engine routing (DeepSeek/Exa/DDG/Bing/Jina + GitHub/B站/YouTube/V2EX/小红书/Twitter/Reddit/RSS), SQLite+LRU cache, userscript-style extraction, and Playwright rendering.",
+  "meta": {
+   "title": "dsh-web-search-pro",
+   "description": "Enhanced, persistent web search plugin for DeepSeek Harness — multi-engine routing (DeepSeek/Exa/DDG/Bing/Jina + GitHub/B站/YouTube/V2EX/小红书/Twitter/Reddit/RSS), SQLite+LRU cache, userscript-style extraction, and Playwright rendering."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "web-search-pro",
+    "moduleName": "dsh-web-search-pro",
+    "entryId": "include:web-search-pro",
+    "meta": {
+     "title": "dsh-web-search-pro",
+     "description": "Enhanced, persistent web search plugin for DeepSeek Harness — multi-engine routing (DeepSeek/Exa/DDG/Bing/Jina + GitHub/B站/YouTube/V2EX/小红书/Twitter/Reddit/RSS), SQLite+LRU cache, userscript-style extraction, and Playwright rendering."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-opencode-session",
+  "version": "0.1.1",
+  "description": "DeepSeek Harness plugin: automatically adds a stable per-conversation x-opencode-session header to OpenCode / OpenCode Go provider requests — fixes 400 MissingSessionID and keeps OpenCode's session affinity / prompt-cache routing working.",
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "opencode-go-session-header",
+    "moduleName": "dsh-opencode-session",
+    "entryId": "include:opencode-go-session-header"
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-repeat-tool-breaker",
+  "version": "0.8.2",
+  "description": "Requires dsh >= 0.1.7 (session format 4); on dsh 0.1.5 use dsh-repeat-tool-breaker@0.7. Escalating repeat detection for dsh: a synchronous ctx.tools.guard gate that counts semantic fingerprints (exact/cmd/net/host/sink) over a per-agent sliding window, warns at 7, demands a progress summary at 11, and gates at 12 (16 for the coarser host: measure), plus a second track on consecutive failures (advisory at 3, block at 5) — asking the operator for a turn-scoped exemption instead of only blocking. Also refuses shell HTTP and redirects the model to a web_fetch_file tool that saves the page and returns its path, and ships a Settings → Plugins card for the block policy and the stage thresholds.",
+  "meta": {
+   "title": "dsh-repeat-tool-breaker",
+   "description": "Requires dsh >= 0.1.7 (session format 4); on dsh 0.1.5 use dsh-repeat-tool-breaker@0.7. Escalating repeat detection for dsh: a synchronous ctx.tools.guard gate that counts semantic fingerprints (exact/cmd/net/host/sink) over a per-agent sliding window, warns at 7, demands a progress summary at 11, and gates at 12 (16 for the coarser host: measure), plus a second track on consecutive failures (advisory at 3, block at 5) — asking the operator for a turn-scoped exemption instead of only blocking. Also refuses shell HTTP and redirects the model to a web_fetch_file tool that saves the page and returns its path, and ships a Settings → Plugins card for the block policy and the stage thresholds."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "repeat-tool-breaker",
+    "moduleName": "dsh-repeat-tool-breaker",
+    "entryId": "include:repeat-tool-breaker",
+    "meta": {
+     "title": "dsh-repeat-tool-breaker",
+     "description": "Requires dsh >= 0.1.7 (session format 4); on dsh 0.1.5 use dsh-repeat-tool-breaker@0.7. Escalating repeat detection for dsh: a synchronous ctx.tools.guard gate that counts semantic fingerprints (exact/cmd/net/host/sink) over a per-agent sliding window, warns at 7, demands a progress summary at 11, and gates at 12 (16 for the coarser host: measure), plus a second track on consecutive failures (advisory at 3, block at 5) — asking the operator for a turn-scoped exemption instead of only blocking. Also refuses shell HTTP and redirects the model to a web_fetch_file tool that saves the page and returns its path, and ships a Settings → Plugins card for the block policy and the stage thresholds."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-command-context-trim",
+  "version": "0.3.2",
+  "description": "Model-free /trim for DeepSeek Harness — drop the oldest, least valuable span of context on demand (the `/trim` command) or automatically when a request hits the model's context wall, without any model call.",
+  "meta": {
+   "title": "dsh-command-context-trim",
+   "description": "Model-free /trim for DeepSeek Harness — drop the oldest, least valuable span of context on demand (the `/trim` command) or automatically when a request hits the model's context wall, without any model call."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "context-trim",
+    "moduleName": "dsh-command-context-trim",
+    "entryId": "include:context-trim",
+    "meta": {
+     "title": "dsh-command-context-trim",
+     "description": "Model-free /trim for DeepSeek Harness — drop the oldest, least valuable span of context on demand (the `/trim` command) or automatically when a request hits the model's context wall, without any model call."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-llm-session-header",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness plugin: attaches a stable per-conversation session header to model requests routed to configured providers. Header name is configurable, so one plugin serves OpenCode (x-opencode-session), Olla (X-Olla-Session-ID), and any other header-based affinity router.",
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "llm-session-header",
+    "moduleName": "dsh-llm-session-header",
+    "entryId": "include:llm-session-header"
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "dsh-github-image-watch",
+  "version": "0.1.0",
+  "description": "GitHub issues webhook rule: when a B70 image issue is opened (or explicitly marked to act on), create a DSH Session that runs the backend test suite.",
+  "meta": {
+   "title": "dsh-github-image-watch",
+   "description": "GitHub issues webhook rule: when a B70 image issue is opened (or explicitly marked to act on), create a DSH Session that runs the backend test suite."
+  },
+  "enabled": true,
+  "installed": true,
+  "optional": false,
+  "removable": true,
+  "rows": [
+   {
+    "rowId": "github-image-watch-runtime",
+    "moduleName": "@deepseek-ai/dsh-webhook",
+    "entryId": "include:github-image-watch-runtime",
+    "meta": {
+     "title": "@deepseek-ai/dsh-webhook",
+     "description": "Fire-and-forget webhook rule runtime that creates Workspace-backed DeepSeek Harness Sessions"
+    }
+   },
+   {
+    "rowId": "github-image-watch-listener",
+    "moduleName": "@deepseek-ai/cordis-plugin-group",
+    "entryId": "include:github-image-watch-listener",
+    "meta": {
+     "title": "@deepseek-ai/cordis-plugin-group",
+     "description": "Nested plugin group for cordis"
+    }
+   },
+   {
+    "rowId": "github-image-watch-rule",
+    "moduleName": "dsh-github-image-watch",
+    "entryId": "include:github-image-watch-rule",
+    "meta": {
+     "title": "dsh-github-image-watch",
+     "description": "GitHub issues webhook rule: when a B70 image issue is opened (or explicitly marked to act on), create a DSH Session that runs the backend test suite."
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "@deepseek-ai/dsh-acp-app",
+  "version": "0.1.7-rc.2",
+  "description": "The dsh ACP profile bundle: automation-only JSON-RPC stdio and process lifecycle over dsh-base",
+  "meta": {
+   "title": "@deepseek-ai/dsh-acp-app",
+   "description": "The dsh ACP profile bundle: automation-only JSON-RPC stdio and process lifecycle over dsh-base"
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "acp-app-startup",
+    "moduleName": "@deepseek-ai/dsh-acp-app",
+    "meta": {
+     "title": "@deepseek-ai/dsh-acp-app",
+     "description": "The dsh ACP profile bundle: automation-only JSON-RPC stdio and process lifecycle over dsh-base"
+    }
+   },
+   {
+    "rowId": "acp",
+    "moduleName": "@deepseek-ai/dsh-acp",
+    "meta": {
+     "title": "@deepseek-ai/dsh-acp",
+     "description": "Automation-only Agent Client Protocol server for driving DeepSeek Harness agents over JSON-RPC stdio"
+    }
+   }
+  ],
+  "overrides": [
+   "system-prompt",
+   "session-title-llm",
+   "hmr"
+  ]
+ },
+ {
+  "name": "@deepseek-ai/dsh-headless",
+  "version": "0.1.7-rc.2",
+  "description": "The dsh one-shot bundle: a direct core Agent/Session runner over dsh-base with no Host, HTTP, or browser layer",
+  "meta": {
+   "title": "@deepseek-ai/dsh-headless",
+   "description": "The dsh one-shot bundle: a direct core Agent/Session runner over dsh-base with no Host, HTTP, or browser layer"
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "headless-startup",
+    "moduleName": "@deepseek-ai/dsh-headless/startup"
+   },
+   {
+    "rowId": "headless-runner",
+    "moduleName": "@deepseek-ai/dsh-headless",
+    "meta": {
+     "title": "@deepseek-ai/dsh-headless",
+     "description": "The dsh one-shot bundle: a direct core Agent/Session runner over dsh-base with no Host, HTTP, or browser layer"
+    }
+   }
+  ],
+  "overrides": [
+   "system-prompt",
+   "tools",
+   "hmr"
+  ]
+ },
+ {
+  "name": "@deepseek-ai/dsh-experimental-agent-team-profile",
+  "version": "0.1.7-rc.2",
+  "description": "Agent Teams collaboration, tools, and Web UI in one experimental bundle",
+  "meta": {
+   "title": {
+    "en": "Agent Teams",
+    "zh": "智能体团队"
+   },
+   "description": {
+    "en": "Enable team collaboration, team tools, the member roster, and the shared task board.",
+    "zh": "启用团队协作、团队工具、成员列表和共享任务看板。"
+   },
+   "icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cGF0aCBkPSJNMTMuMzAyNyAxNy4xMDc3SDkuMDMxMjVWMTIuODM3MkgxMy4zMDI3VjE3LjEwNzdaTTE3LjU3NDIgMTIuODM3MkMxNy41NzQgMTUuMTk1OCAxNS42NjIzIDE3LjEwNzUgMTMuMzAzNyAxNy4xMDc3VjguNTY1NjdIMTcuNTc0MlYxMi44MzcyWiIgZmlsbD0idXJsKCNhKSIgLz4KICA8cGF0aCBkPSJNMTguNTIyOSAxMi44MzcyVjguNTY1NjdIMjIuNzk0NFYxMi44MzcySDI3LjA2NTlWMTcuMTA3N0gyMi43OTQ0QzIwLjQzNTcgMTcuMTA3NyAxOC41MjMyIDE1LjE5NTkgMTguNTIyOSAxMi44MzcyWiIgZmlsbD0iI0YyQUY2MyIgLz4KICA8cGF0aCBkPSJNMTcuNTc0MiAyNi42MDcySDEzLjMwMzdWMTguMDY0MkMxNS42NjI1IDE4LjA2NDQgMTcuNTc0MiAxOS45NzY5IDE3LjU3NDIgMjIuMzM1N1YyNi42MDcyWk0xMy4zMDI3IDIyLjMzNTdIOS4wMzEyNVYxOC4wNjQySDEzLjMwMjdWMjIuMzM1N1oiIGZpbGw9IiM3Q0I3RkYiIC8+CiAgPHBhdGggZD0iTTIyLjc5NDQgMjYuNjA3MkgxOC41MjI5VjIyLjMzNTdDMTguNTIyOSAxOS45NzY4IDIwLjQzNTUgMTguMDY0MiAyMi43OTQ0IDE4LjA2NDJIMjcuMDY1OVYyMi4zMzU3SDIyLjc5NDRWMjYuNjA3MloiIGZpbGw9IiM0NUQ5RTciIC8+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSIxNi4xMjQ3IiB5MT0iNi42NjEzIiB4Mj0iOS4wMzEyNSIgeTI9IjE5LjIyMDYiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agc3RvcC1jb2xvcj0iIzdDQjdGRiIgLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjMTQ1QUYzIiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+Cjwvc3ZnPgo="
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": true,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "agent-team",
+    "moduleName": "@deepseek-ai/dsh-experimental-agent-team",
+    "meta": {
+     "title": {
+      "en": "Team Collaboration",
+      "zh": "团队协作"
+     },
+     "description": {
+      "en": "Manage team members, member messages, and shared tasks.",
+      "zh": "管理团队成员、成员消息和共享任务。"
+     }
+    }
+   },
+   {
+    "rowId": "tool-agent-team",
+    "moduleName": "@deepseek-ai/dsh-experimental-tool-agent-team",
+    "meta": {
+     "title": {
+      "en": "Team Tools",
+      "zh": "团队工具"
+     },
+     "description": {
+      "en": "Give agents tools to coordinate members, exchange messages, and manage shared tasks.",
+      "zh": "为智能体提供成员协调、消息通信和共享任务管理工具。"
+     }
+    }
+   },
+   {
+    "rowId": "ui-agent-team",
+    "moduleName": "@deepseek-ai/dsh-experimental-client-ui-agent-team",
+    "meta": {
+     "title": {
+      "en": "Team Panel",
+      "zh": "团队面板"
+     },
+     "description": {
+      "en": "View team members and shared tasks, and navigate to member conversations.",
+      "zh": "查看团队成员和共享任务，并切换到成员会话。"
+     }
+    }
+   }
+  ],
+  "overrides": [
+   "tool-subagent-control",
+   "tool-subagent-list-agents",
+   "tool-subagent",
+   "tool-subagent-fork"
+  ]
+ },
+ {
+  "name": "@deepseek-ai/dsh-sdk-app",
+  "version": "0.1.7-rc.2",
+  "description": "The dsh SDK profile bundle: stdio JSON-RPC serving and process lifecycle over dsh-base",
+  "meta": {
+   "title": "@deepseek-ai/dsh-sdk-app",
+   "description": "The dsh SDK profile bundle: stdio JSON-RPC serving and process lifecycle over dsh-base"
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "sdk-app-startup",
+    "moduleName": "@deepseek-ai/dsh-sdk-app",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sdk-app",
+     "description": "The dsh SDK profile bundle: stdio JSON-RPC serving and process lifecycle over dsh-base"
+    }
+   },
+   {
+    "rowId": "sdk-jsonrpc-server",
+    "moduleName": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+     "description": "Stdio JSON-RPC server plugin for out-of-process DeepSeek Harness SDK clients"
+    }
+   },
+   {
+    "rowId": "workspace-dependencies",
+    "moduleName": "@deepseek-ai/dsh-tool-workspace-dependencies",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-workspace-dependencies",
+     "description": "The load_workspace_dependencies tool: absolute paths into a bundled Python, Node.js, and pnpm payload"
+    }
+   },
+   {
+    "rowId": "skill-office",
+    "moduleName": "@deepseek-ai/dsh-skill-office",
+    "meta": {
+     "title": "@deepseek-ai/dsh-skill-office",
+     "description": "Bundled Word, PowerPoint, and Excel workflows and structural checks"
+    }
+   }
+  ],
+  "overrides": [
+   "system-prompt",
+   "session-title-llm",
+   "hmr"
+  ]
+ },
+ {
+  "name": "@deepseek-ai/dsh-sdk-minimal",
+  "version": "0.1.7-rc.2",
+  "description": "The standalone minimal SDK profile bundle: JSON-RPC, one DeepSeek adapter, persistent shell, and JSONL sessions",
+  "meta": {
+   "title": "@deepseek-ai/dsh-sdk-minimal",
+   "description": "The standalone minimal SDK profile bundle: JSON-RPC, one DeepSeek adapter, persistent shell, and JSONL sessions"
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": false,
+  "removable": false,
+  "readOnlyReason": "management-required",
+  "rows": [
+   {
+    "rowId": "sdk-app-startup",
+    "moduleName": "@deepseek-ai/dsh-sdk-app",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sdk-app",
+     "description": "The dsh SDK profile bundle: stdio JSON-RPC serving and process lifecycle over dsh-base"
+    }
+   },
+   {
+    "rowId": "sdk-jsonrpc-server",
+    "moduleName": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sdk-jsonrpc-server",
+     "description": "Stdio JSON-RPC server plugin for out-of-process DeepSeek Harness SDK clients"
+    }
+   },
+   {
+    "rowId": "deepseek-llm-api-extensions",
+    "moduleName": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+    "entryId": "include:deepseek-llm-api-extensions",
+    "meta": {
+     "title": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+     "description": "Additive request-field registry for the official DeepSeek LLM API adapter"
+    }
+   },
+   {
+    "rowId": "session-log-deepseek",
+    "moduleName": "@deepseek-ai/dsh-session-log-deepseek",
+    "entryId": "include:session-log-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-log-deepseek",
+     "description": "Incremental lossless session-log request extension for the official DeepSeek LLM API"
+    }
+   },
+   {
+    "rowId": "plugin-package-inventory-deepseek",
+    "moduleName": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+    "entryId": "include:plugin-package-inventory-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-plugin-package-inventory-deepseek",
+     "description": "Active Loader-backed plugin package inventory for official DeepSeek LLM API requests"
+    }
+   },
+   {
+    "rowId": "llm-deepseek",
+    "moduleName": "@deepseek-ai/dsh-llm-deepseek-api-key",
+    "entryId": "include:llm-deepseek",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-deepseek-api-key",
+     "description": "DeepSeek api-key provider authentication and discovery"
+    }
+   },
+   {
+    "rowId": "sandbox",
+    "moduleName": "@deepseek-ai/dsh-sandbox-local",
+    "entryId": "include:sandbox",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sandbox-local",
+     "description": "Local process-sandbox backends for the DeepSeek Harness sandbox seam: bwrap, the npm-distributed landlock-run launcher, macOS Seatbelt, or the Windows ACL restricted-token runner — functionally probed, fail-closed"
+    }
+   },
+   {
+    "rowId": "session-projection",
+    "moduleName": "@deepseek-ai/dsh-session-projection",
+    "entryId": "include:session-projection",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-projection",
+     "description": "Session-projection seam: the merge-extensible projection type table, the provider contract, and the ctx.sessionProjections registry serving whole current values of log-derived per-session state"
+    }
+   },
+   {
+    "rowId": "sandbox-policy",
+    "moduleName": "@deepseek-ai/dsh-sandbox-policy",
+    "entryId": "include:sandbox-policy",
+    "meta": {
+     "title": "@deepseek-ai/dsh-sandbox-policy",
+     "description": "Per-call sandbox policy resolver and current model context: deployment fallbacks plus each session's mode and workspace root, shared by every enforcing capability family"
+    }
+   },
+   {
+    "rowId": "subprocess",
+    "moduleName": "@deepseek-ai/dsh-subprocess-local",
+    "entryId": "include:subprocess",
+    "meta": {
+     "title": "@deepseek-ai/dsh-subprocess-local",
+     "description": "Local-subprocess implementation of the DeepSeek Harness subprocess seam"
+    }
+   },
+   {
+    "rowId": "pty",
+    "moduleName": "@deepseek-ai/dsh-terminal",
+    "meta": {
+     "title": "@deepseek-ai/dsh-terminal",
+     "description": "Persistent PTY session seam for the DeepSeek Harness — owner-scoped ids, backend registry, interactive sends, reads, signals, and awaited cleanup"
+    }
+   },
+   {
+    "rowId": "terminal-bash",
+    "moduleName": "@deepseek-ai/dsh-terminal-bash",
+    "meta": {
+     "title": "@deepseek-ai/dsh-terminal-bash",
+     "description": "Persistent shell PTY backend over the DeepSeek Harness subprocess terminal primitive"
+    }
+   },
+   {
+    "rowId": "terminal-pwsh",
+    "moduleName": "@deepseek-ai/dsh-terminal-bash",
+    "meta": {
+     "title": "@deepseek-ai/dsh-terminal-bash",
+     "description": "Persistent shell PTY backend over the DeepSeek Harness subprocess terminal primitive"
+    }
+   },
+   {
+    "rowId": "timer",
+    "moduleName": "@deepseek-ai/cordis-plugin-timer",
+    "entryId": "include:timer",
+    "meta": {
+     "title": "@deepseek-ai/cordis-plugin-timer",
+     "description": "Timer service for cordis"
+    }
+   },
+   {
+    "rowId": "llm",
+    "moduleName": "@deepseek-ai/dsh-llm",
+    "entryId": "include:llm",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm",
+     "description": "Provider-neutral LLM service interface for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session",
+    "moduleName": "@deepseek-ai/dsh-session",
+    "entryId": "include:session",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session",
+     "description": "Event-sourced session store for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "session-title",
+    "moduleName": "@deepseek-ai/dsh-session-title",
+    "entryId": "include:session-title",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-title",
+     "description": "Log-backed session title service and provider registry for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "system-prompt",
+    "moduleName": "@deepseek-ai/dsh-system-prompt",
+    "entryId": "include:system-prompt",
+    "meta": {
+     "title": "@deepseek-ai/dsh-system-prompt",
+     "description": "System prompt assembly registry for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "tools",
+    "moduleName": "@deepseek-ai/dsh-tools",
+    "entryId": "include:tools",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tools",
+     "description": "Tool registry and execution pipeline for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "mcp-resources",
+    "moduleName": "@deepseek-ai/dsh-mcp-resources",
+    "entryId": "include:mcp-resources",
+    "meta": {
+     "title": "@deepseek-ai/dsh-mcp-resources",
+     "description": "Scoped MCP resource discovery and reading through shared model tools"
+    }
+   },
+   {
+    "rowId": "agent",
+    "moduleName": "@deepseek-ai/dsh-agent",
+    "entryId": "include:agent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent",
+     "description": "Agent interface, registry, initiator scope, and event vocabulary for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "llm-retry",
+    "moduleName": "@deepseek-ai/dsh-llm-retry",
+    "entryId": "include:llm-retry",
+    "meta": {
+     "title": "@deepseek-ai/dsh-llm-retry",
+     "description": "Provider-routed LLM request retry policy for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "jobs",
+    "moduleName": "@deepseek-ai/dsh-jobs-local",
+    "entryId": "include:jobs",
+    "meta": {
+     "title": "@deepseek-ai/dsh-jobs-local",
+     "description": "Process-local implementation of the DeepSeek Harness background job registry seam"
+    }
+   },
+   {
+    "rowId": "invariants",
+    "moduleName": "@deepseek-ai/dsh-invariants",
+    "meta": {
+     "title": "@deepseek-ai/dsh-invariants",
+     "description": "Registry service for package-owned DeepSeek Harness runtime invariants"
+    }
+   },
+   {
+    "rowId": "session-invariant",
+    "moduleName": "@deepseek-ai/dsh-session/invariant"
+   },
+   {
+    "rowId": "agent-invariant",
+    "moduleName": "@deepseek-ai/dsh-agent/invariant"
+   },
+   {
+    "rowId": "scope-invariant",
+    "moduleName": "@deepseek-ai/dsh-scope/invariant"
+   },
+   {
+    "rowId": "agent-loop-invariant",
+    "moduleName": "@deepseek-ai/dsh-agent-loop/invariant"
+   },
+   {
+    "rowId": "agent-loop",
+    "moduleName": "@deepseek-ai/dsh-agent-loop",
+    "entryId": "include:agent-loop",
+    "meta": {
+     "title": "@deepseek-ai/dsh-agent-loop",
+     "description": "The concrete agent loop plugin for the DeepSeek Harness"
+    }
+   },
+   {
+    "rowId": "persistent-bash",
+    "moduleName": "@deepseek-ai/dsh-tool-bash-persistent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-bash-persistent",
+     "description": "Model-facing owner-scoped persistent Bash tool backed by the Harness PTY service"
+    }
+   },
+   {
+    "rowId": "persistent-pwsh",
+    "moduleName": "@deepseek-ai/dsh-tool-pwsh-persistent",
+    "meta": {
+     "title": "@deepseek-ai/dsh-tool-pwsh-persistent",
+     "description": "Model-facing owner-scoped persistent PowerShell tool backed by the Harness PTY service"
+    }
+   },
+   {
+    "rowId": "sessions",
+    "moduleName": "@deepseek-ai/dsh-session-persistence-jsonl",
+    "meta": {
+     "title": "@deepseek-ai/dsh-session-persistence-jsonl",
+     "description": "JSONL durable session persistence backend for the DeepSeek Harness"
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "@deepseek-ai/dsh-experimental-voice-input-bundle",
+  "version": "0.1.7-rc.2",
+  "description": "Experimental voice input with local SenseVoice; downloads its runtime on first use",
+  "meta": {
+   "title": {
+    "en": "Voice input",
+    "zh": "语音输入"
+   },
+   "description": {
+    "en": "Transcribe recordings locally with SenseVoice; first use requires installing dependencies",
+    "zh": "在本机使用 SenseVoice 转写录音；首次使用需安装依赖"
+   },
+   "icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cGF0aCBkPSJNMjMuNzMyNCA4Ljc3MTQ4VjI3LjIyOTVMMjEuMjMyNCAyNy4yMjg1VjguNzcwNTFMMjMuNzMyNCA4Ljc3MTQ4Wk0xNC42Nzk3IDEwLjc3MTVMMTQuNjc4NyAyNS4yMjk1TDEyLjE3ODcgMjUuMjI4NUwxMi4xNzk3IDEwLjc3MDVMMTQuNjc5NyAxMC43NzE1Wk0xOS4zOTI2IDIyLjQxMzFIMTYuODkyNlYxMy41ODU5SDE5LjM5MjZWMjIuNDEzMVpNMTAuMDYyNSAyMC43MDhINy41NjI1VjE1LjI5MUgxMC4wNjI1VjIwLjcwOFpNMjguNDM3NSAyMC43MDhIMjUuOTM3NVYxNS4yOTFIMjguNDM3NVYyMC43MDhaIiBmaWxsPSJ1cmwoI3BhaW50MF9saW5lYXJfMzM3MV84NTIwMykiIC8+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InBhaW50MF9saW5lYXJfMzM3MV84NTIwMyIgeDE9IjguMjQ2MDIiIHkxPSIxNi40MDgzIiB4Mj0iMzIuNTYxMSIgeTI9IjIyLjk2OTkiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agc3RvcC1jb2xvcj0iIzY3QzdGRSIgLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjM0Y3N0Q4IiAvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+Cjwvc3ZnPgo="
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": true,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "speech-to-text",
+    "moduleName": "@deepseek-ai/dsh-experimental-speech-to-text",
+    "meta": {
+     "title": "@deepseek-ai/dsh-experimental-speech-to-text",
+     "description": "Experimental speech recognition with independently selectable providers"
+    }
+   },
+   {
+    "rowId": "speech-to-text-sensevoice",
+    "moduleName": "@deepseek-ai/dsh-experimental-speech-to-text-sensevoice",
+    "meta": {
+     "title": "@deepseek-ai/dsh-experimental-speech-to-text-sensevoice",
+     "description": "Local SenseVoice ONNX transcription with a managed sherpa-onnx process"
+    }
+   },
+   {
+    "rowId": "api-speech-to-text",
+    "moduleName": "@deepseek-ai/dsh-experimental-api-speech-to-text",
+    "meta": {
+     "title": "@deepseek-ai/dsh-experimental-api-speech-to-text",
+     "description": "Authenticated experimental speech transcription for browser clients"
+    }
+   },
+   {
+    "rowId": "ui-voice-input",
+    "moduleName": "@deepseek-ai/dsh-experimental-client-ui-voice-input",
+    "meta": {
+     "title": "@deepseek-ai/dsh-experimental-client-ui-voice-input",
+     "description": "Record speech and insert editable text into the conversation draft"
+    }
+   }
+  ],
+  "overrides": []
+ },
+ {
+  "name": "@deepseek-ai/dsh-experimental-auto-review",
+  "version": "0.1.7-rc.2",
+  "description": "Per-tool LLM authorization review for the DeepSeek Harness Auto permission preset",
+  "meta": {
+   "title": {
+    "en": "Auto Authorization Review",
+    "zh": "自动授权审查"
+   },
+   "description": {
+    "en": "Add an Auto review permission mode that uses the model to assess authorization before each tool call.",
+    "zh": "提供自动审查权限模式，由模型在每次工具调用前判断是否授权。"
+   },
+   "icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cGF0aCBkPSJNMTggNkwyNy41IDkuNVYxNy4yQzI3LjUgMjMuMSAyMy41IDI4LjQgMTggMzBDMTIuNSAyOC40IDguNSAyMy4xIDguNSAxNy4yVjkuNUwxOCA2WiIgZmlsbD0idXJsKCNhKSIgLz4KICA8cGF0aCBkPSJNMTMuNSAxOEwxNi42IDIxLjFMMjIuOSAxNC44IiBzdHJva2U9IiNGRkZGRkYiIHN0cm9rZS13aWR0aD0iMi40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIC8+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSIxOCIgeTE9IjYiIHgyPSIxOCIgeTI9IjMwIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM3Q0I3RkYiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzE0NUFGMyIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgo8L3N2Zz4K"
+  },
+  "enabled": false,
+  "installed": false,
+  "optional": true,
+  "removable": false,
+  "rows": [
+   {
+    "rowId": "auto-review",
+    "moduleName": "@deepseek-ai/dsh-experimental-auto-review",
+    "meta": {
+     "title": {
+      "en": "Auto Authorization Review",
+      "zh": "自动授权审查"
+     },
+     "description": {
+      "en": "Add an Auto review permission mode that uses the model to assess authorization before each tool call.",
+      "zh": "提供自动审查权限模式，由模型在每次工具调用前判断是否授权。"
+     },
+     "icon": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzYiIGhlaWdodD0iMzYiIHZpZXdCb3g9IjAgMCAzNiAzNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cGF0aCBkPSJNMTggNkwyNy41IDkuNVYxNy4yQzI3LjUgMjMuMSAyMy41IDI4LjQgMTggMzBDMTIuNSAyOC40IDguNSAyMy4xIDguNSAxNy4yVjkuNUwxOCA2WiIgZmlsbD0idXJsKCNhKSIgLz4KICA8cGF0aCBkPSJNMTMuNSAxOEwxNi42IDIxLjFMMjIuOSAxNC44IiBzdHJva2U9IiNGRkZGRkYiIHN0cm9rZS13aWR0aD0iMi40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIC8+CiAgPGRlZnM+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImEiIHgxPSIxOCIgeTE9IjYiIHgyPSIxOCIgeTI9IjMwIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIHN0b3AtY29sb3I9IiM3Q0I3RkYiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzE0NUFGMyIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgo8L3N2Zz4K"
+    }
+   }
+  ],
+  "overrides": []
+ }
+]

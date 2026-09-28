@@ -378,6 +378,15 @@
     <string name="plugins_phase_unloading">Descarregando</string>
     <string name="plugins_empty">Este harness não lista plugins.</string>
     <string name="plugins_search_hint">Filtrar plugins</string>
+    <string name="plugins_unavailable">Este harness não expõe um gerenciador de plugins.</string>
+    <string name="plugins_locked_generic">Bloqueado</string>
+    <string name="plugins_toggle_failed">Não foi possível alternar este plugin.</string>
+    <string name="plugins_tab_bundles">Pacotes</string>
+    <string name="plugins_section_installed">Instalados</string>
+    <string name="plugins_section_available">Disponíveis</string>
+    <string name="plugins_bundle_rows">%1$d plugins</string>
+    <string name="plugins_locked_management">Bloqueado: o perfil é construído sobre ele</string>
+    <string name="plugins_locked_unaddressable">Bloqueado: nenhum pacote possui esta linha</string>
     <string name="plugins_tab_composed">Compostos</string>
     <string name="plugins_tab_presets">Predefinições do agente</string>
     <string name="plugins_count">%1$d de %2$d plugins</string>
