@@ -20,11 +20,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Surface
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +41,8 @@ import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
 import com.labteto.dshmobile.data.PluginMutationState
 import com.labteto.dshmobile.ui.components.DsIconButton
+import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.theme.DsShapes
@@ -138,6 +139,11 @@ fun PluginsScreen(onClose: () -> Unit) {
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
 
+    // The page is entered from the chat drawer, and a drawer's back button exits the app: without a
+    // handler here, back on this screen walks straight out of the activity. SettingsScreen does the
+    // same thing for the same reason.
+    BackHandler(enabled = openBundle == null) { onClose() }
+
     // rowId is the settings namespace: a bundle's configuration is whichever namespaces its own
     // rows own. Resolved once here rather than per card, because the uid graph is shared across
     // namespaces and walking it inside a composable would repeat that work on every recomposition.
@@ -183,23 +189,18 @@ fun PluginsScreen(onClose: () -> Unit) {
                 return@Column
             }
 
-            TextField(
-                value = filter,
-                onValueChange = { filter = it },
+            // The app's one search field: a 56dp Material3 TextField used to sit here, which is the
+            // same drift SearchField exists to prevent.
+            SearchField(
+                query = filter,
+                onQueryChange = { filter = it },
+                placeholder = stringResource(R.string.plugins_search_hint),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = DsSpacing.small),
-                placeholder = {
-                    Text(stringResource(R.string.plugins_search_hint), style = DsType.std14)
+                trailing = {
+                    SearchFieldCloseButton(onClick = { filter = "" })
                 },
-                singleLine = true,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = colors.bgLayer2,
-                    unfocusedContainerColor = colors.bgLayer2,
-                    focusedIndicatorColor = colors.accent,
-                    unfocusedIndicatorColor = colors.borderL2,
-                    cursorColor = colors.accent,
-                ),
             )
 
             Spacer(Modifier.height(DsSpacing.small))
@@ -225,6 +226,7 @@ fun PluginsScreen(onClose: () -> Unit) {
             valuesByNamespace = valuesByNamespace,
             revisionsByNamespace = revisionsByNamespace,
             settingsAvailable = settings != null,
+            locale = locale,
             onEdit = { ns, path, value, revision ->
                 scope.launch { store.updateSetting(ns, buildSettingPatch(path, value), revision) }
             },
@@ -408,6 +410,7 @@ private fun BundleDetailDialog(
     valuesByNamespace: Map<String, JsonElement>,
     revisionsByNamespace: Map<String, Long>,
     settingsAvailable: Boolean,
+    locale: String,
     onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -420,7 +423,10 @@ private fun BundleDetailDialog(
         bundle.rows.map { it.rowId }.filter { it in schemaByNamespace }
     }
 
-    DsDialog(title = bundle.name, onDismiss = onDismiss) {
+    // The title is the display name — `dsh-relay` as a heading is the raw row id, and the list row
+    // already shows the friendly one. Version and description are one caption line, matching the
+    // list row instead of stacking two captions under the title.
+    DsDialog(title = bundle.displayTitle(locale), onDismiss = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -428,11 +434,9 @@ private fun BundleDetailDialog(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
         ) {
-            bundle.version?.let {
-                Text(it, style = DsType.caption11, color = colors.labelCaption)
-            }
-            bundle.displayDescription?.let {
-                Text(it, style = DsType.caption11, color = colors.labelTertiary)
+            val caption = listOfNotNull(bundle.version, bundle.displayDescription).joinToString(" · ")
+            if (caption.isNotEmpty()) {
+                Text(caption, style = DsType.caption11, color = colors.labelTertiary)
             }
 
             if (configured.isEmpty()) {
@@ -454,13 +458,17 @@ private fun BundleDetailDialog(
                     val schema = schemaByNamespace[ns] ?: return@forEach
                     val value = valuesByNamespace[ns]
                     val revision = revisionsByNamespace[ns]
-                    Text(
-                        ns,
-                        style = DsType.small13Strong,
-                        color = colors.labelSecondary,
-                        modifier = Modifier.padding(top = DsSpacing.xsmall),
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                    // A card, not a bare heading over fields: the namespace id is the card's title,
+                    // and the card's fill separates one form from the next without any divider.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(DsShapes.row)
+                            .background(colors.bgLayer1)
+                            .padding(DsSpacing.medium),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        Text(ns, style = DsType.small13Strong, color = colors.labelSecondary)
                         schema.fields.forEach { field ->
                             SettingsFieldRow(
                                 field = field,
@@ -485,7 +493,14 @@ private fun BundleDetailDialog(
                         .padding(vertical = DsSpacing.tiny),
                 )
                 if (rowsOpen) {
-                    Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(DsShapes.row)
+                            .background(colors.bgLayer1)
+                            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                        verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                    ) {
                         bundle.rows.forEach { row ->
                             Text(
                                 row.displayTitle,
