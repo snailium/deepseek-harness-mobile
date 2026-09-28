@@ -378,6 +378,7 @@
     <string name="plugins_phase_unloading">ان لوڈ ہو رہا ہے</string>
     <string name="plugins_empty">یہ ہارنیس کوئی پلگ ان درج نہیں کرتا۔</string>
     <string name="plugins_search_hint">پلگ ان فلٹر کریں</string>
+    <string name="plugins_config_none">اس پلگ ان کی کوئی ترتیبات نہیں۔</string>
     <string name="plugins_config_section">%1$s · تشکیل</string>
     <string name="plugins_config_unavailable">اس کنکشن پر پلگ ان کی ترتیبات دستیاب نہیں۔</string>
     <string name="plugins_field_required">لازمی</string>

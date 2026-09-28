@@ -378,6 +378,7 @@
     <string name="plugins_phase_unloading">Déchargement</string>
     <string name="plugins_empty">Ce harness ne liste aucun plugin.</string>
     <string name="plugins_search_hint">Filtrer les plugins</string>
+    <string name="plugins_config_none">Cette extension n’a pas de réglages.</string>
     <string name="plugins_config_section">%1$s · Configuration</string>
     <string name="plugins_config_unavailable">Les réglages de l’extension sont inaccessibles sur cette connexion.</string>
     <string name="plugins_field_required">obligatoire</string>
