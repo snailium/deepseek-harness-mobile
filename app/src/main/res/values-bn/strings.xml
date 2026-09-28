@@ -378,6 +378,7 @@
     <string name="plugins_phase_unloading">আনলোড হচ্ছে</string>
     <string name="plugins_empty">এই হারনেস কোনো প্লাগইন তালিকাভুক্ত করে না।</string>
     <string name="plugins_search_hint">প্লাগইন ফিল্টার করুন</string>
+    <string name="plugins_config_none">এই প্লাগইনের কোনও সেটিংস নেই।</string>
     <string name="plugins_config_section">%1$s · কনফিগারেশন</string>
     <string name="plugins_config_unavailable">এই সংযোগে প্লাগইন সেটিংসে পৌঁছানো যায় না।</string>
     <string name="plugins_field_required">আবশ্যক</string>

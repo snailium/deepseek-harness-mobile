@@ -378,6 +378,7 @@
     <string name="plugins_phase_unloading">Выгрузка</string>
     <string name="plugins_empty">Этот harness не перечисляет плагины.</string>
     <string name="plugins_search_hint">Фильтр плагинов</string>
+    <string name="plugins_config_none">У этого плагина нет настроек.</string>
     <string name="plugins_config_section">%1$s · Настройка</string>
     <string name="plugins_config_unavailable">Настройки плагина недоступны через это соединение.</string>
     <string name="plugins_field_required">обязательно</string>

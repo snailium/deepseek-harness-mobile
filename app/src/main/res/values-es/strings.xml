@@ -378,6 +378,7 @@
     <string name="plugins_phase_unloading">Descargando</string>
     <string name="plugins_empty">Este harness no lista complementos.</string>
     <string name="plugins_search_hint">Filtrar complementos</string>
+    <string name="plugins_config_none">Este complemento no tiene ajustes.</string>
     <string name="plugins_config_section">%1$s · Configuración</string>
     <string name="plugins_config_unavailable">No se puede acceder a los ajustes del complemento en esta conexión.</string>
     <string name="plugins_field_required">obligatorio</string>

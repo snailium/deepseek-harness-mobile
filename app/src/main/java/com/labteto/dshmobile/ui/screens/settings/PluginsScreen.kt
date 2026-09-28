@@ -61,6 +61,10 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 import com.labteto.dshmobile.core.wire.dto.SettingsSchemaResolver
 import com.labteto.dshmobile.core.wire.dto.ResolvedSettingsSchema
+import com.labteto.dshmobile.ui.components.DsDialog
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 /**
  * The profile's plugin bundles, with a live switch on each one.
@@ -128,7 +132,9 @@ fun PluginsScreen(onClose: () -> Unit) {
 
     val colors = DsTheme.colors
     var filter by remember { mutableStateOf("") }
-    var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Which bundle's detail dialog is open. Held as the bundle itself rather than a name so the
+    // dialog keeps rendering after a reload replaces the list with equal-but-new objects.
+    var openBundle by remember { mutableStateOf<PluginBundle?>(null) }
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
 
@@ -202,24 +208,28 @@ fun PluginsScreen(onClose: () -> Unit) {
                 bundles = matching,
                 total = loaded.size,
                 mutation = mutation,
-                schemaByNamespace = schemaByNamespace,
-                valuesByNamespace = valuesByNamespace,
-                revisionsByNamespace = revisionsByNamespace,
-                settingsAvailable = settings != null,
-                onEdit = { ns, path, value, revision ->
-                    scope.launch {
-                        store.updateSetting(ns, buildSettingPatch(path, value), revision)
-                    }
-                },
-                expanded = expanded,
-                onToggleExpand = { name ->
-                    expanded = if (name in expanded) expanded - name else expanded + name
-                },
+                onOpen = { openBundle = it },
                 onToggle = { name, enabled -> scope.launch { store.setBundleEnabled(name, enabled) } },
                 listState = listState,
                 locale = locale,
             )
         }
+    }
+
+    // The detail dialog lives beside the Surface rather than inside the scroll: a dialog is not part
+    // of the page's layout, and nesting it in the column made it inherit the column's constraints.
+    openBundle?.let { bundle ->
+        BundleDetailDialog(
+            bundle = bundle,
+            schemaByNamespace = schemaByNamespace,
+            valuesByNamespace = valuesByNamespace,
+            revisionsByNamespace = revisionsByNamespace,
+            settingsAvailable = settings != null,
+            onEdit = { ns, path, value, revision ->
+                scope.launch { store.updateSetting(ns, buildSettingPatch(path, value), revision) }
+            },
+            onDismiss = { openBundle = null },
+        )
     }
 }
 
@@ -262,13 +272,7 @@ private fun BundleList(
     bundles: List<PluginBundle>,
     total: Int,
     mutation: PluginMutationState?,
-    schemaByNamespace: Map<String, ResolvedSettingsSchema>,
-    valuesByNamespace: Map<String, JsonElement>,
-    revisionsByNamespace: Map<String, Long>,
-    settingsAvailable: Boolean,
-    onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
-    expanded: Set<String>,
-    onToggleExpand: (String) -> Unit,
+    onOpen: (PluginBundle) -> Unit,
     onToggle: (String, Boolean) -> Unit,
     listState: LazyListState,
     locale: String,
@@ -292,19 +296,13 @@ private fun BundleList(
         if (installed.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_installed), installed.size) }
             items(installed, key = { "i:${it.name}" }) { bundle ->
-                BundleCard(
-                    bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale,
-                    schemaByNamespace, valuesByNamespace, revisionsByNamespace, settingsAvailable, onEdit,
-                )
+                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, locale)
             }
         }
         if (available.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_available), available.size) }
             items(available, key = { "o:${it.name}" }) { bundle ->
-                BundleCard(
-                    bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale,
-                    schemaByNamespace, valuesByNamespace, revisionsByNamespace, settingsAvailable, onEdit,
-                )
+                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, locale)
             }
         }
         item { Spacer(Modifier.height(DsSpacing.xlarge)) }
@@ -337,125 +335,167 @@ private fun SectionHeader(label: String, count: Int) {
 private fun BundleCard(
     bundle: PluginBundle,
     mutation: PluginMutationState?,
-    expanded: Boolean,
-    onToggleExpand: (String) -> Unit,
     onToggle: (String, Boolean) -> Unit,
+    onOpen: () -> Unit,
     locale: String,
+) {
+    val colors = DsTheme.colors
+    val busy = mutation?.target == bundle.name
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(DsShapes.row)
+            .background(colors.bgLayer1)
+            .clickable(onClick = onOpen)
+            .padding(DsSpacing.medium),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                bundle.displayTitle(locale),
+                style = DsType.small13Strong,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // The version and the description share one caption line: the list is a list, and two
+            // stacked captions per row made it read like a form.
+            val caption = listOfNotNull(bundle.version, bundle.displayDescription).joinToString(" · ")
+            if (caption.isNotEmpty()) {
+                Text(
+                    caption,
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(Modifier.width(DsSpacing.small))
+        if (bundle.togglable) {
+            Switch(
+                checked = bundle.enabled,
+                onCheckedChange = { next -> onToggle(bundle.name, next) },
+                enabled = !busy,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = colors.bgBase,
+                    checkedTrackColor = colors.accent,
+                    uncheckedThumbColor = colors.labelTertiary,
+                    uncheckedTrackColor = colors.hoverSolid,
+                    uncheckedBorderColor = colors.borderL2,
+                ),
+            )
+        } else {
+            BundleLock(reason = bundle.readOnlyReason)
+        }
+    }
+}
+
+/**
+ * One bundle's detail: its configuration form, and the rows it contributes.
+ *
+ * A dialog rather than an inline expansion, because the form is long — `relay` alone declares around
+ * thirty fields — and inlining it made two bundles fill the whole page. The list stays a list.
+ *
+ * The switch is not repeated here. Enablement belongs to the row the user just tapped, and a second
+ * control for the same value in a dialog is a way to disagree with yourself.
+ */
+@Composable
+private fun BundleDetailDialog(
+    bundle: PluginBundle,
     schemaByNamespace: Map<String, ResolvedSettingsSchema>,
     valuesByNamespace: Map<String, JsonElement>,
     revisionsByNamespace: Map<String, Long>,
     settingsAvailable: Boolean,
     onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val colors = DsTheme.colors
-    val busy = mutation?.target == bundle.name
+    var rowsOpen by remember(bundle.name) { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(DsShapes.row)
-            .background(colors.bgLayer1)
-            .padding(DsSpacing.medium),
-        verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    bundle.displayTitle(locale),
-                    style = DsType.small13Strong,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                bundle.version?.let {
-                    Text(it, style = DsType.caption11, color = colors.labelCaption)
-                }
+    // rowId *is* the settings namespace, so a bundle's configuration is the intersection of its
+    // rows' rowIds with the described namespaces — a plain set operation, no invented mapping.
+    val configured = remember(bundle) {
+        bundle.rows.map { it.rowId }.filter { it in schemaByNamespace }
+    }
+
+    DsDialog(title = bundle.name, onDismiss = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 460.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+        ) {
+            bundle.version?.let {
+                Text(it, style = DsType.caption11, color = colors.labelCaption)
             }
-            Spacer(Modifier.width(DsSpacing.xsmall))
-            if (bundle.togglable) {
-                Switch(
-                    checked = bundle.enabled,
-                    onCheckedChange = { next -> onToggle(bundle.name, next) },
-                    enabled = !busy,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = colors.bgBase,
-                        checkedTrackColor = colors.accent,
-                        uncheckedThumbColor = colors.labelTertiary,
-                        uncheckedTrackColor = colors.hoverSolid,
-                        uncheckedBorderColor = colors.borderL2,
-                    ),
+            bundle.displayDescription?.let {
+                Text(it, style = DsType.caption11, color = colors.labelTertiary)
+            }
+
+            if (configured.isEmpty()) {
+                Text(
+                    stringResource(R.string.plugins_config_none),
+                    style = DsType.small13,
+                    color = colors.labelTertiary,
+                )
+            } else if (!settingsAvailable) {
+                // The bundle has settings the Host knows about but this connection cannot read. On a
+                // relay that is the expected outcome rather than a fault, so it says which.
+                Text(
+                    stringResource(R.string.plugins_config_unavailable),
+                    style = DsType.small13,
+                    color = colors.warnLabel,
                 )
             } else {
-                BundleLock(reason = bundle.readOnlyReason)
-            }
-        }
-
-        bundle.displayDescription?.let { description ->
-            Text(description, style = DsType.caption11, color = colors.labelTertiary)
-        }
-
-        // The rows this bundle contributes, behind a disclosure. A bundle can carry ninety of them
-        // (dsh-base does), and inlining that would make one bundle look like the whole page. Shown
-        // without switches: this is the bundle's contents, not a place to edit them.
-        if (bundle.rows.isNotEmpty()) {
-            Text(
-                stringResource(R.string.plugins_bundle_rows, bundle.rows.size),
-                style = DsType.caption11,
-                color = if (expanded) colors.accent else colors.labelTertiary,
-                modifier = Modifier
-                    .clip(DsShapes.row)
-                    .clickable { onToggleExpand(bundle.name) }
-                    .padding(vertical = DsSpacing.tiny),
-            )
-            if (expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
-                    bundle.rows.forEach { row ->
-                        Text(
-                            row.displayTitle,
-                            style = DsType.caption11,
-                            color = colors.labelCaption,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                configured.forEach { ns ->
+                    val schema = schemaByNamespace[ns] ?: return@forEach
+                    val value = valuesByNamespace[ns]
+                    val revision = revisionsByNamespace[ns]
+                    Text(
+                        ns,
+                        style = DsType.small13Strong,
+                        color = colors.labelSecondary,
+                        modifier = Modifier.padding(top = DsSpacing.xsmall),
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                        schema.fields.forEach { field ->
+                            SettingsFieldRow(
+                                field = field,
+                                value = fieldValueAt(field.path, value),
+                                onEdit = { path, next -> onEdit(ns, path, next, revision) },
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        // The two rowIds that make up this bundle that own a settings namespace. rowId *is* the
-        // namespace, so this is a plain set intersection rather than an invented mapping.
-        val configured = bundle.rows.map { it.rowId }.filter { it in schemaByNamespace }
-        if (configured.isEmpty()) return@Column
-
-        if (!settingsAvailable) {
-            // Reaching here means the bundle has settings the Host knows about but this connection
-            // cannot read. On a relay that is the expected outcome, not a fault, so it says which.
-            Text(
-                stringResource(R.string.plugins_config_unavailable),
-                style = DsType.caption11,
-                color = colors.warnLabel,
-                modifier = Modifier.padding(top = DsSpacing.xsmall),
-            )
-            return@Column
-        }
-
-        configured.forEach { ns ->
-            val schema = schemaByNamespace[ns] ?: return@forEach
-            val value = valuesByNamespace[ns]
-            val revision = revisionsByNamespace[ns]
-            Text(
-                stringResource(R.string.plugins_config_section, ns),
-                style = DsType.small13Strong,
-                color = colors.labelSecondary,
-                modifier = Modifier.padding(top = DsSpacing.small),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-                schema.fields.forEach { field ->
-                    SettingsFieldRow(
-                        field = field,
-                        value = fieldValueAt(field.path, value),
-                        onEdit = { path, next -> onEdit(ns, path, next, revision) },
-                    )
+            // What the bundle contributes, behind a disclosure: a bundle can carry ninety rows
+            // (dsh-base does), and the form is the reason this dialog exists.
+            if (bundle.rows.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.plugins_bundle_rows, bundle.rows.size),
+                    style = DsType.caption11,
+                    color = if (rowsOpen) colors.accent else colors.labelTertiary,
+                    modifier = Modifier
+                        .clip(DsShapes.row)
+                        .clickable { rowsOpen = !rowsOpen }
+                        .padding(vertical = DsSpacing.tiny),
+                )
+                if (rowsOpen) {
+                    Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
+                        bundle.rows.forEach { row ->
+                            Text(
+                                row.displayTitle,
+                                style = DsType.caption11,
+                                color = colors.labelCaption,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }
