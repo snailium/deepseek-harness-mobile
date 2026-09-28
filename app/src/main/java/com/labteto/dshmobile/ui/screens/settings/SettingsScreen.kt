@@ -66,17 +66,7 @@ import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.core.DshCore
-import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
-import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
-import com.labteto.dshmobile.termux.HarnessControl
-import com.labteto.dshmobile.termux.TermuxPaths
-import com.labteto.dshmobile.ui.screens.connect.LoopbackStatus
-import com.labteto.dshmobile.ui.screens.connect.harnessFailureCommand
-import com.labteto.dshmobile.ui.screens.connect.harnessFailureMessage
-import com.labteto.dshmobile.ui.screens.connect.loopbackStatusText
-import com.labteto.dshmobile.ui.components.DisclosureRow
-import com.labteto.dshmobile.ui.components.DsBottomSheet
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
@@ -95,7 +85,6 @@ import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
-import java.util.Locale
 
 /**
  * App settings, grouped into cards.
@@ -383,9 +372,8 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
         }
     }
 
-    if (pluginsOpen) {
-        if (pluginManagementAvailable == false) plugins?.let { PluginsSheet(it, onDismiss = { pluginsOpen = false }) }
-        else com.labteto.dshmobile.ui.screens.main.PluginManagerScreen(onClose = { pluginsOpen = false }, onDraftOpened = { pluginsOpen = false; onClose() })
+    plugins?.takeIf { pluginsOpen }?.let {
+        PluginsScreen(inventory = it, onClose = { pluginsOpen = false })
     }
 
     if (showDisconnectDialog) {
@@ -424,14 +412,15 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 /**
  * The host's composed plugins, as one row that opens the list.
  *
- * A stock web composition mounts around forty of them. Inlined into a page that already scrolls,
- * that buries everything below it and gives the list no room of its own; the count is the part
- * worth seeing without asking, so the card carries that and the rest lives in [PluginsSheet].
+ * A stock web composition mounts around two hundred loader entries. Inlined into a page that
+ * already scrolls, that buries everything below it and gives the list no room of its own; the count
+ * is the part worth seeing without asking, so the card carries that and the rest lives in
+ * [PluginsScreen].
  *
  * Read-only, because that is all the harness offers a client: `pluginInventory/list` has no
- * counterpart that changes anything, and the `settings.*` calls behind the web UI's configurable
- * plugin cards edit a document this app has no editor for. Enabling or disabling one means
- * editing `cordis.patch.yml` on the harness computer.
+ * counterpart that changes anything, and the `pluginManager` calls behind the harness's own
+ * Add/Remove actions are loopback-pinned and answer 403 over the network. Enabling or disabling one
+ * means editing `cordis.patch.yml` on the harness computer.
  */
 @Composable
 private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) {
@@ -472,203 +461,6 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
                 modifier = Modifier.size(16.dp),
             )
         }
-    }
-}
-
-/**
- * The plugin list itself.
- *
- * A sheet rather than an expanding block: forty rows need their own scroll surface, and nesting one
- * inside the settings page's scroll means the list and the page fight over the same drag. The
- * filter sits above the scroll so it stays reachable however far down the list you are.
- *
- * Rows show the shortened module name, since the scope and `dsh-host-`/`dsh-client-` prefixes are
- * the same on nearly every row and push the part that differs off the end of a phone screen.
- */
-@Composable
-internal fun PluginsSheet(inventory: PluginInventorySnapshot, onDismiss: () -> Unit) {
-    val colors = DsTheme.colors
-    var filter by remember { mutableStateOf("") }
-    val matching = remember(inventory, filter) {
-        val q = filter.trim().lowercase(Locale.ROOT)
-        if (q.isEmpty()) {
-            inventory.entries
-        } else {
-            inventory.entries.filter {
-                it.moduleName.lowercase(Locale.ROOT).contains(q) ||
-                    it.entryId.lowercase(Locale.ROOT).contains(q)
-            }
-        }
-    }
-    DsBottomSheet(
-        title = stringResource(R.string.settings_plugins),
-        subtitle = inventory.entries.size.toString(),
-        onDismiss = onDismiss,
-    ) {
-        TextField(
-            value = filter,
-            onValueChange = { filter = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(stringResource(R.string.plugins_search_hint), style = DsType.std14) },
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = colors.bgLayer2,
-                unfocusedContainerColor = colors.bgLayer2,
-                focusedIndicatorColor = colors.accent,
-                unfocusedIndicatorColor = colors.borderL2,
-                cursorColor = colors.accent,
-            ),
-        )
-        if (matching.isEmpty()) {
-            Text(
-                stringResource(R.string.plugins_empty),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
-            )
-            return@DsBottomSheet
-        }
-        LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-            items(matching, key = { it.entryId }) { entry -> PluginRow(entry) }
-        }
-    }
-}
-
-@Composable
-private fun PluginRow(entry: PluginInventoryEntry) {
-    val colors = DsTheme.colors
-    var expanded by remember(entry.entryId) { mutableStateOf(false) }
-    DisclosureRow(
-        title = moduleShortName(entry.moduleName),
-        summary = stringResource(
-            if (entry.enabled) R.string.plugins_enabled else R.string.plugins_disabled,
-        ),
-        expanded = expanded,
-        onToggle = { expanded = !expanded },
-    ) {
-        Column(
-            modifier = Modifier.padding(start = DsSpacing.xlarge, bottom = DsSpacing.xsmall),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-        ) {
-            Text(entry.entryId, style = DsType.caption11, color = colors.labelCaption)
-            Text(com.labteto.dshmobile.ui.screens.main.technicalDisplay(entry.moduleName), style = DsType.caption11, color = colors.labelCaption)
-            // The mount phase only means anything for a plugin the composition asked for.
-            if (entry.enabled) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StateDot(
-                        when (entry.fiberPhase) {
-                            PluginFiberPhase.ACTIVE -> StateDotState.Done
-                            PluginFiberPhase.LOADING, PluginFiberPhase.UNLOADING -> StateDotState.Running
-                            PluginFiberPhase.FAILED -> StateDotState.Error
-                            PluginFiberPhase.PENDING, null -> StateDotState.Idle
-                        },
-                    )
-                    Spacer(Modifier.width(DsSpacing.xsmall))
-                    Text(
-                        stringResource(pluginPhaseLabel(entry.fiberPhase)),
-                        style = DsType.caption11,
-                        color = colors.labelTertiary,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@StringRes
-private fun pluginPhaseLabel(phase: PluginFiberPhase?): Int = when (phase) {
-    PluginFiberPhase.PENDING -> R.string.plugins_phase_pending
-    PluginFiberPhase.LOADING -> R.string.plugins_phase_loading
-    PluginFiberPhase.ACTIVE -> R.string.plugins_phase_active
-    PluginFiberPhase.FAILED -> R.string.plugins_phase_failed
-    PluginFiberPhase.UNLOADING -> R.string.plugins_phase_unloading
-    null -> R.string.plugins_phase_unmounted
-}
-
-/**
- * `@deepseek-ai/dsh-client-ui-plan` → `ui-plan`.
- *
- * Ported from the harness's own `moduleShortName`, prefix for prefix, so the two lists name the
- * same plugin the same way.
- */
-private fun moduleShortName(moduleName: String): String {
-    val prefixes = listOf("cordis:", "cordis-plugin-", "dsh-host-", "dsh-client-", "dsh-")
-    var name = moduleName.substringAfterLast('/')
-    for (prefix in prefixes) name = name.removePrefix(prefix)
-    return name.ifBlank { moduleName }
-}
-
-/**
- * Start, stop and auto-start for the harness on this device, from wherever the user is.
- *
- * The connect screen's card is where this lives when the app is not connected; this one exists
- * for the other half of the time — stopping a harness from inside a chat, or turning auto-start
- * on once the first manual start has worked. Same controller, same wording.
- */
-@Composable
-private fun TermuxCard(
-    settings: AppSettings,
-    control: HarnessControl,
-    loopback: LoopbackStatus,
-    port: Int,
-    onStart: () -> Unit,
-    onStop: () -> Unit,
-    onOpenTermux: () -> Unit,
-    onAcknowledge: () -> Unit,
-    onToggleAutoStart: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    SettingsCard(stringResource(R.string.settings_termux)) {
-        LabelledValue(stringResource(R.string.settings_termux_status), loopbackStatusText(loopback, control, port))
-        (control as? HarnessControl.Failed)?.let { failed ->
-            Text(harnessFailureMessage(failed.reason), style = DsType.caption11, color = colors.warnLabel)
-            harnessFailureCommand(failed.reason)?.let { command ->
-                Text(command, style = DsType.mdCode, color = colors.warnLabel)
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact)) {
-            val busy = control.busy
-            when (loopback) {
-                is LoopbackStatus.Down -> DsButton(
-                    text = stringResource(R.string.connect_loopback_start),
-                    onClick = onStart,
-                    enabled = !busy,
-                    variant = DsButtonVariant.Outline,
-                    size = DsButtonSize.Small,
-                )
-                LoopbackStatus.Unknown -> Unit
-                else -> DsButton(
-                    text = stringResource(R.string.connect_loopback_stop),
-                    onClick = onStop,
-                    enabled = !busy,
-                    variant = DsButtonVariant.Outline,
-                    size = DsButtonSize.Small,
-                )
-            }
-            DsButton(
-                text = stringResource(R.string.connect_loopback_open_termux),
-                onClick = onOpenTermux,
-                variant = DsButtonVariant.Ghost,
-                size = DsButtonSize.Small,
-            )
-            if (control is HarnessControl.Failed) {
-                DsButton(
-                    text = stringResource(R.string.common_ok),
-                    onClick = onAcknowledge,
-                    variant = DsButtonVariant.Ghost,
-                    size = DsButtonSize.Small,
-                )
-            }
-        }
-        ToggleRow(
-            stringResource(R.string.connect_auto_start_loopback),
-            settings.autoStartLoopbackHarness,
-            stringResource(R.string.connect_auto_start_loopback_hint),
-        ) { onToggleAutoStart() }
-        Text(
-            stringResource(R.string.settings_termux_hint),
-            style = DsType.caption11,
-            color = colors.labelCaption,
-        )
     }
 }
 
