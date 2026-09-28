@@ -1,0 +1,1116 @@
+{
+ "writable": true,
+ "hasDocument": true,
+ "namespaces": [
+  {
+   "ns": "subagent",
+   "autoGenerate": true,
+   "schema": {
+    "uid": 10533,
+    "refs": {
+     "10531": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 0,
+       "max": 9007199254740991,
+       "default": 1
+      }
+     },
+     "10532": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 1,
+       "max": 9007199254740991,
+       "default": 8
+      }
+     },
+     "10533": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "maxDepth": 10531,
+       "maxActiveSubagents": 10532
+      }
+     }
+    }
+   },
+   "value": {
+    "maxDepth": 1,
+    "maxActiveSubagents": 8
+   },
+   "base": {
+    "maxDepth": 1,
+    "maxActiveSubagents": 8
+   },
+   "user": {},
+   "applies": "live",
+   "secrets": [],
+   "revision": 0
+  },
+  {
+   "ns": "relay",
+   "autoGenerate": true,
+   "schema": {
+    "uid": 10805,
+    "refs": {
+     "10769": {
+      "type": "string",
+      "meta": {
+       "default": "0.0.0.0",
+       "description": "Listen address of the primary (TLS) listener."
+      }
+     },
+     "10770": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 0,
+       "max": 65535,
+       "default": 3443,
+       "description": "Listen port of the primary listener."
+      }
+     },
+     "10771": {
+      "type": "string",
+      "meta": {
+       "required": true
+      }
+     },
+     "10772": {
+      "type": "array",
+      "meta": {
+       "default": [],
+       "description": "Extra authorities this relay answers to, beyond those derived from its bind."
+      },
+      "inner": 10771
+     },
+     "10773": {
+      "type": "string",
+      "meta": {
+       "required": true
+      }
+     },
+     "10774": {
+      "type": "array",
+      "meta": {
+       "default": [],
+       "description": "Extra certificate names and pairing authorities, for a port-forwarded deployment."
+      },
+      "inner": 10773
+     },
+     "10775": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "self-signed"
+     },
+     "10776": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "files"
+     },
+     "10777": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "off"
+     },
+     "10778": {
+      "type": "union",
+      "meta": {
+       "default": "self-signed",
+       "description": "Transport posture of the primary listener."
+      },
+      "list": [
+       10775,
+       10776,
+       10777
+      ]
+     },
+     "10779": {
+      "type": "string",
+      "meta": {
+       "default": "",
+       "description": "Certificate path, required when tls is \"files\"."
+      }
+     },
+     "10780": {
+      "type": "string",
+      "meta": {
+       "default": "",
+       "description": "Private key path, required when tls is \"files\"."
+      }
+     },
+     "10781": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "password"
+     },
+     "10782": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "device-token"
+     },
+     "10783": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "both"
+     },
+     "10784": {
+      "type": "union",
+      "meta": {
+       "default": "both",
+       "description": "Credential classes the relay accepts."
+      },
+      "list": [
+       10781,
+       10782,
+       10783
+      ]
+     },
+     "10785": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 60000,
+       "default": 43200000,
+       "description": "Lifetime of a browser sign-in cookie, in milliseconds."
+      }
+     },
+     "10786": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 60000,
+       "default": 2592000000,
+       "description": "Lifetime of a paired device token, in milliseconds."
+      }
+     },
+     "10787": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 10000,
+       "default": 300000,
+       "description": "How long a pairing code stays claimable, in milliseconds."
+      }
+     },
+     "10788": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 6,
+       "max": 12,
+       "default": 8,
+       "description": "Digits in a numeric pairing passcode."
+      }
+     },
+     "10789": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 1,
+       "default": 5,
+       "description": "Failed sign-ins from one address before it is locked out."
+      }
+     },
+     "10790": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 1000,
+       "default": 900000,
+       "description": "Lockout duration after maxFailedAttempts, in milliseconds."
+      }
+     },
+     "10791": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 1,
+       "default": 600,
+       "description": "Requests per minute per source address, across every path."
+      }
+     },
+     "10792": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "allow-authenticated"
+     },
+     "10793": {
+      "type": "const",
+      "meta": {
+       "required": true
+      },
+      "value": "loopback-only"
+     },
+     "10794": {
+      "type": "union",
+      "meta": {
+       "default": "allow-authenticated",
+       "description": "Whether an authenticated remote client reaches the harness configuration plane."
+      },
+      "list": [
+       10792,
+       10793
+      ]
+     },
+     "10795": {
+      "type": "string",
+      "meta": {
+       "required": true
+      }
+     },
+     "10796": {
+      "type": "array",
+      "meta": {
+       "default": [],
+       "description": "Path prefixes proxied beyond the built-in set; each must start with \"/\"."
+      },
+      "inner": 10795
+     },
+     "10797": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 1000,
+       "default": 120000,
+       "description": "Upstream response deadline for a proxied request, in milliseconds."
+      }
+     },
+     "10798": {
+      "type": "boolean",
+      "meta": {
+       "default": true,
+       "description": "Accept requests from an address a paired device was last seen on. Not authentication."
+      }
+     },
+     "10799": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 60000,
+       "default": 86400000,
+       "description": "Lifetime of one address grant, in milliseconds."
+      }
+     },
+     "10800": {
+      "type": "number",
+      "meta": {
+       "step": 1,
+       "min": 0,
+       "max": 65535,
+       "default": 0,
+       "description": "Extra plain-HTTP listener port for clients that cannot speak TLS. Zero disables it."
+      }
+     },
+     "10801": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "addressGrants": 10798,
+       "addressGrantTtlMs": 10799,
+       "plainPort": 10800
+      }
+     },
+     "10802": {
+      "type": "boolean",
+      "meta": {
+       "default": true,
+       "description": "Add a link to the relay pages into the harness web UI."
+      }
+     },
+     "10803": {
+      "type": "boolean",
+      "meta": {
+       "default": true,
+       "description": "Advertise _dsh._tcp over mDNS."
+      }
+     },
+     "10804": {
+      "type": "string",
+      "meta": {
+       "default": "",
+       "description": "Service name used in the mDNS advertisement; empty derives one from the hostname."
+      }
+     },
+     "10805": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "bind": 10769,
+       "port": 10770,
+       "trustedHosts": 10772,
+       "publicHostnames": 10774,
+       "tls": 10778,
+       "tlsCertPath": 10779,
+       "tlsKeyPath": 10780,
+       "auth": 10784,
+       "sessionTtlMs": 10785,
+       "deviceTokenTtlMs": 10786,
+       "pairingWindowMs": 10787,
+       "pairingCodeLength": 10788,
+       "maxFailedAttempts": 10789,
+       "lockoutMs": 10790,
+       "rateLimitPerMinute": 10791,
+       "privilegedMethods": 10794,
+       "extraProxyPaths": 10796,
+       "proxyTimeoutMs": 10797,
+       "compat": 10801,
+       "uiLink": 10802,
+       "mdns": 10803,
+       "mdnsName": 10804
+      }
+     }
+    }
+   },
+   "value": {
+    "bind": "0.0.0.0",
+    "port": 3443,
+    "trustedHosts": [],
+    "publicHostnames": [
+     "dsh1.snailium.com"
+    ],
+    "tls": "off",
+    "tlsCertPath": "",
+    "tlsKeyPath": "",
+    "auth": "both",
+    "sessionTtlMs": 43200001,
+    "deviceTokenTtlMs": 2592000000,
+    "pairingWindowMs": 300000,
+    "pairingCodeLength": 8,
+    "maxFailedAttempts": 5,
+    "lockoutMs": 900000,
+    "rateLimitPerMinute": 600,
+    "privilegedMethods": "allow-authenticated",
+    "extraProxyPaths": [],
+    "proxyTimeoutMs": 120000,
+    "compat": {
+     "addressGrants": false,
+     "addressGrantTtlMs": 86400000,
+     "plainPort": 0
+    },
+    "uiLink": true,
+    "mdns": true,
+    "mdnsName": ""
+   },
+   "base": {
+    "bind": "0.0.0.0",
+    "port": 3443,
+    "trustedHosts": [],
+    "publicHostnames": [],
+    "tls": "self-signed",
+    "tlsCertPath": "",
+    "tlsKeyPath": "",
+    "auth": "both",
+    "sessionTtlMs": 43200000,
+    "deviceTokenTtlMs": 2592000000,
+    "pairingWindowMs": 300000,
+    "pairingCodeLength": 8,
+    "maxFailedAttempts": 5,
+    "lockoutMs": 900000,
+    "rateLimitPerMinute": 600,
+    "privilegedMethods": "allow-authenticated",
+    "extraProxyPaths": [],
+    "proxyTimeoutMs": 120000,
+    "compat": {
+     "addressGrants": true,
+     "addressGrantTtlMs": 86400000,
+     "plainPort": 0
+    },
+    "uiLink": true,
+    "mdns": true,
+    "mdnsName": ""
+   },
+   "user": {
+    "bind": "0.0.0.0",
+    "port": 3443,
+    "publicHostnames": [
+     "dsh1.snailium.com"
+    ],
+    "tls": "off",
+    "sessionTtlMs": 43200001,
+    "privilegedMethods": "allow-authenticated",
+    "compat": {
+     "addressGrants": false
+    }
+   },
+   "applies": "live",
+   "secrets": [],
+   "revision": 0
+  },
+  {
+   "ns": "browser",
+   "autoGenerate": true,
+   "schema": {
+    "uid": 10879,
+    "refs": {
+     "10830": {
+      "type": "boolean",
+      "meta": {
+       "default": true
+      }
+     },
+     "10831": {
+      "type": "string",
+      "meta": {
+       "default": "chromium"
+      }
+     },
+     "10832": {
+      "type": "string",
+      "meta": {
+       "default": "playwright"
+      }
+     },
+     "10833": {
+      "type": "boolean",
+      "meta": {
+       "default": true
+      }
+     },
+     "10834": {
+      "type": "string",
+      "meta": {}
+     },
+     "10835": {
+      "type": "string",
+      "meta": {}
+     },
+     "10836": {
+      "type": "string",
+      "meta": {}
+     },
+     "10837": {
+      "type": "array",
+      "meta": {
+       "default": []
+      },
+      "inner": 10836
+     },
+     "10838": {
+      "type": "boolean",
+      "meta": {
+       "default": false
+      }
+     },
+     "10839": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "storageStatePath": 10835,
+       "allowedDomains": 10837,
+       "persistState": 10838
+      }
+     },
+     "10840": {
+      "type": "string",
+      "meta": {}
+     },
+     "10841": {
+      "type": "dict",
+      "meta": {
+       "default": {}
+      },
+      "inner": 10839,
+      "sKey": 10840
+     },
+     "10842": {
+      "type": "string",
+      "meta": {}
+     },
+     "10843": {
+      "type": "string",
+      "meta": {}
+     },
+     "10844": {
+      "type": "boolean",
+      "meta": {
+       "default": true
+      }
+     },
+     "10845": {
+      "type": "string",
+      "meta": {
+       "default": "standard"
+      }
+     },
+     "10846": {
+      "type": "number",
+      "meta": {
+       "default": 750
+      }
+     },
+     "10847": {
+      "type": "number",
+      "meta": {
+       "default": 2
+      }
+     },
+     "10848": {
+      "type": "number",
+      "meta": {
+       "default": 3
+      }
+     },
+     "10849": {
+      "type": "number",
+      "meta": {
+       "default": 20
+      }
+     },
+     "10850": {
+      "type": "number",
+      "meta": {
+       "default": 2
+      }
+     },
+     "10851": {
+      "type": "number",
+      "meta": {
+       "default": 2
+      }
+     },
+     "10852": {
+      "type": "number",
+      "meta": {
+       "default": 1000
+      }
+     },
+     "10853": {
+      "type": "number",
+      "meta": {
+       "default": 30000
+      }
+     },
+     "10854": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "minDelayMs": 10846,
+       "maxConcurrency": 10847,
+       "burst": 10848,
+       "maxPagesPerRun": 10849,
+       "maxDepth": 10850,
+       "retryLimit": 10851,
+       "backoffBaseMs": 10852,
+       "cooldownMs": 10853
+      }
+     },
+     "10855": {
+      "type": "boolean",
+      "meta": {
+       "default": true
+      }
+     },
+     "10856": {
+      "type": "string",
+      "meta": {}
+     },
+     "10857": {
+      "type": "string",
+      "meta": {
+       "default": "suggest"
+      }
+     },
+     "10858": {
+      "type": "string",
+      "meta": {
+       "default": "manual"
+      }
+     },
+     "10859": {
+      "type": "number",
+      "meta": {
+       "default": 3
+      }
+     },
+     "10860": {
+      "type": "number",
+      "meta": {
+       "default": 2
+      }
+     },
+     "10861": {
+      "type": "number",
+      "meta": {
+       "default": 14
+      }
+     },
+     "10862": {
+      "type": "number",
+      "meta": {
+       "default": 0.8
+      }
+     },
+     "10863": {
+      "type": "number",
+      "meta": {
+       "default": 20
+      }
+     },
+     "10864": {
+      "type": "number",
+      "meta": {
+       "default": 14
+      }
+     },
+     "10865": {
+      "type": "number",
+      "meta": {
+       "default": 2
+      }
+     },
+     "10866": {
+      "type": "number",
+      "meta": {
+       "default": 10
+      }
+     },
+     "10867": {
+      "type": "number",
+      "meta": {
+       "default": 50
+      }
+     },
+     "10868": {
+      "type": "number",
+      "meta": {
+       "default": 5
+      }
+     },
+     "10869": {
+      "type": "number",
+      "meta": {
+       "default": 800
+      }
+     },
+     "10870": {
+      "type": "boolean",
+      "meta": {
+       "default": true
+      }
+     },
+     "10871": {
+      "type": "number",
+      "meta": {
+       "default": 3
+      }
+     },
+     "10872": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "enabled": 10855,
+       "directory": 10856,
+       "persistenceMode": 10857,
+       "activationMode": 10858,
+       "minSuccessfulRuns": 10859,
+       "minDistinctSessions": 10860,
+       "successWindowDays": 10861,
+       "minSuccessRate": 10862,
+       "maxCandidates": 10863,
+       "candidateTtlDays": 10864,
+       "maxSuggestionsPerDay": 10865,
+       "maxDrafts": 10866,
+       "maxActiveAssets": 10867,
+       "retrievalTopK": 10868,
+       "catalogTokenBudget": 10869,
+       "modelDevelopmentEnabled": 10870,
+       "maxModelDraftWritesPerSession": 10871
+      }
+     },
+     "10873": {
+      "type": "boolean",
+      "meta": {
+       "default": false
+      }
+     },
+     "10874": {
+      "type": "string",
+      "meta": {}
+     },
+     "10875": {
+      "type": "boolean",
+      "meta": {
+       "default": false
+      }
+     },
+     "10876": {
+      "type": "number",
+      "meta": {
+       "min": 1,
+       "max": 65535,
+       "step": 1,
+       "description": "Optional remote debugging port to expose CDP for external tools (e.g. 9222)"
+      }
+     },
+     "10877": {
+      "type": "string",
+      "meta": {}
+     },
+     "10878": {
+      "type": "array",
+      "meta": {
+       "default": [],
+       "description": "Additional Chromium CLI launch arguments"
+      },
+      "inner": 10877
+     },
+     "10879": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "enabled": 10830,
+       "channel": 10831,
+       "browserRuntime": 10832,
+       "headless": 10833,
+       "storageStatePath": 10834,
+       "authProfiles": 10841,
+       "defaultAuthProfile": 10842,
+       "executablePath": 10843,
+       "opencliEnabled": 10844,
+       "automationMode": 10845,
+       "usagePolicy": 10854,
+       "automationAssets": 10872,
+       "autoInstall": 10873,
+       "snapshotDir": 10874,
+       "verbose": 10875,
+       "cdpPort": 10876,
+       "args": 10878
+      }
+     }
+    }
+   },
+   "value": {
+    "enabled": true,
+    "channel": "chromium",
+    "browserRuntime": "playwright",
+    "headless": true,
+    "authProfiles": {},
+    "opencliEnabled": true,
+    "automationMode": "standard",
+    "usagePolicy": {
+     "minDelayMs": 750,
+     "maxConcurrency": 2,
+     "burst": 3,
+     "maxPagesPerRun": 20,
+     "maxDepth": 2,
+     "retryLimit": 2,
+     "backoffBaseMs": 1000,
+     "cooldownMs": 30000
+    },
+    "automationAssets": {
+     "enabled": true,
+     "persistenceMode": "suggest",
+     "activationMode": "manual",
+     "minSuccessfulRuns": 3,
+     "minDistinctSessions": 2,
+     "successWindowDays": 14,
+     "minSuccessRate": 0.8,
+     "maxCandidates": 20,
+     "candidateTtlDays": 14,
+     "maxSuggestionsPerDay": 2,
+     "maxDrafts": 10,
+     "maxActiveAssets": 50,
+     "retrievalTopK": 5,
+     "catalogTokenBudget": 800,
+     "modelDevelopmentEnabled": true,
+     "maxModelDraftWritesPerSession": 3
+    },
+    "autoInstall": false,
+    "verbose": false,
+    "args": []
+   },
+   "base": {
+    "enabled": true,
+    "channel": "chromium",
+    "browserRuntime": "playwright",
+    "headless": true,
+    "authProfiles": {},
+    "opencliEnabled": true,
+    "automationMode": "standard",
+    "usagePolicy": {
+     "minDelayMs": 750,
+     "maxConcurrency": 2,
+     "burst": 3,
+     "maxPagesPerRun": 20,
+     "maxDepth": 2,
+     "retryLimit": 2,
+     "backoffBaseMs": 1000,
+     "cooldownMs": 30000
+    },
+    "automationAssets": {
+     "enabled": true,
+     "persistenceMode": "suggest",
+     "activationMode": "manual",
+     "minSuccessfulRuns": 3,
+     "minDistinctSessions": 2,
+     "successWindowDays": 14,
+     "minSuccessRate": 0.8,
+     "maxCandidates": 20,
+     "candidateTtlDays": 14,
+     "maxSuggestionsPerDay": 2,
+     "maxDrafts": 10,
+     "maxActiveAssets": 50,
+     "retrievalTopK": 5,
+     "catalogTokenBudget": 800,
+     "modelDevelopmentEnabled": true,
+     "maxModelDraftWritesPerSession": 3
+    },
+    "autoInstall": false,
+    "verbose": false,
+    "args": []
+   },
+   "user": {},
+   "applies": "live",
+   "secrets": [],
+   "revision": 0
+  },
+  {
+   "ns": "repeat-tool-breaker",
+   "autoGenerate": true,
+   "schema": {
+    "uid": 10990,
+    "refs": {
+     "10978": {
+      "type": "boolean",
+      "meta": {
+       "default": true,
+       "description": "Refuse HTTP fetches made from the shell and send the model to web_fetch_file."
+      }
+     },
+     "10979": {
+      "type": "boolean",
+      "meta": {
+       "default": false,
+       "description": "Also refuse local (loopback/RFC1918) fetches. Off because web_fetch_file cannot reach them."
+      }
+     },
+     "10980": {
+      "type": "string",
+      "meta": {}
+     },
+     "10981": {
+      "type": "array",
+      "meta": {
+       "default": [
+        "curl",
+        "wget",
+        "httpie",
+        "aria2c",
+        "rclone",
+        "yt-dlp",
+        "youtube-dl"
+       ],
+       "description": "Commands the block REFUSES. The block is a blacklist: a command is refused when its verb is on this list, or when an interpreter program names a request API. Defaults are the raw HTTP clients plus the file/streaming downloaders, which all have web_fetch_file as a replacement."
+      },
+      "inner": 10980
+     },
+     "10982": {
+      "type": "number",
+      "meta": {
+       "default": 7,
+       "description": "Occurrence stage 1: repeats of one call before the light advisory. 0, negative or null disables it."
+      }
+     },
+     "10983": {
+      "type": "number",
+      "meta": {}
+     },
+     "10984": {
+      "type": "const",
+      "meta": {},
+      "value": null
+     },
+     "10985": {
+      "type": "union",
+      "meta": {
+       "default": 11,
+       "description": "Occurrence stage 2: repeats before the call must summarize its progress. null disables it."
+      },
+      "list": [
+       10983,
+       10984
+      ]
+     },
+     "10986": {
+      "type": "number",
+      "meta": {
+       "default": 3,
+       "description": "Failure stage 1: consecutive failures before the advisory. 0, negative or null disables it."
+      }
+     },
+     "10987": {
+      "type": "number",
+      "meta": {}
+     },
+     "10988": {
+      "type": "const",
+      "meta": {},
+      "value": null
+     },
+     "10989": {
+      "type": "union",
+      "meta": {
+       "default": 5,
+       "description": "Failure gate: consecutive failures before the call is refused. null keeps the advisory and drops the gate."
+      },
+      "list": [
+       10987,
+       10988
+      ]
+     },
+     "10990": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "blockShellHttp": 10978,
+       "blockLocalHttp": 10979,
+       "shellHttpBlock": 10981,
+       "warnAt": 10982,
+       "summarizeAt": 10985,
+       "failWarnAt": 10986,
+       "failLimit": 10989
+      }
+     }
+    }
+   },
+   "value": {
+    "blockShellHttp": true,
+    "blockLocalHttp": false,
+    "shellHttpBlock": [
+     "curl",
+     "wget",
+     "httpie",
+     "aria2c",
+     "rclone",
+     "yt-dlp",
+     "youtube-dl"
+    ],
+    "warnAt": 7,
+    "summarizeAt": 11,
+    "failWarnAt": 3,
+    "failLimit": 5
+   },
+   "base": {
+    "blockShellHttp": true,
+    "blockLocalHttp": false,
+    "shellHttpBlock": [
+     "curl",
+     "wget",
+     "httpie",
+     "aria2c",
+     "rclone",
+     "yt-dlp",
+     "youtube-dl"
+    ],
+    "warnAt": 7,
+    "summarizeAt": 11,
+    "failWarnAt": 3,
+    "failLimit": 5
+   },
+   "user": {},
+   "applies": "live",
+   "secrets": [],
+   "revision": 0
+  },
+  {
+   "ns": "context-trim",
+   "autoGenerate": true,
+   "schema": {
+    "uid": 11004,
+    "refs": {
+     "10998": {
+      "type": "number",
+      "meta": {
+       "description": "Compaction trigger as a fraction of each routed window (used by /trim preset)"
+      }
+     },
+     "10999": {
+      "type": "string",
+      "meta": {}
+     },
+     "11000": {
+      "type": "string",
+      "meta": {}
+     },
+     "11001": {
+      "type": "string",
+      "meta": {}
+     },
+     "11002": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "provider": 11000,
+       "model": 11001
+      }
+     },
+     "11003": {
+      "type": "union",
+      "meta": {
+       "description": "Route the generated preset summarises on, as \"provider:model\""
+      },
+      "list": [
+       10999,
+       11002
+      ]
+     },
+     "11004": {
+      "type": "object",
+      "meta": {
+       "default": {}
+      },
+      "dict": {
+       "compactionTargetRatio": 10998,
+       "compactionRoute": 11003
+      }
+     }
+    }
+   },
+   "value": {
+    "compactionTargetRatio": 0.8
+   },
+   "base": {
+    "compactionTargetRatio": 0.8
+   },
+   "user": {},
+   "applies": "live",
+   "secrets": [],
+   "revision": 0
+  }
+ ]
+}

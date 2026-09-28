@@ -5,6 +5,9 @@ import com.labteto.dshmobile.core.wire.dto.PluginBundle
 import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryMeta
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -197,5 +200,73 @@ class PluginsScreenTest {
     @Test
     fun `moduleShortName never returns blank`() {
         assertEquals("dsh-", moduleShortName("dsh-"))
+    }
+}
+
+/**
+ * The configuration form's pure helpers.
+ *
+ * `buildSettingPatch` is the one that decides whether an edit lands where the user aimed it: the
+ * Host merges a patch rather than replacing a namespace, so the nesting has to match the field's
+ * path exactly. Getting it wrong writes a key the schema does not declare, which the Host accepts
+ * and nothing reads — a silent no-op rather than an error.
+ */
+class SettingsPatchTest {
+
+    @Test
+    fun `a top-level edit becomes a single-key object`() {
+        assertEquals(
+            """{"port":3443}""",
+            buildSettingPatch(listOf("port"), JsonPrimitive(3443)).toString(),
+        )
+    }
+
+    @Test
+    fun `a nested edit nests one object per path segment`() {
+        assertEquals(
+            """{"providers":{"b70-smg":{"models":["a"]}}}""",
+            buildSettingPatch(
+                listOf("providers", "b70-smg", "models"),
+                JsonArray(listOf(JsonPrimitive("a"))),
+            ).toString(),
+        )
+    }
+
+    /** A path must address something; an empty one would build `{}` and write nothing. */
+    @Test
+    fun `an empty path is rejected`() {
+        val thrown = runCatching { buildSettingPatch(emptyList(), JsonPrimitive(1)) }.exceptionOrNull()
+        assertTrue("expected a rejection, got $thrown", thrown is IllegalArgumentException)
+    }
+
+    // ------------------------------------------------------------------- reading a value back
+
+    @Test
+    fun `a top-level value reads out of the effective object`() {
+        val root = Json.parseToJsonElement("""{"port":3443,"bind":"0.0.0.0"}""")
+        assertEquals(JsonPrimitive(3443), fieldValueAt(listOf("port"), root))
+    }
+
+    @Test
+    fun `a nested value walks its path`() {
+        val root = Json.parseToJsonElement("""{"providers":{"b70-smg":{"models":[1,2]}}}""")
+        assertEquals(
+            Json.parseToJsonElement("""[1,2]"""),
+            fieldValueAt(listOf("providers", "b70-smg", "models"), root),
+        )
+    }
+
+    /** A key the user has not set reads as absent, so the control falls back to the schema default. */
+    @Test
+    fun `a missing segment reads as null rather than throwing`() {
+        val root = Json.parseToJsonElement("""{"a":{"b":1}}""")
+        assertNull(fieldValueAt(listOf("a", "gone"), root))
+        assertNull(fieldValueAt(listOf("gone", "b"), root))
+    }
+
+    /** A scalar where an object was expected is null, not an exception. */
+    @Test
+    fun `descending into a scalar reads as null`() {
+        assertNull(fieldValueAt(listOf("port", "deeper"), Json.parseToJsonElement("""{"port":1}""")))
     }
 }
