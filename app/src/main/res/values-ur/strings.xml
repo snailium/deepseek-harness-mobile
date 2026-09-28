@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">ان لوڈ ہو رہا ہے</string>
     <string name="plugins_empty">یہ ہارنیس کوئی پلگ ان درج نہیں کرتا۔</string>
     <string name="plugins_search_hint">پلگ ان فلٹر کریں</string>
+    <string name="plugins_config_section">%1$s · تشکیل</string>
+    <string name="plugins_config_unavailable">اس کنکشن پر پلگ ان کی ترتیبات دستیاب نہیں۔</string>
+    <string name="plugins_field_required">لازمی</string>
+    <string name="plugins_field_not_editable">یہاں قابلِ ترمیم نہیں</string>
     <string name="plugins_unavailable">یہ harness کوئی پلگ ان منیجر فراہم نہیں کرتا۔</string>
     <string name="plugins_locked_generic">مقفل</string>
     <string name="plugins_toggle_failed">اس پلگ ان کو ٹوگل نہیں کیا جا سکا۔</string>

@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">अनलोड हो रहा है</string>
     <string name="plugins_empty">यह हार्नेस कोई प्लगइन सूचीबद्ध नहीं करता।</string>
     <string name="plugins_search_hint">प्लगइन फ़िल्टर करें</string>
+    <string name="plugins_config_section">%1$s · कॉन्फ़िगरेशन</string>
+    <string name="plugins_config_unavailable">इस कनेक्शन पर प्लगइन सेटिंग्स उपलब्ध नहीं हैं।</string>
+    <string name="plugins_field_required">आवश्यक</string>
+    <string name="plugins_field_not_editable">यहाँ संपादन योग्य नहीं</string>
     <string name="plugins_unavailable">यह harness कोई प्लगइन प्रबंधक उपलब्ध नहीं कराता।</string>
     <string name="plugins_locked_generic">लॉक</string>
     <string name="plugins_toggle_failed">इस प्लगइन को टॉगल नहीं किया जा सका।</string>

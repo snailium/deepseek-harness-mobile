@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">جارٍ إلغاء التحميل</string>
     <string name="plugins_empty">لا يعرض هذا الـ Harness أي إضافات.</string>
     <string name="plugins_search_hint">تصفية الإضافات</string>
+    <string name="plugins_config_section">%1$s · الإعدادات</string>
+    <string name="plugins_config_unavailable">لا يمكن الوصول إلى إعدادات الإضافة عبر هذا الاتصال.</string>
+    <string name="plugins_field_required">مطلوب</string>
+    <string name="plugins_field_not_editable">غير قابل للتعديل هنا</string>
     <string name="plugins_unavailable">هذا الـ harness لا يوفّر مدير إضافات.</string>
     <string name="plugins_locked_generic">مقفل</string>
     <string name="plugins_toggle_failed">تعذّر تبديل هذه الإضافة.</string>

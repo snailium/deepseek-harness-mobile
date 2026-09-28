@@ -57,6 +57,10 @@ import com.labteto.dshmobile.data.PluginMutationOutcome
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
+import com.labteto.dshmobile.core.wire.dto.SettingsSchemaResolver
+import com.labteto.dshmobile.core.wire.dto.ResolvedSettingsSchema
 
 /**
  * The profile's plugin bundles, with a live switch on each one.
@@ -86,6 +90,7 @@ fun PluginsScreen(onClose: () -> Unit) {
     val store = rememberSessionStore()
     val bundles by store.pluginBundles.collectAsStateWithLifecycle()
     val mutation by store.pluginMutation.collectAsStateWithLifecycle()
+    val settings by store.settings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val toast = rememberDsToast()
     val toggleFailed = stringResource(R.string.plugins_toggle_failed)
@@ -93,7 +98,13 @@ fun PluginsScreen(onClose: () -> Unit) {
 
     // Fetched on open: the composition changes only when the harness restarts or when a toggle here
     // is applied, and a toggle reloads explicitly.
-    LaunchedEffect(Unit) { store.refreshPlugins() }
+    LaunchedEffect(Unit) {
+        store.refreshPlugins()
+        // Attempted alongside the bundles, not instead of them: the configuration plane is
+        // loopback-only on a relayed connection, so a phone on the network gets the switches but
+        // not the forms. Both outcomes are ordinary and the page reports which one it got.
+        store.refreshSettings()
+    }
 
     // A refusal arrives inside a successful call, which is why it has to be surfaced at all: the
     // request succeeded and the Host still declined, and a user would otherwise read that as a
@@ -120,6 +131,26 @@ fun PluginsScreen(onClose: () -> Unit) {
     var expanded by remember { mutableStateOf<Set<String>>(emptySet()) }
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
+
+    // rowId is the settings namespace: a bundle's configuration is whichever namespaces its own
+    // rows own. Resolved once here rather than per card, because the uid graph is shared across
+    // namespaces and walking it inside a composable would repeat that work on every recomposition.
+    val schemaByNamespace = remember(settings) {
+        val describe = settings ?: return@remember emptyMap()
+        val refs = describe.namespaces.associate { namespace ->
+            namespace.ns to (((namespace.schema as? JsonObject)?.get("refs") as? JsonObject).orEmpty())
+        }
+        describe.namespaces.associate { namespace ->
+            val resolver = SettingsSchemaResolver(refs[namespace.ns].orEmpty())
+            namespace.ns to resolver.resolve(namespace)
+        }
+    }
+    val valuesByNamespace = remember(settings) {
+        settings?.namespaces?.associate { it.ns to it.value }.orEmpty()
+    }
+    val revisionsByNamespace = remember(settings) {
+        settings?.namespaces?.associate { it.ns to it.revision }.orEmpty()
+    }
 
     val matching = remember(bundles, filter, locale) {
         val all = bundles.orEmpty()
@@ -171,6 +202,15 @@ fun PluginsScreen(onClose: () -> Unit) {
                 bundles = matching,
                 total = loaded.size,
                 mutation = mutation,
+                schemaByNamespace = schemaByNamespace,
+                valuesByNamespace = valuesByNamespace,
+                revisionsByNamespace = revisionsByNamespace,
+                settingsAvailable = settings != null,
+                onEdit = { ns, path, value, revision ->
+                    scope.launch {
+                        store.updateSetting(ns, buildSettingPatch(path, value), revision)
+                    }
+                },
                 expanded = expanded,
                 onToggleExpand = { name ->
                     expanded = if (name in expanded) expanded - name else expanded + name
@@ -222,6 +262,11 @@ private fun BundleList(
     bundles: List<PluginBundle>,
     total: Int,
     mutation: PluginMutationState?,
+    schemaByNamespace: Map<String, ResolvedSettingsSchema>,
+    valuesByNamespace: Map<String, JsonElement>,
+    revisionsByNamespace: Map<String, Long>,
+    settingsAvailable: Boolean,
+    onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
     expanded: Set<String>,
     onToggleExpand: (String) -> Unit,
     onToggle: (String, Boolean) -> Unit,
@@ -247,13 +292,19 @@ private fun BundleList(
         if (installed.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_installed), installed.size) }
             items(installed, key = { "i:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale)
+                BundleCard(
+                    bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale,
+                    schemaByNamespace, valuesByNamespace, revisionsByNamespace, settingsAvailable, onEdit,
+                )
             }
         }
         if (available.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_available), available.size) }
             items(available, key = { "o:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale)
+                BundleCard(
+                    bundle, mutation, bundle.name in expanded, onToggleExpand, onToggle, locale,
+                    schemaByNamespace, valuesByNamespace, revisionsByNamespace, settingsAvailable, onEdit,
+                )
             }
         }
         item { Spacer(Modifier.height(DsSpacing.xlarge)) }
@@ -290,6 +341,11 @@ private fun BundleCard(
     onToggleExpand: (String) -> Unit,
     onToggle: (String, Boolean) -> Unit,
     locale: String,
+    schemaByNamespace: Map<String, ResolvedSettingsSchema>,
+    valuesByNamespace: Map<String, JsonElement>,
+    revisionsByNamespace: Map<String, Long>,
+    settingsAvailable: Boolean,
+    onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
 ) {
     val colors = DsTheme.colors
     val busy = mutation?.target == bundle.name
@@ -365,6 +421,72 @@ private fun BundleCard(
                 }
             }
         }
+
+        // The two rowIds that make up this bundle that own a settings namespace. rowId *is* the
+        // namespace, so this is a plain set intersection rather than an invented mapping.
+        val configured = bundle.rows.map { it.rowId }.filter { it in schemaByNamespace }
+        if (configured.isEmpty()) return@Column
+
+        if (!settingsAvailable) {
+            // Reaching here means the bundle has settings the Host knows about but this connection
+            // cannot read. On a relay that is the expected outcome, not a fault, so it says which.
+            Text(
+                stringResource(R.string.plugins_config_unavailable),
+                style = DsType.caption11,
+                color = colors.warnLabel,
+                modifier = Modifier.padding(top = DsSpacing.xsmall),
+            )
+            return@Column
+        }
+
+        configured.forEach { ns ->
+            val schema = schemaByNamespace[ns] ?: return@forEach
+            val value = valuesByNamespace[ns]
+            val revision = revisionsByNamespace[ns]
+            Text(
+                stringResource(R.string.plugins_config_section, ns),
+                style = DsType.small13Strong,
+                color = colors.labelSecondary,
+                modifier = Modifier.padding(top = DsSpacing.small),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                schema.fields.forEach { field ->
+                    SettingsFieldRow(
+                        field = field,
+                        value = fieldValueAt(field.path, value),
+                        onEdit = { path, next -> onEdit(ns, path, next, revision) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The value at [path] within a namespace's effective value object.
+ *
+ * Walks segment by segment so a nested field reads its own value rather than its group's. A missing
+ * segment yields null, which every control reads as "fall back to the schema default".
+ */
+internal fun fieldValueAt(path: List<String>, root: JsonElement?): JsonElement? {
+    var current = root
+    for (segment in path) {
+        current = (current as? JsonObject)?.get(segment) ?: return null
+    }
+    return current
+}
+
+/**
+ * Build the partial object `settings/update` merges into a namespace's user layer.
+ *
+ * The Host takes a patch, not a whole value, so this nests [path] into single-key objects at each
+ * level: editing `providers.b70-smg.models` sends `{"providers":{"b70-smg":{"models":…}}}`, which
+ * merges without disturbing the siblings the form is not touching.
+ */
+internal fun buildSettingPatch(path: List<String>, value: JsonElement): JsonObject {
+    require(path.isNotEmpty()) { "a settings patch addresses at least one key" }
+    return path.dropLast(1).foldRight(JsonObject(mapOf(path.last() to value))) { segment, acc ->
+        JsonObject(mapOf(segment to acc))
     }
 }
 

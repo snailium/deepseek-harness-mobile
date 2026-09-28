@@ -143,6 +143,7 @@ import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
 import com.labteto.dshmobile.core.wire.dto.PluginBundle
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.Flow
+import com.labteto.dshmobile.core.wire.dto.SettingsDescribeValue
 
 /** One renderable session list row (manual order, live). */
 data class SessionRow(
@@ -503,6 +504,19 @@ class SessionStore @Inject constructor(
 
     /** The manager's per-row view, which carries `patchId` and editability the inventory lacks. */
     val pluginRows: StateFlow<List<PluginManagerRow>?> = _pluginRows.asStateFlow()
+
+    private val _settings = MutableStateFlow<SettingsDescribeValue?>(null)
+
+    /**
+     * The configuration plane's namespaces and their compiled schemas, or null when unreachable.
+     *
+     * Null has two causes worth not conflating, and the page reports both: a harness that composes
+     * no settings service (404), and a **relay** that refuses the call — `settings/…` is in the
+     * relay's `PRIVILEGED_METHODS`, so a paired phone gets 403 over the network while the same call
+     * succeeds on the LAN. That asymmetry is the reason a config form cannot be assumed to work
+     * wherever the bundle switches do.
+     */
+    val settings: StateFlow<SettingsDescribeValue?> = _settings.asStateFlow()
 
     private val _pluginMutation = MutableStateFlow<PluginMutationState?>(null)
 
@@ -2539,6 +2553,58 @@ class SessionStore @Inject constructor(
         _pendingPermission.value = value
         val outcome = runCommand("/permission $value")
         if (outcome !is CommandOutcome.Ok) _pendingPermission.value = null
+        return outcome
+    }
+
+    /**
+     * Reload the configuration plane.
+     *
+     * Loopback-only on a relayed connection, so a 403 here is expected rather than a fault: it means
+     * the operator is reaching the harness through the relay and the config forms will not be
+     * available. Kept distinct from a 404, which means the deployment composes no settings service
+     * at all.
+     */
+    suspend fun refreshSettings() {
+        val api = apiOrNull() ?: return
+        when (val r = api.settingsDescribe()) {
+            is RpcResult.Ok -> _settings.value = r.value
+            is RpcResult.Err -> {
+                _settings.value = null
+                // 403 is the relay's fence, not a broken harness; it is logged at a lower volume
+                // because it is the ordinary outcome for a phone on the network.
+                log("settings/describe unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+    }
+
+    /**
+     * Patch one settings namespace, then reload it.
+     *
+     * [patch] is a partial JSON object merged into the namespace's user layer, so a caller sends
+     * only the keys it changed. The reload afterwards is what keeps a form honest: the Host folds
+     * the patch through the schema and may normalize it, and the effective value is the only thing
+     * worth showing.
+     *
+     * `expectedRevision` makes the write a compare-and-swap, which is why the caller passes the
+     * revision it drew the form from — a second device editing the same namespace would otherwise
+     * have its change silently overwritten.
+     */
+    suspend fun updateSetting(
+        ns: String,
+        patch: kotlinx.serialization.json.JsonObject,
+        expectedRevision: Long?,
+    ): PluginMutationOutcome {
+        val api = apiOrNull() ?: return PluginMutationOutcome.Failed(code = "offline")
+        val outcome = when (
+            val r = api.settingsUpdate(ns, patch, expectedRevision?.toInt())
+        ) {
+            is RpcResult.Ok -> PluginMutationOutcome.Applied(target = ns, enabled = true)
+            is RpcResult.Err -> when (r.error.code) {
+                "forbidden" -> PluginMutationOutcome.Refused(target = ns, reason = "loopback-only")
+                else -> PluginMutationOutcome.Failed(code = r.error.code)
+            }
+        }
+        if (outcome is PluginMutationOutcome.Applied) refreshSettings()
         return outcome
     }
 

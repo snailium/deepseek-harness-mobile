@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">Descarregando</string>
     <string name="plugins_empty">Este harness não lista plugins.</string>
     <string name="plugins_search_hint">Filtrar plugins</string>
+    <string name="plugins_config_section">%1$s · Configuração</string>
+    <string name="plugins_config_unavailable">As configurações do plugin não estão acessíveis nesta conexão.</string>
+    <string name="plugins_field_required">obrigatório</string>
+    <string name="plugins_field_not_editable">Não editável aqui</string>
     <string name="plugins_unavailable">Este harness não expõe um gerenciador de plugins.</string>
     <string name="plugins_locked_generic">Bloqueado</string>
     <string name="plugins_toggle_failed">Não foi possível alternar este plugin.</string>

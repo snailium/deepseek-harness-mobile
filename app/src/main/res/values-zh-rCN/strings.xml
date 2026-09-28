@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">卸载中</string>
     <string name="plugins_empty">此 Harness 未列出任何插件。</string>
     <string name="plugins_search_hint">筛选插件</string>
+    <string name="plugins_config_section">%1$s · 配置</string>
+    <string name="plugins_config_unavailable">当前连接无法访问插件设置。</string>
+    <string name="plugins_field_required">必填</string>
+    <string name="plugins_field_not_editable">此处不可编辑</string>
     <string name="plugins_unavailable">该 harness 未提供插件管理器。</string>
     <string name="plugins_locked_generic">已锁定</string>
     <string name="plugins_toggle_failed">无法切换该插件。</string>

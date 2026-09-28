@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">กำลังยกเลิกการโหลด</string>
     <string name="plugins_empty">Harness นี้ไม่ได้แสดงปลั๊กอินใด ๆ</string>
     <string name="plugins_search_hint">กรองปลั๊กอิน</string>
+    <string name="plugins_config_section">%1$s · การตั้งค่า</string>
+    <string name="plugins_config_unavailable">ไม่สามารถเข้าถึงการตั้งค่าปลั๊กอินผ่านการเชื่อมต่อนี้</string>
+    <string name="plugins_field_required">จำเป็น</string>
+    <string name="plugins_field_not_editable">แก้ไขที่นี่ไม่ได้</string>
     <string name="plugins_unavailable">harness นี้ไม่มีตัวจัดการปลั๊กอิน</string>
     <string name="plugins_locked_generic">ล็อก</string>
     <string name="plugins_toggle_failed">ไม่สามารถสลับปลั๊กอินนี้ได้</string>
