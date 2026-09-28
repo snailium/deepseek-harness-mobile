@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">Déchargement</string>
     <string name="plugins_empty">Ce harness ne liste aucun plugin.</string>
     <string name="plugins_search_hint">Filtrer les plugins</string>
+    <string name="plugins_tab_composed">Composés</string>
+    <string name="plugins_tab_presets">Préréglages d\'agent</string>
+    <string name="plugins_count">%1$d sur %2$d extensions</string>
+    <string name="plugins_no_match">Aucune extension ne correspond à ce filtre.</string>
     <string name="update_available_title">Mise à jour disponible</string>
     <string name="update_available_body">La version %1$s est sortie. Vous avez la %2$s.</string>
     <string name="update_open">Voir la version</string>

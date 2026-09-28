@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">ان لوڈ ہو رہا ہے</string>
     <string name="plugins_empty">یہ ہارنیس کوئی پلگ ان درج نہیں کرتا۔</string>
     <string name="plugins_search_hint">پلگ ان فلٹر کریں</string>
+    <string name="plugins_tab_composed">مرکب</string>
+    <string name="plugins_tab_presets">ایجنٹ پریسیٹ</string>
+    <string name="plugins_count">%2$d میں سے %1$d پلگ ان</string>
+    <string name="plugins_no_match">اس فلٹر سے کوئی پلگ ان مماثل نہیں۔</string>
     <string name="update_available_title">اپ ڈیٹ دستیاب ہے</string>
     <string name="update_available_body">ورژن %1$s آ گیا ہے۔ آپ کے پاس %2$s ہے۔</string>
     <string name="update_open">ریلیز دیکھیں</string>

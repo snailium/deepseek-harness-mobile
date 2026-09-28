@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">กำลังยกเลิกการโหลด</string>
     <string name="plugins_empty">Harness นี้ไม่ได้แสดงปลั๊กอินใด ๆ</string>
     <string name="plugins_search_hint">กรองปลั๊กอิน</string>
+    <string name="plugins_tab_composed">ที่ประกอบ</string>
+    <string name="plugins_tab_presets">พรีเซ็ตเอเจนต์</string>
+    <string name="plugins_count">%1$d จาก %2$d ปลั๊กอิน</string>
+    <string name="plugins_no_match">ไม่มีปลั๊กอินที่ตรงกับตัวกรองนี้</string>
     <string name="update_available_title">มีอัปเดตใหม่</string>
     <string name="update_available_body">เวอร์ชัน %1$s ออกแล้ว คุณใช้ %2$s อยู่</string>
     <string name="update_open">ดูรุ่นที่ออก</string>

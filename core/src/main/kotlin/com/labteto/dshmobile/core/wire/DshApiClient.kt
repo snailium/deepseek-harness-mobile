@@ -18,6 +18,7 @@ import com.labteto.dshmobile.core.wire.dto.LlmDiscoveredModel
 import com.labteto.dshmobile.core.wire.dto.LlmModelDiscoveryRequest
 import com.labteto.dshmobile.core.wire.dto.LlmProviderInfo
 import com.labteto.dshmobile.core.wire.dto.ModelCatalog
+import com.labteto.dshmobile.core.wire.dto.AgentPresetComposition
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.core.wire.dto.REMOTE_EVENT_RESULT_ENDPOINT
@@ -80,6 +81,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -866,19 +868,65 @@ class DshApiClient(
     suspend fun pluginInventoryList(): RpcResult<PluginInventorySnapshot> =
         when (val result = callEmpty<JsonElement>("pluginInventory/list")) {
             is RpcResult.Ok -> {
-                val entries = (result.value as? JsonObject)?.get("entries") as? JsonArray
+                val value = result.value as? JsonObject
+                    ?: return RpcResult.Ok(PluginInventorySnapshot())
+                // Rows are narrowed one at a time rather than decoded from the raw object: the
+                // answer now carries `meta` and the preset compositions in the same row shape, and
+                // a package whose manifest declares a field this build has never seen must cost
+                // that one row rather than the whole page.
                 RpcResult.Ok(
                     PluginInventorySnapshot(
-                        entries = entries.orEmpty().mapNotNull { row ->
-                            runCatching {
-                                decodeFromJsonElement(PluginInventoryEntry.serializer(), row)
-                            }.getOrNull()
-                        },
+                        entries = value.decodeRows("entries"),
+                        agentPresets = value.decodePresets(),
+                        managementAvailable = value["managementAvailable"]
+                            ?.jsonPrimitive?.booleanOrNull ?: false,
                     ),
                 )
             }
             is RpcResult.Err -> result
         }
+
+    /**
+     * Decode the `entries` array, dropping any row this build cannot read.
+     *
+     * A missing key and a wrong-typed one both read as "no rows", which is the right answer for an
+     * older harness that does not send the key at all.
+     */
+    private fun JsonObject.decodeRows(key: String): List<PluginInventoryEntry> =
+        (this[key] as? JsonArray).orEmpty().mapNotNull { row ->
+            runCatching { decodeFromJsonElement(PluginInventoryEntry.serializer(), row) }.getOrNull()
+        }.filter { it.isUsable() }
+
+    /**
+     * Decode the `agentPresets` array, narrowing each preset's rows by the same rule.
+     *
+     * The rows are decoded one at a time *before* the preset that owns them, because a preset is
+     * rejected wholesale by its own serializer the moment one of its rows is missing a required
+     * member — `rows` is a `List<PluginInventoryEntry>` and the codec has no opinion about partial
+     * success inside it. Narrowing first keeps one unreadable row to that row, which is the whole
+     * point of decoding the top-level list this way.
+     */
+    private fun JsonObject.decodePresets(): List<AgentPresetComposition> =
+        (this["agentPresets"] as? JsonArray).orEmpty().mapNotNull { row ->
+            val preset = row as? JsonObject ?: return@mapNotNull null
+            val id = preset["id"]?.jsonPrimitive?.contentOrNull
+            if (id.isNullOrBlank()) return@mapNotNull null
+            AgentPresetComposition(
+                id = id,
+                isDefault = preset["isDefault"]?.jsonPrimitive?.booleanOrNull ?: false,
+                rows = preset.decodeRows("rows"),
+            )
+        }
+
+    /**
+     * Whether a decoded row carries enough identity to display.
+     *
+     * Decoding is not the only bar: a row whose `moduleName` is empty decodes cleanly and then has
+     * no name to print, and one with no `entryId` cannot be keyed in a list. Both are dropped here
+     * so every caller that produces rows agrees on what a usable row is.
+     */
+    private fun PluginInventoryEntry.isUsable(): Boolean =
+        entryId.isNotBlank() && moduleName.isNotBlank()
 
     /** `fileReferences/list` — file-reference completion candidates for a composer mention. */
     suspend fun fileReferencesList(sessionId: String, query: String): RpcResult<JsonElement> =

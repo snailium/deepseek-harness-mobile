@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">আনলোড হচ্ছে</string>
     <string name="plugins_empty">এই হারনেস কোনো প্লাগইন তালিকাভুক্ত করে না।</string>
     <string name="plugins_search_hint">প্লাগইন ফিল্টার করুন</string>
+    <string name="plugins_tab_composed">কম্পোজড</string>
+    <string name="plugins_tab_presets">এজেন্ট প্রিসেট</string>
+    <string name="plugins_count">%2$dটির মধ্যে %1$dটি প্লাগইন</string>
+    <string name="plugins_no_match">এই ফিল্টারে কোনো প্লাগইন মেলে না।</string>
     <string name="update_available_title">আপডেট উপলব্ধ</string>
     <string name="update_available_body">সংস্করণ %1$s প্রকাশিত হয়েছে। আপনার আছে %2$s।</string>
     <string name="update_open">রিলিজ দেখুন</string>

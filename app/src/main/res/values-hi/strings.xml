@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">अनलोड हो रहा है</string>
     <string name="plugins_empty">यह हार्नेस कोई प्लगइन सूचीबद्ध नहीं करता।</string>
     <string name="plugins_search_hint">प्लगइन फ़िल्टर करें</string>
+    <string name="plugins_tab_composed">संयोजित</string>
+    <string name="plugins_tab_presets">एजेंट प्रीसेट</string>
+    <string name="plugins_count">%2$d में से %1$d प्लगइन</string>
+    <string name="plugins_no_match">इस फ़िल्टर से कोई प्लगइन मेल नहीं खाता।</string>
     <string name="update_available_title">अपडेट उपलब्ध</string>
     <string name="update_available_body">संस्करण %1$s आ गया है। आपके पास %2$s है।</string>
     <string name="update_open">रिलीज़ देखें</string>

@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">卸载中</string>
     <string name="plugins_empty">此 Harness 未列出任何插件。</string>
     <string name="plugins_search_hint">筛选插件</string>
+    <string name="plugins_tab_composed">已装配</string>
+    <string name="plugins_tab_presets">智能体预设</string>
+    <string name="plugins_count">%1$d / %2$d 个插件</string>
+    <string name="plugins_no_match">没有插件匹配该筛选条件。</string>
     <string name="update_available_title">有可用更新</string>
     <string name="update_available_body">版本 %1$s 已发布，当前为 %2$s。</string>
     <string name="update_open">查看发行版</string>

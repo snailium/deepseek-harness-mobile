@@ -378,6 +378,10 @@
     <string name="plugins_phase_unloading">Выгрузка</string>
     <string name="plugins_empty">Этот harness не перечисляет плагины.</string>
     <string name="plugins_search_hint">Фильтр плагинов</string>
+    <string name="plugins_tab_composed">Собранные</string>
+    <string name="plugins_tab_presets">Профили агента</string>
+    <string name="plugins_count">%1$d из %2$d плагинов</string>
+    <string name="plugins_no_match">Ни один плагин не соответствует фильтру.</string>
     <string name="update_available_title">Доступно обновление</string>
     <string name="update_available_body">Вышла версия %1$s. У вас %2$s.</string>
     <string name="update_open">Открыть релиз</string>
