@@ -130,7 +130,9 @@ fun ChatScreen(
     val connectionError by store.connectionError.collectAsStateWithLifecycle()
     val loadingOlder by store.loadingOlder.collectAsStateWithLifecycle()
     val loadOlderFailed by store.loadOlderFailed.collectAsStateWithLifecycle()
-    val pendingApproval by store.pendingApproval.collectAsStateWithLifecycle()
+    // One card per session: the open session reads its own entry, so another session's answer
+    // (or `cancel` frame) never takes this one's panel away.
+    val pendingApprovals by store.pendingApprovals.collectAsStateWithLifecycle()
     val pendingQuestions by store.pendingQuestions.collectAsStateWithLifecycle()
     val permissions by store.permissions.collectAsStateWithLifecycle()
     val pendingPermission by store.pendingPermission.collectAsStateWithLifecycle()
@@ -334,8 +336,8 @@ fun ChatScreen(
 
             // Server-initiated requests take over the bottom of the screen: they block the turn,
             // so burying them behind a scroll would strand the session.
-            val approval = pendingApproval
-            if (approval != null && approval.sessionId == currentSessionId) {
+            val approval = pendingApprovals[currentSessionId]
+            if (approval != null) {
                 // A refusal is said out loud rather than swallowed, for the reason
                 // `HarnessResponder.refusalOf` gives: the host's wait — and the tool call behind it
                 // — stays open, and a panel that reported nothing would read as two buttons that do
@@ -353,8 +355,8 @@ fun ChatScreen(
                     onReject = { decide(false) },
                 )
             }
-            val questions = pendingQuestions
-            if (questions != null && questions.sessionId == currentSessionId) {
+            val questions = pendingQuestions[currentSessionId]
+            if (questions != null) {
                 // A plan review rides the question channel but is a different decision, so it gets
                 // the card built for it. The narrowing decides which — and hands back anything the
                 // card could not answer in full, because the card answers one question and the host

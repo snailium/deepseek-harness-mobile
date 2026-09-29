@@ -455,11 +455,16 @@ class SessionStore @Inject constructor(
     private val _subagentMode = MutableStateFlow<String?>(null)
     val subagentMode: StateFlow<String?> = _subagentMode.asStateFlow()
 
-    private val _pendingApproval = MutableStateFlow<PendingApproval?>(null)
-    val pendingApproval: StateFlow<PendingApproval?> = _pendingApproval.asStateFlow()
+    // One card per session, not one slot for the host: several sessions can each be blocked on a
+    // question or an approval at once, and a single shared slot made answering one session's card
+    // clobber the others' — they vanished from every screen except the web client. The open
+    // session reads its own entry; the chat list's `pendingInteraction` dot is fed by the same
+    // per-session registries below.
+    private val _pendingApprovals = MutableStateFlow<Map<String, PendingApproval>>(emptyMap())
+    val pendingApprovals: StateFlow<Map<String, PendingApproval>> = _pendingApprovals.asStateFlow()
 
-    private val _pendingQuestions = MutableStateFlow<PendingQuestions?>(null)
-    val pendingQuestions: StateFlow<PendingQuestions?> = _pendingQuestions.asStateFlow()
+    private val _pendingQuestions = MutableStateFlow<Map<String, PendingQuestions>>(emptyMap())
+    val pendingQuestions: StateFlow<Map<String, PendingQuestions>> = _pendingQuestions.asStateFlow()
 
     private val _commands = MutableStateFlow<List<CommandDescriptor>>(emptyList())
     val commands: StateFlow<List<CommandDescriptor>> = _commands.asStateFlow()
@@ -952,11 +957,15 @@ class SessionStore @Inject constructor(
     private fun forgetRequest(eventId: String) {
         val approval = synchronized(lock) { approvalRequests.remove(eventId) }
         if (approval != null) {
+            // The card and the row dot move together under the lock, for the reason [forgetQuestions]
+            // gives. Only this session's own card is touched — other sessions keep theirs.
             synchronized(lock) {
                 removePendingLocked(approval.sessionId, "approval")
                 emitSessionsLocked()
+                if (_pendingApprovals.value[approval.sessionId]?.approvalId == eventId) {
+                    _pendingApprovals.value = _pendingApprovals.value - approval.sessionId
+                }
             }
-            if (_pendingApproval.value?.approvalId == eventId) _pendingApproval.value = null
             return
         }
         val sessionId = synchronized(lock) {
@@ -978,9 +987,9 @@ class SessionStore @Inject constructor(
             removePendingLocked(sessionId, "question")
             removePendingLocked(sessionId, "plan-review")
             emitSessionsLocked()
-            val shown = _pendingQuestions.value
-            if (shown?.sessionId == sessionId && (eventId == null || shown.rpcId == eventId)) {
-                _pendingQuestions.value = null
+            val shown = _pendingQuestions.value[sessionId]
+            if (shown != null && (eventId == null || shown.rpcId == eventId)) {
+                _pendingQuestions.value = _pendingQuestions.value - sessionId
             }
         }
     }
@@ -1207,7 +1216,9 @@ class SessionStore @Inject constructor(
             addPendingLocked(sessionId, "approval")
             emitSessionsLocked()
         }
-        _pendingApproval.value = PendingApproval(
+        // One entry per session: a second approval for the same session replaces its card, and a
+        // different session's card is left exactly where it was.
+        _pendingApprovals.value = _pendingApprovals.value + (sessionId to PendingApproval(
             sessionId = sessionId,
             // The event id is the approval id now: 0.1.2 correlates a pending request by the
             // frame's own `eventId` and mints nothing separate.
@@ -1215,7 +1226,7 @@ class SessionStore @Inject constructor(
             rpcId = eventId,
             toolName = request.toolName,
             reason = reason,
-        )
+        ))
     }
 
     private fun handleQuestionRequested(
@@ -1236,7 +1247,7 @@ class SessionStore @Inject constructor(
             // whether to clear the card by reading that registration, so a request that installed
             // one but not yet the other could have its card taken by an answer to the request it
             // just replaced.
-            _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
+            _pendingQuestions.value = _pendingQuestions.value + (sessionId to PendingQuestions(sessionId, eventId, questions))
         }
         // The host replays pending waterfalls on a new generation. If the user already answered
         // this question but the POST failed, re-send now rather than asking them again.
@@ -1308,6 +1319,10 @@ class SessionStore @Inject constructor(
             presetBySession.remove(sessionId)
             questionEvents.discard(sessionId)
             emitSessionsLocked()
+            // The dead session's cards would otherwise outlive it — and so would any answer path
+            // that still addressed them to it.
+            _pendingApprovals.value = _pendingApprovals.value - sessionId
+            _pendingQuestions.value = _pendingQuestions.value - sessionId
         }
     }
 
@@ -2066,8 +2081,11 @@ class SessionStore @Inject constructor(
         val request = synchronized(lock) { approvalRequests[approvalId] }
         if (request == null) {
             log("no pending approval for id $approvalId")
-            // Nothing to answer with, so nothing can arrive to take the panel away either.
-            if (_pendingApproval.value?.approvalId == approvalId) _pendingApproval.value = null
+            // Nothing to answer with, so nothing can arrive to take the panel away either. Only
+            // this session's own card is a corpse — the other sessions keep theirs.
+            if (_pendingApprovals.value[sessionId]?.approvalId == approvalId) {
+                _pendingApprovals.value = _pendingApprovals.value - sessionId
+            }
             return QuestionOutcome.Refused(NOT_PENDING)
         }
         val clientId = connectionManager.generation?.clientId
