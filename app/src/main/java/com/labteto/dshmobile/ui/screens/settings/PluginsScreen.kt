@@ -660,6 +660,41 @@ internal fun buildSettingPatch(path: List<String>, value: JsonElement): JsonObje
 }
 
 /**
+<<<<<<< HEAD
+=======
+ * A locked bundle's state.
+ *
+ * It reports *why* it is locked rather than repeating its enablement: "Enabled" beside a greyed
+ * switch tells the reader nothing they cannot already see.
+ */
+@Composable
+private fun BundleLock(reason: String?) {
+    val colors = DsTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        StateDot(StateDotState.Idle)
+        Spacer(Modifier.width(DsSpacing.tiny))
+        Text(
+            text = reason?.let { readOnlyLabel(it)?.let { id -> stringResource(id) } ?: it }
+                ?: stringResource(R.string.plugins_locked_generic),
+            style = DsType.small13,
+            color = colors.labelTertiary,
+        )
+    }
+}
+
+/**
+ * The sentence for a read-only reason, or null when this build has no wording for it.
+ *
+ * Null rather than a generic fallback so the caller can show the Host's own code instead: the codes
+ * are stable and greppable, and a plausible-sounding guess is worse than an ugly but true one.
+ */
+private fun readOnlyLabel(reason: String): Int? = when (reason) {
+    PluginReadOnly.MANAGEMENT_REQUIRED -> R.string.plugins_locked_management
+    else -> null
+}
+
+/**
+>>>>>>> f4046c3 (Bump the plugins page font one step up from the title and search bar down)
  * Whether a bundle answers a query.
  *
  * The version is matched as well as the name: a user chasing a specific release types what they see,
