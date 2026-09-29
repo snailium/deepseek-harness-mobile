@@ -183,7 +183,7 @@ fun PluginsScreen(onClose: () -> Unit) {
             if (loaded == null) {
                 Text(
                     stringResource(R.string.plugins_unavailable),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.labelTertiary,
                 )
                 return@Column
@@ -283,7 +283,7 @@ private fun BundleList(
     if (bundles.isEmpty()) {
         Text(
             stringResource(if (total == 0) R.string.plugins_empty else R.string.plugins_no_match),
-            style = DsType.small13,
+            style = DsType.std14,
             color = colors.labelTertiary,
         )
         return
@@ -320,9 +320,9 @@ private fun SectionHeader(label: String, count: Int) {
             .padding(top = DsSpacing.small, bottom = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = DsType.small13Strong, color = colors.labelSecondary)
+        Text(label, style = DsType.std14Strong, color = colors.labelSecondary)
         Spacer(Modifier.width(DsSpacing.xsmall))
-        Text(count.toString(), style = DsType.caption11, color = colors.labelTertiary)
+        Text(count.toString(), style = DsType.small13, color = colors.labelTertiary)
     }
 }
 
@@ -356,7 +356,7 @@ private fun BundleCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 bundle.displayTitle(locale),
-                style = DsType.small13Strong,
+                style = DsType.std14Strong,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -367,7 +367,7 @@ private fun BundleCard(
             if (caption.isNotEmpty()) {
                 Text(
                     caption,
-                    style = DsType.caption11,
+                    style = DsType.small13,
                     color = colors.labelTertiary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -436,13 +436,13 @@ private fun BundleDetailDialog(
         ) {
             val caption = listOfNotNull(bundle.version, bundle.displayDescription).joinToString(" · ")
             if (caption.isNotEmpty()) {
-                Text(caption, style = DsType.caption11, color = colors.labelTertiary)
+                Text(caption, style = DsType.small13, color = colors.labelTertiary)
             }
 
             if (configured.isEmpty()) {
                 Text(
                     stringResource(R.string.plugins_config_none),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.labelTertiary,
                 )
             } else if (!settingsAvailable) {
@@ -450,7 +450,7 @@ private fun BundleDetailDialog(
                 // relay that is the expected outcome rather than a fault, so it says which.
                 Text(
                     stringResource(R.string.plugins_config_unavailable),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.warnLabel,
                 )
             } else {
@@ -468,7 +468,7 @@ private fun BundleDetailDialog(
                             .padding(DsSpacing.medium),
                         verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
                     ) {
-                        Text(ns, style = DsType.small13Strong, color = colors.labelSecondary)
+                        Text(ns, style = DsType.std14Strong, color = colors.labelSecondary)
                         schema.fields.forEach { field ->
                             SettingsFieldRow(
                                 field = field,
@@ -485,7 +485,7 @@ private fun BundleDetailDialog(
             if (bundle.rows.isNotEmpty()) {
                 Text(
                     stringResource(R.string.plugins_bundle_rows, bundle.rows.size),
-                    style = DsType.caption11,
+                    style = DsType.small13,
                     color = if (rowsOpen) colors.accent else colors.labelTertiary,
                     modifier = Modifier
                         .clip(DsShapes.row)
@@ -504,7 +504,7 @@ private fun BundleDetailDialog(
                         bundle.rows.forEach { row ->
                             Text(
                                 row.displayTitle,
-                                style = DsType.caption11,
+                                style = DsType.small13,
                                 color = colors.labelCaption,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -560,7 +560,7 @@ private fun BundleLock(reason: String?) {
         Text(
             text = reason?.let { readOnlyLabel(it)?.let { id -> stringResource(id) } ?: it }
                 ?: stringResource(R.string.plugins_locked_generic),
-            style = DsType.caption11,
+            style = DsType.small13,
             color = colors.labelTertiary,
         )
     }

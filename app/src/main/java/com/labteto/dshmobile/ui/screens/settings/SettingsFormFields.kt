@@ -71,7 +71,7 @@ fun SettingsFieldRow(
                 if (label != null) {
                     Text(
                         label,
-                        style = DsType.small13Strong,
+                        style = DsType.std14Strong,
                         color = colors.labelSecondary,
                         modifier = Modifier.padding(top = DsSpacing.small, bottom = DsSpacing.tiny),
                     )
@@ -234,13 +234,13 @@ private fun LabelledRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     label,
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 field.node.description?.let { description ->
-                    Text(description, style = DsType.caption11, color = colors.labelTertiary)
+                    Text(description, style = DsType.small13, color = colors.labelTertiary)
                 }
             }
             if (!stacked) {
@@ -257,7 +257,7 @@ private fun LabelledRow(
         if (field.node.required) {
             Text(
                 stringResource(R.string.plugins_field_required),
-                style = DsType.caption11,
+                style = DsType.small13,
                 color = colors.labelCaption,
             )
         }
@@ -275,14 +275,14 @@ private fun UnrenderedField(field: SettingsField, value: JsonElement?) {
     val colors = DsTheme.colors
     val label = field.path.lastOrNull().orEmpty()
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = DsType.small13, color = colors.labelPrimary)
+        Text(label, style = DsType.std14, color = colors.labelPrimary)
         field.node.description?.let {
-            Text(it, style = DsType.caption11, color = colors.labelTertiary)
+            Text(it, style = DsType.small13, color = colors.labelTertiary)
         }
         val shown = value?.toString()
         Text(
             text = shown ?: stringResource(R.string.plugins_field_not_editable),
-            style = DsType.caption11.copy(fontFamily = FontFamily.Monospace),
+            style = DsType.small13.copy(fontFamily = FontFamily.Monospace),
             color = colors.labelCaption,
             maxLines = 4,
             overflow = TextOverflow.Ellipsis,
