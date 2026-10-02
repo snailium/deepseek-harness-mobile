@@ -118,6 +118,7 @@ class HostsStore @Inject constructor(
         description: HostDescription? = null,
         relay: RelayIdentity? = null,
         basePath: String = "",
+        gateway: GatewayIdentity? = null,
     ): HostConfig {
         val existing = hosts.first().firstOrNull { it.baseUrl == harnessBaseUrl(host, port, relay?.useTls ?: useTls, basePath) }
         val config = HostConfig(
@@ -136,8 +137,17 @@ class HostsStore @Inject constructor(
             // it outranks the caller's `useTls` here rather than sitting beside it.
             useTls = relay?.useTls ?: useTls,
             relayFingerprint = relay?.fingerprint ?: existing?.relayFingerprint,
-            relayDeviceId = relay?.deviceId ?: existing?.relayDeviceId,
-            relayTokenExpiresAt = relay?.tokenExpiresAt ?: existing?.relayTokenExpiresAt ?: 0L,
+            // A gateway pairing replaces the relay identity outright, and vice versa. The two are
+            // different products with different credentials, and a record carrying both would
+            // describe two enrolments of different kinds at once — the same reasoning that makes a
+            // re-pair drop the previous relay's three fields.
+            relayDeviceId = if (gateway != null) null else relay?.deviceId ?: existing?.relayDeviceId,
+            relayTokenExpiresAt = if (gateway != null) 0L else relay?.tokenExpiresAt ?: existing?.relayTokenExpiresAt ?: 0L,
+            gatewayDeviceId = gateway?.deviceId ?: (if (relay != null) null else existing?.gatewayDeviceId),
+            gatewayInstanceId = gateway?.instanceId ?: (if (relay != null) null else existing?.gatewayInstanceId),
+            gatewayCaDer = gateway?.caDer ?: (if (relay != null) null else existing?.gatewayCaDer),
+            gatewayCaFingerprint = gateway?.caFingerprint
+                ?: (if (relay != null) null else existing?.gatewayCaFingerprint),
         )
         upsertHost(config)
         return config
@@ -258,4 +268,20 @@ data class RelayIdentity(
     val useTls: Boolean,
     val fingerprint: String?,
     val tokenExpiresAt: Long,
+)
+
+/**
+ * What a successful `dsh-mobile` pairing tells this app about an endpoint.
+ *
+ * Grouped for the same reason as [RelayIdentity]: the device id alone would describe a gateway this
+ * app cannot address, and the CA is meaningless without the id it was verified against.
+ *
+ * [caDer] and [caFingerprint] are both null for a gateway on a publicly trusted certificate — a
+ * tunnel or a reverse proxy — and both set for a LAN one, where the private CA *is* the identity.
+ */
+data class GatewayIdentity(
+    val deviceId: String,
+    val instanceId: String,
+    val caDer: String?,
+    val caFingerprint: String?,
 )

@@ -606,4 +606,10 @@
     <string name="rewind_impact_delete">ลบ %1$s</string>
     <string name="rewind_confirm">ยืนยันการย้อนกลับ</string>
     <string name="command_popup_no_matches">ไม่พบรายการที่ตรงกัน</string>
+    <string name="pair_fail_not_a_gateway">%1$s ตอบกลับ แต่ไม่มีเส้นทางการจับคู่ของ DSH Mobile ตรวจสอบว่าเปิดใช้งานปลั๊กอิน dsh-mobile บนคอมพิวเตอร์เครื่องนั้นแล้ว</string>
+    <string name="pair_fail_gateway_ca">ใบรับรองที่ %1$s ไม่ใช่ใบที่รหัสจับคู่นี้ระบุ อย่าจับคู่ — รหัสนี้เป็นของคอมพิวเตอร์เครื่องอื่น หรือมีสิ่งอื่นตอบกลับที่ที่อยู่นั้น</string>
+    <string name="pair_fail_address_required">คีย์จับคู่นี้ระบุชื่อคอมพิวเตอร์แต่ไม่ได้ระบุที่อยู่ ป้อนที่อยู่ที่แสดงในแผง DSH Mobile เช่น 192.168.1.20:3443</string>
+    <string name="connect_gateway_pair_this">จับคู่</string>
+    <string name="connect_gateway_encrypted">เข้ารหัส</string>
+    <string name="connect_gateway_plaintext">ไม่เข้ารหัส</string>
 </resources>

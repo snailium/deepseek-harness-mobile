@@ -606,4 +606,10 @@
     <string name="rewind_impact_delete">حذف %1$s</string>
     <string name="rewind_confirm">تأكيد الإعادة</string>
     <string name="command_popup_no_matches">لا توجد نتائج مطابقة</string>
+    <string name="pair_fail_not_a_gateway">%1$s استجاب، لكن لا شيء هناك يقدّم مسارات الاقتران في DSH Mobile. تحقّق من تفعيل إضافة dsh-mobile على ذلك الحاسوب.</string>
+    <string name="pair_fail_gateway_ca">الشهادة على %1$s ليست تلك التي يشير إليها رمز الاقتران. لا تقترن — هذا الرمز يخص حاسوبًا آخر، أو أن شيئًا آخر يستجيب على ذلك العنوان.</string>
+    <string name="pair_fail_address_required">مفتاح الاقتران يسمّي الحاسوب لكن ليس عنوانه. أدخل العنوان المعروض في لوحة DSH Mobile، مثل 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">اقتران</string>
+    <string name="connect_gateway_encrypted">مشفَّر</string>
+    <string name="connect_gateway_plaintext">غير مشفَّر</string>
 </resources>

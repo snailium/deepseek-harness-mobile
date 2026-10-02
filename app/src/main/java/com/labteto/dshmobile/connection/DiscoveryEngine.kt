@@ -59,7 +59,12 @@ internal fun sameSubnet(target: String, localIps: List<String>): Boolean {
  * reaching them through [DiscoveryEngine] needs the credential stores. [detail] is the carrier's
  * own wording, kept for the outcomes that have nothing more specific to say.
  */
-internal fun probeOutcomeOf(kind: TransportFailure?, relay: Boolean, detail: String): ProbeOutcome =
+internal fun probeOutcomeOf(
+    kind: TransportFailure?,
+    relay: Boolean,
+    detail: String,
+    gateway: Boolean = false,
+): ProbeOutcome =
     when (kind) {
         // The relay answers the same 403 whether it has never seen this device, the token expired,
         // or the operator revoked it, so the status alone cannot separate "pair again" from the
@@ -71,8 +76,15 @@ internal fun probeOutcomeOf(kind: TransportFailure?, relay: Boolean, detail: Str
         // The same 401 behind a relay is one hop further out: the relay accepted this device — it
         // answers 403 when it does not — and the harness refused the relay's own request, so there
         // is nothing here for this phone to pair again.
-        TransportFailure.UNAUTHENTICATED ->
-            if (relay) ProbeOutcome.RelayUnauthenticated else ProbeOutcome.Unauthenticated
+        // A gateway answers 401 for a session it will not accept. By the time a probe sees one, the
+        // transport has already tried to mint a fresh session from the stored device token and
+        // failed, so this device needs a new pairing — the same verdict a relay's 403 gets, reached
+        // by a different status.
+        TransportFailure.UNAUTHENTICATED -> when {
+            gateway -> ProbeOutcome.PairingRequired
+            relay -> ProbeOutcome.RelayUnauthenticated
+            else -> ProbeOutcome.Unauthenticated
+        }
         TransportFailure.CERTIFICATE_PIN -> ProbeOutcome.CertificateChanged
         TransportFailure.REFUSED -> ProbeOutcome.Refused
         TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
@@ -187,6 +199,7 @@ class DiscoveryEngine @Inject constructor(
             clientFactory.anonymousClient(harnessBaseUrl(host, port, useTls, basePath), timeouts)
         }
         val relay = config?.isRelay == true
+        val gateway = config?.isGateway == true
         // `host.describe` was the probe through 0.1.1: one call that proved the endpoint spoke the
         // protocol and described it in the same breath. 0.1.2 has no such call, so the two jobs
         // separate. `session/canOpenWorkspacePath` is the reachability proof — no arguments, and
@@ -195,7 +208,12 @@ class DiscoveryEngine @Inject constructor(
         when (val result = client.sessionCanOpenWorkspacePath()) {
             is RpcResult.Ok -> ProbeOutcome.Reachable(describeHome(client, config))
             is RpcResult.Err ->
-                probeOutcomeOf(TransportFailures.of(result.error), relay, result.error.message)
+                probeOutcomeOf(
+                    TransportFailures.of(result.error),
+                    relay,
+                    result.error.message,
+                    gateway,
+                )
         }
     }
 

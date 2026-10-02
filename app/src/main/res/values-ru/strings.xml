@@ -606,4 +606,10 @@
     <string name="rewind_impact_delete">Удалить %1$s</string>
     <string name="rewind_confirm">Подтвердить откат</string>
     <string name="command_popup_no_matches">Нет совпадений</string>
+    <string name="pair_fail_not_a_gateway">%1$s ответил, но там нет маршрутов сопряжения DSH Mobile. Проверьте, включён ли плагин dsh-mobile на этом компьютере.</string>
+    <string name="pair_fail_gateway_ca">Сертификат на %1$s — не тот, что указан в этом коде сопряжения. Не сопрягайте: код принадлежит другому компьютеру либо по этому адресу отвечает что-то другое.</string>
+    <string name="pair_fail_address_required">Этот ключ сопряжения называет компьютер, но не его адрес. Введите адрес, показанный на панели DSH Mobile, например 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Сопряжение</string>
+    <string name="connect_gateway_encrypted">Зашифровано</string>
+    <string name="connect_gateway_plaintext">Без шифрования</string>
 </resources>

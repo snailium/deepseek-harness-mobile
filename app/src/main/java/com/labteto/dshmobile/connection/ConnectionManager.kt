@@ -147,10 +147,14 @@ class ConnectionManager @Inject constructor(
         override fun onGenerationFailed(attempt: Int, failure: GenerationFailure) {
             val host = activeHost
             _state.value = _state.value.copy(
-                failure = ConnectFailure.from(failure, relay = host?.isRelay == true),
+                failure = ConnectFailure.from(
+                    failure,
+                    relay = host?.isRelay == true,
+                    gateway = host?.isGateway == true,
+                ),
                 attempts = attempt,
             )
-            if (host != null && isTerminalForRelay(host, failure)) stopRetrying()
+            if (host != null && isTerminalForCredential(host, failure)) stopRetrying()
         }
     }
 
@@ -223,9 +227,14 @@ class ConnectionManager @Inject constructor(
      * do not retry with backoff". A changed certificate is the same kind of fact. The loop's default
      * is to retry forever, which against a relay that revoked this device is a request every few
      * seconds until the app is killed.
+     *
+     * A `dsh-mobile` gateway reaches the same verdict by a different route: its 401 is answered by
+     * the transport renewing once from the device token, so a 401 that survives that means the
+     * token itself is finished. Retrying cannot mint a session from a credential the gateway has
+     * already refused.
      */
-    private fun isTerminalForRelay(host: HostConfig, failure: GenerationFailure): Boolean {
-        if (!host.isRelay) return false
+    private fun isTerminalForCredential(host: HostConfig, failure: GenerationFailure): Boolean {
+        if (!host.isCredentialed) return false
         val kind = when (failure) {
             is GenerationFailure.MuxFailed -> failure.kind
             is GenerationFailure.ReadyFailed -> TransportFailures.of(failure.error)

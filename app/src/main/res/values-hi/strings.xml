@@ -606,4 +606,10 @@
     <string name="rewind_impact_delete">%1$s हटाएं</string>
     <string name="rewind_confirm">रिवाइंड की पुष्टि करें</string>
     <string name="command_popup_no_matches">कोई मेल नहीं</string>
+    <string name="pair_fail_not_a_gateway">%1$s ने उत्तर दिया, लेकिन वहाँ DSH Mobile की पेयरिंग रूट उपलब्ध नहीं हैं। जाँचें कि उस कंप्यूटर पर dsh-mobile प्लगइन सक्षम है।</string>
+    <string name="pair_fail_gateway_ca">%1$s पर मौजूद प्रमाणपत्र वह नहीं है जिसे यह पेयरिंग कोड बताता है। पेयर न करें — यह कोड किसी दूसरे कंप्यूटर का है, या उस पते पर कुछ और उत्तर दे रहा है।</string>
+    <string name="pair_fail_address_required">यह पेयरिंग कुंजी कंप्यूटर का नाम बताती है, पता नहीं। DSH Mobile पैनल में दिखाया गया पता दर्ज करें, जैसे 192.168.1.20:3443।</string>
+    <string name="connect_gateway_pair_this">पेयर करें</string>
+    <string name="connect_gateway_encrypted">एन्क्रिप्टेड</string>
+    <string name="connect_gateway_plaintext">एन्क्रिप्शन रहित</string>
 </resources>

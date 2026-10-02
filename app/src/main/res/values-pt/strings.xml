@@ -606,4 +606,10 @@
     <string name="rewind_impact_delete">Excluir %1$s</string>
     <string name="rewind_confirm">Confirmar retrocesso</string>
     <string name="command_popup_no_matches">Nenhuma correspondência</string>
+    <string name="pair_fail_not_a_gateway">%1$s respondeu, mas ali não há rotas de emparelhamento do DSH Mobile. Verifique se o plugin dsh-mobile está ativado nesse computador.</string>
+    <string name="pair_fail_gateway_ca">O certificado em %1$s não é o que este código de emparelhamento indica. Não emparelhe — este código pertence a outro computador, ou outra coisa responde nesse endereço.</string>
+    <string name="pair_fail_address_required">Esta chave de emparelhamento indica o computador, mas não o endereço. Informe o endereço mostrado no painel do DSH Mobile, por exemplo 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Emparelhar</string>
+    <string name="connect_gateway_encrypted">Criptografado</string>
+    <string name="connect_gateway_plaintext">Sem criptografia</string>
 </resources>
