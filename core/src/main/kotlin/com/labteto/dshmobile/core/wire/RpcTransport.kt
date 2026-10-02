@@ -135,6 +135,18 @@ class OkHttpRpcTransport(
     writeTimeoutMs: Long = 30_000,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * The `Origin` a `dsh-mobile` gateway's trust fence demands of every mutating request.
+     *
+     * Null for a direct harness and for a relay, neither of which reads the header. Set whenever the
+     * endpoint is a gateway: its fence refuses a POST that arrives without an accepted origin with a
+     * bare 403, before any route runs — indistinguishable, from the caller's side, from a wrong
+     * credential. It is derived from [baseUrl] by the caller rather than accepted from a user, so
+     * the value and the address can never disagree.
+     */
+    private val origin: String? = null,
+    /** The `x-dsh-mobile-csrf` value a gateway demands alongside [origin] on a mutation. */
+    private val csrf: String? = null,
 ) : RpcTransport {
 
     private val base: HttpUrl = baseUrl.toHttpUrl()
@@ -156,6 +168,7 @@ class OkHttpRpcTransport(
                 .header("Content-Type", "application/json")
                 .authorized(authorization)
                 .cookied(cookie)
+                .gatewayMutation(origin, csrf)
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             // Package operations are host-owned and may outlive the ordinary RPC read budget.
@@ -274,6 +287,7 @@ class OkHttpRpcTransport(
             .header("Host", hostHeader)
             .authorized(authorization)
             .cookied(cookie)
+            .gatewayMutation(origin, csrf)
             .post(requestBody)
             .build()
         val response = try {
@@ -323,6 +337,25 @@ internal fun Request.Builder.authorized(authorization: String?): Request.Builder
  */
 internal fun Request.Builder.cookied(cookie: String?): Request.Builder =
     if (cookie == null) this else header("Cookie", cookie)
+
+/**
+ * Attach what a `dsh-mobile` gateway demands of a *mutating* request: its `Origin`, and the CSRF
+ * token that proves the caller is the session holder rather than a page that borrowed a cookie.
+ *
+ * Both are required and neither substitutes for the other — verified against 0.5.3, where a POST
+ * carrying the session cookie but no CSRF answers 403, and one carrying the CSRF but no origin
+ * answers 403 as well. Only GET and HEAD are exempt, which is why this is applied at the two
+ * mutating call sites and not to the download path.
+ *
+ * `Origin` is a forbidden header on a browser `fetch`, which is the point: it cannot be forged by
+ * page script, and a client that is not a page simply states it.
+ */
+internal fun Request.Builder.gatewayMutation(origin: String?, csrf: String?): Request.Builder {
+    var builder = this
+    if (origin != null) builder = builder.header(MobileAccess.ORIGIN_HEADER, origin)
+    if (csrf != null) builder = builder.header(MobileAccess.CSRF_HEADER, csrf)
+    return builder
+}
 
 /**
  * The `Host` header for requests against [base].
@@ -452,6 +485,15 @@ open class WsChannel(
     private val sink: WsChannelSink,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * The `Origin` a `dsh-mobile` gateway demands of the upgrade as well as of a POST.
+     *
+     * The gateway's fence runs on `handleUpgrade` before the path is even matched, and it refuses
+     * a handshake with no accepted origin with the same bare 403 it uses for a mutation — verified:
+     * the identical upgrade answers 101 with the header and 403 without it. There is no CSRF
+     * requirement on an upgrade, which is why only the origin is carried here.
+     */
+    private val origin: String? = null,
 ) {
     @Volatile
     private var webSocket: WebSocket? = null
@@ -492,12 +534,12 @@ open class WsChannel(
     open fun start() {
         if (started) return
         started = true
-        val request = Request.Builder()
+        val builder = Request.Builder()
             .url(url)
             .authorized(authorization)
             .cookied(cookie)
-            .build()
-        webSocket = client.newWebSocket(request, listener)
+        if (origin != null) builder.header(MobileAccess.ORIGIN_HEADER, origin)
+        webSocket = client.newWebSocket(builder.build(), listener)
     }
 
     /**

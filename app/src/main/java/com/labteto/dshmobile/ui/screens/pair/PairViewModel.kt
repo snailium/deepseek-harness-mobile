@@ -3,12 +3,21 @@ package com.labteto.dshmobile.ui.screens.pair
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.labteto.dshmobile.connection.ConnectMode
 import com.labteto.dshmobile.connection.ConnectionManager
+import com.labteto.dshmobile.connection.GatewayIdentity
+import com.labteto.dshmobile.connection.GatewaySessions
 import com.labteto.dshmobile.connection.HarnessClientFactory
 import com.labteto.dshmobile.connection.HostConfig
 import com.labteto.dshmobile.connection.HostsStore
 import com.labteto.dshmobile.connection.RelayCredentialStore
 import com.labteto.dshmobile.connection.RelayIdentity
+import com.labteto.dshmobile.core.wire.MobileAccess
+import com.labteto.dshmobile.core.wire.MobileAccessInvite
+import com.labteto.dshmobile.core.wire.MobileAccessInviteResult
+import com.labteto.dshmobile.core.wire.MobileAccessPairing
+import com.labteto.dshmobile.core.wire.MobileAccessTls
+import com.labteto.dshmobile.core.wire.NativePairOutcome
 import com.labteto.dshmobile.core.wire.ObservedKey
 import com.labteto.dshmobile.core.wire.PairingPayloadResult
 import com.labteto.dshmobile.core.wire.RelayOrigin
@@ -23,6 +32,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Base64
+import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import javax.inject.Inject
@@ -56,6 +67,8 @@ data class PairUiState(
     val deviceName: String = defaultDeviceName(),
     /** Set once a QR has been read, so the screen can show what it is about to pair with. */
     val scanned: RelayPairingPayload? = null,
+    /** Set once a `dsh-mobile` invitation has been read, for the same reason. */
+    val gatewayInvite: MobileAccessInvite? = null,
     val failure: PairFailure? = null,
     /**
      * The endpoint that was just enrolled; the screen hands this back and closes.
@@ -105,6 +118,26 @@ sealed interface PairFailure {
     /** The key at the address is not the one the QR named. */
     data class CertificateMismatch(val authority: String) : PairFailure
 
+    /**
+     * A `dsh-mobile` key was given but no address to use it against.
+     *
+     * A bare app key says *what* to pair with and not *where* it is — the address comes from a LAN
+     * discovery card or from the field. A link carries its own, so this never happens for a QR.
+     */
+    data object AddressRequired : PairFailure
+
+    /** Something answered, but nothing there serves the `dsh-mobile` routes. */
+    data class NotAGateway(val authority: String) : PairFailure
+
+    /**
+     * The certificate the gateway served is not the one its pairing input named.
+     *
+     * Only reachable for a LAN gateway, whose `instanceId` *is* the fingerprint of its CA. Either
+     * the code belongs to a different computer, or something else is answering on that address —
+     * and the second is why this is a refusal rather than a warning.
+     */
+    data class GatewayCaMismatch(val authority: String) : PairFailure
+
     /** The typed address is not a URL this app can address. */
     data object InvalidUrl : PairFailure
 
@@ -126,6 +159,7 @@ class PairViewModel @Inject constructor(
     private val credentials: RelayCredentialStore,
     private val clientFactory: HarnessClientFactory,
     private val connectionManager: ConnectionManager,
+    private val gatewaySessions: GatewaySessions,
     private val okHttpClient: OkHttpClient,
 ) : ViewModel() {
 
@@ -140,8 +174,16 @@ class PairViewModel @Inject constructor(
 
     fun setUrl(value: String) = _state.update { it.copy(url = value, failure = null) }
 
+    /**
+     * The code field, which two products fill differently.
+     *
+     * A relay's code is digits and nothing else, so those were the only characters this kept. A
+     * `dsh-mobile` key is `<prefix>.<64 hex>.<token>` — dots and base64url — so filtering to digits
+     * would silently delete it as it was typed or pasted, which looks exactly like a key that does
+     * not work. Whitespace is still dropped: it is never part of either.
+     */
     fun setCode(value: String) =
-        _state.update { it.copy(code = value.filter { c -> c.isDigit() }, failure = null) }
+        _state.update { it.copy(code = value.filterNot { c -> c.isWhitespace() }, failure = null) }
 
     fun setDeviceName(value: String) = _state.update { it.copy(deviceName = value) }
 
@@ -154,6 +196,16 @@ class PairViewModel @Inject constructor(
      * single-use and lives for five minutes by default, and a scan is already an unambiguous "yes".
      */
     fun onScanned(text: String) {
+        // The two products have different payloads and the scanner cannot know which is on the
+        // screen, so the relay grammar is tried first (it is the stricter of the two) and a
+        // `dsh-mobile` invitation is what a non-match is then read as. Neither grammar accepts the
+        // other's text, so the order is not a policy — it is just which one gets asked first.
+        if (MobileAccess.parsePairingInput(text) is MobileAccessInviteResult.Valid &&
+            RelayPairing.parsePayload(text) is PairingPayloadResult.NotAPairingCode
+        ) {
+            onGatewayScanned(text)
+            return
+        }
         when (val parsed = RelayPairing.parsePayload(text)) {
             is PairingPayloadResult.NotAPairingCode ->
                 _state.update { it.copy(failure = PairFailure.NotAPairingCode) }
@@ -176,6 +228,14 @@ class PairViewModel @Inject constructor(
     /** Claim a code the user typed, against an address they typed. */
     fun submit() {
         val current = _state.value
+        // A `dsh-mobile` invitation may be sitting in either field: a link is a URL and lands in
+        // the address box when it is pasted, while a bare key has nowhere to go but the code box.
+        val invite = (MobileAccess.parsePairingInput(current.url.trim()) as? MobileAccessInviteResult.Valid)?.invite
+            ?: (MobileAccess.parsePairingInput(current.code.trim()) as? MobileAccessInviteResult.Valid)?.invite
+        if (invite != null) {
+            claimGateway(invite, current.url.trim(), _state.value.deviceName.ifBlank { defaultDeviceName() })
+            return
+        }
         val url = current.url.trim()
         if (url.toHttpUrlOrNull() == null) {
             _state.update { it.copy(failure = PairFailure.InvalidUrl) }
@@ -187,6 +247,144 @@ class PairViewModel @Inject constructor(
         }
         // No fingerprint: a typed address carries no key, so this is the trust-on-first-use path.
         claim(url, current.code, fingerprint = null)
+    }
+
+    /**
+     * A `dsh-mobile` invitation arrived from the scanner.
+     *
+     * A link carries its own address, so it can be claimed immediately — the code is single-use and
+     * short-lived, and a scan is already an unambiguous yes. A bare key does not, so it waits: the
+     * screen fills in what it knows and the address field stays the user's to complete.
+     */
+    private fun onGatewayScanned(text: String) {
+        val invite = (MobileAccess.parsePairingInput(text) as? MobileAccessInviteResult.Valid)?.invite
+            ?: run {
+                _state.update { it.copy(failure = PairFailure.NotAPairingCode) }
+                return
+            }
+        val declared = invite.origin
+        if (declared == null) {
+            _state.update { it.copy(gatewayInvite = invite, code = invite.token, failure = null) }
+            return
+        }
+        _state.update {
+            it.copy(gatewayInvite = invite, url = declared, code = invite.token, failure = null)
+        }
+        claimGateway(invite, declared, _state.value.deviceName.ifBlank { defaultDeviceName() })
+    }
+
+    /**
+     * Enrol with a `dsh-mobile` gateway: pin what it serves, then claim, then connect.
+     *
+     * The order is the whole security story. The gateway is spoken to first over a connection that
+     * trusts anything, because nothing is known about it yet — but nothing is *sent* on that
+     * connection either: the metadata probe and the CA fetch are unauthenticated reads. The
+     * certificate that comes back is then checked against the fingerprint in the invitation, which
+     * the user already holds, and only a match is stored. The claim — the one request that carries
+     * the single-use code — is made over a connection pinned to that CA (or, when the gateway
+     * serves a publicly trusted certificate, over the ordinary system-trust client).
+     *
+     * That is why a wrong-computer code fails *before* the code is spent: the fingerprint is
+     * checked first, and a mismatch is a refusal rather than a warning.
+     */
+    private fun claimGateway(invite: MobileAccessInvite, address: String, name: String) {
+        val declared = invite.origin
+        val origin = declared ?: MobileAccess.originOf(address)
+        if (origin == null || origin.toHttpUrlOrNull() == null) {
+            // A bare key with nothing usable to point it at. Not a malformed request — an
+            // incomplete one, and the field it needs is the one the user has not filled in.
+            _state.update { it.copy(gatewayInvite = invite, failure = PairFailure.AddressRequired) }
+            return
+        }
+        val parsed = origin.toHttpUrlOrNull() ?: run {
+            _state.update { it.copy(failure = PairFailure.InvalidUrl) }
+            return
+        }
+        val authority = "${parsed.host}:${parsed.port}"
+        _state.update {
+            it.copy(
+                stage = PairStage.Claiming,
+                gatewayInvite = invite,
+                url = origin,
+                failure = null,
+            )
+        }
+        viewModelScope.launch {
+            val secure = parsed.scheme == "https"
+            // Reads only, on a connection that cannot be verified yet; see the KDoc above.
+            val probe = if (secure) MobileAccessTls.unpinnedClient(okHttpClient) else okHttpClient
+            if (MobileAccessPairing.metadata(origin, probe) == null) {
+                fail(PairFailure.NotAGateway(authority))
+                return@launch
+            }
+            val caDer = if (secure) MobileAccessPairing.caCertificate(origin, probe) else null
+            val fingerprint = caDer?.let { MobileAccessPairing.certificateFingerprint(it) }
+            if (fingerprint != null && fingerprint != invite.instanceId) {
+                fail(PairFailure.GatewayCaMismatch(authority))
+                return@launch
+            }
+            if (fingerprint == null && invite.pinsPairingCa) {
+                // A `dsh2.` key promises a CA to pin and the gateway served none, so the invitation
+                // and the endpoint disagree. Continuing would mean trusting the platform store
+                // after being told not to.
+                fail(PairFailure.GatewayCaMismatch(authority))
+                return@launch
+            }
+            val claimClient = when {
+                caDer != null -> MobileAccessTls.caPinnedClient(okHttpClient, caDer)
+                secure -> okHttpClient
+                else -> okHttpClient
+            }
+            when (val outcome = MobileAccessPairing.nativePair(origin, invite.token, name, claimClient)) {
+                is NativePairOutcome.Paired -> enrolGateway(parsed, invite, outcome, caDer, fingerprint)
+                NativePairOutcome.Rejected -> fail(PairFailure.Rejected)
+                NativePairOutcome.HostRefused -> fail(PairFailure.HostRefused(authority))
+                is NativePairOutcome.RateLimited -> fail(PairFailure.RateLimited(outcome.retryAfterSeconds))
+                is NativePairOutcome.Unreachable -> fail(
+                    if (outcome.failure.kind == TransportFailure.CERTIFICATE_PIN) {
+                        PairFailure.GatewayCaMismatch(authority)
+                    } else {
+                        PairFailure.Unreachable(authority)
+                    },
+                )
+            }
+        }
+    }
+
+    /** Store what the claim produced, in the order everything downstream depends on. */
+    private suspend fun enrolGateway(
+        url: HttpUrl,
+        invite: MobileAccessInvite,
+        outcome: NativePairOutcome.Paired,
+        caDer: ByteArray?,
+        fingerprint: String?,
+    ) {
+        val response = outcome.response
+        val config = hostsStore.rememberHost(
+            name = url.host,
+            host = url.host,
+            port = url.port,
+            isLoopback = false,
+            useTls = url.scheme == "https",
+            gateway = GatewayIdentity(
+                deviceId = response.deviceId,
+                // The invitation's id, not the answer's: the answer repeats it, and a gateway that
+                // answered with a different one is a different computer than the code named.
+                instanceId = invite.instanceId,
+                caDer = caDer?.let { Base64.getEncoder().encodeToString(it) },
+                caFingerprint = fingerprint,
+            ),
+        )
+        // The endpoint is remembered first so it has an id, the durable half of the credential is
+        // stored against that id, and the session is adopted so the first connect needs no renewal.
+        gatewaySessions.forget(config.id)
+        if (response.deviceToken.isNotBlank()) credentials.put(config.id, response.deviceToken)
+        gatewaySessions.adopt(config.id, response)
+        // A paired endpoint lives on the "paired" half of the connect screen, and a gateway is one.
+        // Without this the endpoint just enrolled would be filed under the LAN half and not shown.
+        hostsStore.setSetting { it.copy(connectMode = ConnectMode.RELAY) }
+        _state.update { it.copy(stage = PairStage.Paired, paired = config, failure = null) }
+        connectionManager.connect(config)
     }
 
     private fun claim(url: String, code: String, fingerprint: String?) {
