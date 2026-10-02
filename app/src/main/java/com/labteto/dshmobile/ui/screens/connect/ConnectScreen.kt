@@ -215,7 +215,14 @@ fun ConnectScreen(
                             // A relay will not answer `/api` to a device it has never seen, so
                             // "Connect" on one of these cards could only ever produce a 403. It
                             // carries the address into pairing instead.
-                            if (found.isRelay) onPair(found.baseUrl) else viewModel.connectDiscovered(found)
+                            // Neither a relay nor a gateway will answer `/api` to a device it has
+                            // never seen, so "Connect" on one of these cards could only ever
+                            // produce a 403. Both carry the address into pairing instead.
+                            if (found.isRelay || found.isGateway) {
+                                onPair(found.baseUrl)
+                            } else {
+                                viewModel.connectDiscovered(found)
+                            }
                         }
                     }
                 }
@@ -506,6 +513,10 @@ private fun DiscoveredHarnessCard(found: DiscoveredHost, onConnect: () -> Unit) 
         DiscoveredRelayCard(found, onConnect)
         return
     }
+    if (found.isGateway) {
+        DiscoveredGatewayCard(found, onConnect)
+        return
+    }
     DsCard(onClick = if (description != null) onConnect else null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -616,6 +627,64 @@ private fun DiscoveredRelayCard(found: DiscoveredHost, onPair: () -> Unit) {
                 stringResource(R.string.connect_relay_refused_hint, found.authority),
                 style = DsType.caption11,
                 color = colors.labelTertiary,
+            )
+        }
+    }
+}
+
+/**
+ * One `dsh-mobile` gateway found by its advertisement or by its broadcast reply.
+ *
+ * Like a relay, it says nothing about the harness behind it until this device pairs — every `/api`
+ * call is refused with a 401 first — so the card's job is to carry the address and the instance id
+ * into pairing. Unlike a relay it does name itself, and the name is what the card shows: the person
+ * is looking for the computer they just opened the panel on, not for an IP address.
+ */
+@Composable
+private fun DiscoveredGatewayCard(found: DiscoveredHost, onPair: () -> Unit) {
+    val colors = DsTheme.colors
+    DsCard(onClick = onPair) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                FeatherIcons.Shield,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.width(14.dp),
+            )
+            Spacer(Modifier.width(DsSpacing.compact))
+            Text(
+                found.deviceName?.takeIf { it.isNotBlank() } ?: found.authority,
+                style = DsType.std14Strong,
+                color = colors.labelPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            DsButton(
+                text = stringResource(R.string.connect_gateway_pair_this),
+                onClick = onPair,
+                variant = DsButtonVariant.Info,
+                size = DsButtonSize.Small,
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DsPill(
+                text = stringResource(
+                    if (found.useTls) {
+                        R.string.connect_gateway_encrypted
+                    } else {
+                        R.string.connect_gateway_plaintext
+                    },
+                ),
+                warn = !found.useTls,
+            )
+            Spacer(Modifier.width(DsSpacing.compact))
+            Text(
+                found.authority,
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

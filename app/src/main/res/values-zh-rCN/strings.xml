@@ -403,9 +403,9 @@
     <string name="settings_update_check_hint">应用启动时向 GitHub 查询最新发行版。</string>
     <string name="connect_mode_title">连接方式</string>
     <string name="connect_mode_lan">局域网</string>
-    <string name="connect_mode_relay">中继</string>
+    <string name="connect_mode_relay">已配对</string>
     <string name="connect_mode_lan_hint">直接连接同一 Wi-Fi 下的 harness。它会为本机登录一次，但连接不加密，请只在可信网络中使用。</string>
-    <string name="connect_mode_relay_hint">通过 dsh-relay 连接 harness。本设备保存一次性签发的令牌，连接经过加密，在 Wi-Fi 之外也能使用。</string>
+    <string name="connect_mode_relay_hint">连接已配对的 harness：dsh-relay 或 DSH Mobile 网关。本设备保存一次性签发的令牌，连接经过加密，在 Wi-Fi 之外也能使用。</string>
     <string name="connect_relay_banner">中继只验证连接的人是不是你。配对之后，本设备可以在那台电脑上执行命令，与在它上面打开终端完全一样。</string>
     <string name="connect_relay_remembered">已配对的中继</string>
     <string name="connect_relay_remembered_empty">配对过的中继会显示在这里。</string>
@@ -451,6 +451,12 @@
     <string name="pair_fail_certificate">%1$s 的密钥与该配对码指明的不一致。请不要配对——该地址上可能是别的东西在应答。</string>
     <string name="pair_fail_url">请输入中继地址，包含 https://</string>
     <string name="pair_fail_code">请输入中继配对页面上显示的配对码。</string>
+    <string name="pair_fail_not_a_gateway">%1$s 有应答，但该地址上没有 DSH Mobile 的配对接口。请确认那台电脑上已启用 dsh-mobile 插件。</string>
+    <string name="pair_fail_gateway_ca">%1$s 提供的证书与该配对密钥指明的不一致。请不要配对——该密钥属于另一台电脑，或者该地址上可能是别的东西在应答。</string>
+    <string name="pair_fail_address_required">该配对密钥指明了电脑，但没有指明地址。请输入 DSH Mobile 面板上显示的地址，例如 192.168.1.20:3443。</string>
+    <string name="connect_gateway_pair_this">配对</string>
+    <string name="connect_gateway_encrypted">已加密</string>
+    <string name="connect_gateway_plaintext">未加密</string>
     <string name="connect_relay_pair_another">配对其他中继</string>
     <string name="connect_relay_refused">拒绝该地址</string>
     <string name="connect_relay_refused_hint">这里确实有中继在运行，但它只响应自己已知的地址。请在那台电脑上把 %1$s 加入中继 cordis.patch.yml 的 publicHostnames，然后重启中继。</string>

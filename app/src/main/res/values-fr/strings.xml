@@ -537,4 +537,10 @@
     <string name="settings_composer">Rédaction</string>
     <string name="settings_enter_to_send">La touche Entrée envoie le message</string>
     <string name="settings_enter_to_send_hint">Désactivé, Entrée insère un saut de ligne et le bouton envoie.</string>
+    <string name="pair_fail_not_a_gateway">%1$s a répondu, mais rien n\'y sert les routes d\'appairage DSH Mobile. Vérifiez que le plugin dsh-mobile est activé sur cet ordinateur.</string>
+    <string name="pair_fail_gateway_ca">Le certificat sur %1$s n\'est pas celui que désigne ce code d\'appairage. Ne l\'appairez pas — ce code appartient à un autre ordinateur, ou autre chose répond à cette adresse.</string>
+    <string name="pair_fail_address_required">Cette clé d\'appairage nomme l\'ordinateur mais pas son adresse. Saisissez l\'adresse affichée dans le panneau DSH Mobile, par exemple 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Appairer</string>
+    <string name="connect_gateway_encrypted">Chiffré</string>
+    <string name="connect_gateway_plaintext">Non chiffré</string>
 </resources>

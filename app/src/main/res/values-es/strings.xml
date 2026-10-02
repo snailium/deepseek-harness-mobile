@@ -537,4 +537,10 @@
     <string name="settings_composer">Redacción</string>
     <string name="settings_enter_to_send">La tecla Intro envía el mensaje</string>
     <string name="settings_enter_to_send_hint">Desactivado, Intro inserta un salto de línea y envía el botón.</string>
+    <string name="pair_fail_not_a_gateway">%1$s respondió, pero allí no hay rutas de emparejamiento de DSH Mobile. Comprueba que el plugin dsh-mobile esté activado en ese equipo.</string>
+    <string name="pair_fail_gateway_ca">El certificado en %1$s no es el que indica este código de emparejamiento. No emparejes: este código pertenece a otro equipo, o algo distinto responde en esa dirección.</string>
+    <string name="pair_fail_address_required">Esta clave de emparejamiento nombra el equipo pero no su dirección. Introduce la dirección que muestra el panel de DSH Mobile, por ejemplo 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Emparejar</string>
+    <string name="connect_gateway_encrypted">Cifrado</string>
+    <string name="connect_gateway_plaintext">Sin cifrar</string>
 </resources>

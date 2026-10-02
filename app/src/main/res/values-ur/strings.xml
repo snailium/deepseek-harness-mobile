@@ -537,4 +537,10 @@
     <string name="settings_composer">کمپوزر</string>
     <string name="settings_enter_to_send">انٹر کلید پیغام بھیجتی ہے</string>
     <string name="settings_enter_to_send_hint">بند ہونے پر انٹر کلید نئی سطر ڈالتا ہے اور بھیجیں بٹن بھیجتا ہے۔</string>
+    <string name="pair_fail_not_a_gateway">%1$s نے جواب دیا، مگر وہاں DSH Mobile کے پیئرنگ روٹس موجود نہیں۔ دیکھیں کہ اُس کمپیوٹر پر dsh-mobile پلگ اِن فعال ہے۔</string>
+    <string name="pair_fail_gateway_ca">%1$s پر موجود سرٹیفکیٹ وہ نہیں جس کا یہ پیئرنگ کوڈ بتاتا ہے۔ پیئر نہ کریں — یہ کوڈ کسی دوسرے کمپیوٹر کا ہے، یا اُس پتے پر کوئی اور جواب دے رہا ہے۔</string>
+    <string name="pair_fail_address_required">یہ پیئرنگ کلید کمپیوٹر کا نام بتاتی ہے مگر پتہ نہیں۔ DSH Mobile پینل میں دکھایا گیا پتہ درج کریں، مثلاً 192.168.1.20:3443۔</string>
+    <string name="connect_gateway_pair_this">پیئر کریں</string>
+    <string name="connect_gateway_encrypted">خفیہ کردہ</string>
+    <string name="connect_gateway_plaintext">غیر خفیہ</string>
 </resources>

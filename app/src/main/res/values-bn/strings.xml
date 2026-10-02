@@ -537,4 +537,10 @@
     <string name="settings_composer">কম্পোজার</string>
     <string name="settings_enter_to_send">এন্টার কী বার্তা পাঠায়</string>
     <string name="settings_enter_to_send_hint">বন্ধ থাকলে এন্টার কী নতুন লাইন যোগ করে এবং পাঠানোর বোতাম পাঠায়।</string>
+    <string name="pair_fail_not_a_gateway">%1$s উত্তর দিয়েছে, কিন্তু সেখানে DSH Mobile-এর পেয়ারিং রুট নেই। ওই কম্পিউটারে dsh-mobile প্লাগইন চালু আছে কি না দেখুন।</string>
+    <string name="pair_fail_gateway_ca">%1$s-এ থাকা সার্টিফিকেট এই পেয়ারিং কোডে উল্লেখিতটির মতো নয়। পেয়ার করবেন না — কোডটি অন্য কম্পিউটারের, অথবা ওই ঠিকানায় অন্য কিছু উত্তর দিচ্ছে।</string>
+    <string name="pair_fail_address_required">এই পেয়ারিং কী কম্পিউটারের নাম বলে কিন্তু ঠিকানা নয়। DSH Mobile প্যানেলে দেখানো ঠিকানা লিখুন, যেমন 192.168.1.20:3443।</string>
+    <string name="connect_gateway_pair_this">পেয়ার</string>
+    <string name="connect_gateway_encrypted">এনক্রিপ্টেড</string>
+    <string name="connect_gateway_plaintext">এনক্রিপ্ট ছাড়া</string>
 </resources>

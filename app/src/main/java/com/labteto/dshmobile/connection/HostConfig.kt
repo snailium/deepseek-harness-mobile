@@ -45,6 +45,27 @@ data class HostConfig(
     val relayDeviceId: String? = null,
     /** Epoch millis the device token expires, as the relay reported it at pairing. */
     val relayTokenExpiresAt: Long = 0L,
+    /**
+     * The `dsh-mobile` gateway's own id for this device, shown in its device list.
+     *
+     * Non-null iff this host is a gateway this device paired with, which is why it — and not a
+     * transport flag — is what [isGateway] reads. A gateway reached over plain HTTP on a LAN and one
+     * reached through a TLS tunnel are the same kind of endpoint, and an `https` address this device
+     * never paired with is not one.
+     */
+    val gatewayDeviceId: String? = null,
+    /** The gateway's stable instance id, as it named itself at pairing. */
+    val gatewayInstanceId: String? = null,
+    /**
+     * Base64 DER of the CA the gateway's listener is signed by, when it serves a private one.
+     *
+     * Not a secret — a certificate is public — so it lives here with the rest of the record rather
+     * than in the encrypted store. Null means the listener uses a publicly trusted certificate (a
+     * tunnel, a reverse proxy) and the platform trust store is the whole decision.
+     */
+    val gatewayCaDer: String? = null,
+    /** Lower-case hex SHA-256 of [gatewayCaDer]; what the pairing input was checked against. */
+    val gatewayCaFingerprint: String? = null,
 ) {
     /** Bare `host:port` — the identity key and display form, deliberately scheme-free. */
     val authority: String get() = "$host:$port"
@@ -61,6 +82,19 @@ data class HostConfig(
      * not one.
      */
     val isRelay: Boolean get() = relayDeviceId != null
+
+    /**
+     * Whether this endpoint is a paired `dsh-mobile` gateway.
+     *
+     * Mutually exclusive with [isRelay] in practice: the two are different products with different
+     * credential models, and a host that somehow carried both ids would be one this build has no
+     * coherent way to address. Pairing always clears the other side's identity, so the state cannot
+     * arise from this app.
+     */
+    val isGateway: Boolean get() = gatewayDeviceId != null
+
+    /** Whether this endpoint replaces the harness's own session (gateway or relay). */
+    val isCredentialed: Boolean get() = isRelay || isGateway
 
     /** Whether traffic to this endpoint travels in the clear. */
     val isPlaintext: Boolean get() = !useTls
@@ -98,6 +132,23 @@ data class DiscoveredHost(
      * `publicHostnames` away — hiding it would send someone looking for a fault that is not there.
      */
     val hostRefused: Boolean = false,
+    /**
+     * Whether this is a `dsh-mobile` gateway rather than a bare harness.
+     *
+     * A gateway refuses every `/api` call until this device pairs, so like [isRelay] it routes to
+     * pairing instead of connecting.
+     */
+    val isGateway: Boolean = false,
+    /**
+     * The gateway's instance id, when the advertisement carried one.
+     *
+     * On a LAN this is the fingerprint of the CA that signs the listener, so it is also what the
+     * pairing input is checked against — a discovered card and a scanned code agree on it, and a
+     * code for a different computer does not.
+     */
+    val instanceId: String? = null,
+    /** What the computer calls itself in its advertisement. */
+    val deviceName: String? = null,
 ) {
     val authority: String get() = "$host:$port"
 
@@ -179,7 +230,16 @@ object ConnectMode {
     /** Straight at a harness on the local network, over plain HTTP, with no credential. */
     const val LAN: String = "lan"
 
-    /** Through a `dsh-relay`, holding a device token and pinning the relay's key. */
+    /**
+     * Through a paired endpoint: a `dsh-relay`, or a `dsh-mobile` gateway.
+     *
+     * One mode for both, because the user-facing decision is the same one — "reach my computer the
+     * way I enrolled this phone, from anywhere" — and the two products differ in how they hold the
+     * credential, not in what choosing that path means. What the mode excludes is the *unpaired*
+     * case: a bare harness on the local network, which is signed in once with no credential of its
+     * own. Auto-connect never crosses between the two, because doing so would make the choice on the
+     * connect screen a suggestion.
+     */
     const val RELAY: String = "relay"
 
     /** Read a stored value back, falling back to [LAN] for anything unrecognised. */

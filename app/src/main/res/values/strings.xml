@@ -407,9 +407,9 @@
     <!-- Relay: choosing how to connect, pairing, and the failures that need a different fix. -->
     <string name="connect_mode_title">How to connect</string>
     <string name="connect_mode_lan">Local network</string>
-    <string name="connect_mode_relay">Relay</string>
+    <string name="connect_mode_relay">Paired</string>
     <string name="connect_mode_lan_hint">Talk straight to a harness on your Wi-Fi. It signs this device in once, but the connection is not encrypted, so use it only on a network you trust.</string>
-    <string name="connect_mode_relay_hint">Talk to a harness through dsh-relay. This device holds a token it is issued once, the connection is encrypted, and it works from outside your Wi-Fi.</string>
+    <string name="connect_mode_relay_hint">Talk to a harness you paired with: dsh-relay, or the DSH Mobile gateway. This device holds a token it was issued once, the connection is encrypted, and it works from outside your Wi-Fi.</string>
     <string name="connect_relay_banner">A relay checks that it is you, and nothing else. Once paired, this device can run commands on that computer, exactly as a terminal on it could.</string>
     <string name="connect_relay_remembered">Paired relays</string>
     <string name="connect_relay_remembered_empty">Relays you pair with appear here.</string>
@@ -455,6 +455,12 @@
     <string name="pair_fail_certificate">The key at %1$s is not the one this code names. Do not pair — something else may be answering at that address.</string>
     <string name="pair_fail_url">Enter the relay address, including https://</string>
     <string name="pair_fail_code">Enter the code shown on the relay\'s pairing page.</string>
+    <string name="pair_fail_not_a_gateway">%1$s answered, but nothing there serves the DSH Mobile pairing routes. Check that the dsh-mobile plugin is enabled on that computer.</string>
+    <string name="pair_fail_gateway_ca">The certificate at %1$s is not the one this pairing code names. Do not pair — this code belongs to a different computer, or something else is answering at that address.</string>
+    <string name="pair_fail_address_required">This pairing key names the computer but not its address. Enter the address shown on the DSH Mobile panel, for example 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Pair</string>
+    <string name="connect_gateway_encrypted">Encrypted</string>
+    <string name="connect_gateway_plaintext">Unencrypted</string>
     <string name="connect_relay_pair_another">Pair another relay</string>
     <string name="connect_relay_refused">Refuses this address</string>
     <string name="connect_relay_refused_hint">A relay is running here, but it only answers to addresses it already knows. Add %1$s to publicHostnames in the relay\'s cordis.patch.yml on that computer, then restart it.</string>

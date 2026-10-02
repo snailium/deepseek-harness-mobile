@@ -1,6 +1,7 @@
 package com.labteto.dshmobile.connection
 
 import com.labteto.dshmobile.core.wire.DshApiClient
+import com.labteto.dshmobile.core.wire.MobileAccess
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.RelayTls
 import com.labteto.dshmobile.core.wire.RemoteStreamMux
@@ -29,6 +30,7 @@ class HarnessClientFactory @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val credentials: RelayCredentialStore,
     private val sessions: HarnessSessionStore,
+    private val gatewaySessions: GatewaySessions,
 ) {
     /**
      * Pinned clients, one per fingerprint.
@@ -54,14 +56,39 @@ class HarnessClientFactory @Inject constructor(
         if (config.isRelay) credentials.authorization(config.id) else null
 
     /**
+     * The HTTP client for [config], pinned when the endpoint publishes an identity to pin.
+     *
+     * A relay pins a public key; a gateway pins a CA. Both are cached by the value pinned, because
+     * each carries its own `SSLContext` and connection pool and rebuilding one per request would
+     * discard every kept-alive connection, the resident mux socket included.
+     */
+    fun httpClient(config: HostConfig): OkHttpClient = when {
+        config.isGateway -> gatewaySessions.clientFor(config)
+        else -> httpClient(config.relayFingerprint)
+    }
+
+    /**
      * The harness browser session for [config], or null.
      *
      * Only for a direct connection. Behind a relay the relay holds the harness session and
      * injects it upstream, so sending one from here would put the host's own credential on the
      * network — and the relay strips the header anyway.
      */
-    private suspend fun cookieFor(config: HostConfig): String? =
-        if (config.isRelay) null else sessions.cookie(config.id)
+    private suspend fun cookieFor(config: HostConfig): String? = when {
+        // The relay holds the harness session itself, so a cookie sent from here would put the
+        // host's own credential on the network — and the relay strips it anyway.
+        config.isRelay -> null
+        // A gateway mints a session *for this device*; it is the whole of what `/api` authenticates
+        // against, and the harness behind it never sees this cookie.
+        //
+        // Minted rather than read, because the mux is opened *before* any unary call: the loop's
+        // first step is the WebSocket upgrade, so a session that only the unary path knew how to
+        // obtain would leave every generation failing its handshake with a 401 nobody could fix.
+        config.isGateway -> gatewaySessions.session(config)?.let {
+            MobileAccess.sessionCookie(it.sessionToken)
+        }
+        else -> sessions.cookie(config.id)
+    }
 
     /**
      * A client for [config], carrying whatever credential and pin that endpoint needs.
@@ -70,6 +97,10 @@ class HarnessClientFactory @Inject constructor(
      * a long `session/page` on a big session is not a stalled request.
      */
     suspend fun clientFor(config: HostConfig, timeouts: ProbeTimeouts? = null): DshApiClient {
+        // A gateway wraps its transport rather than configuring one: the session it authenticates
+        // with expires mid-connection, and the retry that mints a new one has to sit between the
+        // caller and the socket to be invisible.
+        if (config.isGateway) return DshApiClient(GatewayTransport(config, gatewaySessions, timeouts))
         val http = httpClient(config.relayFingerprint)
         val authorization = authorizationFor(config)
         val base = config.baseUrl
@@ -93,12 +124,16 @@ class HarnessClientFactory @Inject constructor(
      * the unary client outlives both.
      */
     suspend fun muxFor(config: HostConfig): RemoteStreamMux {
-        val http = httpClient(config.relayFingerprint)
+        val http = httpClient(config)
         val authorization = authorizationFor(config)
         val base = config.baseUrl
         val cookie = cookieFor(config)
+        // The gateway's fence runs on the upgrade too, and refuses a handshake with no accepted
+        // origin with the same bare 403 it uses for a POST. A relay and a bare harness do not read
+        // the header, so it is sent only where it is required.
+        val origin = if (config.isGateway) MobileAccess.originOf(base) else null
         return RemoteStreamMux { sink ->
-            WsChannel("$base$REMOTE_STREAM_MUX_PATH", http, sink, authorization, cookie)
+            WsChannel("$base$REMOTE_STREAM_MUX_PATH", http, sink, authorization, cookie, origin)
         }
     }
 

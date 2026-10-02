@@ -99,7 +99,7 @@ data class ConnectUiState(
 ) {
     /** Remembered endpoints belonging to the selected mode. */
     val visibleHosts: List<HostConfig>
-        get() = remembered.filter { it.isRelay == (mode == ConnectMode.RELAY) }
+        get() = remembered.filter { it.isCredentialed == (mode == ConnectMode.RELAY) }
     /**
      * Derived, never stored.
      *
@@ -123,9 +123,14 @@ data class ConnectUiState(
             return discovered.filterNot { it.authority in known }
         }
 
-    /** Whether the endpoint currently being attempted is a paired relay. */
+    /**
+     * Whether the endpoint currently being attempted is one this device paired with.
+     *
+     * True for a relay and for a `dsh-mobile` gateway alike, because the screen uses it for one
+     * thing: deciding that a refused credential means "pair again" rather than a trust fence.
+     */
     val attemptingRelay: Boolean
-        get() = remembered.firstOrNull { it.authority == attempted }?.isRelay == true
+        get() = remembered.firstOrNull { it.authority == attempted }?.isCredentialed == true
 
     /**
      * Origin of the endpoint being attempted, for a "pair again" that lands prefilled.
@@ -327,7 +332,7 @@ class ConnectViewModel @Inject constructor(
         // 1. Last used host — of this mode. A relay and a bare harness can be the same machine, and
         //    the most recent entry overall is often the one the user just switched away from.
         if (settings.autoConnectLast) {
-            val last = hostsStore.hosts.first().firstOrNull { it.isRelay == relayMode }
+            val last = hostsStore.hosts.first().firstOrNull { it.isCredentialed == relayMode }
             if (last != null) {
                 val desc = discoveryEngine.probe(last.host, last.port, ProbeTimeouts.Manual, config = last)
                 if (desc != null) {
@@ -342,9 +347,10 @@ class ConnectViewModel @Inject constructor(
             //     connected to without the user typing a code, so auto-connect has nothing to do
             //     with one.
             if (settings.autoConnectRelay) {
-                val known = hostsStore.hosts.first().filter { it.isRelay }
+                val known = hostsStore.hosts.first().filter { it.isCredentialed }
                 if (known.isNotEmpty()) {
-                    val advertised = mdnsDiscovery.browse().map { it.authority }.toSet()
+                    val advertised = mdnsDiscovery.browse().map { it.authority }.toSet() +
+                        mdnsDiscovery.broadcastGateways().map { it.authority }.toSet()
                     val match = known.firstOrNull { it.authority in advertised }
                     if (match != null) connectTo(match)
                 }
@@ -419,7 +425,7 @@ class ConnectViewModel @Inject constructor(
             val settings = hostsStore.settingsOnce()
             try {
                 if (settings.connectMode == ConnectMode.RELAY) {
-                    scanForRelays()
+                    scanForPaired()
                     return@launch
                 }
                 discoveryEngine.scan(
@@ -442,15 +448,18 @@ class ConnectViewModel @Inject constructor(
     }
 
     /**
-     * Relay discovery: the advertisement first, the sweep only if it turned nothing up.
+     * Paired-endpoint discovery: the advertisement first, the sweep only if it turned nothing up.
      *
-     * A relay publishes `_dsh._tcp` with its port, its TLS posture and its key, so a browse answers
-     * in a second or two and finds relays a /24 sweep would never look at. Nothing depends on it
-     * arriving, though — multicast is filtered on plenty of networks and the relay's `mdns` flag can
-     * be off — so a quiet browse falls through to knocking the two ports a relay actually uses,
-     * which is far cheaper than the harness sweep.
+     * A relay publishes `_dsh._tcp` and a gateway `_dsh-mobile._tcp`, each with its port, its TLS
+     * posture and the identity to pin, so a browse answers in a second or two and finds endpoints a
+     * /24 sweep would never look at. A gateway is additionally asked by broadcast — the datagram its
+     * own app sends — which reaches one whose multicast Android's resolver drops.
+     *
+     * Nothing depends on either arriving: multicast is filtered on plenty of networks and a
+     * gateway's broadcast can be stopped by a firewall, so a quiet browse falls through to knocking
+     * the two ports a relay actually uses, which is far cheaper than the harness sweep.
      */
-    private suspend fun scanForRelays() {
+    private suspend fun scanForPaired() {
         val report: (DiscoveredHost) -> Unit = { found ->
             _state.update { state ->
                 if (state.discovered.any { it.authority == found.authority }) state
@@ -458,7 +467,12 @@ class ConnectViewModel @Inject constructor(
             }
         }
         val advertised = mdnsDiscovery.browse(onFound = report)
-        if (advertised.isEmpty()) discoveryEngine.scanForRelays(onFound = report)
+        // Broadcast runs beside the browse rather than after it, and its findings stream to the
+        // same place: the two overlap, so whatever arrives first is what the card shows.
+        val broadcast = mdnsDiscovery.broadcastGateways(onFound = report)
+        if (advertised.isEmpty() && broadcast.isEmpty()) {
+            discoveryEngine.scanForRelays(onFound = report)
+        }
     }
 
     /** Stop a sweep in flight, keeping anything it has already turned up. */
@@ -487,7 +501,7 @@ class ConnectViewModel @Inject constructor(
         _state.update { it.copy(stage = ConnectStage.Validating, failure = null, attempted = authority) }
 
         viewModelScope.launch {
-            val paired = hostsStore.hosts.first().firstOrNull { it.authority == authority && it.isRelay }
+            val paired = hostsStore.hosts.first().firstOrNull { it.authority == authority && it.isCredentialed }
             // Cheap and decisive: the sweep only ever looks at this phone's own /24, so an address
             // outside it can never be reached from here and can never be found by scanning either.
             // Saying so now beats a four-second timeout that blames the firewall.
