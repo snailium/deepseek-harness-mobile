@@ -607,6 +607,12 @@
     <string name="update_copy_command">Copiar comando de instalación</string>
     <string name="update_install_started">Descargando en Termux. El instalador se abrirá al terminar.</string>
     <string name="update_install_failed">Termux no pudo instalar la actualización (%1$s).</string>
+    <string name="pair_fail_not_a_gateway">%1$s respondió, pero allí no hay rutas de emparejamiento de DSH Mobile. Comprueba que el plugin dsh-mobile esté activado en ese equipo.</string>
+    <string name="pair_fail_gateway_ca">El certificado en %1$s no es el que indica este código de emparejamiento. No emparejes: este código pertenece a otro equipo, o algo distinto responde en esa dirección.</string>
+    <string name="pair_fail_address_required">Esta clave de emparejamiento nombra el equipo pero no su dirección. Introduce la dirección que muestra el panel de DSH Mobile, por ejemplo 192.168.1.20:3443.</string>
+    <string name="connect_gateway_pair_this">Emparejar</string>
+    <string name="connect_gateway_encrypted">Cifrado</string>
+    <string name="connect_gateway_plaintext">Sin cifrar</string>
     <string name="chat_history_title">Historial</string>
     <string name="chat_history_empty">Todavía no hay mensajes enviados.</string>
     <string name="chat_history_no_match">Ningún mensaje coincide.</string>

@@ -607,6 +607,12 @@
     <string name="update_copy_command">ইনস্টল কমান্ড কপি করুন</string>
     <string name="update_install_started">Termux-এ ডাউনলোড হচ্ছে। শেষ হলে ইনস্টলার খুলবে।</string>
     <string name="update_install_failed">Termux আপডেটটি ইনস্টল করতে পারেনি (%1$s)।</string>
+    <string name="pair_fail_not_a_gateway">%1$s উত্তর দিয়েছে, কিন্তু সেখানে DSH Mobile-এর পেয়ারিং রুট নেই। ওই কম্পিউটারে dsh-mobile প্লাগইন চালু আছে কি না দেখুন।</string>
+    <string name="pair_fail_gateway_ca">%1$s-এ থাকা সার্টিফিকেট এই পেয়ারিং কোডে উল্লেখিতটির মতো নয়। পেয়ার করবেন না — কোডটি অন্য কম্পিউটারের, অথবা ওই ঠিকানায় অন্য কিছু উত্তর দিচ্ছে।</string>
+    <string name="pair_fail_address_required">এই পেয়ারিং কী কম্পিউটারের নাম বলে কিন্তু ঠিকানা নয়। DSH Mobile প্যানেলে দেখানো ঠিকানা লিখুন, যেমন 192.168.1.20:3443।</string>
+    <string name="connect_gateway_pair_this">পেয়ার</string>
+    <string name="connect_gateway_encrypted">এনক্রিপ্টেড</string>
+    <string name="connect_gateway_plaintext">এনক্রিপ্ট ছাড়া</string>
     <string name="chat_history_title">ইতিহাস</string>
     <string name="chat_history_empty">এখনও কোনো বার্তা পাঠানো হয়নি।</string>
     <string name="chat_history_no_match">কোনো বার্তা মেলেনি।</string>
