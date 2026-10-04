@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -56,6 +57,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -707,9 +709,26 @@ private fun WorkspaceHeader(
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
+            Spacer(Modifier.width(DsSpacing.small))
             Text(sessionCount.toString(), style = DsType.xsmall12, color = colors.labelCaption)
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(colors.hoverSolid)
+                    .border(1.dp, colors.borderL2, CircleShape)
+                    .clickable(role = Role.Button, onClickLabel = stringResource(R.string.chatlist_workspace_new_session)) { onNewSession() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    FeatherIcons.Plus,
+                    contentDescription = stringResource(R.string.chatlist_workspace_new_session),
+                    tint = colors.labelPrimary,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
         }
         if (menuOpen) {
             WorkspaceMenu(
