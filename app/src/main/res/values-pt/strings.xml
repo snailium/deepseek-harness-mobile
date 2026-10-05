@@ -82,11 +82,8 @@
     <string name="connect_never">Nunca conectado</string>
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">Conversas</string>
-    <string name="chatlist_new_session">Nova sessão</string>
-    <string name="chatlist_new_session_in">Nova sessão em…</string>
-    <string name="chatlist_home_directory">Pasta pessoal</string>
+    <string name="chatlist_add_workspace">Adicionar espaço de trabalho</string>
     <string name="chatlist_filter_all">Tudo</string>
-    <string name="chatlist_no_workspaces">Ainda não há espaços de trabalho — crie um abaixo.</string>
     <string name="chatlist_search_hint">Pesquisar sessões</string>
     <string name="chatlist_empty">Ainda não há sessões</string>
     <string name="chatlist_empty_hint">Inicie uma nova sessão pelo Harness ou por aqui.</string>
@@ -94,7 +91,6 @@
     <string name="chatlist_sessions">Sessões</string>
     <string name="chatlist_subagents">Subagentes</string>
     <string name="chatlist_archived">Arquivadas</string>
-    <string name="chatlist_new_workspace">Novo espaço de trabalho</string>
     <string name="chatlist_workspace_name">Nome do espaço de trabalho</string>
     <string name="chatlist_workspace_path">Caminho da pasta</string>
     <string name="chatlist_session_rename">Renomear sessão</string>

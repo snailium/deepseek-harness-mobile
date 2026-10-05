@@ -82,11 +82,8 @@
     <string name="connect_never">ยังไม่เคยเชื่อมต่อ</string>
     <string name="connect_harness_version_only">ฮาร์เนส %1$s</string>
     <string name="chatlist_title">แชท</string>
-    <string name="chatlist_new_session">เซสชันใหม่</string>
-    <string name="chatlist_new_session_in">เซสชันใหม่ใน…</string>
-    <string name="chatlist_home_directory">โฮมไดเรกทอรี</string>
+    <string name="chatlist_add_workspace">เพิ่มพื้นที่ทำงาน</string>
     <string name="chatlist_filter_all">ทั้งหมด</string>
-    <string name="chatlist_no_workspaces">ยังไม่มีเวิร์กสเปซ — สร้างด้านล่าง</string>
     <string name="chatlist_search_hint">ค้นหาเซสชัน</string>
     <string name="chatlist_empty">ยังไม่มีเซสชัน</string>
     <string name="chatlist_empty_hint">เริ่มเซสชันใหม่จาก Harness หรือจากที่นี่</string>
@@ -94,7 +91,6 @@
     <string name="chatlist_sessions">เซสชัน</string>
     <string name="chatlist_subagents">ซับเอเจนต์</string>
     <string name="chatlist_archived">เก็บถาวรแล้ว</string>
-    <string name="chatlist_new_workspace">เวิร์กสเปซใหม่</string>
     <string name="chatlist_workspace_name">ชื่อเวิร์กสเปซ</string>
     <string name="chatlist_workspace_path">เส้นทางโฟลเดอร์</string>
     <string name="chatlist_session_rename">เปลี่ยนชื่อเซสชัน</string>

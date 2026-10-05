@@ -82,11 +82,8 @@
     <string name="connect_never">Jamais connecté</string>
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">Discussions</string>
-    <string name="chatlist_new_session">Nouvelle session</string>
-    <string name="chatlist_new_session_in">Nouvelle session dans…</string>
-    <string name="chatlist_home_directory">Dossier personnel</string>
+    <string name="chatlist_add_workspace">Ajouter un espace de travail</string>
     <string name="chatlist_filter_all">Tout</string>
-    <string name="chatlist_no_workspaces">Aucun espace de travail pour l\'instant — créez-en un ci-dessous.</string>
     <string name="chatlist_search_hint">Rechercher des sessions</string>
     <string name="chatlist_empty">Aucune session pour le moment</string>
     <string name="chatlist_empty_hint">Démarrez une nouvelle session depuis le Harness ou d’ici.</string>
@@ -94,7 +91,6 @@
     <string name="chatlist_sessions">Sessions</string>
     <string name="chatlist_subagents">Sous-agents</string>
     <string name="chatlist_archived">Archivées</string>
-    <string name="chatlist_new_workspace">Nouvel espace de travail</string>
     <string name="chatlist_workspace_name">Nom de l’espace de travail</string>
     <string name="chatlist_workspace_path">Chemin du dossier</string>
     <string name="chatlist_session_rename">Renommer la session</string>

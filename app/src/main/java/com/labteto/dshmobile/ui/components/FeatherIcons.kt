@@ -620,6 +620,25 @@ internal object FeatherIcons {
         }
     }
 
+    /** `folder-plus` — add workspace; the same glyph dsh-web uses for its "Add workspace…" entry. */
+    val FolderPlus: ImageVector by lazy {
+        feather("FolderPlus") {
+            moveTo(22f, 19f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 20f, 21f)
+            lineTo(4f, 21f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, 19f)
+            lineTo(2f, 5f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 4f, 3f)
+            lineTo(9f, 3f)
+            lineTo(11f, 6f)
+            lineTo(20f, 6f)
+            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 22f, 8f)
+            close()
+            moveTo(12f, 11f); lineTo(12f, 17f)
+            moveTo(9f, 14f); lineTo(15f, 14f)
+        }
+    }
+
     /** `message-square` — chat copy. */
     val MessageSquare: ImageVector by lazy {
         feather("MessageSquare") {

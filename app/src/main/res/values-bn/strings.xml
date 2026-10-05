@@ -82,11 +82,8 @@
     <string name="connect_never">কখনও সংযোগ হয়নি</string>
     <string name="connect_harness_version_only">হারনেস %1$s</string>
     <string name="chatlist_title">চ্যাট</string>
-    <string name="chatlist_new_session">নতুন সেশন</string>
-    <string name="chatlist_new_session_in">নতুন সেশনের জন্য…</string>
-    <string name="chatlist_home_directory">হোম ডিরেক্টরি</string>
+    <string name="chatlist_add_workspace">ওয়ার্কস্পেস যোগ করুন</string>
     <string name="chatlist_filter_all">সব</string>
-    <string name="chatlist_no_workspaces">এখনো কোনো ওয়ার্কস্পেস নেই — নিচে একটি তৈরি করুন।</string>
     <string name="chatlist_search_hint">সেশন খুঁজুন</string>
     <string name="chatlist_empty">এখনো কোনো সেশন নেই</string>
     <string name="chatlist_empty_hint">Harness থেকে বা এখান থেকে একটি নতুন সেশন শুরু করুন।</string>
@@ -94,7 +91,6 @@
     <string name="chatlist_sessions">সেশন</string>
     <string name="chatlist_subagents">সাবএজেন্ট</string>
     <string name="chatlist_archived">আর্কাইভ করা</string>
-    <string name="chatlist_new_workspace">নতুন ওয়ার্কস্পেস</string>
     <string name="chatlist_workspace_name">ওয়ার্কস্পেসের নাম</string>
     <string name="chatlist_workspace_path">ফোল্ডারের পথ</string>
     <string name="chatlist_session_rename">সেশনের নাম পরিবর্তন করুন</string>

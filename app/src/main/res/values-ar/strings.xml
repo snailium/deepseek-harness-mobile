@@ -82,11 +82,8 @@
     <string name="connect_never">لم يتم الاتصال بعد</string>
     <string name="connect_harness_version_only">الخادم %1$s</string>
     <string name="chatlist_title">المحادثات</string>
-    <string name="chatlist_new_session">جلسة جديدة</string>
-    <string name="chatlist_new_session_in">جلسة جديدة في…</string>
-    <string name="chatlist_home_directory">المجلد الرئيسي</string>
+    <string name="chatlist_add_workspace">إضافة مساحة عمل</string>
     <string name="chatlist_filter_all">الكل</string>
-    <string name="chatlist_no_workspaces">لا توجد مساحات عمل بعد — أنشئ واحدة بالأسفل.</string>
     <string name="chatlist_search_hint">البحث في الجلسات</string>
     <string name="chatlist_empty">لا توجد جلسات بعد</string>
     <string name="chatlist_empty_hint">ابدأ جلسة جديدة من Harness أو من هنا.</string>
@@ -94,7 +91,6 @@
     <string name="chatlist_sessions">الجلسات</string>
     <string name="chatlist_subagents">الوكلاء الفرعيون</string>
     <string name="chatlist_archived">المؤرشفة</string>
-    <string name="chatlist_new_workspace">مساحة عمل جديدة</string>
     <string name="chatlist_workspace_name">اسم مساحة العمل</string>
     <string name="chatlist_workspace_path">مسار المجلد</string>
     <string name="chatlist_session_rename">إعادة تسمية الجلسة</string>

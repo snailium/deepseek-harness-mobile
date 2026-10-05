@@ -30,10 +30,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Extension
+
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.Icon
@@ -126,7 +126,6 @@ fun ChatListDrawer(
     val searchResults by store.searchResults.collectAsStateWithLifecycle()
     val contentSearchAvailable by store.contentSearchAvailable.collectAsStateWithLifecycle()
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
-    val hostInfo by store.hostInfo.collectAsStateWithLifecycle()
     val refreshing by store.refreshingSessions.collectAsStateWithLifecycle()
     // Null against a harness without pinning (before 0.1.7), which hides the section and the menu row.
     val pinnedIds by store.pinnedSessionIds.collectAsStateWithLifecycle()
@@ -144,7 +143,6 @@ fun ChatListDrawer(
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
     val sortByRecency = sessionSort == SORT_UPDATED
     var newWorkspaceOpen by remember { mutableStateOf(false) }
-    var newSessionOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     var ungroupedExpanded by remember { mutableStateOf(false) }
     var archivedExpanded by remember { mutableStateOf(false) }
@@ -258,6 +256,18 @@ fun ChatListDrawer(
                     if (!searchOpen) query = ""
                 },
                 tint = if (searchOpen) colors.accent else colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
+            )
+            // Same verb as the drawer's old bottom button, promoted into the bar: adding a
+            // workspace is a list-level action, so it sits with search and plugins rather than
+            // in a row that no one scrolled to. The glyph mirrors dsh-web's "Add workspace…"
+            // entry — an outlined circle holding a plus.
+            DsIconButton(
+                icon = FeatherIcons.FolderPlus,
+                contentDescription = stringResource(R.string.chatlist_add_workspace),
+                onClick = { newWorkspaceOpen = true },
+                tint = colors.labelTertiary,
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
@@ -506,26 +516,9 @@ fun ChatListDrawer(
             }
         }
 
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
-        ) {
-            DsButton(
-                text = stringResource(R.string.chatlist_new_workspace),
-                icon = Icons.Filled.Add,
-                onClick = { newWorkspaceOpen = true },
-                variant = DsButtonVariant.Info,
-                modifier = Modifier.weight(1f),
-            )
-            DsButton(
-                text = stringResource(R.string.chatlist_new_session),
-                icon = Icons.Filled.Add,
-                onClick = { newSessionOpen = true },
-                variant = DsButtonVariant.Info,
-                modifier = Modifier.weight(1f),
-            )
-        }
+        // The old bottom row — "+ Workspace" and "+ Session" — is gone: the workspace verb moved
+        // into the title bar (above), and a session is created per workspace through that header's
+        // "+" button, so the two buttons had nowhere left to live.
     }
 
     // ---- Diagnostics: extracted to ChatListDebug.kt and currently disabled. ----
@@ -534,21 +527,6 @@ fun ChatListDrawer(
     // one buffer) and was ~50 lines of debug chrome in the app's busiest composable, so it moved
     // to its own file. That file carries the re-enable instructions; nothing here calls it while
     // CHAT_LIST_DEBUG_ENABLED is false.
-
-    if (newSessionOpen) {
-        NewSessionDialog(
-            workspaces = workspaces,
-            homeCwd = hostInfo?.home,
-            onPick = { workspaceId ->
-                newSessionOpen = false
-                scope.launch {
-                    store.createSession(workspaceId = workspaceId)
-                    onClose()
-                }
-            },
-            onDismiss = { newSessionOpen = false },
-        )
-    }
 
     if (newWorkspaceOpen) {
         NewWorkspaceDialog(
@@ -705,7 +683,7 @@ private fun WorkspaceHeader(
             Spacer(Modifier.width(DsSpacing.tiny))
             Text(
                 label,
-                style = DsType.base16Strong,
+                style = DsType.body17,
                 color = colors.labelSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -726,7 +704,7 @@ private fun WorkspaceHeader(
                     FeatherIcons.Plus,
                     contentDescription = stringResource(R.string.chatlist_workspace_new_session),
                     tint = colors.labelPrimary,
-                    modifier = Modifier.size(14.dp),
+                    modifier = Modifier.size(12.dp),
                 )
             }
         }
@@ -1057,40 +1035,9 @@ private fun SearchResultRow(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun NewSessionDialog(
-    workspaces: List<WorkspaceRow>,
-    homeCwd: String?,
-    onPick: (String?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val colors = DsTheme.colors
-    DsDialog(title = stringResource(R.string.chatlist_new_session_in), onDismiss = onDismiss) {
-        if (workspaces.isEmpty()) {
-            Text(
-                stringResource(R.string.chatlist_no_workspaces),
-                style = DsType.base16,
-                color = colors.labelSecondary,
-            )
-        }
-        workspaces.forEach { workspace ->
-            SheetRow(
-                title = workspace.title.ifBlank { basename(workspace.path) },
-                subtitle = workspace.path,
-                onClick = { onPick(workspace.workspaceId) },
-            )
-        }
-        SheetRow(
-            title = stringResource(R.string.chatlist_home_directory),
-            subtitle = homeCwd,
-            onClick = { onPick(null) },
-        )
-    }
-}
-
-@Composable
 private fun NewWorkspaceDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
     var pathText by remember { mutableStateOf("") }
-    DsDialog(title = stringResource(R.string.chatlist_new_workspace), onDismiss = onDismiss) {
+    DsDialog(title = stringResource(R.string.chatlist_add_workspace), onDismiss = onDismiss) {
         TextField(
             value = pathText,
             onValueChange = { pathText = it },
