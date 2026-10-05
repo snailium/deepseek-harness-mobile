@@ -693,7 +693,7 @@ private fun WorkspaceHeader(
             Spacer(Modifier.weight(1f))
             Box(
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(20.dp)
                     .clip(CircleShape)
                     .background(colors.hoverSolid)
                     .border(1.dp, colors.borderL2, CircleShape)
