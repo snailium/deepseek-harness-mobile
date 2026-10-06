@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">হারনেস %1$s</string>
     <string name="chatlist_title">চ্যাট</string>
     <string name="chatlist_add_workspace">ওয়ার্কস্পেস যোগ করুন</string>
+    <string name="chatlist_use_folder">এই ফোল্ডারটি ব্যবহার করুন</string>
     <string name="chatlist_filter_all">সব</string>
     <string name="chatlist_search_hint">সেশন খুঁজুন</string>
     <string name="chatlist_empty">এখনো কোনো সেশন নেই</string>

@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">Чаты</string>
     <string name="chatlist_add_workspace">Добавить рабочую область</string>
+    <string name="chatlist_use_folder">Использовать эту папку</string>
     <string name="chatlist_filter_all">Все</string>
     <string name="chatlist_search_hint">Поиск сеансов</string>
     <string name="chatlist_empty">Сеансов пока нет</string>

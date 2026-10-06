@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">会话</string>
     <string name="chatlist_add_workspace">添加工作区</string>
+    <string name="chatlist_use_folder">使用此文件夹</string>
     <string name="chatlist_filter_all">全部</string>
     <string name="chatlist_search_hint">搜索会话</string>
     <string name="chatlist_empty">暂无会话</string>

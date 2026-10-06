@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">الخادم %1$s</string>
     <string name="chatlist_title">المحادثات</string>
     <string name="chatlist_add_workspace">إضافة مساحة عمل</string>
+    <string name="chatlist_use_folder">استخدم هذه المجلد</string>
     <string name="chatlist_filter_all">الكل</string>
     <string name="chatlist_search_hint">البحث في الجلسات</string>
     <string name="chatlist_empty">لا توجد جلسات بعد</string>

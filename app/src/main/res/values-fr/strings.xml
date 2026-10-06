@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">Harness %1$s</string>
     <string name="chatlist_title">Discussions</string>
     <string name="chatlist_add_workspace">Ajouter un espace de travail</string>
+    <string name="chatlist_use_folder">Utiliser ce dossier</string>
     <string name="chatlist_filter_all">Tout</string>
     <string name="chatlist_search_hint">Rechercher des sessions</string>
     <string name="chatlist_empty">Aucune session pour le moment</string>

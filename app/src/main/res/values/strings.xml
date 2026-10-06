@@ -101,6 +101,7 @@
     <string name="chatlist_subagents">Subagents</string>
     <string name="chatlist_archived">Archived</string>
     <string name="chatlist_add_workspace">Add workspace</string>
+    <string name="chatlist_use_folder">Use this folder</string>
     <string name="chatlist_workspace_name">Workspace name</string>
     <string name="chatlist_workspace_path">Folder path</string>
     <string name="chatlist_session_rename">Rename session</string>

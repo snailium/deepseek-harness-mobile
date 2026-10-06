@@ -8,6 +8,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.Extension
 
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -65,6 +68,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.data.SessionRow
 import com.labteto.dshmobile.data.SessionStore
+import com.labteto.dshmobile.core.wire.RpcResult
+import com.labteto.dshmobile.core.wire.dto.DirectoryListing
 import com.labteto.dshmobile.data.WorkspaceRow
 import com.labteto.dshmobile.ui.components.DisclosureRow
 import com.labteto.dshmobile.ui.components.DsButton
@@ -530,6 +535,7 @@ fun ChatListDrawer(
 
     if (newWorkspaceOpen) {
         NewWorkspaceDialog(
+            store = store,
             onDismiss = { newWorkspaceOpen = false },
             onCreate = { path ->
                 scope.launch {
@@ -1034,18 +1040,116 @@ private fun SearchResultRow(
 // Dialogs
 // ---------------------------------------------------------------------------
 
+/**
+ * Add a workspace by browsing the host's directories, the way dsh-web does — not by typing a
+ * path. The dialog starts at the account's home directory; every tap descends one level, the
+ * breadcrumb row walks back up, and "Use this folder" registers whatever is selected.
+ *
+ * The listing comes from `directoryPicker/list`, which already answers with the ancestor chain
+ * (`crumbs`) the web picker renders as its trail, so the phone needs no path arithmetic of its
+ * own: a crumb carries its absolute path verbatim.
+ */
+/**
+ * Add a workspace by browsing the host's directories, the way dsh-web does — not by typing a
+ * path. The dialog starts at the account's home directory; every tap descends one level, the
+ * breadcrumb row walks back up, and "Use this folder" registers whatever is selected.
+ *
+ * The listing comes from `directoryPicker/list`, which already answers with the ancestor chain
+ * (`crumbs`) the web picker renders as its trail, so the phone needs no path arithmetic of its
+ * own: a crumb carries its absolute path verbatim.
+ */
 @Composable
-private fun NewWorkspaceDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
-    var pathText by remember { mutableStateOf("") }
+private fun NewWorkspaceDialog(
+    store: SessionStore,
+    onDismiss: () -> Unit,
+    onCreate: (String) -> Unit,
+) {
+    val colors = DsTheme.colors
+    val scope = rememberCoroutineScope()
+    var listing by remember { mutableStateOf<DirectoryListing?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun browse(path: String? = null) {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                val api = store.apiForHost(store.activeHostKey) ?: throw IllegalStateException("offline")
+                when (val r = api.hostListDirectory(path)) {
+                    is RpcResult.Ok -> { listing = r.value }
+                    is RpcResult.Err -> error = r.error.message
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { error = e.message }
+            finally { busy = false }
+        }
+    }
+
+    LaunchedEffect(Unit) { browse(null) }
+
     DsDialog(title = stringResource(R.string.chatlist_add_workspace), onDismiss = onDismiss) {
-        TextField(
-            value = pathText,
-            onValueChange = { pathText = it },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(stringResource(R.string.chatlist_workspace_path), style = DsType.std14) },
-            singleLine = true,
-            colors = dialogTextFieldColors(),
-        )
+        listing?.let { l ->
+            // The breadcrumb trail: the host's own ancestor chain, newest last. Tapping a crumb
+            // lists that directory again; the current one is bolded like the web picker does.
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+            ) {
+                l.crumbs.forEachIndexed { i, crumb ->
+                    val isCurrent = i == l.crumbs.lastIndex
+                    Text(
+                        crumb.name,
+                        style = if (isCurrent) DsType.small13Strong else DsType.small13,
+                        color = if (isCurrent) colors.labelPrimary else colors.labelTertiary,
+                        modifier = Modifier.clickable(enabled = !isCurrent && !busy) { browse(crumb.path) },
+                    )
+                    if (!isCurrent) Text("›", style = DsType.small13, color = colors.labelCaption)
+                }
+            }
+        }
+        if (busy && listing == null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(DsSpacing.xsmall))
+                Text(stringResource(R.string.common_loading), style = DsType.small13, color = colors.labelTertiary)
+            }
+        } else {
+            error?.let {
+                Text(it, style = DsType.small13, color = colors.error)
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp),
+            ) {
+                items(listing?.entries.orEmpty(), key = { it.path }) { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(DsShapes.row)
+                            .clickable(enabled = !busy && !entry.hidden) { browse(entry.path) }
+                            .padding(vertical = DsSpacing.xsmall, horizontal = DsSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            FeatherIcons.Folder,
+                            contentDescription = null,
+                            tint = if (entry.hidden) colors.labelCaption else colors.labelTertiary,
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Spacer(Modifier.width(DsSpacing.xsmall))
+                        Text(
+                            entry.name,
+                            style = DsType.base16,
+                            color = if (entry.hidden) colors.labelCaption else colors.labelPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             DsButton(
                 text = stringResource(R.string.common_cancel),
@@ -1054,10 +1158,10 @@ private fun NewWorkspaceDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit
             )
             Spacer(Modifier.width(DsSpacing.small))
             DsButton(
-                text = stringResource(R.string.common_save),
-                onClick = { onCreate(pathText.trim()) },
+                text = stringResource(R.string.chatlist_use_folder),
+                onClick = { onCreate(listing?.path.orEmpty()) },
                 variant = DsButtonVariant.Info,
-                enabled = pathText.isNotBlank(),
+                enabled = listing != null && !busy,
             )
         }
     }

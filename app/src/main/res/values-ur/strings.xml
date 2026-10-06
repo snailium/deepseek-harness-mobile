@@ -83,6 +83,7 @@
     <string name="connect_harness_version_only">ہارنیس %1$s</string>
     <string name="chatlist_title">چیٹس</string>
     <string name="chatlist_add_workspace">ورک اسپیس شامل کریں</string>
+    <string name="chatlist_use_folder">اس فولڈر استعمال کریں</string>
     <string name="chatlist_filter_all">سب</string>
     <string name="chatlist_search_hint">سیشن تلاش کریں</string>
     <string name="chatlist_empty">ابھی کوئی سیشن نہیں</string>
