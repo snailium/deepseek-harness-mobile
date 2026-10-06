@@ -42,6 +42,7 @@ import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
 import com.labteto.dshmobile.data.PluginMutationState
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.SearchField
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
@@ -458,23 +459,22 @@ private fun BundleDetailDialog(
                     val schema = schemaByNamespace[ns] ?: return@forEach
                     val value = valuesByNamespace[ns]
                     val revision = revisionsByNamespace[ns]
-                    // A card, not a bare heading over fields: the namespace id is the card's title,
-                    // and the card's fill separates one form from the next without any divider.
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(DsShapes.row)
-                            .background(colors.bgLayer1)
-                            .padding(DsSpacing.medium),
-                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-                    ) {
-                        Text(ns, style = DsType.std14Strong, color = colors.labelSecondary)
-                        schema.fields.forEach { field ->
-                            SettingsFieldRow(
-                                field = field,
-                                value = fieldValueAt(field.path, value),
-                                onEdit = { path, next -> onEdit(ns, path, next, revision) },
-                            )
+                    // A SettingsCard, not a bare heading over fields: the namespace id is the card's
+                    // section title and the card's fill separates one form from the next. The plain
+                    // Column-with-title version read as one continuous list — on `dsh-relay`, whose
+                    // settings span several namespaces, the group boundaries were easy to miss.
+                    SettingsCard(title = ns) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                        ) {
+                            schema.fields.forEach { field ->
+                                SettingsFieldRow(
+                                    field = field,
+                                    value = fieldValueAt(field.path, value),
+                                    onEdit = { path, next -> onEdit(ns, path, next, revision) },
+                                )
+                            }
                         }
                     }
                 }
