@@ -84,6 +84,9 @@
     <string name="chatlist_title">Conversas</string>
     <string name="chatlist_add_workspace">Adicionar espaço de trabalho</string>
     <string name="chatlist_use_folder">Usar esta pasta</string>
+    <string name="chatlist_go_up">Subir um nível</string>
+    <string name="chatlist_new_folder">Nova pasta</string>
+    <string name="chatlist_new_folder_name">Nome da pasta</string>
     <string name="chatlist_filter_all">Tudo</string>
     <string name="chatlist_search_hint">Pesquisar sessões</string>
     <string name="chatlist_empty">Ainda não há sessões</string>

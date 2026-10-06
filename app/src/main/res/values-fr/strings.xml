@@ -84,6 +84,9 @@
     <string name="chatlist_title">Discussions</string>
     <string name="chatlist_add_workspace">Ajouter un espace de travail</string>
     <string name="chatlist_use_folder">Utiliser ce dossier</string>
+    <string name="chatlist_go_up">Remonter d\'un niveau</string>
+    <string name="chatlist_new_folder">Nouveau dossier</string>
+    <string name="chatlist_new_folder_name">Nom du dossier</string>
     <string name="chatlist_filter_all">Tout</string>
     <string name="chatlist_search_hint">Rechercher des sessions</string>
     <string name="chatlist_empty">Aucune session pour le moment</string>

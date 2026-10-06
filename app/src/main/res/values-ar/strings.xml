@@ -84,6 +84,9 @@
     <string name="chatlist_title">المحادثات</string>
     <string name="chatlist_add_workspace">إضافة مساحة عمل</string>
     <string name="chatlist_use_folder">استخدم هذه المجلد</string>
+    <string name="chatlist_go_up">مرحلة واحدة للأعلى</string>
+    <string name="chatlist_new_folder">مجلد جديد</string>
+    <string name="chatlist_new_folder_name">اسم المجلد</string>
     <string name="chatlist_filter_all">الكل</string>
     <string name="chatlist_search_hint">البحث في الجلسات</string>
     <string name="chatlist_empty">لا توجد جلسات بعد</string>

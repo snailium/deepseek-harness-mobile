@@ -1043,20 +1043,14 @@ private fun SearchResultRow(
 /**
  * Add a workspace by browsing the host's directories, the way dsh-web does — not by typing a
  * path. The dialog starts at the account's home directory; every tap descends one level, the
- * breadcrumb row walks back up, and "Use this folder" registers whatever is selected.
+ * breadcrumb row and the up-arrow button walk back up, "New folder" creates a child in the
+ * current directory, and "Use this folder" registers whatever is selected.
  *
  * The listing comes from `directoryPicker/list`, which already answers with the ancestor chain
  * (`crumbs`) the web picker renders as its trail, so the phone needs no path arithmetic of its
- * own: a crumb carries its absolute path verbatim.
- */
-/**
- * Add a workspace by browsing the host's directories, the way dsh-web does — not by typing a
- * path. The dialog starts at the account's home directory; every tap descends one level, the
- * breadcrumb row walks back up, and "Use this folder" registers whatever is selected.
- *
- * The listing comes from `directoryPicker/list`, which already answers with the ancestor chain
- * (`crumbs`) the web picker renders as its trail, so the phone needs no path arithmetic of its
- * own: a crumb carries its absolute path verbatim.
+ * own: a crumb carries its absolute path verbatim. "New folder" goes through
+ * `directoryPicker/createDirectory` and re-lists the parent afterwards — same two RPCs the web
+ * picker uses.
  */
 @Composable
 private fun NewWorkspaceDialog(
@@ -1069,6 +1063,11 @@ private fun NewWorkspaceDialog(
     var listing by remember { mutableStateOf<DirectoryListing?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    // "New folder" is a separate overlay on top of the browser: one text field, create, then
+    // re-list the parent so the new directory shows up and can be entered.
+    var newFolderOpen by remember { mutableStateOf(false) }
+    var newFolderName by remember { mutableStateOf("") }
+    var creatingFolder by remember { mutableStateOf(false) }
 
     fun browse(path: String? = null) {
         if (busy) return
@@ -1087,26 +1086,77 @@ private fun NewWorkspaceDialog(
         }
     }
 
+    fun goUp() {
+        val l = listing ?: return
+        if (l.crumbs.size < 2) return // already at the filesystem root
+        browse(l.crumbs[l.crumbs.lastIndex - 1].path)
+    }
+
+    fun createFolder() {
+        val l = listing ?: return
+        val name = newFolderName.trim()
+        if (name.isEmpty() || creatingFolder) return
+        creatingFolder = true
+        error = null
+        scope.launch {
+            try {
+                val api = store.apiForHost(store.activeHostKey) ?: throw IllegalStateException("offline")
+                when (val r = api.hostCreateDirectory(l.path, name)) {
+                    is RpcResult.Ok -> { newFolderOpen = false; newFolderName = ""; browse(l.path) }
+                    is RpcResult.Err -> error = r.error.message
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { error = e.message }
+            finally { creatingFolder = false }
+        }
+    }
+
     LaunchedEffect(Unit) { browse(null) }
 
     DsDialog(title = stringResource(R.string.chatlist_add_workspace), onDismiss = onDismiss) {
         listing?.let { l ->
-            // The breadcrumb trail: the host's own ancestor chain, newest last. Tapping a crumb
-            // lists that directory again; the current one is bolded like the web picker does.
+            // Toolbar: the up-arrow walks to the parent (the last ancestor in the host's own
+            // crumb chain — no path arithmetic), "New folder" opens the create overlay. Both sit
+            // at the right of a row that also carries the breadcrumb trail, like the web picker.
             Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                l.crumbs.forEachIndexed { i, crumb ->
-                    val isCurrent = i == l.crumbs.lastIndex
-                    Text(
-                        crumb.name,
-                        style = if (isCurrent) DsType.small13Strong else DsType.small13,
-                        color = if (isCurrent) colors.labelPrimary else colors.labelTertiary,
-                        modifier = Modifier.clickable(enabled = !isCurrent && !busy) { browse(crumb.path) },
-                    )
-                    if (!isCurrent) Text("›", style = DsType.small13, color = colors.labelCaption)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                ) {
+                    l.crumbs.forEachIndexed { i, crumb ->
+                        val isCurrent = i == l.crumbs.lastIndex
+                        Text(
+                            crumb.name,
+                            style = if (isCurrent) DsType.small13Strong else DsType.small13,
+                            color = if (isCurrent) colors.labelPrimary else colors.labelTertiary,
+                            modifier = Modifier.clickable(enabled = !isCurrent && !busy) { browse(crumb.path) },
+                        )
+                        if (!isCurrent) Text("›", style = DsType.small13, color = colors.labelCaption)
+                    }
                 }
+                DsIconButton(
+                    icon = FeatherIcons.ChevronUp,
+                    contentDescription = stringResource(R.string.chatlist_go_up),
+                    onClick = { goUp() },
+                    enabled = !busy && l.crumbs.size >= 2,
+                    tint = colors.labelSecondary,
+                    iconSize = 18.dp,
+                    touchTarget = DsSpacing.touchTarget,
+                )
+                DsIconButton(
+                    icon = FeatherIcons.FolderPlus,
+                    contentDescription = stringResource(R.string.chatlist_new_folder),
+                    onClick = { newFolderName = ""; newFolderOpen = true },
+                    enabled = !busy,
+                    tint = colors.labelSecondary,
+                    iconSize = 18.dp,
+                    touchTarget = DsSpacing.touchTarget,
+                )
             }
         }
         if (busy && listing == null) {
@@ -1150,19 +1200,47 @@ private fun NewWorkspaceDialog(
                 }
             }
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            DsButton(
-                text = stringResource(R.string.common_cancel),
-                onClick = onDismiss,
-                variant = DsButtonVariant.Ghost,
+        if (newFolderOpen) {
+            // The create overlay: one field for the name, Cancel / Create. Creating re-lists the
+            // current directory so the new folder is immediately visible and enterable.
+            TextField(
+                value = newFolderName,
+                onValueChange = { newFolderName = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.chatlist_new_folder_name), style = DsType.std14) },
+                singleLine = true,
+                colors = dialogTextFieldColors(),
             )
-            Spacer(Modifier.width(DsSpacing.small))
-            DsButton(
-                text = stringResource(R.string.chatlist_use_folder),
-                onClick = { onCreate(listing?.path.orEmpty()) },
-                variant = DsButtonVariant.Info,
-                enabled = listing != null && !busy,
-            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                DsButton(
+                    text = stringResource(R.string.common_cancel),
+                    onClick = { newFolderOpen = false },
+                    variant = DsButtonVariant.Ghost,
+                    enabled = !creatingFolder,
+                )
+                Spacer(Modifier.width(DsSpacing.small))
+                DsButton(
+                    text = stringResource(R.string.chatlist_new_folder),
+                    onClick = { createFolder() },
+                    variant = DsButtonVariant.Info,
+                    enabled = newFolderName.isNotBlank() && !creatingFolder,
+                )
+            }
+        } else {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                DsButton(
+                    text = stringResource(R.string.common_cancel),
+                    onClick = onDismiss,
+                    variant = DsButtonVariant.Ghost,
+                )
+                Spacer(Modifier.width(DsSpacing.small))
+                DsButton(
+                    text = stringResource(R.string.chatlist_use_folder),
+                    onClick = { onCreate(listing?.path.orEmpty()) },
+                    variant = DsButtonVariant.Info,
+                    enabled = listing != null && !busy,
+                )
+            }
         }
     }
 }

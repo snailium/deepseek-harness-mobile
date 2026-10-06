@@ -84,6 +84,9 @@
     <string name="chatlist_title">แชท</string>
     <string name="chatlist_add_workspace">เพิ่มพื้นที่ทำงาน</string>
     <string name="chatlist_use_folder">ใช้โฟลเดอร์นี้</string>
+    <string name="chatlist_go_up">ขึ้นไปหนึ่งระดับ</string>
+    <string name="chatlist_new_folder">โฟลเดอร์ใหม่</string>
+    <string name="chatlist_new_folder_name">ชื่อโฟลเดอร์</string>
     <string name="chatlist_filter_all">ทั้งหมด</string>
     <string name="chatlist_search_hint">ค้นหาเซสชัน</string>
     <string name="chatlist_empty">ยังไม่มีเซสชัน</string>

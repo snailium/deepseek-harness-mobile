@@ -102,6 +102,9 @@
     <string name="chatlist_archived">Archived</string>
     <string name="chatlist_add_workspace">Add workspace</string>
     <string name="chatlist_use_folder">Use this folder</string>
+    <string name="chatlist_go_up">Go up one level</string>
+    <string name="chatlist_new_folder">New folder</string>
+    <string name="chatlist_new_folder_name">Folder name</string>
     <string name="chatlist_workspace_name">Workspace name</string>
     <string name="chatlist_workspace_path">Folder path</string>
     <string name="chatlist_session_rename">Rename session</string>

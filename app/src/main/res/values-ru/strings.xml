@@ -84,6 +84,9 @@
     <string name="chatlist_title">Чаты</string>
     <string name="chatlist_add_workspace">Добавить рабочую область</string>
     <string name="chatlist_use_folder">Использовать эту папку</string>
+    <string name="chatlist_go_up">На уровень выше</string>
+    <string name="chatlist_new_folder">Новая папка</string>
+    <string name="chatlist_new_folder_name">Имя папки</string>
     <string name="chatlist_filter_all">Все</string>
     <string name="chatlist_search_hint">Поиск сеансов</string>
     <string name="chatlist_empty">Сеансов пока нет</string>

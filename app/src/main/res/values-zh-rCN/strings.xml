@@ -84,6 +84,9 @@
     <string name="chatlist_title">会话</string>
     <string name="chatlist_add_workspace">添加工作区</string>
     <string name="chatlist_use_folder">使用此文件夹</string>
+    <string name="chatlist_go_up">向上一级</string>
+    <string name="chatlist_new_folder">新建文件夹</string>
+    <string name="chatlist_new_folder_name">文件夹名称</string>
     <string name="chatlist_filter_all">全部</string>
     <string name="chatlist_search_hint">搜索会话</string>
     <string name="chatlist_empty">暂无会话</string>

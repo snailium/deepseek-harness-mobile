@@ -84,6 +84,9 @@
     <string name="chatlist_title">چیٹس</string>
     <string name="chatlist_add_workspace">ورک اسپیس شامل کریں</string>
     <string name="chatlist_use_folder">اس فولڈر استعمال کریں</string>
+    <string name="chatlist_go_up">ایک سطح اوپر جائیں</string>
+    <string name="chatlist_new_folder">نیا فولڈر</string>
+    <string name="chatlist_new_folder_name">فولڈر کا نام</string>
     <string name="chatlist_filter_all">سب</string>
     <string name="chatlist_search_hint">سیشن تلاش کریں</string>
     <string name="chatlist_empty">ابھی کوئی سیشن نہیں</string>
