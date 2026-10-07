@@ -419,7 +419,7 @@ fun ChatScreen(
                 // the button went on sending with the attachment list of whichever session was
                 // open when this screen first composed. A lambda is rebuilt when what it captures
                 // changes and compares by identity, so the composer always holds the current one.
-                onSend = submitter::send,
+                onSend = { submitter.send(it) },
                 onStop = { scope.launch { store.cancelTurn() } },
             )
 

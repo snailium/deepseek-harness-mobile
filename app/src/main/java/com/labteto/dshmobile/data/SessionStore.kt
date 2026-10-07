@@ -2623,6 +2623,11 @@ class SessionStore @Inject constructor(
             }
         }
         if (outcome is PluginMutationOutcome.Applied) refreshSettings()
+        // Announced like every other plugin mutation. A refusal here is the loopback-only rule
+        // declining the edit, and the caller used to drop the return value entirely — so the switch
+        // or the text field simply stayed where the reader put it and the form looked saved. The
+        // page's collector turns this into a sentence.
+        _pluginEvents.send(outcome)
         return outcome
     }
 
@@ -2749,7 +2754,13 @@ class SessionStore @Inject constructor(
             if (key in changesSummaryAttempted) return
             changesSummaryAttempted.add(key)
         }
-        val api = apiOrNull() ?: return
+        // The mark is a promise that this turn has been asked for; dropping out here without
+        // releasing it would make a momentary disconnect permanent — the key says "already tried",
+        // so the turn's changed files could never be loaded again once the connection came back.
+        val api = apiOrNull() ?: run {
+            synchronized(lock) { changesSummaryAttempted.remove(key) }
+            return
+        }
         when (val r = api.workspaceChangesSummary(sessionId, seq)) {
             is RpcResult.Ok -> _changesSummaries.value = _changesSummaries.value + (key to r.value)
             is RpcResult.Err ->

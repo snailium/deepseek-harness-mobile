@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
@@ -347,6 +348,57 @@ private fun DocumentPreview(store: SessionStore, key: ComposerKey, tab: PreviewT
     }
 }
 
+/**
+ * A PDF held open for as long as its bytes are the ones on screen.
+ *
+ * `PdfRenderer` needs a seekable descriptor, so the bytes have to reach disk once — but the *page*
+ * is not part of that. The renderer used to be built and torn down inside a `LaunchedEffect` keyed
+ * on the page number, so every Previous/Next tap rewrote the whole document to the cache, re-parsed
+ * it, built a fresh renderer and deleted the file again. Slow, and a lot of pointless flash writes
+ * for a document that had not changed.
+ */
+private class PdfDocument(private val context: Context) {
+    private var file: File? = null
+    private var descriptor: ParcelFileDescriptor? = null
+    private var renderer: PdfRenderer? = null
+
+    val pageCount: Int get() = renderer?.pageCount ?: 0
+
+    /** Writes and opens [bytes]; false when they are not a PDF this device can read. */
+    fun open(bytes: ByteArray): Boolean {
+        close()
+        return try {
+            val created = File.createTempFile("preview-", ".pdf", context.cacheDir)
+            created.writeBytes(bytes)
+            val fd = ParcelFileDescriptor.open(created, ParcelFileDescriptor.MODE_READ_ONLY)
+            val pdf = PdfRenderer(fd)
+            file = created; descriptor = fd; renderer = pdf
+            pdf.pageCount > 0
+        } catch (_: Exception) {
+            close(); false
+        }
+    }
+
+    /** Renders one page from the open document, or null when there is nothing to render. */
+    fun render(page: Int): androidx.compose.ui.graphics.ImageBitmap? {
+        val pdf = renderer ?: return null
+        return pdf.openPage(page.coerceIn(0, pdf.pageCount - 1)).use { p ->
+            val scale = minOf(2f, 2048f / maxOf(p.width, p.height))
+            val image = Bitmap.createBitmap((p.width * scale).toInt().coerceAtLeast(1), (p.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            image.eraseColor(android.graphics.Color.WHITE)
+            p.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            image.asImageBitmap()
+        }
+    }
+
+    fun close() {
+        runCatching { renderer?.close() }
+        runCatching { descriptor?.close() }
+        runCatching { file?.delete() }
+        renderer = null; descriptor = null; file = null
+    }
+}
+
 @Composable
 private fun PdfPreview(bytes: ByteArray, modifier: Modifier) {
     val context = LocalContext.current
@@ -354,28 +406,18 @@ private fun PdfPreview(bytes: ByteArray, modifier: Modifier) {
     var count by remember(bytes) { mutableIntStateOf(0) }
     var failure by remember(bytes) { mutableStateOf(false) }
     var bitmap by remember(bytes, page) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(bytes, page) {
-        bitmap = withContext(Dispatchers.IO) {
-            val file = File.createTempFile("preview-", ".pdf", context.cacheDir)
-            try {
-                file.writeBytes(bytes)
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                    PdfRenderer(fd).use { pdf ->
-                        count = pdf.pageCount
-                        if (count == 0) return@withContext null
-                        pdf.openPage(page.coerceIn(0, count - 1)).use { p ->
-                            val scale = minOf(2f, 2048f / maxOf(p.width, p.height))
-                            val image = Bitmap.createBitmap((p.width * scale).toInt().coerceAtLeast(1), (p.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-                            image.eraseColor(android.graphics.Color.WHITE)
-                            p.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            image.asImageBitmap()
-                        }
-                    }
-                }
-            } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { failure = true; null }
-            finally { file.delete() }
-        }
+    val document = remember(bytes) { PdfDocument(context) }
+    DisposableEffect(document) { onDispose { document.close() } }
+    // Opened once per document; the page effect below only ever renders from this one handle.
+    LaunchedEffect(document, bytes) {
+        val opened = withContext(Dispatchers.IO) { document.open(bytes) }
+        count = document.pageCount
+        failure = !opened
+    }
+    LaunchedEffect(document, page, count) {
+        // count changes when the document is finally open, which is what sequences this after it.
+        if (count == 0) return@LaunchedEffect
+        bitmap = withContext(Dispatchers.IO) { runCatching { document.render(page) }.getOrNull() }
     }
     Column(modifier) {
         if (failure) Text(stringResource(R.string.panel_failed))

@@ -8,16 +8,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.SettingsField
@@ -26,6 +33,7 @@ import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -121,19 +129,9 @@ fun SettingsFieldRow(
                     ?: field.node.default?.jsonPrimitive?.contentOrNull
                     ?: ""
                 LabelledRow(field, stacked = true) {
-                    TextField(
+                    DebouncedField(
                         value = text,
-                        onValueChange = { next -> onEdit(field.path, JsonPrimitive(next)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = DsType.small13.copy(fontFamily = FontFamily.Monospace),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = colors.bgLayer2,
-                            unfocusedContainerColor = colors.bgLayer2,
-                            focusedIndicatorColor = colors.accent,
-                            unfocusedIndicatorColor = colors.borderL2,
-                            cursorColor = colors.accent,
-                        ),
+                        onCommit = { next -> onEdit(field.path, JsonPrimitive(next)) },
                     )
                 }
             }
@@ -146,9 +144,10 @@ fun SettingsFieldRow(
                     // A text field rather than a stepper: the schema's bounds are advisory
                     // (`min`/`max`/`step`), and a numeric keypad is the only phone affordance that
                     // suits a value which is sometimes a port and sometimes a token count.
-                    TextField(
+                    DebouncedField(
                         value = text,
-                        onValueChange = { next ->
+                        numeric = true,
+                        onCommit = { next ->
                             // Only a parseable number is written. A half-typed "-" or "1." leaves the
                             // stored value alone rather than sending something the schema would
                             // reject, which keeps a keystroke from producing an error banner.
@@ -156,21 +155,61 @@ fun SettingsFieldRow(
                                 onEdit(field.path, JsonPrimitive(normalizeNumber(next, parsed)))
                             }
                         },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        textStyle = DsType.small13.copy(fontFamily = FontFamily.Monospace),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = colors.bgLayer2,
-                            unfocusedContainerColor = colors.bgLayer2,
-                            focusedIndicatorColor = colors.accent,
-                            unfocusedIndicatorColor = colors.borderL2,
-                            cursorColor = colors.accent,
-                        ),
                     )
                 }
             }
         }
     }
+}
+
+/**
+ * How long typing must stop before a text field commits its value.
+ *
+ * Long enough to cover the gap between two words on a phone keyboard, short enough that a reader who
+ * taps away and looks at the screen sees their change already applied.
+ */
+private const val SETTLE_MS = 500L
+
+/**
+ * A single-line text field that commits its value once typing settles.
+ *
+ * Committing on every keystroke sent one `settings/update` RPC *and* a full `settings/list` refresh
+ * per character. That made the cursor jump as the echoed value came back, flickered the form, and —
+ * because the update carries an `expectedRevision` CAS token — let a burst of in-flight writes race
+ * each other into revision conflicts. The draft is local; only a settled value reaches [onCommit].
+ *
+ * The incoming [value] is still adopted when it changes underneath (another client, or this field's
+ * own write landing), and the comparison skips that echo so adopting it cannot loop.
+ */
+@Composable
+private fun DebouncedField(
+    value: String,
+    onCommit: (String) -> Unit,
+    numeric: Boolean = false,
+) {
+    val colors = DsTheme.colors
+    var draft by remember { mutableStateOf(value) }
+    LaunchedEffect(value) { if (value != draft) draft = value }
+    LaunchedEffect(draft) {
+        if (draft == value) return@LaunchedEffect
+        delay(SETTLE_MS)
+        onCommit(draft)
+    }
+    TextField(
+        value = draft,
+        onValueChange = { draft = it },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text),
+        textStyle = DsType.std14.copy(fontFamily = FontFamily.Monospace),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = colors.bgLayer2,
+            unfocusedContainerColor = colors.bgLayer2,
+            focusedIndicatorColor = colors.accent,
+            unfocusedIndicatorColor = colors.borderL2,
+            cursorColor = colors.accent,
+        ),
+    )
 }
 
 /**

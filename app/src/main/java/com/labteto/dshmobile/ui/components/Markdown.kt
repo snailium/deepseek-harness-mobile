@@ -24,8 +24,9 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -33,11 +34,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -225,44 +229,41 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         fontFamily = DsType.codeFont,
         color = colors.labelPrimary,
     )
-    val result = remember(text, style, codeStyle, colors) {
-        buildInlineContent(text, codeStyle, colors)
-    }
     val openFile = LocalFileOpener.current
     val uriHandler = LocalUriHandler.current
-    val hasLinks = remember(result) { result.getStringAnnotations("url", 0, result.length).isNotEmpty() }
-    if (!hasLinks) {
-        // Nothing to tap, so the text is laid out inside a SelectionContainer instead: long-press
-        // selects and the platform handles the copy affordance. A ClickableText swallows the
-        // long-press, which is why the two cannot share one branch. Re-keyed on the shared dismiss
-        // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
-        val dismissToken = LocalSelectionDismiss.current.value
-        key(dismissToken) {
-            SelectionContainer(modifier = modifier) {
-                Text(result, style = style)
-            }
-        }
-        return
+    // Read through a state holder so the remembered string below does not have to be a key of the
+    // caller's lambdas: a link annotation carries its listener, and re-keying on a lambda that is
+    // rebuilt every recomposition would rebuild the whole styled string with it. Reading the
+    // delegate inside the listener picks up the current handler at tap time.
+    val onLink by rememberUpdatedState<(String) -> Unit> { raw ->
+        // http(s) goes to the browser, anything else is treated as a path into the session's own
+        // files. The scheme check lives in core so a reply cannot smuggle `intent:`/`file:` past
+        // this handler by dressing it up as a link.
+        val url = safeHttpUrl(raw)
+        if (url != null) runCatching { uriHandler.openUri(url) }
+        else previewPath(raw)?.let(openFile)
     }
-    ClickableText(
-        result, modifier = modifier, style = style,
-        onClick = { offset ->
-            result.getStringAnnotations("url", offset, offset).firstOrNull()?.item?.let { raw ->
-                // http(s) goes to the browser, anything else is treated as a path into the
-                // session's own files. The scheme check lives in core so a reply cannot smuggle
-                // `intent:`/`file:` past this handler by dressing it up as a link.
-                val url = safeHttpUrl(raw)
-                if (url != null) runCatching { uriHandler.openUri(url) }
-                else previewPath(raw)?.let(openFile)
-            }
-        },
-    )
+    val result = remember(text, style, codeStyle, colors) {
+        buildInlineContent(text, codeStyle, colors) { raw -> onLink(raw) }
+    }
+    // Every line goes inside a SelectionContainer now. Links are LinkAnnotations, which `Text`
+    // handles without swallowing the long-press, so a line containing a link is selectable and
+    // copyable exactly like prose — the old ClickableText split, which forced linked lines to give
+    // up selection, is gone. Re-keyed on the shared dismiss token so a tap elsewhere in the
+    // transcript clears the selection (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
+    key(dismissToken) {
+        SelectionContainer(modifier = modifier) {
+            Text(result, style = style)
+        }
+    }
 }
 
 private fun buildInlineContent(
     text: String,
     codeStyle: TextStyle,
     colors: DsColors,
+    onLink: (String) -> Unit,
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
     parseInlineSegments(text).forEach { segment ->
@@ -274,9 +275,18 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                builder.pushStringAnnotation("url", segment.url)
-                builder.withStyle(SpanStyle(color = colors.accent)) { append(segment.text) }
-                builder.pop()
+                // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles the
+                // former itself — tap goes to the listener, long-press still reaches the enclosing
+                // SelectionContainer — whereas the string form was only readable by ClickableText,
+                // which consumes the long-press. That is what forced linked lines to opt out of
+                // selection entirely.
+                builder.withLink(
+                    LinkAnnotation.Clickable(
+                        tag = segment.url,
+                        styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                        linkInteractionListener = { onLink(segment.url) },
+                    ),
+                ) { append(segment.text) }
             }
         }
     }
