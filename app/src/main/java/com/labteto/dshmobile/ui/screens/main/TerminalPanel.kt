@@ -37,7 +37,6 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
     var error by remember { mutableStateOf<String?>(null) }
     var shellMenu by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf<String?>(null) }
-    val dpadInput = remember { Channel<String>(16) }
     fun operation(block: suspend () -> Unit) {
         if (busy) return
         busy = true; error = null
@@ -102,7 +101,7 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
                     refresh()
                 } }) { Text(stringResource(R.string.common_close)) }
             }
-            key(terminal.id) { TerminalScreen(store, key, terminal, Modifier.weight(1f), dpadInput) }
+            key(terminal.id) { TerminalScreen(store, key, terminal, Modifier.weight(1f)) }
             rename?.let { title -> AlertDialog(onDismissRequest = { rename = null }, title = { Text(stringResource(R.string.common_rename)) },
                 text = { OutlinedTextField(title, { rename = it }) },
                 confirmButton = { TextButton(enabled = title.isNotBlank() && title.length <= 120 && !busy, onClick = { operation {
@@ -121,7 +120,7 @@ private class TerminalBridge(private val receive: (String) -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTerminalInfo, modifier: Modifier, dpadInput: Channel<String>) {
+private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTerminalInfo, modifier: Modifier) {
     val context = LocalContext.current
     val connection by store.connectionState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -172,6 +171,12 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
                 const term = new Terminal({fontSize:14,scrollback:1000,disableStdin:true});
                 const fit = new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));
                 function post(value){TerminalHost.postMessage(JSON.stringify(value))}
+                // Raw key injection for the on-screen D-pad. Deliberately NOT term.paste(): that
+                // path runs the data through bracketTextForPaste and wraps it in \x1b[200~ / \x1b[201~,
+                // so a shell in bracketed-paste mode sees the arrow sequence as pasted *text* and
+                // the cursor never moves. Posting straight to the input channel is byte-identical
+                // to what term.onData emits for a real keypress.
+                window.sendKey=function(data){post({type:'input',data})};
                 function measure(){
                     // Older Android WebViews resolve percentage/vh heights to zero in a dialog.
                     const height=Math.max(1,window.innerHeight)+'px';
@@ -278,9 +283,9 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
             VirtualDPad(
-                // Route through xterm.js's paste() so the escape sequence goes through the
-                // terminal's normal input path and actually moves the cursor.
-                onKey = { data -> view.evaluateJavascript("term.paste(${JSONObject.quote(data)})", null) },
+                // sendKey() posts to the same input channel term.onData uses. term.paste() is
+                // wrong here: it brackets the payload as a paste, so the shell never sees a key.
+                onKey = { data -> view.evaluateJavascript("sendKey(${JSONObject.quote(data)})", null) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             )
         }
