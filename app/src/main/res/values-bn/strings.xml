@@ -471,6 +471,8 @@
     <string name="archived_empty">মিলে যাওয়া আর্কাইভ সেশন নেই</string>
     <string name="archived_restore">পুনরুদ্ধার</string>
     <string name="panel_workspace">কর্মক্ষেত্র</string>
+    <string name="panel_workspace_title">কর্মক্ষেত্রের সরঞ্জাম</string>
+    <string name="panel_workspace_root">কর্মক্ষেত্র</string>
     <string name="panel_files">ফাইল</string>
     <string name="panel_preview">প্রাকদর্শন</string>
     <string name="panel_terminal">টার্মিনাল</string>

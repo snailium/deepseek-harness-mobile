@@ -471,6 +471,8 @@
     <string name="archived_empty">ไม่พบเซสชันที่เก็บถาวร</string>
     <string name="archived_restore">คืนค่า</string>
     <string name="panel_workspace">พื้นที่ทำงาน</string>
+    <string name="panel_workspace_title">เครื่องมือพื้นที่ทำงาน</string>
+    <string name="panel_workspace_root">พื้นที่ทำงาน</string>
     <string name="panel_files">ไฟล์</string>
     <string name="panel_preview">ดูตัวอย่าง</string>
     <string name="panel_terminal">เทอร์มินัล</string>

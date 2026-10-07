@@ -10,9 +10,15 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -27,8 +33,13 @@ import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.MarkdownText
+import com.labteto.dshmobile.ui.theme.DsSpacing
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -37,8 +48,10 @@ internal fun <T> RpcResult<T>.requireValue(): T = when (this) {
     is RpcResult.Err -> throw IllegalStateException("${error.code}: ${error.message}")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: () -> Unit) {
+    val colors = DsTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val key = state.key
@@ -106,9 +119,30 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize(), color = DsTheme.colors.bgBase) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_back)) }
-                    Text(stringResource(R.string.panel_workspace), modifier = Modifier.padding(16.dp))
+                // The unified 44dp title bar every other screen uses: a back arrow, then the page's
+                // own title. The old Row of two TextButtons read as a different kind of header and
+                // did not line up with the rest of the app.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DsTitleBar.height)
+                        .padding(top = DsSpacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+                ) {
+                    DsIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.common_back),
+                        onClick = onDismiss,
+                        tint = colors.labelTertiary,
+                        iconSize = DsTitleBar.iconSize,
+                        touchTarget = DsTitleBar.iconTouchTarget,
+                    )
+                    Text(
+                        stringResource(R.string.panel_workspace_title),
+                        style = DsTitleBar.titleStyle,
+                        color = colors.labelPrimary,
+                    )
                 }
                 TabRow(selectedTabIndex = state.section) {
                     listOf(R.string.panel_files, R.string.panel_preview, R.string.panel_terminal).forEachIndexed { i, title ->
@@ -117,25 +151,54 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                 }
                 when (state.section) {
                     0 -> {
-                        Row(Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { listDirectory(".") }, enabled = !state.busy) { Text(stringResource(R.string.panel_root)) }
-                            TextButton(onClick = { listDirectory(state.directory.substringBeforeLast('/', ".").ifEmpty { "." }) }, enabled = !state.busy) {
-                                Text(stringResource(R.string.panel_parent))
+                        // The breadcrumb: a folder icon for the workspace root, then each directory
+                        // level separated by ›. Tapping any segment re-lists that directory — the
+                        // old Root / Parent / Retry buttons are gone, navigation is the path itself.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = DsSpacing.tiny),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(FeatherIcons.Folder, null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
+                            val segments = state.directory.split('/').filter { it.isNotEmpty() }
+                            if (segments.isEmpty()) {
+                                Text(stringResource(R.string.panel_workspace_root), style = DsType.small13Strong, color = colors.labelPrimary)
+                            } else {
+                                segments.forEachIndexed { i, segment ->
+                                    val path = segments.take(i + 1).joinToString("/")
+                                    Text(
+                                        segment,
+                                        style = if (i == segments.lastIndex) DsType.small13Strong else DsType.small13,
+                                        color = if (i == segments.lastIndex) colors.labelPrimary else colors.labelTertiary,
+                                        modifier = Modifier.clickable(enabled = !state.busy) { listDirectory(path) },
+                                    )
+                                    Text(" › ", style = DsType.small13, color = colors.labelCaption)
+                                }
                             }
-                            TextButton(onClick = { listDirectory(state.directory) }, enabled = !state.busy) { Text(stringResource(R.string.common_retry)) }
                         }
-                        Text(state.directory, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
-                        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                         state.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
                         if (state.listing?.truncated == true) Text(stringResource(R.string.panel_truncated), Modifier.padding(16.dp))
-                        LazyColumn(Modifier.weight(1f), state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() }) {
-                            items(state.listing?.entries.orEmpty(), key = { it.name }) { entry ->
-                                ListItem(headlineContent = { Text(entry.name) },
-                                    supportingContent = { Text(if (entry.type == "directory") stringResource(R.string.panel_folder) else entry.size?.let { "$it B" }.orEmpty()) },
-                                    modifier = Modifier.clickable(enabled = !state.busy) {
-                                        val path = if (state.directory == ".") entry.name else "${state.directory}/${entry.name}"
-                                        if (entry.type == "directory") listDirectory(path) else state.open(path)
-                                    })
+                        // Pull to refresh: a directory can change under the user (the agent writes
+                        // files while they browse), and the old Refresh button is gone with Root /
+                        // Parent, so the list itself carries the reload affordance.
+                        val pullState = rememberPullToRefreshState()
+                        PullToRefreshBox(
+                            isRefreshing = state.busy,
+                            onRefresh = { listDirectory(state.directory) },
+                            modifier = Modifier.weight(1f),
+                            state = pullState,
+                        ) {
+                            LazyColumn(Modifier.fillMaxSize(), state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() }) {
+                                items(state.listing?.entries.orEmpty(), key = { it.name }) { entry ->
+                                    ListItem(headlineContent = { Text(entry.name) },
+                                        supportingContent = { Text(if (entry.type == "directory") stringResource(R.string.panel_folder) else entry.size?.let { "$it B" }.orEmpty()) },
+                                        modifier = Modifier.clickable(enabled = !state.busy) {
+                                            val path = if (state.directory == ".") entry.name else "${state.directory}/${entry.name}"
+                                            if (entry.type == "directory") listDirectory(path) else state.open(path)
+                                        })
+                                }
                             }
                         }
                     }

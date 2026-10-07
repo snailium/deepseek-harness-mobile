@@ -471,6 +471,8 @@
     <string name="archived_empty">Aucune session archivée correspondante</string>
     <string name="archived_restore">Restaurer</string>
     <string name="panel_workspace">Espace de travail</string>
+    <string name="panel_workspace_title">Outils de l\'espace de travail</string>
+    <string name="panel_workspace_root">espace de travail</string>
     <string name="panel_files">Fichiers</string>
     <string name="panel_preview">Aperçu</string>
     <string name="panel_terminal">Terminal</string>

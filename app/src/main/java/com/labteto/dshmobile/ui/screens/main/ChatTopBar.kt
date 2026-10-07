@@ -149,10 +149,12 @@ internal fun ChatTopBar(
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
             // The workspace panel is a destination, not a label: an icon frees the line of text it
-            // used to occupy above the transcript while staying one tap away.
+            // used to occupy above the transcript while staying one tap away. A tools glyph rather
+            // than a folder: the page now holds files, previews and terminals — a toolbox, not just
+            // a directory.
             if (onOpenWorkspace != null) {
                 DsIconButton(
-                    icon = FeatherIcons.Folder,
+                    icon = FeatherIcons.Tool,
                     contentDescription = stringResource(R.string.panel_workspace),
                     onClick = onOpenWorkspace,
                     tint = colors.labelTertiary,

@@ -471,6 +471,8 @@
     <string name="archived_empty">کوئی مماثل محفوظ سیشن نہیں</string>
     <string name="archived_restore">بحال کریں</string>
     <string name="panel_workspace">کام کی جگہ</string>
+    <string name="panel_workspace_title">کام کی جگہ کے اوزار</string>
+    <string name="panel_workspace_root">کام کی جگہ</string>
     <string name="panel_files">فائلیں</string>
     <string name="panel_preview">پیش منظر</string>
     <string name="panel_terminal">ٹرمینل</string>

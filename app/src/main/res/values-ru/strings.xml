@@ -471,6 +471,8 @@
     <string name="archived_empty">Подходящих архивных сеансов нет</string>
     <string name="archived_restore">Восстановить</string>
     <string name="panel_workspace">Рабочая область</string>
+    <string name="panel_workspace_title">Инструменты рабочей области</string>
+    <string name="panel_workspace_root">рабочая область</string>
     <string name="panel_files">Файлы</string>
     <string name="panel_preview">Просмотр</string>
     <string name="panel_terminal">Терминал</string>

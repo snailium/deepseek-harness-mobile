@@ -471,6 +471,8 @@
     <string name="archived_empty">没有匹配的归档会话</string>
     <string name="archived_restore">恢复</string>
     <string name="panel_workspace">工作区</string>
+    <string name="panel_workspace_title">Workspace工具</string>
+    <string name="panel_workspace_root">工作区</string>
     <string name="panel_files">文件</string>
     <string name="panel_preview">预览</string>
     <string name="panel_terminal">终端</string>

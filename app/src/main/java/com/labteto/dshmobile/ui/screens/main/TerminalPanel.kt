@@ -5,9 +5,11 @@ import android.webkit.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -19,6 +21,7 @@ import com.labteto.dshmobile.core.wire.decodeFromJsonElement
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.serialization.json.*
@@ -34,6 +37,7 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
     var error by remember { mutableStateOf<String?>(null) }
     var shellMenu by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf<String?>(null) }
+    val dpadInput = remember { Channel<String>(16) }
     fun operation(block: suspend () -> Unit) {
         if (busy) return
         busy = true; error = null
@@ -44,13 +48,21 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
             finally { busy = false }
         }
     }
-    suspend fun refresh() {
+    suspend fun refresh(autoCreate: Boolean = false) {
         val api = store.apiForHost(key.host) ?: error(context.getString(R.string.common_offline))
         state.terminals = api.terminalList(key.sessionId).requireValue()
         state.shells = api.terminalShells(key.sessionId).requireValue()
         if (state.terminals.none { it.id == state.selectedTerminal }) state.selectedTerminal = state.terminals.firstOrNull()?.id
+        // Auto-open: the first time this tab is entered with no terminals, create one so the user
+        // lands on a live shell instead of an empty page. The terminal lives server-side and
+        // survives navigation — closing the panel does not kill it.
+        if (autoCreate && state.terminals.isEmpty() && !busy) {
+            val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
+            state.selectedTerminal = info.id
+            state.terminals = api.terminalList(key.sessionId).requireValue()
+        }
     }
-    LaunchedEffect(key) { operation { refresh() } }
+    LaunchedEffect(key) { operation { refresh(autoCreate = true) } }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.horizontalScroll(rememberScrollState())) {
             Box {
@@ -83,7 +95,7 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
                     refresh()
                 } }) { Text(stringResource(R.string.common_close)) }
             }
-            key(terminal.id) { TerminalScreen(store, key, terminal, Modifier.weight(1f)) }
+            key(terminal.id) { TerminalScreen(store, key, terminal, Modifier.weight(1f), dpadInput) }
             rename?.let { title -> AlertDialog(onDismissRequest = { rename = null }, title = { Text(stringResource(R.string.common_rename)) },
                 text = { OutlinedTextField(title, { rename = it }) },
                 confirmButton = { TextButton(enabled = title.isNotBlank() && title.length <= 120 && !busy, onClick = { operation {
@@ -102,7 +114,7 @@ private class TerminalBridge(private val receive: (String) -> Unit) {
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTerminalInfo, modifier: Modifier) {
+private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTerminalInfo, modifier: Modifier, dpadInput: Channel<String>) {
     val context = LocalContext.current
     val connection by store.connectionState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -253,6 +265,76 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
         }
         if (info.state != "running") Text(stringResource(if (info.state == "failed") R.string.common_error else R.string.chat_stopped) + " (${info.exitCode ?: "—"})", Modifier.padding(12.dp))
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp)) }
-        AndroidView(factory = { view }, modifier = Modifier.weight(1f).fillMaxWidth())
+        // The D-pad overlay sits in the top-right corner of the terminal content area. It sends
+        // arrow keys and Enter to the shell — a phone has no physical keyboard, so this is the
+        // primary way to navigate command-line UIs (fzf, htop, vim, etc.).
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+            VirtualDPad(
+                onKey = { data -> scope.launch { dpadInput.send(data) } },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * A virtual D-pad (directional pad) for navigating command-line UIs from a phone.
+ *
+ * Design: a large circle with Enter at the center and four arrow buttons (up, down, left, right)
+ * arranged in a ring around it. Each button sends the corresponding ANSI escape sequence to the
+ * terminal:
+ * - Up:    \u001b[A
+ * - Down:  \u001b[B
+ * - Right: \u001b[C
+ * - Left:  \u001b[D
+ * - Enter: \r
+ */
+@Composable
+private fun VirtualDPad(onKey: (String) -> Unit, modifier: Modifier = Modifier) {
+    val colors = DsTheme.colors
+    val size = 64.dp
+    val buttonSize = 20.dp
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        // Center: Enter button
+        Surface(
+            onClick = { onKey("\r") },
+            shape = CircleShape,
+            color = colors.bgLayer1.copy(alpha = 0.9f),
+            modifier = Modifier.size(buttonSize * 2.5f),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("⏎", style = DsType.small13Strong, color = colors.labelPrimary)
+            }
+        }
+        // Ring: four arrow buttons at N, S, E, W positions
+        listOf(
+            Triple(0f, 1f, "\u001b[A"),   // Up
+            Triple(0f, -1f, "\u001b[B"),  // Down
+            Triple(1f, 0f, "\u001b[C"),   // Right
+            Triple(-1f, 0f, "\u001b[D"),  // Left
+        ).forEach { (x, y, key) ->
+            Surface(
+                onClick = { onKey(key) },
+                shape = CircleShape,
+                color = colors.bgLayer1.copy(alpha = 0.7f),
+                modifier = Modifier
+                    .size(buttonSize)
+                    .offset(x = (x * size.value / 3f).toInt().dp, y = (y * size.value / 3f).toInt().dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        when (key) {
+                            "\u001b[A" -> "↑"
+                            "\u001b[B" -> "↓"
+                            "\u001b[C" -> "→"
+                            else -> "←"
+                        },
+                        style = DsType.xsmall12,
+                        color = colors.labelTertiary,
+                    )
+                }
+            }
+        }
     }
 }

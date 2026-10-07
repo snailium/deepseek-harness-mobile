@@ -471,6 +471,8 @@
     <string name="archived_empty">لا توجد جلسات مؤرشفة مطابقة</string>
     <string name="archived_restore">استعادة</string>
     <string name="panel_workspace">مساحة العمل</string>
+    <string name="panel_workspace_title">أدوات مساحة العمل</string>
+    <string name="panel_workspace_root">مساحة العمل</string>
     <string name="panel_files">الملفات</string>
     <string name="panel_preview">معاينة</string>
     <string name="panel_terminal">الطرفية</string>

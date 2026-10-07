@@ -471,6 +471,8 @@
     <string name="archived_empty">कोई संग्रहित सत्र नहीं मिला</string>
     <string name="archived_restore">पुनर्स्थापित करें</string>
     <string name="panel_workspace">कार्यक्षेत्र</string>
+    <string name="panel_workspace_title">कार्यक्षेत्र उपकरण</string>
+    <string name="panel_workspace_root">कार्यक्षेत्र</string>
     <string name="panel_files">फ़ाइलें</string>
     <string name="panel_preview">पूर्वावलोकन</string>
     <string name="panel_terminal">टर्मिनल</string>
