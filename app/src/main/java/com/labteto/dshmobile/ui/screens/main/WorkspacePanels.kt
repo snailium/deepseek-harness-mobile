@@ -151,17 +151,26 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                 }
                 when (state.section) {
                     0 -> {
-                        // The breadcrumb: a folder icon for the workspace root, then each directory
-                        // level separated by ›. Tapping any segment re-lists that directory — the
-                        // old Root / Parent / Retry buttons are gone, navigation is the path itself.
+                        // The breadcrumb: a folder icon for the workspace root (tappable — jumps back
+                        // to "."), then each directory level separated by ›. Tapping any segment
+                        // re-lists that directory — the old Root / Parent / Retry buttons are gone,
+                        // navigation is the path itself. Symmetric 8dp vertical padding so the row
+                        // sits evenly between the tab bar and the listing.
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = DsSpacing.tiny),
+                                .padding(horizontal = 16.dp, vertical = DsSpacing.small),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(FeatherIcons.Folder, null, tint = colors.labelTertiary, modifier = Modifier.size(14.dp))
+                            Icon(
+                                FeatherIcons.Folder,
+                                stringResource(R.string.panel_workspace_root),
+                                tint = colors.labelTertiary,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable(enabled = !state.busy) { listDirectory(".") },
+                            )
                             val segments = state.directory.split('/').filter { it.isNotEmpty() }
                             if (segments.isEmpty()) {
                                 Text(stringResource(R.string.panel_workspace_root), style = DsType.small13Strong, color = colors.labelPrimary)

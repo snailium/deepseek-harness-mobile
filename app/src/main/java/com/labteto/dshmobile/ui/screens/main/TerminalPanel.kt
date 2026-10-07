@@ -48,21 +48,28 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
             finally { busy = false }
         }
     }
-    suspend fun refresh(autoCreate: Boolean = false) {
+    suspend fun refresh() {
         val api = store.apiForHost(key.host) ?: error(context.getString(R.string.common_offline))
         state.terminals = api.terminalList(key.sessionId).requireValue()
         state.shells = api.terminalShells(key.sessionId).requireValue()
         if (state.terminals.none { it.id == state.selectedTerminal }) state.selectedTerminal = state.terminals.firstOrNull()?.id
-        // Auto-open: the first time this tab is entered with no terminals, create one so the user
-        // lands on a live shell instead of an empty page. The terminal lives server-side and
-        // survives navigation — closing the panel does not kill it.
-        if (autoCreate && state.terminals.isEmpty() && !busy) {
-            val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
-            state.selectedTerminal = info.id
-            state.terminals = api.terminalList(key.sessionId).requireValue()
+    }
+    // Auto-open: on every entry to this tab, switch to an existing terminal if one is alive;
+    // create one only when there are none. The terminal lives server-side and survives navigation
+    // — closing the panel does not kill it (the terminal/retain stream holds it). Re-entering the
+    // tab restores the last session via PanelState persistence in PanelRepository.
+    LaunchedEffect(key) {
+        operation { refresh() }
+        if (state.terminals.isEmpty()) {
+            val api = store.apiForHost(key.host) ?: return@LaunchedEffect
+            try {
+                val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
+                state.selectedTerminal = info.id
+                refresh()
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* Offline or host does not offer terminalCreate; the empty state is shown. */ }
         }
     }
-    LaunchedEffect(key) { operation { refresh(autoCreate = true) } }
     Column(modifier.fillMaxWidth()) {
         Row(Modifier.horizontalScroll(rememberScrollState())) {
             Box {
@@ -271,7 +278,9 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
         Box(Modifier.weight(1f).fillMaxWidth()) {
             AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
             VirtualDPad(
-                onKey = { data -> scope.launch { dpadInput.send(data) } },
+                // Route through xterm.js's paste() so the escape sequence goes through the
+                // terminal's normal input path and actually moves the cursor.
+                onKey = { data -> view.evaluateJavascript("term.paste(${JSONObject.quote(data)})", null) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             )
         }
@@ -281,9 +290,10 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
 /**
  * A virtual D-pad (directional pad) for navigating command-line UIs from a phone.
  *
- * Design: a large circle with Enter at the center and four arrow buttons (up, down, left, right)
+ * Design: a 128dp circle with Enter at the center and four chevron buttons (up, down, left, right)
  * arranged in a ring around it. Each button sends the corresponding ANSI escape sequence to the
- * terminal:
+ * terminal via the WebView's `term.paste()` — this routes through xterm.js's normal input path so
+ * the cursor moves exactly as if the key had been typed on a physical keyboard:
  * - Up:    \u001b[A
  * - Down:  \u001b[B
  * - Right: \u001b[C
@@ -293,46 +303,39 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
 @Composable
 private fun VirtualDPad(onKey: (String) -> Unit, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
-    val size = 64.dp
-    val buttonSize = 20.dp
+    val size = 128.dp
+    val buttonSize = 36.dp
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         // Center: Enter button
         Surface(
             onClick = { onKey("\r") },
             shape = CircleShape,
             color = colors.bgLayer1.copy(alpha = 0.9f),
-            modifier = Modifier.size(buttonSize * 2.5f),
+            modifier = Modifier.size(buttonSize * 2f),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text("⏎", style = DsType.small13Strong, color = colors.labelPrimary)
+                Text("⏎", style = DsType.base16Strong, color = colors.labelPrimary)
             }
         }
-        // Ring: four arrow buttons at N, S, E, W positions
+        // Ring: four chevron buttons at N, S, E, W positions.
+        // In Compose, positive y is DOWN, so Up = -y, Down = +y.
+        data class DpadKey(val x: Float, val y: Float, val key: String, val glyph: String)
         listOf(
-            Triple(0f, 1f, "\u001b[A"),   // Up
-            Triple(0f, -1f, "\u001b[B"),  // Down
-            Triple(1f, 0f, "\u001b[C"),   // Right
-            Triple(-1f, 0f, "\u001b[D"),  // Left
-        ).forEach { (x, y, key) ->
+            DpadKey(0f, -1f, "\u001b[A", "˄"),   // Up (top of screen)
+            DpadKey(0f, 1f, "\u001b[B", "˅"),    // Down (bottom of screen)
+            DpadKey(1f, 0f, "\u001b[C", "›"),    // Right
+            DpadKey(-1f, 0f, "\u001b[D", "‹"),   // Left
+        ).forEach { (x, y, key, glyph) ->
             Surface(
                 onClick = { onKey(key) },
                 shape = CircleShape,
                 color = colors.bgLayer1.copy(alpha = 0.7f),
                 modifier = Modifier
                     .size(buttonSize)
-                    .offset(x = (x * size.value / 3f).toInt().dp, y = (y * size.value / 3f).toInt().dp),
+                    .offset(x = (x * size.value / 2.5f).toInt().dp, y = (y * size.value / 2.5f).toInt().dp),
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        when (key) {
-                            "\u001b[A" -> "↑"
-                            "\u001b[B" -> "↓"
-                            "\u001b[C" -> "→"
-                            else -> "←"
-                        },
-                        style = DsType.xsmall12,
-                        color = colors.labelTertiary,
-                    )
+                    Text(glyph, style = DsType.base16Strong, color = colors.labelTertiary)
                 }
             }
         }
