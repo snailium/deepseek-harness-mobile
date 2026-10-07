@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -150,7 +152,11 @@ class MdnsDiscovery @Inject constructor(
                 }
                 val deadline = System.currentTimeMillis() + timeoutMs
                 val buffer = ByteArray(MAX_CARD_BYTES)
-                while (System.currentTimeMillis() < deadline) {
+                // `isActive` as well as the deadline: leaving the discovery screen cancels this
+                // coroutine, and without the check the loop kept the socket and its blocking reads
+                // alive for the rest of the window — up to 2.5s of a retained multicast socket for
+                // a screen nobody is looking at.
+                while (currentCoroutineContext().isActive && System.currentTimeMillis() < deadline) {
                     val packet = DatagramPacket(buffer, buffer.size)
                     val received = runCatching { socket.receive(packet); true }.getOrDefault(false)
                     if (!received) continue

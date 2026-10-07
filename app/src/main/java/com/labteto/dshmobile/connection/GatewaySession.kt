@@ -49,6 +49,9 @@ class GatewaySessions @Inject constructor(
 
     private val live = ConcurrentHashMap<String, Session>()
 
+    /** One pinned client per configured CA, built once (see [clientFor]). */
+    private val pinnedClients = ConcurrentHashMap<String, OkHttpClient>()
+
     /**
      * A usable session for [config], renewing when the held one has aged out.
      *
@@ -110,9 +113,20 @@ class GatewaySessions @Inject constructor(
      * checked (the CA is the identity).
      */
     fun clientFor(config: HostConfig): OkHttpClient {
-        val der = config.gatewayCaDer?.let { runCatching { Base64.getDecoder().decode(it) }.getOrNull() }
-            ?: return okHttpClient
-        return MobileAccessTls.caPinnedClient(okHttpClient, der)
+        val encoded = config.gatewayCaDer ?: return okHttpClient
+        // Cached, because this is called on *every* request: GatewayTransport.delegate() rebuilds its
+        // transport per RPC, and building the client each time meant decoding the DER, parsing the
+        // certificate, standing up a KeyStore, a TrustManagerFactory and an SSLContext, and then
+        // handing OkHttp a brand-new client whose connection pool and TLS session cache are born
+        // empty — so no connection or session was ever reused.
+        //
+        // Keyed by the CA rather than by host id: re-pairing a host installs a new CA under the same
+        // id, and a stale pinned client would then refuse the host it was just paired with.
+        return pinnedClients.getOrPut(encoded) {
+            val der = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull()
+                ?: return@getOrPut okHttpClient
+            MobileAccessTls.caPinnedClient(okHttpClient, der)
+        }
     }
 
     private fun NativeRenewResponse.toSession(): Session =
