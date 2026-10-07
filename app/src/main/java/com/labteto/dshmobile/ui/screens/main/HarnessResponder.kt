@@ -1,7 +1,10 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.data.CommandOutcome
@@ -44,8 +47,14 @@ internal class HarnessResponder(
         val answerUnsent: String,
     )
 
-    /** True while an answer this object sent is still in flight. */
-    var busy: Boolean = false
+    /**
+     * True while an answer this object sent is still in flight.
+     *
+     * Compose state, not a plain field: the plan review reads this to disable its buttons, and a
+     * plain `var` written from a coroutine triggers no recomposition — the buttons kept looking
+     * enabled while the answer was still in flight.
+     */
+    var busy by mutableStateOf(false)
         private set
 
     /** What to tell the reader about a command the harness ran, or nothing when it succeeded quietly. */

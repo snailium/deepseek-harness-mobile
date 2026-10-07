@@ -24,6 +24,8 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.remember
@@ -32,11 +34,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -263,69 +268,42 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         fontFamily = DsType.codeFont,
         color = colors.labelPrimary,
     )
-    val result = remember(text, style, codeStyle, colors) {
-        buildInlineContent(text, codeStyle, colors)
-    }
     val openFile = LocalFileOpener.current
     val openFolder = LocalFolderOpener.current
     val uriHandler = LocalUriHandler.current
-    val hasLinks = remember(result) { result.getStringAnnotations("url", 0, result.length).isNotEmpty() }
-    // Each pill has a slot of its own, as wide as its label at the pill's (slightly smaller, mono)
-    // size plus icon and padding, so the line is laid out around exactly that pill. A label wider
-    // than most of the screen is capped and ellipsized rather than run past the edge.
-    val measurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-    val maxPillWidth = LocalConfiguration.current.screenWidthDp.dp * 0.7f
-    val pillStyle = remember(style) { style.copy(fontFamily = DsType.codeFont, fontSize = style.fontSize * 0.9f) }
-    val inlineContent = remember(result, pillStyle, density, maxPillWidth) {
-        val lineHeight = style.lineHeight.takeIf { it.isSp }?.let { it.value } ?: (style.fontSize.value * 1.5f)
-        result.getStringAnnotations("path", 0, result.length).withIndex().associate { (index, ann) ->
-            val label = result.text.substring(ann.start, ann.end)
-            val width = with(density) {
-                // 1dp of slack so rounding through sp never ellipsizes a label that fits.
-                val natural = measurer.measure(label, pillStyle).size.width + (13 + 4 + 16 + 1).dp.roundToPx()
-                minOf(natural, maxPillWidth.roundToPx()).toSp()
-            }
-            filePillId(index) to InlineTextContent(
-                Placeholder(width, (lineHeight * 0.95f).sp, PlaceholderVerticalAlign.TextCenter),
-            ) { FilePill(path = ann.item, label = label, style = style) }
+    // Read through a state holder so the remembered string below does not have to be a key of the
+    // caller's lambdas: a link annotation carries its listener, and re-keying on a lambda that is
+    // rebuilt every recomposition would rebuild the whole styled string with it. Reading the
+    // delegate inside the listener picks up the current handler at tap time.
+    val onLink by rememberUpdatedState<(String) -> Unit> { raw ->
+        // http(s) goes to the browser, anything else is treated as a path into the session's own
+        // files. The scheme check lives in core so a reply cannot smuggle `intent:`/`file:` past
+        // this handler by dressing it up as a link.
+        val url = safeHttpUrl(raw)
+        if (url != null) runCatching { uriHandler.openUri(url) }
+        else previewPath(raw)?.let(openFile)
+    }
+    val result = remember(text, style, codeStyle, colors) {
+        buildInlineContent(text, codeStyle, colors) { raw -> onLink(raw) }
+    }
+    // Every line goes inside a SelectionContainer now. Links are LinkAnnotations, which `Text`
+    // handles without swallowing the long-press, so a line containing a link is selectable and
+    // copyable exactly like prose — the old ClickableText split, which forced linked lines to give
+    // up selection, is gone. Re-keyed on the shared dismiss token so a tap elsewhere in the
+    // transcript clears the selection (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
+    key(dismissToken) {
+        SelectionContainer(modifier = modifier) {
+            Text(result, style = style)
         }
     }
-    if (!hasLinks) {
-        // Nothing to tap, so the text is laid out inside a SelectionContainer instead: long-press
-        // selects and the platform handles the copy affordance. A ClickableText swallows the
-        // long-press, which is why the two cannot share one branch. Re-keyed on the shared dismiss
-        // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
-        val dismissToken = LocalSelectionDismiss.current.value
-        key(dismissToken) {
-            SelectionContainer(modifier = modifier) {
-                Text(result, style = style)
-            }
-        }
-        return
-    }
-    ClickableText(
-        result, modifier = modifier, style = style,
-        onClick = { offset ->
-            result.getStringAnnotations("url", offset, offset).firstOrNull()?.item?.let { raw ->
-                // http(s) goes to the browser, anything else is treated as a path into the
-                // session's own files. The scheme check lives in core so a reply cannot smuggle
-                // `intent:`/`file:` past this handler by dressing it up as a link.
-                val url = safeHttpUrl(raw)
-                if (url != null) runCatching { uriHandler.openUri(url) }
-                else previewPath(raw)?.let(openFile)
-            }
-        },
-        style = style,
-        inlineContent = inlineContent,
-        onTextLayout = { layout = it },
-    )
 }
 
 private fun buildInlineContent(
     text: String,
     codeStyle: TextStyle,
     colors: DsColors,
+    onLink: (String) -> Unit,
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
     var pills = 0
@@ -338,19 +316,18 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                val path = if (safeHttpUrl(segment.url) == null) com.labteto.dshmobile.ui.screens.main.previewPath(segment.url) else null
-                builder.pushStringAnnotation("url", segment.url)
-                if (path != null) {
-                    // A path into the session's workspace is an artifact, not a web link: it is
-                    // drawn as a pill (see [InlineMarkdown]'s inlineContent) so it reads as a file
-                    // you can open, and never as a blue word that may go anywhere.
-                    builder.pushStringAnnotation("path", path)
-                    builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
-                    builder.pop()
-                } else {
-                    builder.withStyle(SpanStyle(color = colors.accent)) { append(segment.text) }
-                }
-                builder.pop()
+                // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles the
+                // former itself — tap goes to the listener, long-press still reaches the enclosing
+                // SelectionContainer — whereas the string form was only readable by ClickableText,
+                // which consumes the long-press. That is what forced linked lines to opt out of
+                // selection entirely.
+                builder.withLink(
+                    LinkAnnotation.Clickable(
+                        tag = segment.url,
+                        styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                        linkInteractionListener = { onLink(segment.url) },
+                    ),
+                ) { append(segment.text) }
             }
         }
     }
