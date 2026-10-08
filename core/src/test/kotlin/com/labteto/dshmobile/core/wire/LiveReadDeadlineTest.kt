@@ -62,10 +62,15 @@ class LiveReadDeadlineTest {
             transport.post("/api/session/list", "{}")
             fail("a probe's budget must still cut the request off")
         } catch (e: RpcTransportException) {
-            assertTrue(
-                "expected a timeout, got: ${e.message}",
-                e.message.orEmpty().contains("timeout", ignoreCase = true),
-            )
+            // Assert that the deadline fired, not OkHttp's wording for it. The same fact surfaces
+            // as `SocketTimeoutException("Read timed out")` when the socket's SO_TIMEOUT reaches
+            // first and as `InterruptedIOException("timeout")` when Okio's own timeout does — which
+            // of the two wins is a race, and pinning either string made this test fail for a reason
+            // it is not about. The cause chain is the stable part.
+            val timedOut = generateSequence(e as Throwable?) { it.cause }.any {
+                it is java.io.InterruptedIOException
+            }
+            assertTrue("expected a timeout, got: ${e.message}", timedOut)
         }
     }
 
