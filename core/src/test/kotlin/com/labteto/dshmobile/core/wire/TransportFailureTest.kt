@@ -53,54 +53,6 @@ class TransportFailureTest {
         assertTrue(named, named.contains("upstream_timeout"))
     }
 
-    /**
-     * `dsh-mobile` 0.6.13 split its inbound HTTP rejections three ways.
-     *
-     * Before that release the gateway answered `400 bad_request` for anything Node's parser threw
-     * out. 0.6.13 now distinguishes a receive timeout (`408 request_timeout`) and oversized request
-     * headers (`431 headers_too_large`), which are the two cases a client can actually do something
-     * about — send less, or retry later — while the remaining parser failures stay `400`.
-     *
-     * Neither status had a case here, so both fell through to [TransportFailure.NOT_A_HARNESS],
-     * whose whole meaning is "the address is wrong or nothing is listening". A phone that spoke to
-     * the gateway perfectly well and merely took too long, or sent too big a header, was told to go
-     * and check its hostname.
-     */
-    @Test
-    fun `a gateway receive timeout is not a wrong address`() {
-        val timedOut = RpcTransportException(408, """{"error":"request_timeout"}""")
-        assertEquals(TransportFailure.REQUEST_TIMEOUT, TransportFailures.classify(timedOut))
-        assertNotEquals("408 means the peer is there", TransportFailure.NOT_A_HARNESS, TransportFailures.classify(timedOut))
-        // Distinct from a read timeout on this side's socket: the gateway stated its own deadline.
-        assertNotEquals(TransportFailure.TIMEOUT, TransportFailures.classify(timedOut))
-    }
-
-    @Test
-    fun `oversized request headers are their own verdict, next to 413`() {
-        val tooBig = RpcTransportException(431, """{"error":"headers_too_large"}""")
-        assertEquals(TransportFailure.HEADERS_TOO_LARGE, TransportFailures.classify(tooBig))
-        assertNotEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.classify(tooBig))
-        // 413 is a body too large and 431 is headers too large. They share a remedy — send less —
-        // but not a cause, and a client checks the two against different parts of its request, so
-        // they stay separate verdicts rather than one standing in for the other.
-        assertNotEquals(TransportFailure.TOO_LARGE, TransportFailures.classify(tooBig))
-        assertEquals(TransportFailure.TOO_LARGE, TransportFailures.classify(RpcTransportException(413, "too large")))
-    }
-
-    @Test
-    fun `a malformed request is its own verdict, distinct from the two size limits`() {
-        val malformed = RpcTransportException(400, """{"error":"bad_request"}""")
-        assertEquals(TransportFailure.MALFORMED_REQUEST, TransportFailures.classify(malformed))
-        // 0.6.13 keeps bare 400 for a packet Node's parser rejected. That is the *opposite* verdict
-        // from "not a harness": the peer is reachable and speaking HTTP, the bytes were simply
-        // invalid — so re-checking the address is the wrong instruction.
-        assertNotEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.classify(malformed))
-        // Distinct from the size limits because a retry cannot help: those ask for a smaller or
-        // faster request, this one means the bytes were invalid.
-        assertNotEquals(TransportFailure.TOO_LARGE, TransportFailures.classify(malformed))
-        assertNotEquals(TransportFailure.REQUEST_TIMEOUT, TransportFailures.classify(malformed))
-    }
-
     @Test
     fun `status zero falls through to the io cause`() {
         val refused = RpcTransportException(0, "transport failure", ConnectException("Connection refused"))

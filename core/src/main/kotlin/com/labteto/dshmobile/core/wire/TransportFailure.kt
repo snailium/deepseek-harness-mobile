@@ -95,38 +95,6 @@ enum class TransportFailure {
      */
     UPSTREAM_TIMEOUT,
 
-    /**
-     * HTTP 408: the gateway stopped reading the request because it did not arrive in time.
-     *
-     * `dsh-mobile` 0.6.13 split its inbound parser rejections so a receive timeout is told apart
-     * from a malformed packet: Node's `ERR_HTTP_REQUEST_TIMEOUT` becomes `408 request_timeout`
-     * instead of folding into `400 bad_request`. It is the peer's own deadline, not this device's
-     * socket timeout — the connection was established and the gateway was listening, which is what
-     * separates it from [TIMEOUT] and from [NOT_A_HARNESS]. A slow tunnel is the usual cause, so
-     * retrying is reasonable rather than a reason to re-check the address.
-     */
-    REQUEST_TIMEOUT,
-
-    /**
-     * HTTP 431: the request's headers were larger than the gateway accepts.
-     *
-     * Added by `dsh-mobile` 0.6.13 for Node's `HPE_HEADER_OVERFLOW`, which previously surfaced as
-     * `400 bad_request`. Shares [TOO_LARGE]'s verdict deliberately: both mean "something this
-     * device sent is bigger than the peer accepts, send less", and the person-facing instruction is
-     * the same whether it was the body (413) or the headers (431).
-     */
-    HEADERS_TOO_LARGE,
-
-    /**
-     * HTTP 400: the gateway's own HTTP parser rejected the request bytes.
-     *
-     * `dsh-mobile` 0.6.13's third inbound branch, and the one that is *not* actionable by sending
-     * less: 408 asks for a faster request and 431 for smaller headers, but a malformed packet means
-     * the bytes were invalid and repeating them changes nothing. It is still proof the gateway was
-     * reached — it parsed enough to answer — which is why it must not read as [NOT_A_HARNESS].
-     */
-    MALFORMED_REQUEST,
-
     /** Something answered, but it does not speak the harness protocol. */
     NOT_A_HARNESS,
 
