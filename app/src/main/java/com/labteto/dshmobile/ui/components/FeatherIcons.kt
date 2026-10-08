@@ -28,6 +28,25 @@ import androidx.compose.ui.unit.dp
  */
 internal object FeatherIcons {
 
+    val Folder: ImageVector by lazy {
+        feather("Folder") {
+            moveTo(22f, 19f); curveTo(22f, 20.1f, 21.1f, 21f, 20f, 21f)
+            lineTo(4f, 21f); curveTo(2.9f, 21f, 2f, 20.1f, 2f, 19f)
+            lineTo(2f, 5f); curveTo(2f, 3.9f, 2.9f, 3f, 4f, 3f)
+            lineTo(9f, 3f); lineTo(11f, 6f); lineTo(20f, 6f)
+            curveTo(21.1f, 6f, 22f, 6.9f, 22f, 8f); close()
+        }
+    }
+
+    val MessageSquare: ImageVector by lazy {
+        feather("MessageSquare") {
+            moveTo(21f, 15f); curveTo(21f, 16.1f, 20.1f, 17f, 19f, 17f)
+            lineTo(7f, 17f); lineTo(3f, 21f); lineTo(3f, 5f)
+            curveTo(3f, 3.9f, 3.9f, 3f, 5f, 3f); lineTo(19f, 3f)
+            curveTo(20.1f, 3f, 21f, 3.9f, 21f, 5f); close()
+        }
+    }
+
     /** `terminal` — the shell tools (bash, pwsh). */
     val Terminal: ImageVector by lazy {
         feather("Terminal") {
@@ -183,6 +202,17 @@ internal object FeatherIcons {
             moveTo(3f, 6f); lineTo(21f, 6f)
             moveTo(3f, 12f); lineTo(21f, 12f)
             moveTo(3f, 18f); lineTo(21f, 18f)
+        }
+    }
+
+    /** `at-sign` — insert a structured draft reference. */
+    val AtSign: ImageVector by lazy {
+        feather("AtSign") {
+            circle(12f, 12f, 4f)
+            moveTo(16f, 8f); verticalLineToRelative(5f)
+            arcToRelative(3f, 3f, 0f, false, false, 6f, 0f)
+            verticalLineToRelative(-1f)
+            arcToRelative(10f, 10f, 0f, true, false, -4f, 8f)
         }
     }
 
@@ -603,23 +633,6 @@ internal object FeatherIcons {
         }
     }
 
-    /** `folder` — workspaces. */
-    val Folder: ImageVector by lazy {
-        feather("Folder") {
-            moveTo(22f, 19f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 20f, 21f)
-            lineTo(4f, 21f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 2f, 19f)
-            lineTo(2f, 5f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 4f, 3f)
-            lineTo(9f, 3f)
-            lineTo(11f, 6f)
-            lineTo(20f, 6f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 22f, 8f)
-            close()
-        }
-    }
-
     /** `folder-plus` — add workspace; the same glyph dsh-web uses for its "Add workspace…" entry. */
     val FolderPlus: ImageVector by lazy {
         feather("FolderPlus") {
@@ -636,21 +649,6 @@ internal object FeatherIcons {
             close()
             moveTo(12f, 11f); lineTo(12f, 17f)
             moveTo(9f, 14f); lineTo(15f, 14f)
-        }
-    }
-
-    /** `message-square` — chat copy. */
-    val MessageSquare: ImageVector by lazy {
-        feather("MessageSquare") {
-            moveTo(21f, 15f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 19f, 17f)
-            lineTo(7f, 17f)
-            lineTo(3f, 21f)
-            lineTo(3f, 5f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 5f, 3f)
-            lineTo(19f, 3f)
-            arcTo(2f, 2f, 0f, isMoreThanHalf = false, isPositiveArc = true, 21f, 5f)
-            close()
         }
     }
 

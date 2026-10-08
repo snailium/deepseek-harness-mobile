@@ -73,6 +73,12 @@ import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
+import java.util.Locale
+import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.DsBottomSheet
+import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
+import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
 
 /**
  * App settings, grouped into cards.
@@ -88,6 +94,7 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val store = rememberSessionStore()
     val plugins by store.plugins.collectAsStateWithLifecycle()
+    val pluginManagementAvailable by store.pluginManagementAvailable.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
     val toast = rememberDsToast()
     var showDisconnectDialog by remember { mutableStateOf(false) }
@@ -211,8 +218,17 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 
                 // Its own card rather than an addition to the harness one above: that card's
                 // read-only banner is scoped to the facts it shows, and plugins are a different
-                // subject that happens to also be read-only.
-                plugins?.let { PluginsCard(it) { pluginsOpen = true } }
+                // subject managed through the pluginManager capability.
+                if (pluginManagementAvailable != false) {
+                    SettingsCard(stringResource(R.string.settings_plugins)) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = DsSpacing.touchTarget)
+                            .clickable { pluginsOpen = true }, verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.ux_a_manage_plugins), Modifier.weight(1f), style = DsType.std14, color = colors.labelSecondary)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = colors.labelTertiary)
+                        }
+                        if (plugins == null) Text(stringResource(R.string.common_loading), style = DsType.small13, color = colors.labelTertiary)
+                    }
+                } else plugins?.let { PluginsCard(it) { pluginsOpen = true } }
 
                 SettingsCard(stringResource(R.string.settings_data)) {
                     DsButton(
@@ -254,11 +270,16 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
         }
     }
 
-    plugins?.takeIf { pluginsOpen }?.let { snapshot ->
-        // The inspection view, not the editable one: this entry point is inside Settings, matching
-        // where the harness puts its "Built-in plugins" tab. The bundle page with switches is reached
-        // from the chat list's plugin button.
-        BuiltInPluginsScreen(inventory = snapshot, onClose = { pluginsOpen = false })
+    // Upstream's entry point, kept as upstream built it: when the host offers the pluginManager
+    // capability this opens the full manager, and on a host without it the read-only sheet.
+    //
+    // The fork has a second plugin page of its own (`BuiltInPluginsScreen`), reached from the chat
+    // list's plugin button rather than from here. The two overlap — same namespace, same four calls
+    // — and upstream's is the superset, so which one survives is still an open decision. Both are
+    // reachable in this build on purpose; nothing here should be read as having settled it.
+    if (pluginsOpen) {
+        if (pluginManagementAvailable == false) plugins?.let { PluginsSheet(it, onDismiss = { pluginsOpen = false }) }
+        else com.labteto.dshmobile.ui.screens.main.PluginManagerScreen(onClose = { pluginsOpen = false }, onDraftOpened = { pluginsOpen = false; onClose() })
     }
 
     if (showDisconnectDialog) {
@@ -348,6 +369,108 @@ private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) 
         }
     }
 }
+
+/**
+ * The plugin list itself.
+ *
+ * A sheet rather than an expanding block: forty rows need their own scroll surface, and nesting one
+ * inside the settings page's scroll means the list and the page fight over the same drag. The
+ * filter sits above the scroll so it stays reachable however far down the list you are.
+ *
+ * Rows show the shortened module name, since the scope and `dsh-host-`/`dsh-client-` prefixes are
+ * the same on nearly every row and push the part that differs off the end of a phone screen.
+ */
+@Composable
+internal fun PluginsSheet(inventory: PluginInventorySnapshot, onDismiss: () -> Unit) {
+    val colors = DsTheme.colors
+    var filter by remember { mutableStateOf("") }
+    val matching = remember(inventory, filter) {
+        val q = filter.trim().lowercase(Locale.ROOT)
+        if (q.isEmpty()) {
+            inventory.entries
+        } else {
+            inventory.entries.filter {
+                it.moduleName.lowercase(Locale.ROOT).contains(q) ||
+                    it.entryId.lowercase(Locale.ROOT).contains(q)
+            }
+        }
+    }
+    DsBottomSheet(
+        title = stringResource(R.string.settings_plugins),
+        subtitle = inventory.entries.size.toString(),
+        onDismiss = onDismiss,
+    ) {
+        TextField(
+            value = filter,
+            onValueChange = { filter = it },
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text(stringResource(R.string.plugins_search_hint), style = DsType.std14) },
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = colors.bgLayer2,
+                unfocusedContainerColor = colors.bgLayer2,
+                focusedIndicatorColor = colors.accent,
+                unfocusedIndicatorColor = colors.borderL2,
+                cursorColor = colors.accent,
+            ),
+        )
+        if (matching.isEmpty()) {
+            Text(
+                stringResource(R.string.plugins_empty),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+            return@DsBottomSheet
+        }
+        LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+            items(matching, key = { it.entryId }) { entry -> PluginRow(entry) }
+        }
+    }
+}
+
+@Composable
+private fun PluginRow(entry: PluginInventoryEntry) {
+    val colors = DsTheme.colors
+    var expanded by remember(entry.entryId) { mutableStateOf(false) }
+    DisclosureRow(
+        title = moduleShortName(entry.moduleName),
+        summary = stringResource(
+            if (entry.enabled) R.string.plugins_enabled else R.string.plugins_disabled,
+        ),
+        expanded = expanded,
+        onToggle = { expanded = !expanded },
+    ) {
+        Column(
+            modifier = Modifier.padding(start = DsSpacing.xlarge, bottom = DsSpacing.xsmall),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+        ) {
+            Text(entry.entryId, style = DsType.caption11, color = colors.labelCaption)
+            Text(com.labteto.dshmobile.ui.screens.main.technicalDisplay(entry.moduleName), style = DsType.caption11, color = colors.labelCaption)
+            // The mount phase only means anything for a plugin the composition asked for.
+            if (entry.enabled) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StateDot(
+                        when (entry.fiberPhase) {
+                            PluginFiberPhase.ACTIVE -> StateDotState.Done
+                            PluginFiberPhase.LOADING, PluginFiberPhase.UNLOADING -> StateDotState.Running
+                            PluginFiberPhase.FAILED -> StateDotState.Error
+                            PluginFiberPhase.PENDING, null -> StateDotState.Idle
+                        },
+                    )
+                    Spacer(Modifier.width(DsSpacing.xsmall))
+                    Text(
+                        stringResource(pluginPhaseLabel(entry.fiberPhase)),
+                        style = DsType.caption11,
+                        color = colors.labelTertiary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+// `pluginPhaseLabel` lives in `BuiltInPluginsScreen.kt`: the fork's read-only page needs it too,
+// and two same-package top-level functions with one signature are a conflicting overload.
 
 @Composable
 private fun LabelledValue(label: String, value: String) {

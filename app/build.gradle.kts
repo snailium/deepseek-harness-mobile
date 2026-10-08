@@ -138,6 +138,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation("org.yaml:snakeyaml:2.5")
 
     // The architecture seam as a build-time check — see lint/build.gradle.kts. `lintChecks` puts
     // this module's IssueRegistry on lint's own classpath, so `:app:lintDebug` fails on a

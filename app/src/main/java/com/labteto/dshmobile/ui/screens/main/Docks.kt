@@ -11,6 +11,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +39,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,14 +106,14 @@ internal fun TodoDock(todos: List<TodoEntry>, modifier: Modifier = Modifier) {
 internal fun GoalSummary(goal: GoalSnapshot) {
     val colors = DsTheme.colors
     SectionHeader(stringResource(R.string.goal_title))
-    DsPill(text = stringResource(goalPhaseLabelRes(goal.phase)))
+    GoalPhaseBadge(goal.phase)
     Spacer(Modifier.height(4.dp))
     Text(goal.objective, style = DsType.small13, color = colors.labelSecondary)
     goal.blockedReason?.let {
         Text(
             stringResource(R.string.goal_blocked_reason, it.message),
             style = DsType.caption11,
-            color = colors.warnLabel,
+            color = colors.warnText,
         )
     }
 }

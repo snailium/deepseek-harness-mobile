@@ -1,7 +1,7 @@
 package com.labteto.dshmobile.ui.screens.settings
 
 import com.labteto.dshmobile.core.wire.dto.LocalizedText
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryMeta
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
@@ -36,7 +36,7 @@ class PluginsScreenTest {
         installed: Boolean = true,
         enabled: Boolean = true,
         readOnlyReason: String? = null,
-    ) = PluginBundle(
+    ) = ProfileBundle(
         name = name,
         version = version,
         description = description,

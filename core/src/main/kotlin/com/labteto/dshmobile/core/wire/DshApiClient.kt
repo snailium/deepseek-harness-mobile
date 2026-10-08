@@ -19,7 +19,7 @@ import com.labteto.dshmobile.core.wire.dto.LlmModelDiscoveryRequest
 import com.labteto.dshmobile.core.wire.dto.LlmProviderInfo
 import com.labteto.dshmobile.core.wire.dto.ModelCatalog
 import com.labteto.dshmobile.core.wire.dto.AgentPresetComposition
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
 import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
@@ -98,6 +98,12 @@ private fun encodeQueryComponent(value: String): String =
 /** The gateway's refusal of an argument object that does not match the host method's parameters. */
 private const val ARGUMENTS_INVALID = "gateway/arguments-invalid"
 
+/** The mux has no HTTP 404; the gateway reports an absent/withdrawn export in its envelope. */
+fun RpcError.classifyCapability(): RpcError = when (code) {
+    "gateway/invocation-unavailable", "gateway/definition-unavailable" -> copy(code = "capability-unavailable")
+    else -> this
+}
+
 /** The streaming file-upload route (`packages/client/file-upload/src/protocol.ts`). */
 const val FILE_UPLOAD_PATH: String = "/api/session/uploadFileBinary"
 
@@ -163,7 +169,7 @@ class DshApiClient(
                     // into a crash on the connect screen.
                     RpcResult.Err(notAHarness("response value decode failed: ${e.message}"))
                 }
-                is RpcResult.Err -> result
+                is RpcResult.Err -> RpcResult.Err(result.error.classifyCapability())
             }
         } catch (e: RpcTransportException) {
             RpcResult.Err(transportError(e))
@@ -951,11 +957,11 @@ class DshApiClient(
     /**
      * `pluginManager/listBundles` — the bundles a profile composes, installed and available.
      *
-     * This is where the harness page's Official and Installed sections come from: [PluginBundle.installed]
+     * This is where the harness page's Official and Installed sections come from: [ProfileBundle.installed]
      * divides them, and a bundle's own `rows` describe the plugin rows it contributes.
      */
-    suspend fun pluginManagerListBundles(): RpcResult<List<PluginBundle>> =
-        arrayResult("pluginManager/listBundles", PluginBundle.serializer()) { it.name.isNotBlank() }
+    suspend fun pluginManagerListBundles(): RpcResult<List<ProfileBundle>> =
+        arrayResult("pluginManager/listBundles", ProfileBundle.serializer()) { it.name.isNotBlank() }
 
     /**
      * `pluginManager/setPluginEnabled` — turn one plugin row on or off, live.

@@ -16,6 +16,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -59,6 +60,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.ContextBreakdownView
@@ -67,8 +69,10 @@ import com.labteto.dshmobile.core.wire.dto.FULL_ACCESS_PRESET
 import com.labteto.dshmobile.core.wire.dto.EncodedImageAttachment
 import com.labteto.dshmobile.core.wire.dto.FileAttachmentRef
 import com.labteto.dshmobile.core.wire.dto.PermissionSelect
+import com.labteto.dshmobile.core.wire.dto.displayPermissionPreset
 import com.labteto.dshmobile.ui.components.ContextRing
 import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.skeleton
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
@@ -179,7 +183,16 @@ internal fun Composer(
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
     preparing: Boolean = false,
+    cursor: Int = draft.length,
+    onCursorChange: (Int) -> Unit = {},
+    references: List<DraftReference> = emptyList(),
+    onOpenReference: (DraftReference) -> Unit = {},
+    onAddReference: () -> Unit = {},
 ) {
+    var editor by remember { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(draft, androidx.compose.ui.text.TextRange(cursor))) }
+    androidx.compose.runtime.LaunchedEffect(draft, cursor) {
+        if (editor.text != draft || editor.selection.end != cursor) editor = editor.copy(text = draft, selection = androidx.compose.ui.text.TextRange(cursor.coerceIn(0, draft.length)))
+    }
     val colors = DsTheme.colors
     val haptics = LocalHapticFeedback.current
     // A file that is still uploading has no receipt to cite yet, and one that failed never will;
@@ -203,179 +216,229 @@ internal fun Composer(
         color = colors.composerCard,
         border = BorderStroke(1.dp, colors.borderL1),
     ) {
-        Column(
-            Modifier.padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-        ) {
-            // BasicTextField, not Material3's TextField. Material3 enforces a hard-coded 56dp
-            // minimum height (TextFieldDefaults.MinHeight) plus its own internal content padding,
-            // neither of which a caller can remove — the `colors` block only hides its container
-            // and indicator. That unremovable inset is the "large border" around the text: every
-            // value tuned on the card around it was fighting a floor it could not go under.
-            //
-            // BasicTextField has no decoration box at all, so the field is exactly as tall as its
-            // text and its placeholder needs a manual overlay.
-            BasicTextField(
-                value = draft,
-                onValueChange = onDraftChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 160.dp)
-                    .onPreviewKeyEvent { event ->
-                        // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only
-                        // when the reader asked for it: the field is multi-line, so
-                        // newline-by-default is what it would otherwise do.
-                        val shortcut = event.isCtrlPressed || event.isMetaPressed
-                        if (event.key == Key.Enter && (shortcut || enterToSend)) {
-                            if (event.type == KeyEventType.KeyUp && canSend) {
-                                val text = currentDraft
-                                currentOnDraftChange("")
-                                currentOnSend(text)
+        BoxWithConstraints {
+            val boundedHeight = constraints.hasBoundedHeight
+            Column(
+                Modifier.padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
+                verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            ) {
+                // Reserve the action row before measuring any draft content, including attachments.
+                Column(
+                    Modifier.then(if (boundedHeight) Modifier.weight(1f, fill = false) else Modifier),
+                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                ) {
+                if (references.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                    ) {
+                        references.forEach { reference ->
+                            val type = referenceKindLabel(reference.kind)
+                            val openLabel = stringResource(R.string.ux_b_open_reference, type, reference.label)
+                            Row(
+                                Modifier.clip(DsShapes.cube).background(colors.hoverSolid),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Row(
+                                    Modifier.heightIn(min = DsSpacing.touchTarget).widthIn(min = DsSpacing.touchTarget, max = 210.dp)
+                                        .clickable { onOpenReference(reference) }
+                                        .semantics(mergeDescendants = true) { contentDescription = openLabel }
+                                        .padding(horizontal = DsSpacing.small),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                                ) {
+                                    Icon(referenceKindIcon(reference.kind), null, Modifier.size(18.dp), tint = colors.labelSecondary)
+                                    Text(technicalDisplay(reference.label), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        style = DsType.small13, color = colors.labelSecondary)
+                                }
+                                DsIconButton(Icons.Filled.Close, stringResource(R.string.ux_b_remove_reference, reference.label), {
+                                    onDraftChange(draft.removeRange(reference.start, reference.end))
+                                    onCursorChange(reference.start)
+                                })
                             }
-                            true
-                        } else false
+                        }
+                    }
+                }
+                // BasicTextField, not Material3's TextField. Material3 enforces a hard-coded 56dp
+                // minimum height (TextFieldDefaults.MinHeight) plus its own internal content padding,
+                // neither of which a caller can remove — the `colors` block only hides its container
+                // and indicator. That unremovable inset is the "large border" around the text: every
+                // value tuned on the card around it was fighting a floor it could not go under.
+                //
+                // BasicTextField has no decoration box at all, so the field is exactly as tall as its
+                // text and its placeholder needs a manual overlay.
+                BasicTextField(
+                    value = editor,
+                    onValueChange = {
+                        val edited = atomicReferenceEdit(editor.text, it, references)
+                        editor = edited
+                        onDraftChange(edited.text)
+                        onCursorChange(edited.selection.end)
                     },
-                enabled = enabled,
-                textStyle = DsType.base16.copy(color = colors.labelPrimary),
-                cursorBrush = SolidColor(colors.accent),
-                keyboardOptions = if (enterToSend) {
-                    KeyboardOptions(imeAction = ImeAction.Send)
-                } else {
-                    KeyboardOptions(imeAction = ImeAction.Default)
-                },
-                keyboardActions = if (enterToSend) {
-                    KeyboardActions(
-                        onSend = {
-                            if (canSend) {
-                                val text = currentDraft
-                                currentOnDraftChange("")
-                                currentOnSend(text)
+                    visualTransformation = remember(references, colors.accent, colors.accentTertiary) {
+                        ReferenceTransformation(references, SpanStyle(color = colors.accent, background = colors.accentTertiary))
+                    },
+                    modifier = Modifier
+                        .then(if (boundedHeight) Modifier.weight(1f, fill = false) else Modifier)
+                        .fillMaxWidth()
+                        .heightIn(max = 160.dp)
+                        .onPreviewKeyEvent { event ->
+                            // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only
+                            // when the reader asked for it: the field is multi-line, so
+                            // newline-by-default is what it would otherwise do.
+                            val shortcut = event.isCtrlPressed || event.isMetaPressed
+                            if (event.key == Key.Enter && (shortcut || enterToSend)) {
+                                if (event.type == KeyEventType.KeyUp && canSend) {
+                                    val text = currentDraft
+                                    currentOnDraftChange("")
+                                    currentOnSend(text)
+                                }
+                                true
+                            } else false
+                        },
+                    enabled = enabled,
+                    textStyle = DsType.base16.copy(color = colors.labelPrimary),
+                    cursorBrush = SolidColor(colors.accent),
+                    keyboardOptions = if (enterToSend) {
+                        KeyboardOptions(imeAction = ImeAction.Send)
+                    } else {
+                        KeyboardOptions(imeAction = ImeAction.Default)
+                    },
+                    keyboardActions = if (enterToSend) {
+                        KeyboardActions(
+                            onSend = {
+                                if (canSend) {
+                                    val text = currentDraft
+                                    currentOnDraftChange("")
+                                    currentOnSend(text)
+                                }
+                            },
+                        )
+                    } else {
+                        KeyboardActions()
+                    },
+                    minLines = 1,
+                    maxLines = 6,
+                    decorationBox = { innerTextField ->
+                        // The placeholder has to be drawn by hand now that there is no decoration box
+                        // to do it. It must not occupy space, or the field jumps by a line when the
+                        // first character lands.
+                        Box(modifier = Modifier.padding(DsSpacing.textFieldInset)) {
+                            if (draft.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.chat_composer_hint),
+                                    style = DsType.base16,
+                                    color = colors.labelTertiary,
+                                )
                             }
+                            innerTextField()
+                        }
+                    },
+                )
+
+                if (preparing) Text(stringResource(R.string.photos_preparing), style = DsType.caption11)
+                AnimatedVisibility(visible = attachments.isNotEmpty()) {
+                    AttachmentStrip(attachments, onRemoveAttachment, onRetryAttachment)
+                }
+                }
+
+                Row(
+                    // Bottom, not centre: the action buttons ride the field's last line as it grows,
+                    // which is the ChatGPT/WhatsApp arrangement. Centre made them drift to the middle
+                    // of a tall draft, away from the line being typed.
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
+                ) {
+                    // `/` and the paperclip are siblings rather than one `+`: the glyph is the label,
+                    // and a slash for "insert a command" needs no explaining where a `+` covering
+                    // three unrelated actions did. `@` is upstream 0.13.0's reference picker, folded
+                    // into the same 28dp construction so the row still has one button shape.
+                    ComposerRoundButton(
+                        icon = FeatherIcons.Slash,
+                        label = stringResource(R.string.chat_composer_commands),
+                        enabled = enabled,
+                        onClick = onOpenCommands,
+                    )
+                    ComposerRoundButton(
+                        icon = FeatherIcons.Paperclip,
+                        label = stringResource(R.string.chat_composer_attach),
+                        enabled = enabled,
+                        onClick = onOpenAttachments,
+                    )
+                    ComposerRoundButton(
+                        icon = FeatherIcons.AtSign,
+                        label = stringResource(R.string.harness_add_reference),
+                        enabled = enabled,
+                        onClick = onAddReference,
+                    )
+
+                    // Flexible spacer: absorbs the leftover width so the trailing controls
+                    // (permission, context ring, send) are pinned to the right edge of the row.
+                    Spacer(Modifier.weight(1f))
+
+                    // Permission and context sit together at the trailing edge, both icon-only: a
+                    // 28dp preset-glyph button (the web hides its label below ~460px, and a phone
+                    // never has that room) and a 14dp occupancy ring. Each opens its own bottom sheet.
+                    PermissionChip(
+                        select = permissions,
+                        pending = pendingPermission,
+                        enabled = enabled,
+                        onPick = onPermissionPick,
+                    )
+
+                    ContextRing(contextBreakdown, contextPressure)
+
+                    // Send is always present; stop joins it while a turn runs.
+                    //
+                    // These used to share one slot, swapping on `running`, which meant a running
+                    // session offered no way to send at all — the Queue and Steer modes in the + sheet
+                    // were unreachable from the phone, and the on-screen return key inserts a newline,
+                    // so there was nothing else to press. The host has always admitted
+                    // `session/prompt` with `mode: queue|steer` mid-turn; only the button was missing.
+                    //
+                    // Stop keeps the right-hand position it had, so the gesture for stopping a turn is
+                    // where it always was and send appears beside it rather than under the thumb
+                    // already reaching for stop.
+                    CircleAction(
+                        icon = Icons.Filled.ArrowUpward,
+                        description = stringResource(R.string.chat_composer_send),
+                        size = 36,
+                        background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
+                        tint = if (canSend) Color.White else colors.labelTertiary,
+                        enabled = canSend,
+                        onClick = {
+                            val text = currentDraft
+                            currentOnDraftChange("")
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentOnSend(text)
                         },
                     )
-                } else {
-                    KeyboardActions()
-                },
-                minLines = 1,
-                maxLines = 6,
-                decorationBox = { innerTextField ->
-                    // The placeholder has to be drawn by hand now that there is no decoration box
-                    // to do it. It must not occupy space, or the field jumps by a line when the
-                    // first character lands.
-                    Box(modifier = Modifier.padding(DsSpacing.textFieldInset)) {
-                        if (draft.isEmpty()) {
-                            Text(
-                                stringResource(R.string.chat_composer_hint),
-                                style = DsType.base16,
-                                color = colors.labelTertiary,
+
+                    AnimatedVisibility(
+                        visible = running,
+                        enter = fadeIn(DsAnimations.fade) + scaleIn(initialScale = 0.85f),
+                        exit = fadeOut(DsAnimations.fade) + scaleOut(targetScale = 0.85f),
+                    ) {
+                        CircleAction(
+                            icon = null,
+                            description = stringResource(R.string.chat_composer_stop),
+                            size = 36,
+                            background = colors.error,
+                            tint = Color.White,
+                            enabled = true,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onStop()
+                            },
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(11.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color.White),
                             )
                         }
-                        innerTextField()
-                    }
-                },
-            )
-
-            if (preparing) Text(stringResource(R.string.photos_preparing), style = DsType.caption11)
-            AnimatedVisibility(visible = attachments.isNotEmpty()) {
-                AttachmentStrip(attachments, onRemoveAttachment, onRetryAttachment)
-            }
-
-            Row(
-                // Bottom, not centre: the action buttons ride the field's last line as it grows,
-                // which is the ChatGPT/WhatsApp arrangement. Centre made them drift to the middle
-                // of a tall draft, away from the line being typed.
-                verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(DsSpacing.compact),
-            ) {
-                // Built exactly like the permission trigger beside it — a 28dp circle, a 1dp
-                // ring, a 14dp glyph — rather than through CircleAction. That helper scales its
-                // glyph to the button and carries the send/stop styling; trying to make it also
-                // imitate a control it was never shaped for produced two rounds of a button that
-                // looked wrong in a different way each time. Every round control in this row now
-                // shares one construction, so a change to one is a change to all.
-                //
-                // `/` and the paperclip are siblings rather than one `+`: the glyph is the label,
-                // and a slash for "insert a command" needs no explaining where a `+` covering
-                // three unrelated actions did.
-                ComposerRoundButton(
-                    icon = FeatherIcons.Slash,
-                    label = stringResource(R.string.chat_composer_commands),
-                    enabled = enabled,
-                    onClick = onOpenCommands,
-                )
-                ComposerRoundButton(
-                    icon = FeatherIcons.Paperclip,
-                    label = stringResource(R.string.chat_composer_attach),
-                    enabled = enabled,
-                    onClick = onOpenAttachments,
-                )
-
-                // Flexible spacer: absorbs the leftover width so the trailing controls
-                // (permission, context ring, send) are pinned to the right edge of the row.
-                Spacer(Modifier.weight(1f))
-
-                // Permission and context sit together at the trailing edge, both icon-only: a
-                // 28dp preset-glyph button (the web hides its label below ~460px, and a phone
-                // never has that room) and a 14dp occupancy ring. Each opens its own bottom sheet.
-                PermissionChip(
-                    select = permissions,
-                    pending = pendingPermission,
-                    enabled = enabled,
-                    onPick = onPermissionPick,
-                )
-
-                ContextRing(contextBreakdown, contextPressure)
-
-                // Send is always present; stop joins it while a turn runs.
-                //
-                // These used to share one slot, swapping on `running`, which meant a running
-                // session offered no way to send at all — the Queue and Steer modes in the + sheet
-                // were unreachable from the phone, and the on-screen return key inserts a newline,
-                // so there was nothing else to press. The host has always admitted
-                // `session/prompt` with `mode: queue|steer` mid-turn; only the button was missing.
-                //
-                // Stop keeps the right-hand position it had, so the gesture for stopping a turn is
-                // where it always was and send appears beside it rather than under the thumb
-                // already reaching for stop.
-                CircleAction(
-                    icon = Icons.Filled.ArrowUpward,
-                    description = stringResource(R.string.chat_composer_send),
-                    size = 36,
-                    background = if (canSend) colors.buttonInfoFill else colors.buttonPrimaryDimmed,
-                    tint = if (canSend) Color.White else colors.labelTertiary,
-                    enabled = canSend,
-                    onClick = {
-                        val text = currentDraft
-                        currentOnDraftChange("")
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        currentOnSend(text)
-                    },
-                )
-
-                AnimatedVisibility(
-                    visible = running,
-                    enter = fadeIn(DsAnimations.fade) + scaleIn(initialScale = 0.85f),
-                    exit = fadeOut(DsAnimations.fade) + scaleOut(targetScale = 0.85f),
-                ) {
-                    CircleAction(
-                        icon = null,
-                        description = stringResource(R.string.chat_composer_stop),
-                        size = 36,
-                        background = colors.error,
-                        tint = Color.White,
-                        enabled = true,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onStop()
-                        },
-                    ) {
-                        Box(
-                            Modifier
-                                .size(11.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color.White),
-                        )
                     }
                 }
             }

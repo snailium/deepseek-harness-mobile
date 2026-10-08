@@ -13,13 +13,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -159,6 +162,9 @@ fun ChatScreen(
             defaultMode = appSettings.promptMode,
         )
     }
+    // The `@` picker's open state. The draft and the send mode moved into `ComposerSubmitter`;
+    // this stays here because it is a property of the screen's overlay, not of the draft.
+    var referencePicker by remember(composer.key) { mutableStateOf<AtQuery?>(null) }
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
 
     var panelKey by remember { mutableStateOf<ComposerKey?>(null) }
@@ -291,40 +297,44 @@ fun ChatScreen(
                 },
             )
 
-            AnimatedContent(
-                targetState = tab,
-                transitionSpec = {
-                    val forward = targetState.ordinal > initialState.ordinal
-                    (
-                        slideInHorizontally { width -> if (forward) width / 6 else -width / 6 } +
-                            fadeIn(DsAnimations.fade)
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+                // Keep transcript/question space even with a long draft. On very short screens,
+                // reserve enough for reference chips, a line of text and the fixed action row.
+                val composerMaxHeight = (maxHeight * 0.6f).coerceAtLeast(180.dp)
+                Column(Modifier.fillMaxSize()) {
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val forward = targetState.ordinal > initialState.ordinal
+                        (
+                            slideInHorizontally { width -> if (forward) width / 6 else -width / 6 } +
+                                fadeIn(DsAnimations.fade)
+                            )
+                            .togetherWith(fadeOut(DsAnimations.fade)) using SizeTransform(clip = false)
+                    },
+                    modifier = Modifier.weight(1f),
+                    label = "chatTab",
+                ) { current ->
+                    when (current) {
+                        ChatTab.Chat -> ChatTranscript(
+                            conversation = conversation,
+                            loading = conversation == null && currentSessionId != null,
+                            loadingOlder = loadingOlder,
+                            loadOlderFailed = loadOlderFailed,
+                            context = nodeContext,
+                            listState = chatListState,
+                            onLoadOlder = { scope.launch { store.loadOlder() } },
+                            focusSeq = currentMatch?.seq,
                         )
-                        .togetherWith(fadeOut(DsAnimations.fade)) using SizeTransform(clip = false)
-                },
-                modifier = Modifier.weight(1f),
-                label = "chatTab",
-            ) { current ->
-                when (current) {
-                    ChatTab.Chat -> ChatTranscript(
-                        conversation = conversation,
-                        loading = conversation == null && currentSessionId != null,
-                        loadingOlder = loadingOlder,
-                        loadOlderFailed = loadOlderFailed,
-                        context = nodeContext,
-                        listState = chatListState,
-                        onLoadOlder = { scope.launch { store.loadOlder() } },
-                        focusSeq = currentMatch?.seq,
-                    )
-                    ChatTab.Trajectory -> TrajectoryTab(
-                        conversation = conversation,
-                        stats = sessionStats,
-                        usage = tokenUsage,
-                        cwd = currentSession?.cwd,
-                        listState = trajectoryListState,
-                    )
+                        ChatTab.Trajectory -> TrajectoryTab(
+                            conversation = conversation,
+                            stats = sessionStats,
+                            usage = tokenUsage,
+                            cwd = currentSession?.cwd,
+                            listState = trajectoryListState,
+                        )
+                    }
                 }
-            }
-
             conversation?.let { conv ->
                 PageColumn(spacing = 4.dp) {
                     // The to-do list lives in the pinned bar above the transcript, not here:
@@ -393,6 +403,10 @@ fun ChatScreen(
                 }
             }
 
+            // Weighted questions are measured after the composer, so long questions cannot
+            // consume its controls. The question area scrolls within its allotted height.
+            ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
+
             Composer(
                 draft = draft,
                 onDraftChange = submitter::onDraftChange,
@@ -421,14 +435,38 @@ fun ChatScreen(
                 // changes and compares by identity, so the composer always holds the current one.
                 onSend = { submitter.send(it) },
                 onStop = { scope.launch { store.cancelTurn() } },
+                modifier = Modifier.heightIn(max = composerMaxHeight),
+                references = composer.references,
+                onAddReference = {
+                    referencePicker = activeReference(draft, composer.selection) ?: AtQuery(composer.selection, composer.selection, "")
+                },
+                onOpenReference = { reference ->
+                    if (reference.kind == "session") scope.launch { store.openSession(reference.target) }
+                    else {
+                        val panel = store.panels.get(composer.key)
+                        if (reference.kind == "folder") {
+                            panel.directory = reference.target
+                            panel.section = 0
+                            // Reopening the panel must load this target, not reuse the previous
+                            // directory's cached rows. Its existing launch effect loads null listings.
+                            panel.listing = null
+                        } else panel.open(reference.target)
+                        panelKey = composer.key
+                    }
+                },
+                cursor = composer.selection,
+                onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
             )
 
             StatsFooter(stats = sessionStats, usage = tokenUsage)
+                }
+            }
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
     }
 
     }
+    referencePicker?.let { ReferencePicker(store, composer, it, onClose = { referencePicker = null }) }
     panelKey?.let { key -> WorkspacePanels(store, store.panels.get(key), onDismiss = { panelKey = null }) }
     feedback?.let { (key, id, positive) -> FeedbackDialog(store, key, id, positive) { feedback = null } }
     when (sheet) {

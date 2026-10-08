@@ -202,7 +202,7 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                         ) {
                             LazyColumn(Modifier.fillMaxSize(), state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() }) {
                                 items(state.listing?.entries.orEmpty(), key = { it.name }) { entry ->
-                                    ListItem(headlineContent = { Text(entry.name) },
+                                    ListItem(headlineContent = { Text(technicalDisplay(entry.name)) },
                                         supportingContent = { Text(if (entry.type == "directory") stringResource(R.string.panel_folder) else entry.size?.let { "$it B" }.orEmpty()) },
                                         modifier = Modifier.clickable(enabled = !state.busy) {
                                             val path = if (state.directory == ".") entry.name else "${state.directory}/${entry.name}"
@@ -217,7 +217,7 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                         else {
                             Row(Modifier.horizontalScroll(rememberScrollState())) {
                                 state.previews.forEachIndexed { i, preview ->
-                                    TextButton(onClick = { state.selectedPreview = i }) { Text(preview.path.substringAfterLast('/').substringAfterLast('\\')) }
+                                    TextButton(onClick = { state.selectedPreview = i }) { Text(technicalDisplay(preview.path.substringAfterLast('/').substringAfterLast('\\'))) }
                                 }
                             }
                             val index = state.selectedPreview.coerceIn(0, state.previews.lastIndex)
@@ -276,7 +276,7 @@ private fun DocumentPreview(store: SessionStore, key: ComposerKey, tab: PreviewT
     LaunchedEffect(tab) { load() }
     LaunchedEffect(tab.stat) { if (tab.stat == null) load() }
     Column(modifier.fillMaxWidth()) {
-        SelectionContainer { Text(tab.path, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall) }
+        SelectionContainer { Text(technicalDisplay(tab.path), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall) }
         if (tab.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         tab.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
         TextButton(onClick = { scope.launch {
@@ -340,7 +340,7 @@ private fun DocumentPreview(store: SessionStore, key: ComposerKey, tab: PreviewT
                     onRelease = { it.destroy() })
             }
             tab.text != null -> SelectionContainer(Modifier.weight(1f).verticalScroll(tab.scroll).padding(16.dp)) {
-                if (extension in setOf("md", "markdown")) MarkdownText(tab.text.orEmpty())
+                if (extension in setOf("md", "markdown")) DocumentMarkdown(tab.text.orEmpty())
                 else Text(tab.text.orEmpty(), fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             }
         }

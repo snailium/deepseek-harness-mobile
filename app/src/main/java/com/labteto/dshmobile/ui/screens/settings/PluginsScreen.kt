@@ -36,7 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
 import com.labteto.dshmobile.data.PluginMutationState
@@ -74,7 +74,7 @@ import androidx.compose.foundation.rememberScrollState
  * Installed sections — and it is *not* the Settings tab called "Built-in plugins". Those are two
  * different services and the difference is the whole design here:
  *
- * - **Bundles** ([PluginBundle]) is what an operator installs and turns on. Seventeen entries on a
+ * - **Bundles** ([ProfileBundle]) is what an operator installs and turns on. Seventeen entries on a
  *   stock profile, each owning a *set* of loader rows. Toggling one is the supported operation the
  *   harness's own page offers.
  * - **Built-in plugins** (`pluginInventory/list` / `pluginManager/listPlugins`) is the flat
@@ -135,7 +135,7 @@ fun PluginsScreen(onClose: () -> Unit) {
     var filter by remember { mutableStateOf("") }
     // Which bundle's detail dialog is open. Held as the bundle itself rather than a name so the
     // dialog keeps rendering after a reload replaces the list with equal-but-new objects.
-    var openBundle by remember { mutableStateOf<PluginBundle?>(null) }
+    var openBundle by remember { mutableStateOf<ProfileBundle?>(null) }
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
 
@@ -271,10 +271,10 @@ private fun PluginsTitleBar(onClose: () -> Unit) {
  */
 @Composable
 private fun BundleList(
-    bundles: List<PluginBundle>,
+    bundles: List<ProfileBundle>,
     total: Int,
     mutation: PluginMutationState?,
-    onOpen: (PluginBundle) -> Unit,
+    onOpen: (ProfileBundle) -> Unit,
     onToggle: (String, Boolean) -> Unit,
     listState: LazyListState,
     locale: String,
@@ -335,7 +335,7 @@ private fun SectionHeader(label: String, count: Int) {
  */
 @Composable
 private fun BundleCard(
-    bundle: PluginBundle,
+    bundle: ProfileBundle,
     mutation: PluginMutationState?,
     onToggle: (String, Boolean) -> Unit,
     onOpen: () -> Unit,
@@ -405,7 +405,7 @@ private fun BundleCard(
  */
 @Composable
 private fun BundleDetailDialog(
-    bundle: PluginBundle,
+    bundle: ProfileBundle,
     schemaByNamespace: Map<String, ResolvedSettingsSchema>,
     valuesByNamespace: Map<String, JsonElement>,
     revisionsByNamespace: Map<String, Long>,
@@ -583,7 +583,7 @@ private fun readOnlyLabel(reason: String): Int? = when (reason) {
  * The version is matched as well as the name: a user chasing a specific release types what they see,
  * and the version is on the row.
  */
-internal fun PluginBundle.matches(query: String, locale: String? = null): Boolean {
+internal fun ProfileBundle.matches(query: String, locale: String? = null): Boolean {
     val q = query.trim().lowercase(Locale.ROOT)
     if (q.isEmpty()) return true
     return name.lowercase(Locale.ROOT).contains(q) ||

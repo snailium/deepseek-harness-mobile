@@ -16,12 +16,9 @@ import kotlinx.serialization.json.contentOrNull
 /**
  * Plugin-inventory DTOs, ported from `packages/host/plugin-inventory/src/types.ts`.
  *
- * The inventory is read-only by design: `pluginInventory/list` is the namespace's entire surface —
- * there is no enable/disable call anywhere in the harness. Which plugins load is decided by
- * `cordis.patch.yml`, and the settings that configure them go through `settings.*`, which is
- * loopback-pinned and answers 403 to anything reaching the host over the network. So a phone can
- * see the composition and nothing more, which is exactly what the harness's own "Plugin list" tab
- * offers.
+ * This inventory remains read-only. Harness 0.2.1 adds writes under the separate
+ * pluginManager namespace; see Harness021Dtos and Harness021Api, and `PluginManagerDtos` for the
+ * fork's own view of the same namespace.
  *
  * What the answer *does* carry is richer than the entry tuple alone. `meta` supplies the display
  * title and one-line description straight from the installed package manifest, and

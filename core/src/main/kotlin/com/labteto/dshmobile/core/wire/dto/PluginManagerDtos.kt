@@ -99,7 +99,7 @@ data class PluginManagerRow(
  * profile's seventeen bundles: the enclosing bundle failed to decode because its rows did.
  */
 @Serializable
-data class PluginBundleRow(
+data class ProfileBundleRow(
     @SerialName("rowId") val rowId: String,
     @SerialName("moduleName") val moduleName: String,
     /** The live entry id; null until this row is composed into the running tree. */
@@ -118,7 +118,7 @@ data class PluginBundleRow(
  * cannot do without. [overrides] names rows this bundle replaces from a bundle it layers over.
  */
 @Serializable
-data class PluginBundle(
+data class ProfileBundle(
     @SerialName("name") val name: String,
     @SerialName("version") val version: String? = null,
     @SerialName("description") val description: String? = null,
@@ -129,7 +129,7 @@ data class PluginBundle(
     @SerialName("optional") val optional: Boolean = false,
     /** Whether the Host would accept a removal. */
     @SerialName("removable") val removable: Boolean = false,
-    @SerialName("rows") val rows: List<PluginBundleRow> = emptyList(),
+    @SerialName("rows") val rows: List<ProfileBundleRow> = emptyList(),
     /** Row ids this bundle replaces from a bundle it layers over. */
     @SerialName("overrides") val overrides: List<String> = emptyList(),
     @SerialName("readOnlyReason") val readOnlyReason: String? = null,
