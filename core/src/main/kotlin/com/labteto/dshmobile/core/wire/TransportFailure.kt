@@ -81,6 +81,20 @@ enum class TransportFailure {
      */
     UPSTREAM_DOWN,
 
+    /**
+     * HTTP 504 from a gateway that gave up waiting for the harness.
+     *
+     * Distinct from [UPSTREAM_DOWN] because the remedy is the opposite. A 502 means nothing is
+     * behind the gateway and reconnecting is right; a 504 means something *is* there and is still
+     * working — the gateway's own deadline was simply shorter than the work. `dsh-mobile` returns
+     * this as `{"error":"upstream_timeout"}` from its `upstreamApiTimeoutMs`, which defaults to 0
+     * (disabled) since 0.5.6 precisely because `/compact` kept hitting it at 30s.
+     *
+     * Guessing [NOT_A_HARNESS] here — the old behaviour, since 504 fell through the `else` — told
+     * the reader their address was wrong while the summary they asked for was still being written.
+     */
+    UPSTREAM_TIMEOUT,
+
     /** Something answered, but it does not speak the harness protocol. */
     NOT_A_HARNESS,
 
@@ -137,6 +151,9 @@ object TransportFailures {
         413 -> TransportFailure.TOO_LARGE
         429 -> TransportFailure.RATE_LIMITED
         502 -> TransportFailure.UPSTREAM_DOWN
+        // A gateway that stopped waiting for the harness. Not "not a harness": the address was
+        // right and the work was still running when the gateway's own deadline expired.
+        504 -> TransportFailure.UPSTREAM_TIMEOUT
         0 -> classify(e.cause)
         // A 5xx or a stray 200-shaped answer from something that is not the harness.
         else -> TransportFailure.NOT_A_HARNESS

@@ -2,6 +2,8 @@ package com.labteto.dshmobile.core.wire
 
 import kotlinx.serialization.json.JsonObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.IOException
@@ -20,6 +22,35 @@ class TransportFailureTest {
         assertEquals(TransportFailure.TRUST_FENCE, TransportFailures.classify(RpcTransportException(403, "no")))
         assertEquals(TransportFailure.NOT_FOUND, TransportFailures.classify(RpcTransportException(404, "no")))
         assertEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.classify(RpcTransportException(500, "no")))
+    }
+
+    /**
+     * A gateway's `upstream_timeout` must not read as "this is not a harness".
+     *
+     * `dsh-mobile` answers `504 {"error":"upstream_timeout"}` when its `upstreamApiTimeoutMs` expires
+     * while the harness is still working — the other half of the same `/compact` bug this app fixed
+     * on its own side. Before 504 had a case it fell through to [TransportFailure.NOT_A_HARNESS],
+     * whose whole meaning is "the address is wrong or nothing is listening", and which sends the
+     * reader to re-check a hostname that was never the problem while their summary is still being
+     * written.
+     */
+    @Test
+    fun `a gateway that gave up waiting is not a wrong address`() {
+        val gateway = RpcTransportException(504, "the gateway stopped waiting for the harness")
+        assertEquals(TransportFailure.UPSTREAM_TIMEOUT, TransportFailures.classify(gateway))
+        assertNotEquals(TransportFailure.NOT_A_HARNESS, TransportFailures.classify(gateway))
+        // Still distinct from a dead upstream: 502 means reconnect, 504 means the work is running.
+        assertNotEquals(TransportFailure.UPSTREAM_DOWN, TransportFailures.classify(gateway))
+    }
+
+    @Test
+    fun `the 504 wording names the gateway deadline, and echoes the body when it can`() {
+        val bare = carrierMessage(504)
+        assertTrue(bare, bare.contains("504"))
+        assertTrue(bare, bare.contains("gateway", ignoreCase = true))
+
+        val named = carrierMessage(504, """{"error":"upstream_timeout"}""")
+        assertTrue(named, named.contains("upstream_timeout"))
     }
 
     @Test

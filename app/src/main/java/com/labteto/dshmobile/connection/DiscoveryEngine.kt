@@ -83,11 +83,13 @@ internal fun probeOutcomeOf(kind: TransportFailure?, relay: Boolean, detail: Str
         TransportFailure.NOT_FOUND, TransportFailure.NOT_A_HARNESS, TransportFailure.TOO_LARGE ->
             ProbeOutcome.NotAHarness
         TransportFailure.TLS -> ProbeOutcome.TlsFailure
-        // A throttle and a dead upstream both describe a real harness address — one asking us to
-        // wait, one with nothing behind it — so neither may read as "not a harness", which is the
-        // one verdict that sends someone to re-check the address. Their own carrier wording already
-        // says which, so it is what gets shown.
+        // A throttle, a dead upstream and a gateway that gave up waiting all describe a real
+        // harness address — one asking us to wait, one with nothing behind it, one still working
+        // when its proxy's deadline expired — so none may read as "not a harness", the one verdict
+        // that sends someone to re-check the address. Their own carrier wording already says which,
+        // so it is what gets shown.
         TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN,
+        TransportFailure.UPSTREAM_TIMEOUT,
         TransportFailure.OTHER, null,
         -> ProbeOutcome.Other(detail)
     }

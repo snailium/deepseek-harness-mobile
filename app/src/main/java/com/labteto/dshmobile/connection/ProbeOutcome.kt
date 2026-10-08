@@ -115,3 +115,47 @@ data class ProbeTimeouts(val connectMs: Long, val readMs: Long) {
         val Manual = ProbeTimeouts(connectMs = 2_500, readMs = 4_000)
     }
 }
+
+/**
+ * The live channel's connect budget.
+ *
+ * Bounded on purpose: a link that will not open is a link problem, and no amount of waiting turns a
+ * refused socket into a working one.
+ */
+internal const val LIVE_CONNECT_TIMEOUT_MS = 30_000L
+
+/**
+ * The live channel's read budget: none. OkHttp's own `0`, and the point of this pair of functions.
+ *
+ * A response wait is gated on work the *host* does, and a request the host is working on puts
+ * nothing on the wire while it works — OkHttp's read timeout is an *idle* timeout, so a host working
+ * perfectly looks exactly like a host that has died. `/compact` is the case that found it: it
+ * summarizes a whole session, and this app killed it at exactly 30s with `transport failure:
+ * timeout` while the same command was still running. The gateway in front of it had made the same
+ * mistake in the same place (`upstreamTimeoutMs`, 30s), which is why the bug appeared from both
+ * sides at once.
+ *
+ * Enlarging the number was rejected at both ends for the same reason: any finite value is a guess
+ * about somebody else's work, and a guess that is merely bigger fails identically on the session
+ * large enough to matter. `dsh-mobile` made `upstreamApiTimeoutMs` default to 0 in 0.5.6; this is
+ * the same decision for the same field on this side.
+ *
+ * What still bounds it: [LIVE_CONNECT_TIMEOUT_MS] for the link, the transport's write timeout for
+ * the upload, and cancellation for the caller. Liveness does not depend on this — the mux reports a
+ * dead link on its own (`ConnectionLoop`), which is why removing the deadline does not hide a
+ * disconnection.
+ */
+internal const val NO_READ_DEADLINE_MS = 0L
+
+/** Connect budget for a client: the probe's own, or the live channel's. */
+internal fun connectTimeoutFor(probe: ProbeTimeouts?): Long = probe?.connectMs ?: LIVE_CONNECT_TIMEOUT_MS
+
+/**
+ * Read budget for a client: the probe's own, or none on the live channel.
+ *
+ * Both ends of this expression matter. A probe keeps the short budget it was given — a sweep of 254
+ * addresses is decided by it — while a live request is never cut off for being quiet. Keeping the
+ * choice in one function is what makes "the live channel has no read deadline" an assertion a test
+ * can hold, rather than a property of two call sites that could drift apart.
+ */
+internal fun readTimeoutFor(probe: ProbeTimeouts?): Long = probe?.readMs ?: NO_READ_DEADLINE_MS

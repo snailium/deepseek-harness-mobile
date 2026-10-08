@@ -66,8 +66,11 @@ class HarnessClientFactory @Inject constructor(
     /**
      * A client for [config], carrying whatever credential and pin that endpoint needs.
      *
-     * [timeouts] is for probes; the live connection takes the transport's own 30s defaults, because
-     * a long `session/page` on a big session is not a stalled request.
+     * [timeouts] is for probes, and a probe keeps the budget it is given. The live connection passes
+     * none and gets [NO_READ_DEADLINE_MS] instead: the response wait on that channel is gated on work
+     * the host does, and a long `session/page` on a big session — or a `/compact`, which is what
+     * found this — is not a stalled request. Connect and write stay bounded, so a dead *link* is
+     * still caught; see `OkHttpRpcTransport`'s class comment and `NO_READ_DEADLINE_MS`.
      */
     suspend fun clientFor(config: HostConfig, timeouts: ProbeTimeouts? = null): DshApiClient {
         val http = httpClient(config.relayFingerprint)
@@ -77,8 +80,8 @@ class HarnessClientFactory @Inject constructor(
             transport = OkHttpRpcTransport(
                 baseUrl = base,
                 client = http,
-                connectTimeoutMs = timeouts?.connectMs ?: DEFAULT_TIMEOUT_MS,
-                readTimeoutMs = timeouts?.readMs ?: DEFAULT_TIMEOUT_MS,
+                connectTimeoutMs = connectTimeoutFor(timeouts),
+                readTimeoutMs = readTimeoutFor(timeouts),
                 authorization = authorization,
                 cookie = cookieFor(config),
             ),
@@ -117,8 +120,4 @@ class HarnessClientFactory @Inject constructor(
         ),
     )
 
-    private companion object {
-        /** The transport's own default, restated so a null [ProbeTimeouts] is explicit rather than magic. */
-        const val DEFAULT_TIMEOUT_MS = 30_000L
-    }
 }

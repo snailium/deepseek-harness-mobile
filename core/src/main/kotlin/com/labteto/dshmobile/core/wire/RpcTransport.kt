@@ -101,41 +101,21 @@ interface RpcTransport {
 private val JSON_MEDIA_TYPE: MediaType = "application/json; charset=utf-8".toMediaType()
 
 /**
- * Unary `/api` paths whose answer is gated on work the *host* does, not on the link.
- *
- * Everything else answers promptly, and a read deadline is what notices a link that has gone quiet.
- * These do not: the host accepts the request, runs it, and puts nothing on the wire until it is
- * finished.
- */
-private val HOST_BOUND_PATHS = setOf("/api/commands/execute")
-
-/**
- * Whether [path] must be sent without a read deadline.
- *
- * `commands/execute` is the shape this exists for. `/compact` summarizes the whole session: the
- * harness takes the request, thinks, and answers when the summary is done — minutes, on a large
- * session behind a slow model. OkHttp's read timeout is an *idle* timeout, so a host working
- * perfectly looks exactly like a host that has died, and the call was aborted mid-work.
- *
- * That is not hypothetical. Against `saya-ch/dsh-mobile` a `/compact` was killed at exactly 30s and
- * surfaced as `transport failure: timeout`, because every construction path fell back to
- * `DEFAULT_TIMEOUT_MS`. It is the same mistake [OkHttpRpcTransport]'s `downloadClient` already
- * corrects for a streamed ZIP — a deadline picked for a link, applied to work — and the fix has the
- * same shape: remove the deadline rather than enlarge it. Any finite number here is a guess about
- * somebody else's work, and a guess that is merely bigger fails the same way later, on the session
- * that matters most.
- *
- * Nothing is lost by removing it. Connection liveness does not come from this deadline — the mux
- * reports a dead link independently (`ConnectionLoop`) — connect and write stay bounded, and
- * cancellation still closes the call. The caller keeps the only judgement that matters here: how
- * long they are willing to wait.
- */
-internal fun isHostBoundedPath(path: String): Boolean = path in HOST_BOUND_PATHS
-
-/**
  * OkHttp-backed [RpcTransport]. Sends `Content-Type: application/json`, sets the `Host` header
- * from the base URL, and times out at [connectTimeoutMs]/[readTimeoutMs] (30s by default). Non-2xx
+ * from the base URL, and honours [connectTimeoutMs]/[readTimeoutMs]/[writeTimeoutMs]. Non-2xx
  * responses throw [RpcTransportException] (403 mentions the harness trust fence).
+ *
+ * **A [readTimeoutMs] of `0` means no read deadline**, which is OkHttp's own meaning and not this
+ * class's invention. The live unary channel is built that way (see `NO_READ_DEADLINE_MS` in the
+ * connection layer) for the reason the gateway on the other end documents for its own
+ * `upstreamApiTimeoutMs`: the response wait is gated on work the *host* does, and a request the host
+ * is working on puts nothing on the wire while it works. `/compact` is the case that found it —
+ * summarizing a whole session takes tens of seconds to minutes, and the 30s default killed it at
+ * exactly 30s with `transport failure: timeout`, on both the direct and the gateway route.
+ *
+ * [writeTimeoutMs] still bounds the upload and [connectTimeoutMs] the link, which is the same split
+ * the gateway makes between its transport budget and its API-response budget. A discovery probe
+ * passes an explicit short [readTimeoutMs] and keeps it — nothing here weakens a probe's budget.
  *
  * [baseUrl] may be `http://` or `https://`; see [hostHeaderFor] for how the header is spelled.
  *
@@ -165,18 +145,6 @@ class OkHttpRpcTransport(
         .writeTimeout(writeTimeoutMs, TimeUnit.MILLISECONDS)
         .build()
 
-    /**
-     * The unary client with no read deadline, for the calls whose duration belongs to the host.
-     *
-     * See [isHostBoundedPath]. It shares [httpClient]'s connection pool, like [downloadClient], and
-     * keeps both other deadlines: a link that is *dead* is still caught, and what is dropped is only
-     * the claim to know how long the host may think. `readTimeout(0)` is OkHttp's "no timeout", not
-     * "instant".
-     */
-    private val hostBoundedClient: OkHttpClient by lazy {
-        httpClient.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).build()
-    }
-
     override suspend fun post(path: String, body: String): RpcHttpResponse =
         suspendCancellableCoroutine { continuation ->
             val target = base.resolve(path)
@@ -189,7 +157,7 @@ class OkHttpRpcTransport(
                 .cookied(cookie)
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            val call = (if (isHostBoundedPath(path)) hostBoundedClient else httpClient).newCall(request)
+            val call = httpClient.newCall(request)
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
@@ -406,6 +374,13 @@ internal fun carrierMessage(status: Int, body: String? = null): String = when (s
     429 -> "rate limited before the harness (HTTP 429)"
     // A relay or reverse proxy answered and the harness behind it did not.
     502 -> "nothing answered behind the relay (HTTP 502)"
+    // A gateway answered *for* the harness, having given up waiting for it. Named as such because
+    // the fix is a gateway setting, not a reconnect: `upstreamApiTimeoutMs` is 0 (no deadline) by
+    // default since dsh-mobile 0.5.6, so a 504 here means that deployment raised it from 0 or is
+    // older than 0.5.6 and is still on the 30s default. The body usually says `upstream_timeout`,
+    // which is worth echoing when present.
+    504 -> refusalReason(body)?.let { "the gateway stopped waiting for the harness: $it (HTTP 504)" }
+        ?: "the gateway stopped waiting for the harness (HTTP 504)"
     // A relay in front of the harness runs its own fence, and when it refuses, the harness never
     // sees the request at all — so naming the harness sends people to debug the wrong machine.
     // The relay says why in the body; when it does, that reason is the message. Otherwise the
