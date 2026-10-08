@@ -166,8 +166,10 @@ class GatewayTransport(
         return OkHttpRpcTransport(
             baseUrl = config.baseUrl,
             client = sessions.clientFor(config),
-            connectTimeoutMs = timeouts?.connectMs ?: DEFAULT_TIMEOUT_MS,
-            readTimeoutMs = timeouts?.readMs ?: DEFAULT_TIMEOUT_MS,
+            // Same split the gateway makes on its own side between transport and API-response
+            // budgets. See `readTimeoutFor`: a probe keeps the budget it was given.
+            connectTimeoutMs = connectTimeoutFor(timeouts),
+            readTimeoutMs = readTimeoutFor(timeouts),
             cookie = MobileAccess.sessionCookie(session.sessionToken),
             origin = origin,
             csrf = session.csrfToken,
@@ -210,7 +212,6 @@ class GatewayTransport(
     }
 
     private companion object {
-        const val DEFAULT_TIMEOUT_MS = 30_000L
     }
 }
 
