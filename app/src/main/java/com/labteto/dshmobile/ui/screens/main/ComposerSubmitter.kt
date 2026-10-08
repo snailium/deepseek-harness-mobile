@@ -13,6 +13,9 @@ import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.CommandDescriptor
 import com.labteto.dshmobile.core.wire.dto.ImageLimitsView
 import com.labteto.dshmobile.core.wire.dto.CommandSubmitAttachment
+import com.labteto.dshmobile.ui.screens.main.commands.CommandContext
+import com.labteto.dshmobile.ui.screens.main.commands.CommandDecorations
+import com.labteto.dshmobile.ui.screens.main.commands.CommandUiSpec
 import com.labteto.dshmobile.data.CommandOutcome
 import kotlinx.coroutines.launch
 import com.labteto.dshmobile.data.PromptOutcome
@@ -64,6 +67,15 @@ internal class ComposerSubmitter(
     var imageLimits: ImageLimitsView? = imageLimits
         internal set
     var report: (CommandOutcome) -> Unit = report
+        internal set
+
+    /**
+     * Where a decorated command's picker should open.
+     *
+     * The sheet is an overlay above the whole screen, so it belongs to `ChatScreen` and the holder
+     * reports the request up rather than owning the state.
+     */
+    var openPopup: ((String, CommandUiSpec.PopupSelect) -> Unit)? = null
         internal set
 
     val draft: String get() = composer.text
@@ -225,11 +237,56 @@ internal class ComposerSubmitter(
      * submission — an error is something to correct, and correcting it should not start with
      * picking the files again.
      */
+    /** What a decoration gets to work with: the open session's conversation, a command runner, the draft. */
+    fun commandContext(sessionId: String, host: String): CommandContext = object : CommandContext {
+        override val conversation get() = store.currentConversation.value
+        override val draft get() = composer.text
+        override suspend fun run(line: String) = store.runCommand(line, emptyList(), sessionId, host)
+        override fun setDraft(text: String) { composer.text = text; composer.selection = text.length }
+    }
+
+    /**
+     * The phone's `commandUi.decorate` dispatch: a bare `/name` whose decoration is available opens
+     * that decoration's UI and submits nothing — exactly what the web client does before it would
+     * otherwise hand the line to `commands/execute`. Anything else returns false and takes the
+     * ordinary path, and so does a same-named command from a plugin the decoration is not a port of.
+     *
+     * A picker with nowhere to open is *not* handled: returning true for it would swallow the line
+     * and run nothing, which is worse than falling through to the command itself.
+     */
+    fun dispatchDecorated(text: String): Boolean {
+        val trimmed = text.trim()
+        if (!trimmed.startsWith("/") || trimmed.any { it.isWhitespace() }) return false
+        val name = trimmed.drop(1)
+        val decoration = CommandDecorations.forName(name) ?: return false
+        if (commands.none { it.name == name } || !decoration.recognizes(commands)) return false
+        if (!decoration.available(store.currentConversation.value)) return false
+        when (val ui = decoration.ui) {
+            is CommandUiSpec.PopupSelect -> {
+                val open = openPopup ?: return false
+                open(name, ui)
+            }
+
+            is CommandUiSpec.Action -> store.composers.scope.launch {
+                try {
+                    ui.run(commandContext(composer.key.sessionId, composer.key.host))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    toast(e.message ?: context.getString(R.string.panel_failed))
+                }
+            }
+        }
+        return true
+    }
+
     fun send(text: String) {
         if (composer.preparing || composer.submitting) {
             composer.text = text
             return
         }
+        // A decorated command opens its picker instead of running; it is never given to the host.
+        if (composer.attachments.isEmpty() && dispatchDecorated(text)) return
         val delivery = composer.mode
         val targetId = composer.key.sessionId
         val targetHost = composer.key.host
@@ -364,6 +421,7 @@ internal fun rememberComposerSubmitter(
     commands: List<CommandDescriptor>,
     imageLimits: ImageLimitsView?,
     report: (CommandOutcome) -> Unit,
+    onOpenPopup: ((String, CommandUiSpec.PopupSelect) -> Unit)? = null,
 ): ComposerSubmitter {
     val context = LocalContext.current
     val toast = rememberDsToast()
@@ -383,6 +441,7 @@ internal fun rememberComposerSubmitter(
         it.commands = commands
         it.imageLimits = imageLimits
         it.report = report
+        it.openPopup = onOpenPopup
     }
 }
 

@@ -55,6 +55,13 @@ import com.labteto.dshmobile.ui.components.planReviewOf
 import com.labteto.dshmobile.ui.components.QuestionsPanel
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.screens.main.commands.CommandContext
+import com.labteto.dshmobile.ui.screens.main.commands.CommandDecorations
+import com.labteto.dshmobile.ui.screens.main.commands.CommandUiSpec
+import com.labteto.dshmobile.ui.screens.main.commands.PopupSelectSheet
+import com.labteto.dshmobile.ui.screens.main.commands.SlashMenu
+import com.labteto.dshmobile.ui.screens.main.commands.SlashRow
+import com.labteto.dshmobile.ui.screens.main.commands.activeSlash
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsTheme
 import androidx.compose.ui.res.stringResource
@@ -170,6 +177,8 @@ fun ChatScreen(
     var panelKey by remember { mutableStateOf<ComposerKey?>(null) }
     var feedback by remember { mutableStateOf<Triple<ComposerKey, String, Boolean>?>(null) }
     var sheet by remember { mutableStateOf<ChatSheet?>(null) }
+    // A decorated command's picker (the phone's `popupSelect`), keyed by the command it serves.
+    var popup by remember(composer.key) { mutableStateOf<Pair<String, CommandUiSpec.PopupSelect>?>(null) }
 
     // Hoisted above the tab swap so each view keeps its own scroll position across switches.
     val chatListState = rememberLazyListState()
@@ -187,13 +196,13 @@ fun ChatScreen(
         commands = commands,
         imageLimits = imageLimits,
         report = responder::report,
+        onOpenPopup = { name, ui -> popup = name to ui },
     )
     val draft = submitter.draft
     val attachments = submitter.attachments
     val mode = submitter.mode
     val filePicker = rememberFilePicker(submitter)
     val imagePicker = rememberImagePicker(submitter)
-
     androidx.compose.runtime.CompositionLocalProvider(
         com.labteto.dshmobile.ui.media.LocalAttachmentScope provides (composer.key.host to composer.key.sessionId),
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
@@ -407,6 +416,33 @@ fun ChatScreen(
             // consume its controls. The question area scrolls within its allotted height.
             ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
 
+            // The `/` autocomplete sits where the web's does: directly above the composer, and
+            // only while the draft is a slash token being typed. It is a second door onto the same
+            // commands as the `/` button's sheet — the two coexist on purpose; the button is the
+            // discoverable one and this is the one you get by typing.
+            activeSlash(draft, composer.selection)?.let { slash ->
+                SlashMenu(
+                    query = slash,
+                    commands = if (commandsAvailable) commands else emptyList(),
+                    skills = skills,
+                    onPick = { row ->
+                        when (row) {
+                            is SlashRow.Command -> if (row.descriptor.input == null) {
+                                submitter.onDraftChange("")
+                                submitter.send(row.descriptor.line)
+                            } else {
+                                submitter.onDraftChange(row.descriptor.draftPrefix)
+                                composer.selection = row.descriptor.draftPrefix.length
+                            }
+                            is SlashRow.Skill -> {
+                                submitter.onDraftChange("/${row.entry.name} ")
+                                composer.selection = row.entry.name.length + 2
+                            }
+                        }
+                    },
+                )
+            }
+
             Composer(
                 draft = draft,
                 onDraftChange = submitter::onDraftChange,
@@ -458,8 +494,7 @@ fun ChatScreen(
                 onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
             )
 
-            StatsFooter(stats = sessionStats, usage = tokenUsage)
-                }
+            StatsFooter(stats = sessionStats, usage = tokenUsage)                }
             }
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
@@ -467,6 +502,14 @@ fun ChatScreen(
 
     }
     referencePicker?.let { ReferencePicker(store, composer, it, onClose = { referencePicker = null }) }
+    popup?.let { (name, spec) ->
+        PopupSelectSheet(
+            command = name,
+            spec = spec,
+            context = submitter.commandContext(composer.key.sessionId, composer.key.host),
+            onDismiss = { popup = null },
+        )
+    }
     panelKey?.let { key -> WorkspacePanels(store, store.panels.get(key), onDismiss = { panelKey = null }) }
     feedback?.let { (key, id, positive) -> FeedbackDialog(store, key, id, positive) { feedback = null } }
     when (sheet) {
@@ -480,7 +523,7 @@ fun ChatScreen(
             onRunCommand = { line ->
                 val name = line.removePrefix("/").substringBefore(' ')
                 if (attachments.isEmpty()) {
-                    scope.launch { responder.report(store.runCommand(line)) }
+                    if (!submitter.dispatchDecorated(line)) scope.launch { responder.report(store.runCommand(line)) }
                 } else {
                     toast.second(context.getString(R.string.err_command_no_images, name))
                 }
