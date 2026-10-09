@@ -35,7 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundleRow
 import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
 import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
@@ -166,16 +167,16 @@ fun PluginsScreen(onClose: () -> Unit) {
 
     val colors = DsTheme.colors
     var filter by remember { mutableStateOf("") }
-    // Which bundle's detail dialog is open. Held as the bundle itself rather than a name so the
-    // dialog keeps rendering after a reload replaces the list with equal-but-new objects.
-    var openBundle by remember { mutableStateOf<PluginBundle?>(null) }
+    // Which row's detail dialog is open. Held as the row itself rather than a name so the dialog
+    // keeps rendering after a reload replaces the list with equal-but-new objects.
+    var openRow by remember { mutableStateOf<ProfileBundleRow?>(null) }
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
 
     // The page is entered from the chat drawer, and a drawer's back button exits the app: without a
     // handler here, back on this screen walks straight out of the activity. SettingsScreen does the
     // same thing for the same reason.
-    BackHandler(enabled = openBundle == null) { onClose() }
+    BackHandler(enabled = openRow == null) { onClose() }
 
     // rowId is the settings namespace: a bundle's configuration is whichever namespaces its own
     // rows own. Resolved once here rather than per card, because the uid graph is shared across
@@ -200,7 +201,21 @@ fun PluginsScreen(onClose: () -> Unit) {
     val matching = remember(bundles, filter, locale) {
         val all = bundles.orEmpty()
         val query = filter.trim()
-        if (query.isEmpty()) all else all.filter { it.matches(query, locale) }
+        if (query.isEmpty()) {
+            all
+        } else {
+            // A row matches as well as a bundle. With ninety rows under one bundle, filtering by the
+            // package name alone would make the field useless for finding a plugin — and a bundle
+            // that matches on a row keeps only that row, so the hit is what is on screen.
+            all.mapNotNull { bundle ->
+                if (bundle.matches(query, locale)) {
+                    bundle
+                } else {
+                    bundle.copy(rows = bundle.rows.filter { it.matches(query, locale) })
+                        .takeIf { it.rows.isNotEmpty() }
+                }
+            }
+        }
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
@@ -282,8 +297,10 @@ fun PluginsScreen(onClose: () -> Unit) {
                 bundles = matching,
                 total = loaded.size,
                 mutation = mutation,
-                onOpen = { openBundle = it },
-                onToggle = { name, enabled -> scope.launch { store.setBundleEnabled(name, enabled) } },
+                liveRows = rows.orEmpty(),
+                openable = schemaByNamespace.keys,
+                onOpenRow = { openRow = it },
+                onToggle = { entryId, enabled -> scope.launch { store.setPluginEnabled(entryId, enabled) } },
                 // Update is an install with the form already filled in from the row: the harness has
                 // no separate "upgrade" verb, it re-resolves the spec.
                 onUpdate = { bundle ->
@@ -348,23 +365,44 @@ fun PluginsScreen(onClose: () -> Unit) {
 
     // The detail dialog lives beside the Surface rather than inside the scroll: a dialog is not part
     // of the page's layout, and nesting it in the column made it inherit the column's constraints.
-    openBundle?.let { bundle ->
-        BundleDetailDialog(
-            bundle = bundle,
-            liveRows = rows.orEmpty(),
-            mutation = mutation,
-            schemaByNamespace = schemaByNamespace,
-            valuesByNamespace = valuesByNamespace,
-            revisionsByNamespace = revisionsByNamespace,
-            settingsAvailable = settings != null,
-            locale = locale,
-            onEdit = { ns, path, value, revision ->
-                scope.launch { store.updateSetting(ns, buildSettingPatch(path, value), revision) }
+    openRow?.let { row ->
+        val ns = row.rowId
+        val schema = schemaByNamespace[ns]
+        PluginRowDialog(
+            title = row.displayTitle,
+            description = row.meta?.description?.resolve(locale),
+            // The form appears only when this connection can read the configuration plane. A relay
+            // hides it, which is ordinary rather than a fault, so the dialog says so.
+            settings = when {
+                schema == null -> null
+                settings == null -> { { ConfigUnavailable() } }
+                else -> {
+                    {
+                        NamespaceSettingsForm(
+                            ns = ns,
+                            schema = schema,
+                            value = valuesByNamespace[ns],
+                            revision = revisionsByNamespace[ns],
+                            onEdit = { target, path, value, revision ->
+                                scope.launch { store.updateSetting(target, buildSettingPatch(path, value), revision) }
+                            },
+                        )
+                    }
+                }
             },
-            onToggle = { entryId, enabled -> scope.launch { store.setPluginEnabled(entryId, enabled) } },
-            onDismiss = { openBundle = null },
+            onDismiss = { openRow = null },
         )
     }
+}
+
+/** Shown in place of a form when the Host describes settings this connection cannot read. */
+@Composable
+private fun ConfigUnavailable() {
+    Text(
+        stringResource(R.string.plugins_config_unavailable),
+        style = DsType.std14,
+        color = DsTheme.colors.warnLabel,
+    )
 }
 
 /** The page's own title bar, matching every other screen's 44dp row. */
@@ -410,7 +448,9 @@ private fun BundleList(
     bundles: List<PluginBundle>,
     total: Int,
     mutation: PluginMutationState?,
-    onOpen: (PluginBundle) -> Unit,
+    liveRows: List<PluginManagerRow>,
+    openable: Set<String>,
+    onOpenRow: (ProfileBundleRow) -> Unit,
     onToggle: (String, Boolean) -> Unit,
     onUpdate: (ProfileBundle) -> Unit,
     onRemove: (ProfileBundle) -> Unit,
@@ -434,16 +474,29 @@ private fun BundleList(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
     ) {
+        // A bundle and its rows are one block: the card is the package, and everything under it is
+        // what the package put in the tree. Every row is drawn here rather than behind a dialog,
+        // because the switch is per row and a switch nobody can see is a switch nobody uses.
         if (installed.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_installed), installed.size) }
-            items(installed, key = { "i:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, onUpdate, onRemove, busy, locale)
+            installed.forEach { bundle ->
+                item(key = "i:${bundle.name}") {
+                    BundleCard(bundle, onUpdate, onRemove, busy, locale)
+                }
+                items(bundle.rows, key = { "i:${bundle.name}:${it.rowId}" }) { row ->
+                    PluginRowItem(row, liveRows, openable, mutation, busy, locale, onOpenRow, onToggle)
+                }
             }
         }
         if (available.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_available), available.size) }
-            items(available, key = { "o:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, onUpdate, onRemove, busy, locale)
+            available.forEach { bundle ->
+                item(key = "o:${bundle.name}") {
+                    BundleCard(bundle, onUpdate, onRemove, busy, locale)
+                }
+                items(bundle.rows, key = { "o:${bundle.name}:${it.rowId}" }) { row ->
+                    PluginRowItem(row, liveRows, openable, mutation, busy, locale, onOpenRow, onToggle)
+                }
             }
         }
         item { Spacer(Modifier.height(DsSpacing.xlarge)) }
@@ -466,32 +519,29 @@ internal fun SectionHeader(label: String, count: Int) {
 }
 
 /**
- * One bundle, with a switch when the Host offers one.
+ * One bundle: the package, and the two things that are about the package.
  *
- * The switch is drawn but disabled for a bundle the Host refuses, rather than hidden: that a bundle
- * cannot be turned off is a fact about the profile worth seeing, and a list that silently omits the
- * control for some rows reads as a rendering bug. The reason becomes the row's own caption.
+ * Update and remove belong here and nowhere else. They act on *this* bundle's package, so they are
+ * per bundle by the shape of the API, while enablement is per row — a distinction the list now draws
+ * by putting the switches on the rows below and only the package actions on the card.
+ *
+ * The card carries no switch of its own. `setBundleEnabled` still exists, but a bundle toggle is a
+ * shorthand: it stands in for every row under it, and the reader's question is always about one row.
  */
 @Composable
 private fun BundleCard(
-    bundle: PluginBundle,
-    mutation: PluginMutationState?,
-    onToggle: (String, Boolean) -> Unit,
-    onOpen: () -> Unit,
+    bundle: ProfileBundle,
     onUpdate: (ProfileBundle) -> Unit,
     onRemove: (ProfileBundle) -> Unit,
     installBusy: Boolean,
     locale: String,
 ) {
     val colors = DsTheme.colors
-    val busy = mutation?.target == bundle.name
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(DsShapes.row)
             .background(colors.bgLayer1)
-            .clickable(onClick = onOpen)
             .padding(DsSpacing.medium),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -517,8 +567,11 @@ private fun BundleCard(
             }
         }
         Spacer(Modifier.width(DsSpacing.small))
-        // Update and remove are row actions, on the row they act on: both are about this bundle's
-        // package, and both are per-row in the harness rather than page-wide.
+        if (bundle.readOnlyReason != null) {
+            // Kept even without a switch: it is why the removal is not offered, and a missing control
+            // with no explanation reads as a bug.
+            PluginLock(reason = bundle.readOnlyReason)
+        }
         if (bundle.installed) {
             DsIconButton(
                 icon = FeatherIcons.RefreshCw,
@@ -528,6 +581,9 @@ private fun BundleCard(
                 enabled = !installBusy,
             )
         }
+        // `readOnlyReason` gates the removal as well as the toggle: a bundle the profile is built on
+        // is one the Host refuses to take away, and offering the action anyway would only produce a
+        // refusal the lock above already explained.
         if (bundle.removable && bundle.readOnlyReason == null) {
             DsIconButton(
                 icon = FeatherIcons.Trash2,
@@ -537,152 +593,42 @@ private fun BundleCard(
                 enabled = !installBusy,
             )
         }
-        if (bundle.togglable) {
-            Switch(
-                checked = bundle.enabled,
-                onCheckedChange = { next -> onToggle(bundle.name, next) },
-                enabled = !busy,
-                colors = pluginSwitchColors(colors),
-            )
-        } else {
-            PluginLock(reason = bundle.readOnlyReason)
-        }
     }
 }
 
 /**
- * One bundle's detail: its configuration form, and the rows it contributes.
+ * One of a bundle's rows: indented under its card, with the switch that belongs to it.
  *
- * A dialog rather than an inline expansion, because the form is long — `relay` alone declares around
- * thirty fields — and inlining it made two bundles fill the whole page. The list stays a list.
- *
- * The switch is not repeated here. Enablement belongs to the row the user just tapped, and a second
- * control for the same value in a dialog is a way to disagree with yourself.
+ * The live state comes from `listPlugins` matched on entry id, not from the bundle's own row list:
+ * `listBundles` says what a bundle *declares* and `listPlugins` says what the loader tree holds, and
+ * only the second knows whether a row is on. A row that is not composed yet has no entry id and so
+ * gets no switch — a disabled one would report "locked" about a row that is merely not mounted.
  */
 @Composable
-private fun BundleDetailDialog(
-    bundle: ProfileBundle,
+private fun PluginRowItem(
+    row: ProfileBundleRow,
     liveRows: List<PluginManagerRow>,
+    openable: Set<String>,
     mutation: PluginMutationState?,
-    schemaByNamespace: Map<String, ResolvedSettingsSchema>,
-    valuesByNamespace: Map<String, JsonElement>,
-    revisionsByNamespace: Map<String, Long>,
-    settingsAvailable: Boolean,
+    installBusy: Boolean,
     locale: String,
-    onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
+    onOpen: (ProfileBundleRow) -> Unit,
     onToggle: (String, Boolean) -> Unit,
-    onDismiss: () -> Unit,
 ) {
-    val colors = DsTheme.colors
-    var rowsOpen by remember(bundle.name) { mutableStateOf(false) }
-
-    // rowId *is* the settings namespace, so a bundle's configuration is the intersection of its
-    // rows' rowIds with the described namespaces — a plain set operation, no invented mapping.
-    val configured = remember(bundle, schemaByNamespace) {
-        bundle.rows.filter { it.rowId in schemaByNamespace }
-    }
-    // Everything else the bundle carries: real rows with no form, listed but not configurable.
-    val plain = remember(bundle, schemaByNamespace) {
-        bundle.rows.filterNot { it.rowId in schemaByNamespace }
-    }
-
-    // The title is the display name — `dsh-relay` as a heading is the raw row id, and the list row
-    // already shows the friendly one. Version and description are one caption line, matching the
-    // list row instead of stacking two captions under the title.
-    DsDialog(title = bundle.displayTitle(locale), onDismiss = onDismiss) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 460.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-        ) {
-            val caption = listOfNotNull(bundle.version, bundle.displayDescription).joinToString(" · ")
-            if (caption.isNotEmpty()) {
-                Text(caption, style = DsType.small13, color = colors.labelTertiary)
-            }
-
-            if (configured.isEmpty()) {
-                Text(
-                    stringResource(R.string.plugins_config_none),
-                    style = DsType.std14,
-                    color = colors.labelTertiary,
-                )
-            } else if (!settingsAvailable) {
-                // The bundle has settings the Host knows about but this connection cannot read. On a
-                // relay that is the expected outcome rather than a fault, so it says which.
-                Text(
-                    stringResource(R.string.plugins_config_unavailable),
-                    style = DsType.std14,
-                    color = colors.warnLabel,
-                )
-            } else {
-                configured.forEach { row ->
-                    val ns = row.rowId
-                    val schema = schemaByNamespace[ns] ?: return@forEach
-                    // The live row, matched by entry id. `listBundles` says what a bundle *declares*
-                    // and `listPlugins` says what the loader tree actually holds; only the second
-                    // knows whether the row is on. A row that is not composed yet has no entry id
-                    // and therefore no switch — drawing one disabled would report "locked" about a
-                    // row that is merely not mounted.
-                    val live = liveRows.firstOrNull { it.entryId == row.entryId }
-                    PluginRowCard(
-                        title = row.displayTitle,
-                        description = row.meta?.description?.resolve(),
-                        enabled = live?.enabled,
-                        togglable = live?.togglable == true,
-                        busy = live != null && mutation?.target == live.entryId,
-                        lockReason = live?.readOnlyReason,
-                        onToggle = live?.let { open -> { next: Boolean -> onToggle(open.entryId, next) } },
-                        settings = {
-                            NamespaceSettingsForm(
-                                ns = ns,
-                                schema = schema,
-                                value = valuesByNamespace[ns],
-                                revision = revisionsByNamespace[ns],
-                                onEdit = onEdit,
-                            )
-                        },
-                    )
-                }
-            }
-
-            // What the bundle contributes that has no form of its own, behind a disclosure: a
-            // bundle can carry ninety rows (dsh-base does), and the rows with settings are the cards
-            // above — listing those again here would say the bundle has twice the rows it has.
-            if (plain.isNotEmpty()) {
-                Text(
-                    stringResource(R.string.plugins_bundle_rows, plain.size),
-                    style = DsType.small13,
-                    color = if (rowsOpen) colors.accent else colors.labelTertiary,
-                    modifier = Modifier
-                        .clip(DsShapes.row)
-                        .clickable { rowsOpen = !rowsOpen }
-                        .padding(vertical = DsSpacing.tiny),
-                )
-                if (rowsOpen) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(DsShapes.row)
-                            .background(colors.bgLayer1)
-                            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-                        verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-                    ) {
-                        plain.forEach { row ->
-                            Text(
-                                row.displayTitle,
-                                style = DsType.small13,
-                                color = colors.labelCaption,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
+    val live = liveRows.firstOrNull { it.entryId == row.entryId }
+    PluginRow(
+        title = row.meta?.title?.resolve(locale) ?: row.moduleName,
+        description = row.meta?.description?.resolve(locale),
+        enabled = live?.enabled,
+        togglable = live?.togglable == true,
+        busy = installBusy || (live != null && mutation?.target == live.entryId),
+        lockReason = live?.readOnlyReason,
+        onToggle = live?.let { target -> { next: Boolean -> onToggle(target.entryId, next) } },
+        // Only a row with a described namespace has options to open; for the rest the row is the
+        // whole truth about it, and a dialog saying "no settings" would be a dialog for nothing.
+        onOpen = if (row.rowId in openable) ({ onOpen(row) }) else null,
+        modifier = Modifier.padding(start = DsSpacing.medium),
+    )
 }
 
 /**
@@ -719,7 +665,22 @@ internal fun buildSettingPatch(path: List<String>, value: JsonElement): JsonObje
  * The version is matched as well as the name: a user chasing a specific release types what they see,
  * and the version is on the row.
  */
-internal fun PluginBundle.matches(query: String, locale: String? = null): Boolean {
+internal fun ProfileBundleRow.matches(query: String, locale: String? = null): Boolean {
+    val q = query.trim().lowercase(Locale.ROOT)
+    if (q.isEmpty()) return true
+    return (meta?.title?.resolve(locale) ?: moduleName).lowercase(Locale.ROOT).contains(q) ||
+        moduleName.lowercase(Locale.ROOT).contains(q) ||
+        rowId.lowercase(Locale.ROOT).contains(q)
+}
+
+/**
+ * Whether a bundle answers a query.
+ *
+ * Deliberately *not* over its rows: a bundle whose row matched is handled by the caller, which keeps
+ * only that row. Folding rows in here would say "this bundle matches" and then show all ninety of
+ * its rows.
+ */
+internal fun ProfileBundle.matches(query: String, locale: String? = null): Boolean {
     val q = query.trim().lowercase(Locale.ROOT)
     if (q.isEmpty()) return true
     return name.lowercase(Locale.ROOT).contains(q) ||

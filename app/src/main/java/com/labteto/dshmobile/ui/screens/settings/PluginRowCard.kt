@@ -1,32 +1,23 @@
 package com.labteto.dshmobile.ui.screens.settings
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,10 +25,9 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
 import com.labteto.dshmobile.core.wire.dto.ResolvedSettingsSchema
-import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
-import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsColors
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
@@ -46,23 +36,22 @@ import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.serialization.json.JsonElement
 
 /**
- * One plugin row: what identifies it while collapsed, what configures it once open.
+ * One plugin row in a list: what identifies it, and its own switch on the right.
  *
- * Collapsed is the row's identity and its one control — the name, the manifest description, and the
- * enable switch. Open is that row's own settings, inline rather than on another page, because a
- * plugin's configuration is the reason someone taps the row and a second surface to hold eight
- * fields is a surface to navigate back from.
+ * The switch belongs to the *row*, not to whatever contains it. A bundle's enablement is shorthand
+ * the harness offers, but what a reader is looking at is a list of plugins, and the thing they want
+ * to turn off is one of them. A switch on the bundle would also mean one toggle standing in for
+ * ninety rows (dsh-base carries that many), where the interesting state is per row.
  *
- * The switch stays on the header line in both states. It is the row's own control, and hiding it
- * while the row is open would mean collapsing the row again to turn the plugin off: a plugin's
- * enablement is read while its settings are being edited.
+ * Tapping the row opens *that row's* settings rather than expanding in place: a form can be thirty
+ * fields (`relay` alone), and a list of ninety rows that each open in place is a list that has to be
+ * scrolled past to be understood.
  *
  * A row the Host refuses still draws the switch, disabled, with the reason beside it. Hiding the
- * control would make "this cannot be turned off" indistinguishable from a rendering bug, and the
- * reason is a fact about the profile worth reading.
+ * control would make "this cannot be turned off" indistinguishable from a rendering bug.
  */
 @Composable
-internal fun PluginRowCard(
+internal fun PluginRow(
     title: String,
     description: String?,
     enabled: Boolean?,
@@ -70,87 +59,87 @@ internal fun PluginRowCard(
     busy: Boolean,
     lockReason: String?,
     onToggle: ((Boolean) -> Unit)?,
-    initiallyExpanded: Boolean = false,
-    settings: (@Composable () -> Unit)? = null,
+    onOpen: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
-    // Keyed on the title: a reload replaces the list with equal-but-new rows, and an expansion that
-    // survived that is the behaviour a reader expects from a row they just opened.
-    var open by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
-    val expandable = settings != null
-    val rotation by animateFloatAsState(
-        targetValue = if (open) 90f else 0f,
-        animationSpec = DsAnimations.chevron,
-        label = "plugin-row-chevron",
-    )
-
-    Column(
-        modifier = Modifier
+    Row(
+        modifier = modifier
             .fillMaxWidth()
             .clip(DsShapes.row)
-            .background(colors.bgLayer1)
             .then(
-                if (expandable) {
-                    Modifier.clickable(role = Role.Button) { open = !open }
-                } else {
-                    Modifier
-                },
+                if (onOpen != null) Modifier.clickable(role = Role.Button, onClick = onOpen) else Modifier,
             )
-            .padding(DsSpacing.medium),
-        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
-            ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+        ) {
+            Text(
+                title,
+                style = DsType.std14,
+                color = colors.labelSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            description?.takeIf { it.isNotBlank() }?.let {
                 Text(
-                    title,
-                    style = DsType.std14Strong,
-                    color = colors.labelPrimary,
-                    maxLines = 1,
+                    it,
+                    style = DsType.small13,
+                    color = colors.labelTertiary,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                )
-                description?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        it,
-                        style = DsType.small13,
-                        color = colors.labelTertiary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.width(DsSpacing.small))
-            when {
-                enabled != null && togglable && onToggle != null -> Switch(
-                    checked = enabled,
-                    onCheckedChange = onToggle,
-                    enabled = !busy,
-                    colors = pluginSwitchColors(colors),
-                )
-                enabled != null -> PluginLock(reason = lockReason)
-            }
-            if (expandable) {
-                Spacer(Modifier.width(DsSpacing.xsmall))
-                Icon(
-                    FeatherIcons.ChevronRight,
-                    contentDescription = null,
-                    tint = colors.labelTertiary,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .graphicsLayer { rotationZ = rotation },
                 )
             }
         }
-        if (expandable) {
-            AnimatedVisibility(visible = open) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-                ) {
-                    settings?.invoke()
-                }
+        Spacer(Modifier.width(DsSpacing.small))
+        when {
+            enabled != null && togglable && onToggle != null -> Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                enabled = !busy,
+                colors = pluginSwitchColors(colors),
+            )
+            enabled != null -> PluginLock(reason = lockReason)
+        }
+    }
+}
+
+/**
+ * One row's settings, in a dialog.
+ *
+ * The switch is deliberately absent: it is on the row the reader just tapped, and a second control
+ * for the same value in the dialog is a way to disagree with yourself.
+ */
+@Composable
+internal fun PluginRowDialog(
+    title: String,
+    description: String?,
+    settings: (@Composable () -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val colors = DsTheme.colors
+    DsDialog(title = title, onDismiss = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 460.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
+        ) {
+            description?.takeIf { it.isNotBlank() }?.let {
+                Text(it, style = DsType.small13, color = colors.labelTertiary)
+            }
+            if (settings == null) {
+                Text(
+                    stringResource(R.string.plugins_config_none),
+                    style = DsType.std14,
+                    color = colors.labelTertiary,
+                )
+            } else {
+                settings()
             }
         }
     }
@@ -159,10 +148,7 @@ internal fun PluginRowCard(
 /**
  * One namespace's form: the fields of a resolved schema, each writing back through [onEdit].
  *
- * Extracted so the bundle dialog and the plugins page render a plugin's settings the same way. The
- * namespace id is deliberately *not* a heading here — the row that contains the form is already
- * titled with the plugin's name, and repeating the raw namespace id above its fields was the flat
- * list this replaced.
+ * Extracted so every surface that shows a plugin's settings renders them the same way.
  */
 @Composable
 internal fun NamespaceSettingsForm(
