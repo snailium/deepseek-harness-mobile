@@ -22,7 +22,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Surface
 import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,8 +37,16 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.PluginBundle
 import com.labteto.dshmobile.core.wire.dto.PluginBundleGroup
+import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
 import com.labteto.dshmobile.core.wire.dto.PluginReadOnly
 import com.labteto.dshmobile.data.PluginMutationState
+import com.labteto.dshmobile.core.wire.featureValue
+import com.labteto.dshmobile.core.wire.removePluginBundle
+import com.labteto.dshmobile.data.HarnessFeature
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.screens.main.PluginInstallSubject
+import com.labteto.dshmobile.ui.screens.main.approvalSubject
+import com.labteto.dshmobile.ui.screens.main.stageFeatureDraft
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.SearchField
 import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
@@ -94,6 +101,26 @@ import androidx.compose.foundation.rememberScrollState
 fun PluginsScreen(onClose: () -> Unit) {
     val store = rememberSessionStore()
     val bundles by store.pluginBundles.collectAsStateWithLifecycle()
+    // The live rows, for the switches inside a bundle's form: the bundle list carries no enablement.
+    val rows by store.pluginRows.collectAsStateWithLifecycle()
+    // Installing is not a call this page can make and wait on: a package may have to be fetched and
+    // built, so the work lives in `PluginOperations`, survives this page closing, reports progress
+    // and can be cancelled. What this page owns is the form that starts it and the card that shows
+    // it while it runs.
+    val host = store.activeHostKey
+    val operation by store.pluginOperations.state.collectAsStateWithLifecycle()
+    val pending by store.pluginOperations.pending.collectAsStateWithLifecycle()
+    val presets by store.agentPresets.collectAsStateWithLifecycle()
+    val offline = stringResource(R.string.common_offline)
+    val creatorDraft = stringResource(R.string.harness_creator_draft)
+    var spec by remember(host) { mutableStateOf("") }
+    var registry by remember(host) { mutableStateOf("") }
+    var installedVersion by remember(host) { mutableStateOf<String?>(null) }
+    var installOpen by remember(host) { mutableStateOf(false) }
+    var confirm by remember(host) { mutableStateOf<PluginInstallSubject?>(null) }
+    var removeTarget by remember(host) { mutableStateOf<ProfileBundle?>(null) }
+    val current = operation.takeIf { it.host == host }
+    val installing = pending.any { it.host == host && it.busy }
     val mutation by store.pluginMutation.collectAsStateWithLifecycle()
     val settings by store.settings.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -114,6 +141,12 @@ fun PluginsScreen(onClose: () -> Unit) {
     // A refusal arrives inside a successful call, which is why it has to be surfaced at all: the
     // request succeeded and the Host still declined, and a user would otherwise read that as a
     // broken switch.
+    // An install or a removal changes the list, and the operation reports when it is done rather
+    // than returning to this call site.
+    LaunchedEffect(current?.result, current?.error, current?.unknown) {
+        if (current?.result != null || current?.error != null) store.refreshPlugins()
+    }
+
     LaunchedEffect(store) {
         store.pluginEvents.collect { outcome ->
             when (outcome) {
@@ -177,13 +210,44 @@ fun PluginsScreen(onClose: () -> Unit) {
                 .safeDrawingPadding()
                 .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
         ) {
-            PluginsTitleBar(onClose)
+            PluginsTitleBar(
+                onClose = onClose,
+                actions = {
+                    DsIconButton(
+                        icon = FeatherIcons.Download,
+                        contentDescription = stringResource(R.string.harness_install_update),
+                        onClick = {
+                            spec = ""; registry = ""; installedVersion = null; installOpen = true
+                        },
+                        tint = colors.labelTertiary,
+                        iconSize = DsTitleBar.iconSize,
+                        touchTarget = DsTitleBar.iconTouchTarget,
+                    )
+                    // Offered only when the Host actually has the preset it stages: a Create button
+                    // that opens a session on a preset the host does not carry is a broken button.
+                    if (presets?.presets?.any { it.id == "cordis" && it.broken == null } == true) {
+                        DsIconButton(
+                            icon = FeatherIcons.Plus,
+                            contentDescription = stringResource(R.string.harness_create_plugin),
+                            onClick = {
+                                scope.launch {
+                                    if (host != null && store.stageFeatureDraft(host, creatorDraft, "cordis")) onClose()
+                                    else toast.second(offline)
+                                }
+                            },
+                            tint = colors.labelTertiary,
+                            iconSize = DsTitleBar.iconSize,
+                            touchTarget = DsTitleBar.iconTouchTarget,
+                        )
+                    }
+                },
+            )
 
             val loaded = bundles
             if (loaded == null) {
                 Text(
                     stringResource(R.string.plugins_unavailable),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.labelTertiary,
                 )
                 return@Column
@@ -205,16 +269,81 @@ fun PluginsScreen(onClose: () -> Unit) {
 
             Spacer(Modifier.height(DsSpacing.small))
 
+            current?.takeIf { it.busy || it.result != null || it.error != null }?.let { state ->
+                PluginOperationCard(
+                    state = state,
+                    onCancel = { listOfNotNull(host, state.requestId).takeIf { it.size == 2 }?.let { store.pluginOperations.cancel(it[0], it[1]) } },
+                    onApprove = { confirm = it },
+                )
+                Spacer(Modifier.height(DsSpacing.small))
+            }
+
             BundleList(
                 bundles = matching,
                 total = loaded.size,
                 mutation = mutation,
                 onOpen = { openBundle = it },
                 onToggle = { name, enabled -> scope.launch { store.setBundleEnabled(name, enabled) } },
+                // Update is an install with the form already filled in from the row: the harness has
+                // no separate "upgrade" verb, it re-resolves the spec.
+                onUpdate = { bundle ->
+                    spec = bundle.name; registry = ""; installedVersion = bundle.version; installOpen = true
+                },
+                onRemove = { removeTarget = it },
+                busy = installing,
                 listState = listState,
                 locale = locale,
             )
         }
+    }
+
+    if (installOpen) {
+        InstallPluginDialog(
+            spec = spec,
+            registry = registry,
+            installedVersion = installedVersion,
+            busy = installing,
+            onSpecChange = { spec = it },
+            onRegistryChange = { registry = it },
+            onInstall = {
+                val target = spec.trim()
+                if (target.isNotEmpty()) {
+                    installOpen = false
+                    confirm = PluginInstallSubject(target, registry.trim().ifBlank { null })
+                }
+            },
+            onDismiss = { installOpen = false },
+        )
+    }
+
+    confirm?.let { subject ->
+        ApproveBuildsDialog(
+            subject = subject,
+            busy = installing,
+            onConfirm = {
+                confirm = null
+                if (host != null) store.pluginOperations.install(host, subject.target, subject.registry, subject.approvedBuilds)
+            },
+            onDismiss = { confirm = null },
+        )
+    }
+
+    removeTarget?.let { bundle ->
+        RemoveBundleDialog(
+            bundle = bundle,
+            locale = locale,
+            busy = installing,
+            onConfirm = {
+                removeTarget = null
+                scope.launch {
+                    val api = store.apiForHost(host) ?: return@launch
+                    val result = store.featureCall(HarnessFeature.PLUGIN_MANAGEMENT, api) { api.removePluginBundle(bundle.name) }
+                    if (host != null) store.pluginOperations.changed(host, result.featureValue())
+                    store.refreshPlugins()
+                }
+            },
+            onDismiss = { removeTarget = null },
+        )
     }
 
     // The detail dialog lives beside the Surface rather than inside the scroll: a dialog is not part
@@ -222,6 +351,8 @@ fun PluginsScreen(onClose: () -> Unit) {
     openBundle?.let { bundle ->
         BundleDetailDialog(
             bundle = bundle,
+            liveRows = rows.orEmpty(),
+            mutation = mutation,
             schemaByNamespace = schemaByNamespace,
             valuesByNamespace = valuesByNamespace,
             revisionsByNamespace = revisionsByNamespace,
@@ -230,6 +361,7 @@ fun PluginsScreen(onClose: () -> Unit) {
             onEdit = { ns, path, value, revision ->
                 scope.launch { store.updateSetting(ns, buildSettingPatch(path, value), revision) }
             },
+            onToggle = { entryId, enabled -> scope.launch { store.setPluginEnabled(entryId, enabled) } },
             onDismiss = { openBundle = null },
         )
     }
@@ -237,7 +369,7 @@ fun PluginsScreen(onClose: () -> Unit) {
 
 /** The page's own title bar, matching every other screen's 44dp row. */
 @Composable
-private fun PluginsTitleBar(onClose: () -> Unit) {
+internal fun PluginsTitleBar(onClose: () -> Unit, actions: (@Composable () -> Unit)? = null) {
     val colors = DsTheme.colors
     Row(
         modifier = Modifier
@@ -260,6 +392,10 @@ private fun PluginsTitleBar(onClose: () -> Unit) {
             style = DsTitleBar.titleStyle,
             color = colors.labelPrimary,
         )
+        if (actions != null) {
+            Spacer(Modifier.weight(1f))
+            actions()
+        }
     }
 }
 
@@ -276,6 +412,9 @@ private fun BundleList(
     mutation: PluginMutationState?,
     onOpen: (PluginBundle) -> Unit,
     onToggle: (String, Boolean) -> Unit,
+    onUpdate: (ProfileBundle) -> Unit,
+    onRemove: (ProfileBundle) -> Unit,
+    busy: Boolean,
     listState: LazyListState,
     locale: String,
 ) {
@@ -283,7 +422,7 @@ private fun BundleList(
     if (bundles.isEmpty()) {
         Text(
             stringResource(if (total == 0) R.string.plugins_empty else R.string.plugins_no_match),
-            style = DsType.small13,
+            style = DsType.std14,
             color = colors.labelTertiary,
         )
         return
@@ -298,13 +437,13 @@ private fun BundleList(
         if (installed.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_installed), installed.size) }
             items(installed, key = { "i:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, locale)
+                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, onUpdate, onRemove, busy, locale)
             }
         }
         if (available.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.plugins_section_available), available.size) }
             items(available, key = { "o:${it.name}" }) { bundle ->
-                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, locale)
+                BundleCard(bundle, mutation, onToggle, { onOpen(bundle) }, onUpdate, onRemove, busy, locale)
             }
         }
         item { Spacer(Modifier.height(DsSpacing.xlarge)) }
@@ -312,7 +451,7 @@ private fun BundleList(
 }
 
 @Composable
-private fun SectionHeader(label: String, count: Int) {
+internal fun SectionHeader(label: String, count: Int) {
     val colors = DsTheme.colors
     Row(
         modifier = Modifier
@@ -320,9 +459,9 @@ private fun SectionHeader(label: String, count: Int) {
             .padding(top = DsSpacing.small, bottom = DsSpacing.tiny),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, style = DsType.small13Strong, color = colors.labelSecondary)
+        Text(label, style = DsType.std14Strong, color = colors.labelSecondary)
         Spacer(Modifier.width(DsSpacing.xsmall))
-        Text(count.toString(), style = DsType.caption11, color = colors.labelTertiary)
+        Text(count.toString(), style = DsType.small13, color = colors.labelTertiary)
     }
 }
 
@@ -339,6 +478,9 @@ private fun BundleCard(
     mutation: PluginMutationState?,
     onToggle: (String, Boolean) -> Unit,
     onOpen: () -> Unit,
+    onUpdate: (ProfileBundle) -> Unit,
+    onRemove: (ProfileBundle) -> Unit,
+    installBusy: Boolean,
     locale: String,
 ) {
     val colors = DsTheme.colors
@@ -356,7 +498,7 @@ private fun BundleCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 bundle.displayTitle(locale),
-                style = DsType.small13Strong,
+                style = DsType.std14Strong,
                 color = colors.labelPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -367,7 +509,7 @@ private fun BundleCard(
             if (caption.isNotEmpty()) {
                 Text(
                     caption,
-                    style = DsType.caption11,
+                    style = DsType.small13,
                     color = colors.labelTertiary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -375,21 +517,35 @@ private fun BundleCard(
             }
         }
         Spacer(Modifier.width(DsSpacing.small))
+        // Update and remove are row actions, on the row they act on: both are about this bundle's
+        // package, and both are per-row in the harness rather than page-wide.
+        if (bundle.installed) {
+            DsIconButton(
+                icon = FeatherIcons.RefreshCw,
+                contentDescription = stringResource(R.string.ux_a_update),
+                onClick = { onUpdate(bundle) },
+                tint = colors.labelTertiary,
+                enabled = !installBusy,
+            )
+        }
+        if (bundle.removable && bundle.readOnlyReason == null) {
+            DsIconButton(
+                icon = FeatherIcons.Trash2,
+                contentDescription = stringResource(R.string.common_remove),
+                onClick = { onRemove(bundle) },
+                tint = colors.labelTertiary,
+                enabled = !installBusy,
+            )
+        }
         if (bundle.togglable) {
             Switch(
                 checked = bundle.enabled,
                 onCheckedChange = { next -> onToggle(bundle.name, next) },
                 enabled = !busy,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = colors.bgBase,
-                    checkedTrackColor = colors.accent,
-                    uncheckedThumbColor = colors.labelTertiary,
-                    uncheckedTrackColor = colors.hoverSolid,
-                    uncheckedBorderColor = colors.borderL2,
-                ),
+                colors = pluginSwitchColors(colors),
             )
         } else {
-            BundleLock(reason = bundle.readOnlyReason)
+            PluginLock(reason = bundle.readOnlyReason)
         }
     }
 }
@@ -405,13 +561,16 @@ private fun BundleCard(
  */
 @Composable
 private fun BundleDetailDialog(
-    bundle: PluginBundle,
+    bundle: ProfileBundle,
+    liveRows: List<PluginManagerRow>,
+    mutation: PluginMutationState?,
     schemaByNamespace: Map<String, ResolvedSettingsSchema>,
     valuesByNamespace: Map<String, JsonElement>,
     revisionsByNamespace: Map<String, Long>,
     settingsAvailable: Boolean,
     locale: String,
     onEdit: (String, List<String>, JsonElement, Long?) -> Unit,
+    onToggle: (String, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = DsTheme.colors
@@ -419,8 +578,12 @@ private fun BundleDetailDialog(
 
     // rowId *is* the settings namespace, so a bundle's configuration is the intersection of its
     // rows' rowIds with the described namespaces — a plain set operation, no invented mapping.
-    val configured = remember(bundle) {
-        bundle.rows.map { it.rowId }.filter { it in schemaByNamespace }
+    val configured = remember(bundle, schemaByNamespace) {
+        bundle.rows.filter { it.rowId in schemaByNamespace }
+    }
+    // Everything else the bundle carries: real rows with no form, listed but not configurable.
+    val plain = remember(bundle, schemaByNamespace) {
+        bundle.rows.filterNot { it.rowId in schemaByNamespace }
     }
 
     // The title is the display name — `dsh-relay` as a heading is the raw row id, and the list row
@@ -436,13 +599,13 @@ private fun BundleDetailDialog(
         ) {
             val caption = listOfNotNull(bundle.version, bundle.displayDescription).joinToString(" · ")
             if (caption.isNotEmpty()) {
-                Text(caption, style = DsType.caption11, color = colors.labelTertiary)
+                Text(caption, style = DsType.small13, color = colors.labelTertiary)
             }
 
             if (configured.isEmpty()) {
                 Text(
                     stringResource(R.string.plugins_config_none),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.labelTertiary,
                 )
             } else if (!settingsAvailable) {
@@ -450,42 +613,47 @@ private fun BundleDetailDialog(
                 // relay that is the expected outcome rather than a fault, so it says which.
                 Text(
                     stringResource(R.string.plugins_config_unavailable),
-                    style = DsType.small13,
+                    style = DsType.std14,
                     color = colors.warnLabel,
                 )
             } else {
-                configured.forEach { ns ->
+                configured.forEach { row ->
+                    val ns = row.rowId
                     val schema = schemaByNamespace[ns] ?: return@forEach
-                    val value = valuesByNamespace[ns]
-                    val revision = revisionsByNamespace[ns]
-                    // A card, not a bare heading over fields: the namespace id is the card's title,
-                    // and the card's fill separates one form from the next without any divider.
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(DsShapes.row)
-                            .background(colors.bgLayer1)
-                            .padding(DsSpacing.medium),
-                        verticalArrangement = Arrangement.spacedBy(DsSpacing.small),
-                    ) {
-                        Text(ns, style = DsType.small13Strong, color = colors.labelSecondary)
-                        schema.fields.forEach { field ->
-                            SettingsFieldRow(
-                                field = field,
-                                value = fieldValueAt(field.path, value),
-                                onEdit = { path, next -> onEdit(ns, path, next, revision) },
+                    // The live row, matched by entry id. `listBundles` says what a bundle *declares*
+                    // and `listPlugins` says what the loader tree actually holds; only the second
+                    // knows whether the row is on. A row that is not composed yet has no entry id
+                    // and therefore no switch — drawing one disabled would report "locked" about a
+                    // row that is merely not mounted.
+                    val live = liveRows.firstOrNull { it.entryId == row.entryId }
+                    PluginRowCard(
+                        title = row.displayTitle,
+                        description = row.meta?.description?.resolve(),
+                        enabled = live?.enabled,
+                        togglable = live?.togglable == true,
+                        busy = live != null && mutation?.target == live.entryId,
+                        lockReason = live?.readOnlyReason,
+                        onToggle = live?.let { open -> { next: Boolean -> onToggle(open.entryId, next) } },
+                        settings = {
+                            NamespaceSettingsForm(
+                                ns = ns,
+                                schema = schema,
+                                value = valuesByNamespace[ns],
+                                revision = revisionsByNamespace[ns],
+                                onEdit = onEdit,
                             )
-                        }
-                    }
+                        },
+                    )
                 }
             }
 
-            // What the bundle contributes, behind a disclosure: a bundle can carry ninety rows
-            // (dsh-base does), and the form is the reason this dialog exists.
-            if (bundle.rows.isNotEmpty()) {
+            // What the bundle contributes that has no form of its own, behind a disclosure: a
+            // bundle can carry ninety rows (dsh-base does), and the rows with settings are the cards
+            // above — listing those again here would say the bundle has twice the rows it has.
+            if (plain.isNotEmpty()) {
                 Text(
-                    stringResource(R.string.plugins_bundle_rows, bundle.rows.size),
-                    style = DsType.caption11,
+                    stringResource(R.string.plugins_bundle_rows, plain.size),
+                    style = DsType.small13,
                     color = if (rowsOpen) colors.accent else colors.labelTertiary,
                     modifier = Modifier
                         .clip(DsShapes.row)
@@ -501,10 +669,10 @@ private fun BundleDetailDialog(
                             .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
                         verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
                     ) {
-                        bundle.rows.forEach { row ->
+                        plain.forEach { row ->
                             Text(
                                 row.displayTitle,
-                                style = DsType.caption11,
+                                style = DsType.small13,
                                 color = colors.labelCaption,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -543,38 +711,6 @@ internal fun buildSettingPatch(path: List<String>, value: JsonElement): JsonObje
     return path.dropLast(1).foldRight(JsonObject(mapOf(path.last() to value))) { segment, acc ->
         JsonObject(mapOf(segment to acc))
     }
-}
-
-/**
- * A locked bundle's state.
- *
- * It reports *why* it is locked rather than repeating its enablement: "Enabled" beside a greyed
- * switch tells the reader nothing they cannot already see.
- */
-@Composable
-private fun BundleLock(reason: String?) {
-    val colors = DsTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        StateDot(StateDotState.Idle)
-        Spacer(Modifier.width(DsSpacing.tiny))
-        Text(
-            text = reason?.let { readOnlyLabel(it)?.let { id -> stringResource(id) } ?: it }
-                ?: stringResource(R.string.plugins_locked_generic),
-            style = DsType.caption11,
-            color = colors.labelTertiary,
-        )
-    }
-}
-
-/**
- * The sentence for a read-only reason, or null when this build has no wording for it.
- *
- * Null rather than a generic fallback so the caller can show the Host's own code instead: the codes
- * are stable and greppable, and a plausible-sounding guess is worse than an ugly but true one.
- */
-private fun readOnlyLabel(reason: String): Int? = when (reason) {
-    PluginReadOnly.MANAGEMENT_REQUIRED -> R.string.plugins_locked_management
-    else -> null
 }
 
 /**

@@ -373,11 +373,19 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
         }
     }
 
-    plugins?.takeIf { pluginsOpen }?.let { snapshot ->
-        // The inspection view, not the editable one: this entry point is inside Settings, matching
-        // where the harness puts its "Built-in plugins" tab. The bundle page with switches is reached
-        // from the chat list's plugin button.
-        BuiltInPluginsScreen(inventory = snapshot, onClose = { pluginsOpen = false })
+    // Upstream's entry point, kept as upstream built it: when the host offers the pluginManager
+    // capability this opens the full manager, and on a host without it the read-only sheet.
+    //
+    // The fork has a second plugin page of its own (`BuiltInPluginsScreen`), reached from the chat
+    // list's plugin button rather than from here. The two overlap — same namespace, same four calls
+    // — and upstream's is the superset, so which one survives is still an open decision. Both are
+    // reachable in this build on purpose; nothing here should be read as having settled it.
+    if (pluginsOpen) {
+        // Two different things wear the word "plugin" here. This entry is the *system* rows the
+        // profile composes, which is what a switch can act on; the packages an operator installs are
+        // bundles, and they open from the chat list's own button. See FORK-NOTES.
+        if (pluginManagementAvailable == false) plugins?.let { PluginsSheet(it, onDismiss = { pluginsOpen = false }) }
+        else ManagedPluginsScreen(onClose = { pluginsOpen = false })
     }
 
     if (showDisconnectDialog) {
