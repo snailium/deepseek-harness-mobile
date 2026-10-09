@@ -63,7 +63,18 @@ fun ToolCard(
      * anyway — so a caller that does not care about images can omit this entirely.
      */
     imageStates: Map<String, AttachmentImageState> = emptyMap(),
+    /**
+     * Upstream 0.15.0's grouped-row header. When given, the card renders it as the whole row
+     * instead of its own disclosure header — that is how the compact tool group draws one heading
+     * over several calls.
+     */
+    header: (@Composable () -> Unit)? = null,
 ) {
+    if (header != null) {
+        header()
+        if (expanded) ToolCardBody(view, imageStates)
+        return
+    }
     DisclosureRow(
         // Full width of the transcript column. A tool call is a block in the message flow, not an
         // inline chip: sized to its content it left a ragged right edge that made a run of calls

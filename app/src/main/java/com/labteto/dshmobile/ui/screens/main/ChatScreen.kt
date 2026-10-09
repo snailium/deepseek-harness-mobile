@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -206,12 +207,15 @@ fun ChatScreen(
     androidx.compose.runtime.CompositionLocalProvider(
         com.labteto.dshmobile.ui.media.LocalAttachmentScope provides (composer.key.host to composer.key.sessionId),
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
-        store.panels.get(composer.key).open(path); panelKey = composer.key
-    }) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = colors.bgBase,
+            store.panels.get(composer.key).open(path); panelKey = composer.key
+        },
+        // A folder link opens Files *at that directory* rather than a preview of it: upstream
+        // 0.15.0's file pills call this, and `browse` is the panel's own way to land on a listing.
+        com.labteto.dshmobile.ui.components.LocalFolderOpener provides { path: String ->
+            store.panels.get(composer.key).browse(path); panelKey = composer.key
+        },
     ) {
+    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
@@ -220,7 +224,12 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 models = models,
-                agentPresetLabel = currentSession?.agentPreset?.takeIf { agentPresets?.modeSelectionEnabled != false }?.let { agentPresetLabel(it, agentPresets) },
+                // The harness pins the preset once a session has started, so the chip — which
+                // reads as a picker — is only offered while the session is still blank. After
+                // that the preset is a fact, and the Details panel states it as one.
+                agentPresetLabel = currentSession?.agentPreset
+                    ?.takeIf { agentPresets?.modeSelectionEnabled != false && currentSession.blank }
+                    ?.let { agentPresetLabel(it, agentPresets) },
                 subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
@@ -233,13 +242,10 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
-                // Null when there is no session to point at, which hides the button rather than
-                // offering a tap that does nothing.
-                onOpenWorkspace = if (currentSessionId != null) {
-                    { panelKey = composer.key }
-                } else {
-                    null
-                },
+                // Disabled rather than hidden when there is no session to point at, which is what
+                // upstream 0.15.0's labelled button beside the tabs does with this pair.
+                onOpenWorkspace = { panelKey = composer.key },
+                workspaceEnabled = currentSessionId != null,
                 searchQuery = search.query,
                 // The counter is 1-based and reads 0/0 when nothing matches.
                 searchPosition = if (matches.isEmpty()) 0 else cursor + 1,

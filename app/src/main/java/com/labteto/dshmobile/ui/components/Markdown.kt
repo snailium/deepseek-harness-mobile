@@ -48,6 +48,20 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.core.session.previewPath
 import com.labteto.dshmobile.ui.theme.DsColors
 import com.labteto.dshmobile.ui.theme.DsShapes
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DshTheme
@@ -65,6 +79,27 @@ import androidx.compose.ui.text.style.TextDecoration
 import kotlin.math.pow
 
 val LocalFileOpener = staticCompositionLocalOf<(String) -> Unit> { {} }
+
+/**
+ * Where a workspace reference leads: a folder goes to the Files browser at that directory, a file
+ * to the Preview. Defaults to the file opener so a host that registers only one still works.
+ */
+val LocalFolderOpener = staticCompositionLocalOf<((String) -> Unit)?> { null }
+
+/**
+ * Whether a workspace reference names a folder.
+ *
+ * A trailing slash says so outright. A model often omits it, so a last segment with no extension
+ * is read as a folder too. That is only a first guess: `Makefile` and `LICENSE` are files, and
+ * the Workspace opens them in Preview when the harness answers that they are not directories
+ * (and `.github`, read as a file, goes to Files the same way).
+ */
+fun isFolderReference(path: String): Boolean {
+    val trimmed = path.trim()
+    if (trimmed.endsWith('/')) return true
+    val last = trimmed.substringAfterLast('/')
+    return last.isNotEmpty() && !last.contains('.')
+}
 
 /**
  * Block-level Markdown renderer: fenced code blocks, #-#### headings, bullet and
@@ -92,8 +127,11 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
                     }
                     InlineMarkdown(block.text, style.copy(color = colors.labelPrimary), Modifier.padding(top = 10.dp))
                 }
+                // A paragraph's line breaks are kept, as the web client keeps them: a model that
+                // lists one file per line meant one file per line, and joining with a space made
+                // `README.md src` out of two separate names.
                 is MdBlock.Paragraph -> InlineMarkdown(
-                    block.lines.joinToString(" "),
+                    block.lines.joinToString("\n"),
                     DsType.mdBody.copy(color = colors.labelPrimary),
                     Modifier.fillMaxWidth(),
                 )
@@ -230,6 +268,7 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         color = colors.labelPrimary,
     )
     val openFile = LocalFileOpener.current
+    val openFolder = LocalFolderOpener.current
     val uriHandler = LocalUriHandler.current
     // Read through a state holder so the remembered string below does not have to be a key of the
     // caller's lambdas: a link annotation carries its listener, and re-keying on a lambda that is
@@ -246,15 +285,39 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     val result = remember(text, style, codeStyle, colors) {
         buildInlineContent(text, codeStyle, colors) { raw -> onLink(raw) }
     }
-    // Every line goes inside a SelectionContainer now. Links are LinkAnnotations, which `Text`
-    // handles without swallowing the long-press, so a line containing a link is selectable and
-    // copyable exactly like prose — the old ClickableText split, which forced linked lines to give
-    // up selection, is gone. Re-keyed on the shared dismiss token so a tap elsewhere in the
-    // transcript clears the selection (see ChatTranscript).
+    // Each pill has a slot of its own, as wide as its label at the pill's (slightly smaller, mono)
+    // size plus icon and padding, so the line is laid out around exactly that pill. A label wider
+    // than most of the screen is capped and ellipsized rather than run past the edge.
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val maxPillWidth = LocalConfiguration.current.screenWidthDp.dp * 0.7f
+    val pillStyle = remember(style) { style.copy(fontFamily = DsType.codeFont, fontSize = style.fontSize * 0.9f) }
+    val inlineContent = remember(result, pillStyle, density, maxPillWidth) {
+        val lineHeight = style.lineHeight.takeIf { it.isSp }?.let { it.value } ?: (style.fontSize.value * 1.5f)
+        result.getStringAnnotations("path", 0, result.length).withIndex().associate { (index, ann) ->
+            val label = result.text.substring(ann.start, ann.end)
+            val width = with(density) {
+                // 1dp of slack so rounding through sp never ellipsizes a label that fits.
+                val natural = measurer.measure(label, pillStyle).size.width + (13 + 4 + 16 + 1).dp.roundToPx()
+                minOf(natural, maxPillWidth.roundToPx()).toSp()
+            }
+            filePillId(index) to InlineTextContent(
+                Placeholder(width, (lineHeight * 0.95f).sp, PlaceholderVerticalAlign.TextCenter),
+            ) { FilePill(path = ann.item, label = label, style = style) }
+        }
+    }
+    // One rendering path, and everything in it is selectable. Links are `LinkAnnotation`s, which
+    // `Text` handles itself without swallowing the long-press; workspace paths are inline content
+    // whose pill carries its own `clickable`, so a tap on the pill opens the file and a tap
+    // anywhere else does not. Upstream 0.15.0 split these into two branches — a `SelectionContainer`
+    // when a line had no links, a `Text` with a hand-rolled hit test when it had — which is exactly
+    // the trade this fork removed earlier: a line with a link gave up selection. Keeping both
+    // features in one path is why this is not upstream's shape. Re-keyed on the shared dismiss
+    // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
     val dismissToken = LocalSelectionDismiss.current.value
     key(dismissToken) {
         SelectionContainer(modifier = modifier) {
-            Text(result, style = style)
+            Text(result, style = style, inlineContent = inlineContent)
         }
     }
 }
@@ -266,6 +329,7 @@ private fun buildInlineContent(
     onLink: (String) -> Unit,
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
+    var pills = 0
     parseInlineSegments(text).forEach { segment ->
         when (segment) {
             is InlineSegment.Plain -> builder.append(segment.text)
@@ -275,22 +339,73 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles the
-                // former itself — tap goes to the listener, long-press still reaches the enclosing
-                // SelectionContainer — whereas the string form was only readable by ClickableText,
-                // which consumes the long-press. That is what forced linked lines to opt out of
-                // selection entirely.
-                builder.withLink(
-                    LinkAnnotation.Clickable(
-                        tag = segment.url,
-                        styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
-                        linkInteractionListener = { onLink(segment.url) },
-                    ),
-                ) { append(segment.text) }
+                val path = if (safeHttpUrl(segment.url) == null) previewPath(segment.url) else null
+                if (path != null) {
+                    // A path into the session's workspace is an artifact, not a web link: it is
+                    // drawn as a pill (see the inline content above) so it reads as a file you can
+                    // open, and never as a blue word that may go anywhere.
+                    builder.pushStringAnnotation("path", path)
+                    builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
+                    builder.pop()
+                } else {
+                    // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles
+                    // the former itself — tap goes to the listener, long-press still reaches the
+                    // enclosing SelectionContainer — whereas the string form was only readable by
+                    // ClickableText, which consumes the long-press. That is what forced linked
+                    // lines to opt out of selection entirely.
+                    builder.withLink(
+                        LinkAnnotation.Clickable(
+                            tag = segment.url,
+                            styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                            linkInteractionListener = { onLink(segment.url) },
+                        ),
+                    ) { append(segment.text) }
+                }
             }
         }
     }
     return builder.toAnnotatedString()
+}
+
+/** The inline-content slot of the [index]th workspace-path pill in a paragraph. */
+private fun filePillId(index: Int) = "dsh.file-pill.$index"
+
+/** Folders go to Files when the host registered a folder opener; everything else to Preview. */
+private fun openWorkspaceReference(path: String, openFile: (String) -> Unit, openFolder: ((String) -> Unit)?) {
+    if (isFolderReference(path) && openFolder != null) openFolder(path) else openFile(path)
+}
+
+/** A workspace path drawn as a pill: file or folder icon, then the path, on a bordered block. */
+@Composable
+private fun FilePill(path: String, label: String, style: TextStyle) {
+    val colors = DsTheme.colors
+    val folder = isFolderReference(path)
+    val openFile = LocalFileOpener.current
+    val openFolder = LocalFolderOpener.current
+    Row(
+        Modifier
+            .clip(DsShapes.pill)
+            .background(colors.bgModulePlatform)
+            .border(1.dp, colors.borderL3, DsShapes.pill)
+            .clickable(role = Role.Button) { openWorkspaceReference(path, openFile, openFolder) }
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Icon(
+            if (folder) FeatherIcons.Folder else FeatherIcons.FileText,
+            null,
+            Modifier.size(13.dp),
+            tint = if (folder) colors.accent else colors.labelSecondary,
+        )
+        Text(
+            label,
+            style = style.copy(fontFamily = DsType.codeFont, fontSize = style.fontSize * 0.9f, color = colors.labelPrimary),
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 // ---- Block renderers --------------------------------------------------------

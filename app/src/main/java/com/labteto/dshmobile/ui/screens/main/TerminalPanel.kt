@@ -27,8 +27,19 @@ import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.decodeFromJsonElement
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
-import com.labteto.dshmobile.ui.theme.DsTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsButtonSize
+import com.labteto.dshmobile.ui.components.DsButtonVariant
+import com.labteto.dshmobile.ui.components.DsIconButton
+import com.labteto.dshmobile.ui.components.DsPill
+import com.labteto.dshmobile.ui.components.EmptyHero
+import com.labteto.dshmobile.ui.components.FeatherIcons
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsType
+import com.labteto.dshmobile.ui.theme.DsTheme
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.serialization.json.*
@@ -82,37 +93,73 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message }
     }
-    Column(modifier.fillMaxWidth()) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
+    val colors = DsTheme.colors
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+        // Toolbar: which shell, a new one, refresh. Not scrollable and not wrapping: the row is a
+        // fixed four items, and upstream's `Spacer(weight(1f))` below needs a bounded width — a
+        // `weight` inside a `horizontalScroll` row is measured at infinity and cannot work.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
             Box {
-                TextButton(onClick = { shellMenu = true }, enabled = !busy) { Text(state.shells.firstOrNull { it.path == state.shellPath }?.name ?: stringResource(R.string.terminal_shell)) }
+                DsPill(
+                    text = state.shells.firstOrNull { it.path == state.shellPath }?.name ?: stringResource(R.string.terminal_shell),
+                    onClick = { if (!busy) shellMenu = true },
+                )
                 DropdownMenu(shellMenu, { shellMenu = false }) {
                     state.shells.forEach { shell -> DropdownMenuItem(text = { Text(shell.name) }, onClick = { state.shellPath = shell.path; shellMenu = false }) }
                 }
             }
-            TextButton(enabled = !busy, onClick = { operation {
-                val api = store.apiForHost(key.host) ?: error(context.getString(R.string.common_offline))
-                val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
-                state.selectedTerminal = info.id
-                refresh()
-            } }) { Text(stringResource(R.string.terminal_new)) }
-            TextButton(onClick = { operation { refresh() } }, enabled = !busy) { Text(stringResource(R.string.common_retry)) }
+            DsButton(
+                text = stringResource(R.string.terminal_new),
+                icon = Icons.Filled.Add,
+                enabled = !busy,
+                onClick = { operation {
+                    val api = store.apiForHost(key.host) ?: error(context.getString(R.string.common_offline))
+                    val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
+                    state.selectedTerminal = info.id
+                    refresh()
+                } },
+                variant = DsButtonVariant.Info,
+                size = DsButtonSize.Small,
+            )
+            Spacer(Modifier.weight(1f))
+            DsIconButton(
+                icon = FeatherIcons.RefreshCw,
+                contentDescription = stringResource(R.string.common_retry),
+                onClick = { operation { refresh() } },
+                enabled = !busy,
+            )
         }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        error?.let { Text(it, Modifier.padding(12.dp), color = MaterialTheme.colorScheme.error) }
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            state.terminals.forEach { terminal -> TextButton(onClick = { state.selectedTerminal = terminal.id }) { Text(terminal.title) } }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = colors.accent, trackColor = colors.borderL1)
+        error?.let { Text(it, style = DsType.small13, color = colors.error) }
+        // Open terminals as pills; the live one is selected.
+        if (state.terminals.isNotEmpty()) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
+                state.terminals.forEach { terminal ->
+                    DsPill(text = terminal.title, selected = terminal.id == state.selectedTerminal, onClick = { state.selectedTerminal = terminal.id })
+                }
+            }
         }
         val terminal = state.terminals.firstOrNull { it.id == state.selectedTerminal }
-        if (terminal == null) Text(stringResource(R.string.terminal_empty), Modifier.padding(24.dp))
-        else {
-            Row {
-                TextButton(onClick = { rename = terminal.title }) { Text(stringResource(R.string.common_rename)) }
-                TextButton(enabled = !busy, onClick = { operation {
-                    store.apiForHost(key.host)?.terminalClose(key.sessionId, terminal.id)?.requireValue()
-                        ?: error(context.getString(R.string.common_offline))
-                    refresh()
-                } }) { Text(stringResource(R.string.common_close)) }
+        if (terminal == null) {
+            EmptyHero(headline = stringResource(R.string.terminal_empty), subtitle = null, showPreview = false)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(terminal.title, style = DsType.std14Strong, color = colors.labelPrimary, modifier = Modifier.weight(1f))
+                DsIconButton(
+                    icon = FeatherIcons.Edit3,
+                    contentDescription = stringResource(R.string.common_rename),
+                    onClick = { rename = terminal.title },
+                )
+                DsIconButton(
+                    icon = Icons.Filled.Close,
+                    contentDescription = stringResource(R.string.common_close),
+                    enabled = !busy,
+                    onClick = { operation {
+                        store.apiForHost(key.host)?.terminalClose(key.sessionId, terminal.id)?.requireValue()
+                            ?: error(context.getString(R.string.common_offline))
+                        refresh()
+                    } },
+                )
             }
             key(terminal.id) { TerminalScreen(store, key, terminal, Modifier.weight(1f)) }
             rename?.let { title -> AlertDialog(onDismissRequest = { rename = null }, title = { Text(stringResource(R.string.common_rename)) },

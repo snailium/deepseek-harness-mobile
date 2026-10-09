@@ -767,6 +767,85 @@ internal object FeatherIcons {
             close()
         }
     }
+    /** feather:layers */
+    val Layers: ImageVector by lazy {
+        feather("Layers") {
+            moveTo(12f, 2f); lineTo(2f, 7f); lineTo(12f, 12f); lineTo(22f, 7f); close()
+            moveTo(2f, 17f); lineTo(12f, 22f); lineTo(22f, 17f)
+            moveTo(2f, 12f); lineTo(12f, 17f); lineTo(22f, 12f)
+        }
+    }
+
+    /** feather:server */
+    val Server: ImageVector by lazy {
+        feather("Server") {
+            moveTo(4f, 2f); lineTo(20f, 2f); curveTo(21.1f, 2f, 22f, 2.9f, 22f, 4f); lineTo(22f, 8f)
+            curveTo(22f, 9.1f, 21.1f, 10f, 20f, 10f); lineTo(4f, 10f); curveTo(2.9f, 10f, 2f, 9.1f, 2f, 8f)
+            lineTo(2f, 4f); curveTo(2f, 2.9f, 2.9f, 2f, 4f, 2f); close()
+            moveTo(4f, 14f); lineTo(20f, 14f); curveTo(21.1f, 14f, 22f, 14.9f, 22f, 16f); lineTo(22f, 20f)
+            curveTo(22f, 21.1f, 21.1f, 22f, 20f, 22f); lineTo(4f, 22f); curveTo(2.9f, 22f, 2f, 21.1f, 2f, 20f)
+            lineTo(2f, 16f); curveTo(2f, 14.9f, 2.9f, 14f, 4f, 14f); close()
+            moveTo(6f, 6f); lineTo(6.01f, 6f)
+            moveTo(6f, 18f); lineTo(6.01f, 18f)
+        }
+    }
+
+    /** feather:target */
+    val Target: ImageVector by lazy {
+        feather("Target") {
+            moveTo(22f, 12f); arcTo(10f, 10f, 0f, true, true, 2f, 12f); arcTo(10f, 10f, 0f, true, true, 22f, 12f); close()
+            moveTo(18f, 12f); arcTo(6f, 6f, 0f, true, true, 6f, 12f); arcTo(6f, 6f, 0f, true, true, 18f, 12f); close()
+            moveTo(14f, 12f); arcTo(2f, 2f, 0f, true, true, 10f, 12f); arcTo(2f, 2f, 0f, true, true, 14f, 12f); close()
+        }
+    }
+
+    /** feather:compass */
+    val Compass: ImageVector by lazy {
+        feather("Compass") {
+            moveTo(22f, 12f); arcTo(10f, 10f, 0f, true, true, 2f, 12f); arcTo(10f, 10f, 0f, true, true, 22f, 12f); close()
+            moveTo(16.24f, 7.76f); lineTo(14.12f, 14.12f); lineTo(7.76f, 16.24f); lineTo(9.88f, 9.88f); close()
+        }
+    }
+
+    /** feather:cpu */
+    val Cpu: ImageVector by lazy {
+        feather("Cpu") {
+            moveTo(6f, 4f); lineTo(18f, 4f); curveTo(19.1f, 4f, 20f, 4.9f, 20f, 6f); lineTo(20f, 18f)
+            curveTo(20f, 19.1f, 19.1f, 20f, 18f, 20f); lineTo(6f, 20f); curveTo(4.9f, 20f, 4f, 19.1f, 4f, 18f)
+            lineTo(4f, 6f); curveTo(4f, 4.9f, 4.9f, 4f, 6f, 4f); close()
+            moveTo(9f, 9f); lineTo(15f, 9f); lineTo(15f, 15f); lineTo(9f, 15f); close()
+            moveTo(9f, 1f); lineTo(9f, 4f); moveTo(15f, 1f); lineTo(15f, 4f)
+            moveTo(9f, 20f); lineTo(9f, 23f); moveTo(15f, 20f); lineTo(15f, 23f)
+            moveTo(20f, 9f); lineTo(23f, 9f); moveTo(20f, 14f); lineTo(23f, 14f)
+            moveTo(1f, 9f); lineTo(4f, 9f); moveTo(1f, 14f); lineTo(4f, 14f)
+        }
+    }
+
+    /** feather:list */
+    val List: ImageVector by lazy {
+        feather("List") {
+            moveTo(8f, 6f); lineTo(21f, 6f); moveTo(8f, 12f); lineTo(21f, 12f); moveTo(8f, 18f); lineTo(21f, 18f)
+            moveTo(3f, 6f); lineTo(3.01f, 6f); moveTo(3f, 12f); lineTo(3.01f, 12f); moveTo(3f, 18f); lineTo(3.01f, 18f)
+        }
+    }
+
+    /** feather:map */
+    val Map: ImageVector by lazy {
+        feather("Map") {
+            moveTo(1f, 6f); lineTo(1f, 22f); lineTo(8f, 18f); lineTo(16f, 22f); lineTo(23f, 18f); lineTo(23f, 2f)
+            lineTo(16f, 6f); lineTo(8f, 2f); close()
+            moveTo(8f, 2f); lineTo(8f, 18f); moveTo(16f, 6f); lineTo(16f, 22f)
+        }
+    }
+
+    /** feather:corner-left-up */
+    val CornerLeftUp: ImageVector by lazy {
+        feather("CornerLeftUp") {
+            moveTo(14f, 9f); lineTo(9f, 4f); lineTo(4f, 9f)
+            moveTo(20f, 20f); lineTo(13f, 20f); curveTo(10.8f, 20f, 9f, 18.2f, 9f, 16f); lineTo(9f, 4f)
+        }
+    }
+
 }
 
 // ---------------------------------------------------------------------------

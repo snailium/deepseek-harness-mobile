@@ -133,7 +133,7 @@ internal fun ChatTranscript(
     // Reversed here rather than at the call site: the fold's natural order is oldest-first, and
     // that is the order every other reader of `nodes` wants.
     val rows = remember(conversation?.nodes, context.running) {
-        renderableChatNodes(conversation?.nodes.orEmpty(), context.running).asReversed()
+        groupToolRows(renderableChatNodes(conversation?.nodes.orEmpty(), context.running)).asReversed()
     }
     val hasMore = conversation?.hasMore == true
 
@@ -219,7 +219,7 @@ internal fun ChatTranscript(
     // page just landed without changing the row count, keep paging (bounded) until something
     // above the cut appears.
     val rowCount = rows.size
-    val dividerOnTop = rows.lastOrNull().let { it is UserMessageNode && it.isRewindMarker }
+    val dividerOnTop = (rows.lastOrNull() as? TranscriptRow.Message)?.node.let { it is UserMessageNode && it.isRewindMarker }
     var lastPagedRowCount by remember(sessionId) { mutableIntStateOf(-1) }
     var cutPages by remember(sessionId) { mutableIntStateOf(0) }
     LaunchedEffect(rowCount, loadingOlder, hasMore, dividerOnTop) {
@@ -289,8 +289,12 @@ internal fun ChatTranscript(
                 // settlement landed — a visible pop at the end of every reply. One constant key
                 // instead: there is only ever one provisional row, and it is the same row before
                 // and after it settles.
-                key = { node -> if (node is AssistantMessageNode && node.streaming) STREAMING_ROW_KEY else node.seq },
-            ) { node ->
+                key = { row ->
+                    val node = (row as? TranscriptRow.Message)?.node
+                    if (node is AssistantMessageNode && node.streaming) STREAMING_ROW_KEY else row.seq
+                },
+            ) { row ->
+                val node = (row as? TranscriptRow.Message)?.node
                 val streaming = node is AssistantMessageNode && node.streaming
                 // A tap on the row dismisses any active text selection: this Compose version's
                 // SelectionContainer has no built-in "tap outside to clear", so each row opts in.
@@ -303,7 +307,11 @@ internal fun ChatTranscript(
                         .fillMaxWidth()
                         .clickable { selectionDismiss.value++ },
                 ) {
-                    ChatNodeItem(node = node, context = context)
+                    when (row) {
+                        is TranscriptRow.Message -> ChatNodeItem(node = row.node, context = context)
+                        is TranscriptRow.Tools -> ToolGroupRow(row.calls, context)
+                        is TranscriptRow.Context -> ContextGroupRow(row.nodes, context)
+                    }
                 }
             }
         }

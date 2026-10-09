@@ -34,6 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
+import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsButtonSize
+import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
@@ -53,7 +56,7 @@ import com.labteto.dshmobile.ui.theme.DsType
 internal enum class ChatTab { Chat, Trajectory }
 
 /**
- * The session chrome: a two-row bar plus the Chat / Trajectory tabs.
+ * The session chrome: a two-row bar plus the Chat / Trajectory tabs and the Workspace button.
  *
  * Row one carries the controls that belong to the *connection* — the drawer, the model, the live
  * status. Row two carries the ones that belong to the *session* — its title, its agent preset, its
@@ -79,8 +82,9 @@ internal fun ChatTopBar(
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
-    /** Opens the session's workspace file panel; null hides the button. */
-    onOpenWorkspace: (() -> Unit)? = null,
+    /** Opens the session's workspace screen; disabled when the harness reports no workspace. */
+    onOpenWorkspace: () -> Unit,
+    workspaceEnabled: Boolean,
     /** Transcript search: the query, where the cursor sits, and how many messages matched. */
     searchQuery: String = "",
     searchPosition: Int = 0,
@@ -148,20 +152,9 @@ internal fun ChatTopBar(
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
-            // The workspace panel is a destination, not a label: an icon frees the line of text it
-            // used to occupy above the transcript while staying one tap away. A tools glyph rather
-            // than a folder: the page now holds files, previews and terminals — a toolbox, not just
-            // a directory.
-            if (onOpenWorkspace != null) {
-                DsIconButton(
-                    icon = FeatherIcons.Tool,
-                    contentDescription = stringResource(R.string.panel_workspace),
-                    onClick = onOpenWorkspace,
-                    tint = colors.labelTertiary,
-                    iconSize = DsTitleBar.iconSize,
-                    touchTarget = DsTitleBar.iconTouchTarget,
-                )
-            }
+            // The workspace entry is the labelled button beside the tabs, as upstream 0.15.0 made
+            // it. This fork carried a tools-glyph icon here as well for a while; with upstream's
+            // button adopted, two doors to one screen was one too many.
             if (!detailsOpen) {
                 DsIconButton(
                     icon = FeatherIcons.Info,
@@ -200,6 +193,8 @@ internal fun ChatTopBar(
         ChatTabRow(
             tab = tab,
             onTabChange = onTabChange,
+            onOpenWorkspace = onOpenWorkspace,
+            workspaceEnabled = workspaceEnabled,
             models = models,
             subagentCount = subagentCount,
             onOpenModels = onOpenModels,
@@ -349,6 +344,8 @@ private fun MetaChip(
 private fun ChatTabRow(
     tab: ChatTab,
     onTabChange: (ChatTab) -> Unit,
+    onOpenWorkspace: () -> Unit,
+    workspaceEnabled: Boolean,
     models: SessionModelsValue?,
     subagentCount: Int,
     onOpenModels: () -> Unit,
@@ -418,6 +415,17 @@ private fun ChatTabRow(
             models = models,
             onClick = onOpenModels,
             modifier = Modifier.weight(1f).widthIn(max = 320.dp).height(32.dp),
+        )
+        Spacer(Modifier.weight(1f))
+        // The workspace is a screen of its own, not a third view of the conversation: it opens
+        // over the chat and comes back to it. A button beside the tabs, not among them.
+        DsButton(
+            text = stringResource(R.string.panel_workspace),
+            icon = FeatherIcons.Folder,
+            onClick = onOpenWorkspace,
+            variant = DsButtonVariant.Outline,
+            size = DsButtonSize.Small,
+            enabled = workspaceEnabled,
         )
     }
     Spacer(
