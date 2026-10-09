@@ -325,6 +325,9 @@ fun ChatScreen(
                 // Keep transcript/question space even with a long draft. On very short screens,
                 // reserve enough for reference chips, a line of text and the fixed action row.
                 val composerMaxHeight = (maxHeight * 0.6f).coerceAtLeast(180.dp)
+                // The `/` menu's share of the same box. Read here, where the scope's `maxHeight` is
+                // in hand, rather than inside the menu's argument list.
+                val slashMenuMaxHeight = maxHeight * 0.45f
                 Column(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = tab,
@@ -445,6 +448,42 @@ fun ChatScreen(
                 }
             }
 
+            // Weighted questions are measured after the composer, so long questions cannot
+            // consume its controls. The question area scrolls within its allotted height.
+            ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
+
+            // The `/` autocomplete sits where the web's does: directly above the composer, and
+            // only while the draft is a slash token being typed. It is a second door onto the same
+            // commands as the `/` button's sheet — the two coexist on purpose; the button is the
+            // discoverable one and this is the one you get by typing.
+            activeSlash(draft, composer.selection)?.let { slash ->
+                SlashMenu(
+                    query = slash,
+                    commands = if (commandsAvailable) commands else emptyList(),
+                    skills = skills,
+                    // A share of the box, not a fixed 240dp. This menu is measured *before* the
+                    // composer, so on a short screen its full height left the card with only the
+                    // action row — see `COMPOSER_MIN_HEIGHT`. The menu is the thing that can afford
+                    // to be short here: it scrolls.
+                    modifier = Modifier.heightIn(max = slashMenuMaxHeight),
+                    onPick = { row ->
+                        when (row) {
+                            is SlashRow.Command -> if (row.descriptor.input == null) {
+                                submitter.onDraftChange("")
+                                submitter.send(row.descriptor.line)
+                            } else {
+                                submitter.onDraftChange(row.descriptor.draftPrefix)
+                                composer.selection = row.descriptor.draftPrefix.length
+                            }
+                            is SlashRow.Skill -> {
+                                submitter.onDraftChange("/${row.entry.name} ")
+                                composer.selection = row.entry.name.length + 2
+                            }
+                        }
+                    },
+                )
+            }
+
             Composer(
                 draft = draft,
                 onDraftChange = submitter::onDraftChange,
@@ -476,6 +515,8 @@ fun ChatScreen(
             )
 
             StatsFooter(stats = sessionStats, usage = tokenUsage)
+                }
+            }
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
     }
