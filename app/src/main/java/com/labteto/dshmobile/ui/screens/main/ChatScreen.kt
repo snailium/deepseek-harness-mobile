@@ -225,7 +225,6 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 models = models,
-                subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
