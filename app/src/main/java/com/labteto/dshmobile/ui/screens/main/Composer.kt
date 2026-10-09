@@ -145,6 +145,20 @@ internal sealed interface FileUploadState {
 }
 
 /**
+ * The composer's floor: one line of the editor plus the action row.
+ *
+ * A sibling can ask for the space above the keyboard and win it — the `/` autocomplete is measured
+ * *before* this card, so on a short screen it took its full height and left the field with nothing,
+ * which reads as the input box having disappeared. A ceiling alone (the 280dp below) cannot express
+ * that: the card was never too tall, it was too short. The floor is what makes the card's height a
+ * range rather than "whatever is left over".
+ */
+private val COMPOSER_MIN_HEIGHT = 112.dp
+
+/** One line at [DsType.base16] plus the field's own inset, so the editor can never reach zero. */
+private val COMPOSER_MIN_FIELD_HEIGHT = 40.dp
+
+/**
  * The message composer, laid out like the harness's own: the `/` and paperclip buttons on the
  * left, the permission chip and context ring on the right of the field, send at the far edge.
  *
@@ -206,10 +220,11 @@ internal fun Composer(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            // A hard ceiling on the card. The transcript above the composer takes the leftover
-            // height, so an unbounded card is not a cosmetic problem — it is the transcript
-            // disappearing. Attachments plus a full-height field still fit under this.
-            .heightIn(max = 280.dp)
+            // A range, not just a ceiling. The ceiling keeps the transcript from disappearing
+            // under an unbounded card, and the floor ([COMPOSER_MIN_HEIGHT]) keeps the card from
+            // being squeezed to nothing by whatever else wants the space above the keyboard.
+            // Attachments plus a full-height field still fit under the ceiling.
+            .heightIn(min = COMPOSER_MIN_HEIGHT, max = 280.dp)
             .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.small)
             .animateContentSize(),
         shape = DsShapes.composer,
@@ -281,7 +296,7 @@ internal fun Composer(
                     modifier = Modifier
                         .then(if (boundedHeight) Modifier.weight(1f, fill = false) else Modifier)
                         .fillMaxWidth()
-                        .heightIn(max = 160.dp)
+                        .heightIn(min = COMPOSER_MIN_FIELD_HEIGHT, max = 160.dp)
                         .onPreviewKeyEvent { event ->
                             // Ctrl/Cmd+Enter is the shortcut and always sends. Plain Enter sends only
                             // when the reader asked for it: the field is multi-line, so

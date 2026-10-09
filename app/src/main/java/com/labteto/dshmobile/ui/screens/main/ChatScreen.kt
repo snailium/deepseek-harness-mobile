@@ -316,6 +316,9 @@ fun ChatScreen(
                 // Keep transcript/question space even with a long draft. On very short screens,
                 // reserve enough for reference chips, a line of text and the fixed action row.
                 val composerMaxHeight = (maxHeight * 0.6f).coerceAtLeast(180.dp)
+                // The `/` menu's share of the same box. Read here, where the scope's `maxHeight` is
+                // in hand, rather than inside the menu's argument list.
+                val slashMenuMaxHeight = maxHeight * 0.45f
                 Column(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = tab,
@@ -431,6 +434,11 @@ fun ChatScreen(
                     query = slash,
                     commands = if (commandsAvailable) commands else emptyList(),
                     skills = skills,
+                    // A share of the box, not a fixed 240dp. This menu is measured *before* the
+                    // composer, so on a short screen its full height left the card with only the
+                    // action row — see `COMPOSER_MIN_HEIGHT`. The menu is the thing that can afford
+                    // to be short here: it scrolls.
+                    modifier = Modifier.heightIn(max = slashMenuMaxHeight),
                     onPick = { row ->
                         when (row) {
                             is SlashRow.Command -> if (row.descriptor.input == null) {
@@ -500,7 +508,8 @@ fun ChatScreen(
                 onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
             )
 
-            StatsFooter(stats = sessionStats, usage = tokenUsage)                }
+            StatsFooter(stats = sessionStats, usage = tokenUsage)
+                }
             }
         }
         DsToastHost(toast, modifier = Modifier.fillMaxWidth())
