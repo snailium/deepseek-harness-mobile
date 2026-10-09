@@ -349,8 +349,11 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     // — and upstream's is the superset, so which one survives is still an open decision. Both are
     // reachable in this build on purpose; nothing here should be read as having settled it.
     if (pluginsOpen) {
+        // Two different things wear the word "plugin" here. This entry is the *system* rows the
+        // profile composes, which is what a switch can act on; the packages an operator installs are
+        // bundles, and they open from the chat list's own button. See FORK-NOTES.
         if (pluginManagementAvailable == false) plugins?.let { PluginsSheet(it, onDismiss = { pluginsOpen = false }) }
-        else com.labteto.dshmobile.ui.screens.main.PluginManagerScreen(onClose = { pluginsOpen = false }, onDraftOpened = { pluginsOpen = false; onClose() })
+        else ManagedPluginsScreen(onClose = { pluginsOpen = false })
     }
 
     if (showDisconnectDialog) {
