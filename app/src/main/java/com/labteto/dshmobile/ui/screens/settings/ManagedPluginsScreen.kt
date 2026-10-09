@@ -36,6 +36,9 @@ import com.labteto.dshmobile.ui.components.SearchField
 import com.labteto.dshmobile.ui.components.SearchFieldCloseButton
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.rememberSessionStore
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -69,6 +72,8 @@ fun ManagedPluginsScreen(onClose: () -> Unit) {
     val refusalManagement = stringResource(R.string.plugins_locked_management)
 
     var filter by remember { mutableStateOf("") }
+    // Which row's options are open, held as the row so the dialog survives a reload.
+    var openRow by remember { mutableStateOf<PluginManagerRow?>(null) }
     val listState = rememberLazyListState()
     val locale = Locale.getDefault().toLanguageTag()
 
@@ -173,14 +178,57 @@ fun ManagedPluginsScreen(onClose: () -> Unit) {
                 if (profileRows.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.plugins_tab_composed), profileRows.size) }
                 }
-                items(profileRows, key = { it.entryId }) { row -> RowCard(store, scope, row, mutation, schemaByNamespace, valuesByNamespace, revisionsByNamespace, locale) }
+                items(profileRows, key = { it.entryId }) { row ->
+                    RowCard(
+                        row = row,
+                        mutation = mutation,
+                        schemaByNamespace = schemaByNamespace,
+                        locale = locale,
+                        onToggle = { entryId, next -> scope.launch { store.setPluginEnabled(entryId, next) } },
+                        onOpen = { openRow = it },
+                    )
+                }
                 if (bundleRows.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.plugins_tab_bundles), bundleRows.size) }
                 }
-                items(bundleRows, key = { "b:${it.entryId}" }) { row -> RowCard(store, scope, row, mutation, schemaByNamespace, valuesByNamespace, revisionsByNamespace, locale) }
+                items(bundleRows, key = { "b:${it.entryId}" }) { row ->
+                    RowCard(
+                        row = row,
+                        mutation = mutation,
+                        schemaByNamespace = schemaByNamespace,
+                        locale = locale,
+                        onToggle = { entryId, next -> scope.launch { store.setPluginEnabled(entryId, next) } },
+                        onOpen = { openRow = it },
+                    )
+                }
                 item { Spacer(Modifier.height(DsSpacing.xlarge)) }
             }
         }
+    }
+
+    // Beside the Surface, not inside its column: a dialog is not part of the page's layout.
+    openRow?.let { row ->
+        val ns = row.patchId
+        PluginRowDialog(
+            title = row.meta?.title?.resolve(locale) ?: row.moduleName,
+            description = row.meta?.description?.resolve(locale),
+            settings = ns?.let { namespace ->
+                schemaByNamespace[namespace]?.let { schema ->
+                    {
+                        NamespaceSettingsForm(
+                            ns = namespace,
+                            schema = schema,
+                            value = valuesByNamespace[namespace],
+                            revision = revisionsByNamespace[namespace],
+                            onEdit = { target, path, value, revision ->
+                                scope.launch { store.updateSetting(target, buildSettingPatch(path, value), revision) }
+                            },
+                        )
+                    }
+                }
+            },
+            onDismiss = { openRow = null },
+        )
     }
 }
 
@@ -202,44 +250,30 @@ internal fun PluginManagerRow.matches(query: String): Boolean {
  * One row, as both sections draw it.
  *
  * A function rather than a lambda inlined twice: the two sections differ only in which rows they
- * contain, and a second copy of this would be a second place to fix the switch.
+ * contain, and a second copy would be a second place to fix the switch.
  */
 @Composable
 private fun RowCard(
-    store: com.labteto.dshmobile.data.SessionStore,
-    scope: kotlinx.coroutines.CoroutineScope,
     row: PluginManagerRow,
-    mutation: com.labteto.dshmobile.data.PluginMutationState?,
+    mutation: PluginMutationState?,
     schemaByNamespace: Map<String, ResolvedSettingsSchema>,
-    valuesByNamespace: Map<String, JsonElement>,
-    revisionsByNamespace: Map<String, Long>,
     locale: String,
+    onToggle: (String, Boolean) -> Unit,
+    onOpen: (PluginManagerRow) -> Unit,
 ) {
-            val ns = row.patchId?.takeIf { it in schemaByNamespace }
-            PluginRowCard(
-            // Resolved against the device locale, not the DTO's own no-locale default:
-            // a manifest that carries a `zh` title should name itself in Chinese here.
-            title = row.meta?.title?.resolve(locale) ?: row.moduleName,
-            description = row.meta?.description?.resolve(locale),
-            enabled = row.enabled,
-            togglable = row.togglable,
-            busy = mutation?.target == row.entryId,
-            lockReason = row.readOnlyReason,
-            onToggle = { next -> scope.launch { store.setPluginEnabled(row.entryId, next) } },
-            settings = ns?.let { namespace ->
-                {
-                schemaByNamespace[namespace]?.let { schema ->
-                    NamespaceSettingsForm(
-                    ns = namespace,
-                    schema = schema,
-                    value = valuesByNamespace[namespace],
-                    revision = revisionsByNamespace[namespace],
-                    onEdit = { target, path, value, revision ->
-                        scope.launch { store.updateSetting(target, buildSettingPatch(path, value), revision) }
-                    },
-                    )
-                }
-                }
-            },
-            )
+    val ns = row.patchId?.takeIf { it in schemaByNamespace }
+    PluginRow(
+        // Resolved against the device locale, not the DTO's own no-locale default: a manifest that
+        // carries a `zh` title should name itself in Chinese here.
+        title = row.meta?.title?.resolve(locale) ?: row.moduleName,
+        description = row.meta?.description?.resolve(locale),
+        enabled = row.enabled,
+        togglable = row.togglable,
+        busy = mutation?.target == row.entryId,
+        lockReason = row.readOnlyReason,
+        onToggle = { next -> onToggle(row.entryId, next) },
+        // Only a row with a described namespace has options to open.
+        onOpen = if (ns != null) ({ onOpen(row) }) else null,
+        modifier = Modifier.clip(DsShapes.row).background(DsTheme.colors.bgLayer1),
+    )
 }
