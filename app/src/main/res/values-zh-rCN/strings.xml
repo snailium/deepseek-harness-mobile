@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">可以从 Harness 或在这里开始新会话。</string>
     <string name="chatlist_workspaces">工作区</string>
     <string name="chatlist_sessions">会话</string>
-    <string name="chatlist_subagents">子代理</string>
     <string name="chatlist_archived">已归档</string>
     <string name="chatlist_workspace_name">工作区名称</string>
     <string name="chatlist_workspace_path">文件夹路径</string>

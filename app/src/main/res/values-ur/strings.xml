@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">Harness سے یا یہاں سے نیا سیشن شروع کریں۔</string>
     <string name="chatlist_workspaces">ورک اسپیس</string>
     <string name="chatlist_sessions">سیشن</string>
-    <string name="chatlist_subagents">ذیلی ایجنٹ</string>
     <string name="chatlist_archived">آرکائیو شدہ</string>
     <string name="chatlist_workspace_name">ورک اسپیس کا نام</string>
     <string name="chatlist_workspace_path">فولڈر کا راستہ</string>

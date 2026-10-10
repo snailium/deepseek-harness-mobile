@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">Inicia una nueva sesión desde el Harness o desde aquí.</string>
     <string name="chatlist_workspaces">Espacios de trabajo</string>
     <string name="chatlist_sessions">Sesiones</string>
-    <string name="chatlist_subagents">Subagentes</string>
     <string name="chatlist_archived">Archivados</string>
     <string name="chatlist_workspace_name">Nombre del espacio de trabajo</string>
     <string name="chatlist_workspace_path">Ruta de la carpeta</string>

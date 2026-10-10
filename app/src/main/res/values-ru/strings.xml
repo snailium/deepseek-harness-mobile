@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">Начните новый сеанс из Harness или отсюда.</string>
     <string name="chatlist_workspaces">Рабочие пространства</string>
     <string name="chatlist_sessions">Сеансы</string>
-    <string name="chatlist_subagents">Субагенты</string>
     <string name="chatlist_archived">В архиве</string>
     <string name="chatlist_workspace_name">Название рабочего пространства</string>
     <string name="chatlist_workspace_path">Путь к папке</string>

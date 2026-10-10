@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">เริ่มเซสชันใหม่จาก Harness หรือจากที่นี่</string>
     <string name="chatlist_workspaces">เวิร์กสเปซ</string>
     <string name="chatlist_sessions">เซสชัน</string>
-    <string name="chatlist_subagents">ซับเอเจนต์</string>
     <string name="chatlist_archived">เก็บถาวรแล้ว</string>
     <string name="chatlist_workspace_name">ชื่อเวิร์กสเปซ</string>
     <string name="chatlist_workspace_path">เส้นทางโฟลเดอร์</string>
