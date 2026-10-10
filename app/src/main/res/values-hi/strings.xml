@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">Harness से या यहीं से नया सेशन शुरू करें।</string>
     <string name="chatlist_workspaces">कार्यक्षेत्र</string>
     <string name="chatlist_sessions">सेशन</string>
-    <string name="chatlist_subagents">उप-एजेंट</string>
     <string name="chatlist_archived">संग्रहित</string>
     <string name="chatlist_workspace_name">कार्यक्षेत्र का नाम</string>
     <string name="chatlist_workspace_path">फ़ोल्डर पथ</string>

@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">Harness থেকে বা এখান থেকে একটি নতুন সেশন শুরু করুন।</string>
     <string name="chatlist_workspaces">ওয়ার্কস্পেস</string>
     <string name="chatlist_sessions">সেশন</string>
-    <string name="chatlist_subagents">সাবএজেন্ট</string>
     <string name="chatlist_archived">আর্কাইভ করা</string>
     <string name="chatlist_workspace_name">ওয়ার্কস্পেসের নাম</string>
     <string name="chatlist_workspace_path">ফোল্ডারের পথ</string>

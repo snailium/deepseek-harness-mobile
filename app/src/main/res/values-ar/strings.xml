@@ -92,7 +92,6 @@
     <string name="chatlist_empty_hint">ابدأ جلسة جديدة من Harness أو من هنا.</string>
     <string name="chatlist_workspaces">مساحات العمل</string>
     <string name="chatlist_sessions">الجلسات</string>
-    <string name="chatlist_subagents">الوكلاء الفرعيون</string>
     <string name="chatlist_archived">المؤرشفة</string>
     <string name="chatlist_workspace_name">اسم مساحة العمل</string>
     <string name="chatlist_workspace_path">مسار المجلد</string>

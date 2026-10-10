@@ -24,13 +24,14 @@ class SessionSearchTest {
         cwd: String? = null,
         updatedAt: Long = 0L,
         blank: Boolean = false,
+        origin: String? = null,
     ) = SessionRow(
         sessionId = id,
         title = title,
         running = false,
         blank = blank,
         parentSessionId = null,
-        origin = null,
+        origin = origin,
         cwd = cwd,
         agentPreset = null,
         updatedAt = updatedAt,
@@ -93,6 +94,31 @@ class SessionSearchTest {
             query = "planning",
         )
         assertTrue(result.items.isEmpty())
+    }
+
+    @Test
+    fun `subagent transcripts never match`() {
+        // The drawer lists no subagents and draws no marker for them, so a hit here would be the one
+        // remaining way into a subagent transcript from the list. Reachable from the session's own
+        // composer instead — one door, not two.
+        val rows = listOf(
+            session("root", title = "Deploy the relay"),
+            session("child", title = "Deploy the relay — subagent", origin = "subagent"),
+        )
+        val hits = derive(rows, query = "deploy")
+        assertEquals(listOf("root"), hits.items.map { it.session.sessionId })
+    }
+
+    @Test
+    fun `a content hit inside a subagent transcript is dropped too`() {
+        // Content hits arrive from the host keyed by session id, so the exclusion has to hold for
+        // those as well, not only for locally matched titles.
+        val rows = listOf(
+            session("root", title = "Deploy the relay"),
+            session("child", title = "spawned work", origin = "subagent"),
+        )
+        val hits = derive(rows, query = "nothing local matches", content = listOf("child" to "…the snippet…"))
+        assertEquals(emptyList<String>(), hits.items.map { it.session.sessionId })
     }
 
     @Test

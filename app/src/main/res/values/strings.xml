@@ -97,7 +97,6 @@
     <string name="chatlist_empty_hint">Start a new session from the harness or from here.</string>
     <string name="chatlist_workspaces">Workspaces</string>
     <string name="chatlist_sessions">Ungrouped</string>
-    <string name="chatlist_subagents">Subagents</string>
     <string name="chatlist_archived">Archived</string>
     <string name="chatlist_add_workspace">Add workspace</string>
     <string name="chatlist_use_folder">Use this folder</string>
