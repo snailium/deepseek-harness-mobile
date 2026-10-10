@@ -135,7 +135,7 @@ cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
 echo
 echo "published: $NAME"
 echo "url:       http://192.168.111.90:7777/apk/$NAME"
-echo "version:   $VERSION  (unchanged — this path does not version)"
+echo "version:   $VERSION  (unchanged — this path does not version; only the weekly release advances it)"
 echo "commit:    $SHORT_SHA"
 echo
 echo "The APK server serves the workspace root, so the /apk/ segment is part of the URL."
