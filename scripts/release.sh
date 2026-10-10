@@ -132,11 +132,25 @@ NAME="dsh-mobile-$VERSION+$STAMP.apk"
 mkdir -p "$WORKSPACE_ROOT/apk"
 cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
 
+URL="http://192.168.111.90:7777/apk/$NAME"
+
 echo
 echo "published: $NAME"
-echo "url:       http://192.168.111.90:7777/apk/$NAME"
+echo "url:       $URL"
 echo "version:   $VERSION  (unchanged — this path does not version; only the weekly release advances it)"
 echo "commit:    $SHORT_SHA"
+
+# The URL *is* the deliverable here, so it is checked the way the signature is: a build is not handed
+# over with a link that does not answer. The server is a plain `python3 -m http.server` with no
+# supervisor — nothing restarts it — so it is the one part of this pipeline that is simply absent some
+# of the time, and a dead link used to be printed with the same confidence as a good one.
+CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" 2>/dev/null || true)"
+if [ "$CODE" = "200" ]; then
+  echo "served:    200"
+else
+  echo "served:    ${CODE:-no response}  <- WARNING: the URL does not answer, so nobody can download this"
+  echo "           start the server: cd $WORKSPACE_ROOT && python3 -m http.server 7777 --bind 0.0.0.0"
+fi
 echo
 echo "The APK server serves the workspace root, so the /apk/ segment is part of the URL."
 echo "The versioned channel is the weekly GitHub release; see RELEASE-POLICY.md."
