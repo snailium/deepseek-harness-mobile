@@ -35,8 +35,6 @@ import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.R
 import com.labteto.dshmobile.core.wire.dto.SessionModelsValue
 import com.labteto.dshmobile.ui.components.DsButton
-import com.labteto.dshmobile.ui.components.DsButtonSize
-import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
@@ -152,20 +150,20 @@ internal fun ChatTopBar(
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
-            // The workspace panel is a destination, not a label: an icon frees the line of text it
-            // used to occupy above the transcript while staying one tap away. A tools glyph rather
-            // than a folder: the page now holds files, previews and terminals — a toolbox, not just
-            // a directory.
-            if (onOpenWorkspace != null) {
-                DsIconButton(
-                    icon = FeatherIcons.Tool,
-                    contentDescription = stringResource(R.string.panel_workspace),
-                    onClick = onOpenWorkspace,
-                    tint = colors.labelTertiary,
-                    iconSize = DsTitleBar.iconSize,
-                    touchTarget = DsTitleBar.iconTouchTarget,
-                )
-            }
+            // The workspace entry is an icon on this row, between search and info, and not the
+            // labelled button upstream 0.15.0 put beside the tabs. The button is wider than the
+            // whole model chip: as long as it sat in the tab row, the chip could only be as wide as
+            // what was left, and on a phone that meant the model name ellipsised to a stub. The
+            // entry is a door, and a door does not need a word when the row it joins is all glyphs.
+            DsIconButton(
+                icon = FeatherIcons.Tool,
+                contentDescription = stringResource(R.string.panel_workspace),
+                onClick = onOpenWorkspace,
+                enabled = workspaceEnabled,
+                tint = colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
+            )
             if (!detailsOpen) {
                 DsIconButton(
                     icon = FeatherIcons.Info,
@@ -418,21 +416,14 @@ private fun ChatTabRow(
         // 32dp matches the segmented control's height; the font stays small13Strong. It keeps the
         // leftover width — a chip that hugs its text would leave a dead band between itself and
         // the edge.
+        // The chip takes *all* the leftover width, and it is the only weighted child here. It used
+        // to share the row with a `Spacer(Modifier.weight(1f))`, and two children weighted 1f split
+        // the free space evenly — so half of it was a dead band in front of the workspace button and
+        // the model name ellipsised to fit the other half.
         ModelChip(
             models = models,
             onClick = onOpenModels,
             modifier = Modifier.weight(1f).widthIn(max = 320.dp).height(32.dp),
-        )
-        Spacer(Modifier.weight(1f))
-        // The workspace is a screen of its own, not a third view of the conversation: it opens
-        // over the chat and comes back to it. A button beside the tabs, not among them.
-        DsButton(
-            text = stringResource(R.string.panel_workspace),
-            icon = FeatherIcons.Folder,
-            onClick = onOpenWorkspace,
-            variant = DsButtonVariant.Outline,
-            size = DsButtonSize.Small,
-            enabled = workspaceEnabled,
         )
     }
     Spacer(
