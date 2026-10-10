@@ -781,10 +781,11 @@ private fun SessionRowItem(
                     .background(if (isCurrent) colors.accent else androidx.compose.ui.graphics.Color.Transparent),
             )
             Spacer(Modifier.width(DsSpacing.small))
-            // A fixed 16dp keeps the titles aligned down the column now that no row carries a
-            // disclosure: the column's left edge is one rail, not one rail per depth.
-            Spacer(Modifier.width(16.dp))
-            Spacer(Modifier.width(DsSpacing.tiny))
+            // No disclosure slot. It was a fixed 16dp holding either a subagent chevron or, for a row
+            // with no children, nothing at all — a spacer whose only job was to line this row up with
+            // rows that had one. With the chevron gone the slot is 16dp of blank in front of every
+            // session name, so it goes with it; the titles are aligned by there being one rail.
+            //
             // 1.5x the component's default: at 8dp the dot is a speck next to a 16sp title.
             StateDot(
                 state = when {
