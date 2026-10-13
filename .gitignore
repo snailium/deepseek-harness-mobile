@@ -14,3 +14,6 @@ keystore.properties
 /capture-output/
 node_modules/
 .kotlin/
+
+# Scratch directory for the merge/rebase audits described in FORK-NOTES. Regenerated, never committed.
+.audit/
