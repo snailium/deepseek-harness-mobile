@@ -23,7 +23,8 @@ import com.labteto.dshmobile.ui.theme.DsType
 
 /** Reasoning stays quiet and compact, independently of how many lines it contains. */
 @Composable
-fun ThinkingPanel(text: String, streaming: Boolean, expanded: Boolean, onToggle: () -> Unit) {
+fun ThinkingPanel(text: String, streaming: Boolean, expanded: Boolean, onToggle: () -> Unit,
+                  content: (@Composable () -> Unit)? = null) {
     if (text.isBlank() && !streaming) return
     val colors = DsTheme.colors
     Column(Modifier.fillMaxWidth().clip(DsShapes.block).background(colors.bgLayer1)
@@ -42,7 +43,7 @@ fun ThinkingPanel(text: String, streaming: Boolean, expanded: Boolean, onToggle:
             Box(Modifier.fillMaxWidth().heightIn(max = 240.dp).verticalScroll(rememberScrollState())
                 .padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp)) {
                 // Selectable text rather than full-size reply markdown: this is reasoning, not the answer.
-                androidx.compose.foundation.text.selection.SelectionContainer {
+                if (content != null) content() else androidx.compose.foundation.text.selection.SelectionContainer {
                     Text(text.trimEnd(), style = DsType.small13, color = colors.labelTertiary, softWrap = true)
                 }
             }

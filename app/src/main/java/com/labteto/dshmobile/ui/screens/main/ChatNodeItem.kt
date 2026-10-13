@@ -441,6 +441,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                         expanded = expanded,
                         onToggle = { reasoningExpanded[index] = !expanded },
                         streaming = streaming,
+                        content = { ReasoningContent(block.text.orEmpty(), streaming) },
                     )
                 }
                 // Show partial arguments until the durable tool card takes over. The list filter

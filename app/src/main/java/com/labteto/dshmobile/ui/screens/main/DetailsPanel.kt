@@ -192,7 +192,7 @@ fun DetailsPanel(
                 // The hero: what this session is, where it lives, what it runs on. Always open —
                 // it is the reason the panel exists.
                 SessionCard(
-                    session = current,
+                    session = current?.copy(cwd = com.labteto.dshmobile.core.session.effectiveWorkingDirectory(conversation?.projections, current.cwd)),
                     models = models,
                     presets = agentPresets,
                     onRename = { title ->

@@ -155,6 +155,7 @@ fun ChatScreen(
     val imageLimits by store.imageLimits.collectAsStateWithLifecycle()
 
     val currentSession = sessions.firstOrNull { it.sessionId == currentSessionId }
+    val workingDirectory = com.labteto.dshmobile.core.session.effectiveWorkingDirectory(conversation?.projections, currentSession?.cwd)
     val title = currentSession?.title
         ?: currentSession?.cwd?.let { basename(it) }
         ?: currentSessionId.orEmpty()
@@ -300,7 +301,7 @@ fun ChatScreen(
                 nodes = conversation?.nodes ?: emptyList(),
                 eventTimes = conversation?.journal?.associate { it.seq to it.time }.orEmpty(),
                 running = conversation?.running == true,
-                cwd = currentSession?.cwd,
+                cwd = workingDirectory,
                 onOpenSubagent = { childId ->
                     scope.launch { store.openSubagentTranscript(childId) }
                     sheet = ChatSheet.Subagents
@@ -348,7 +349,7 @@ fun ChatScreen(
                             conversation = conversation,
                             stats = sessionStats,
                             usage = tokenUsage,
-                            cwd = currentSession?.cwd,
+                            cwd = workingDirectory,
                             listState = trajectoryListState,
                         )
                     }
