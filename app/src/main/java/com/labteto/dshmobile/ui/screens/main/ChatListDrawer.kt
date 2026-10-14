@@ -267,11 +267,12 @@ fun ChatListDrawer(
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = DsSpacing.xsmall),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End,
         ) {
             // The archive toggle sits with the sort chip: both configure what the list shows, and
             // the glyph is the same one a row's menu uses for the verb. Tinted when on, like the
-            // search icon in the title bar above.
+            // search icon in the title bar above. A spacer between them pushes the two to opposite
+            // edges — the archive toggle left-aligned with the list it acts on, the sort chip where
+            // it always was, right.
             DsIconButton(
                 icon = FeatherIcons.Archive,
                 contentDescription = stringResource(
@@ -282,6 +283,7 @@ fun ChatListDrawer(
                 iconSize = DsTitleBar.iconSize,
                 touchTarget = DsTitleBar.iconTouchTarget,
             )
+            Spacer(Modifier.weight(1f))
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
