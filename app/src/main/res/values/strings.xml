@@ -109,6 +109,8 @@
     <string name="chatlist_session_fork">Fork session</string>
     <string name="chatlist_session_archive">Archive session</string>
     <string name="chatlist_session_unarchive">Unarchive session</string>
+    <string name="chatlist_show_archived">Show archived sessions</string>
+    <string name="chatlist_hide_archived">Hide archived sessions</string>
     <string name="chatlist_group_by_workspace">Group by workspace</string>
     <string name="chatlist_sort_updated">Sort by last update</string>
     <string name="chatlist_sort_manual">Manual order</string>

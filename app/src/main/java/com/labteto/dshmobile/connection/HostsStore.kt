@@ -44,6 +44,7 @@ class HostsStore @Inject constructor(
         val PORTS = stringPreferencesKey("ports_json")
         val LAST_SESSIONS = stringPreferencesKey("last_sessions_json")
         val SESSION_SORT = stringPreferencesKey("session_sort")
+        val SHOW_ARCHIVED = booleanPreferencesKey("show_archived")
         val UPDATE_CHECK = booleanPreferencesKey("update_check")
         val DISMISSED_UPDATE = stringPreferencesKey("dismissed_update")
         val PROMPT_MODE = stringPreferencesKey("prompt_mode")
@@ -212,6 +213,14 @@ class HostsStore @Inject constructor(
 
     suspend fun setSessionSort(value: String) {
         dataStore.edit { it[Keys.SESSION_SORT] = value }
+    }
+
+    /** Whether the drawer lists archived sessions alongside their workspace. Off by default: a list of
+     *  live conversations should not carry its dead weight on first open. */
+    val showArchivedSessions: Flow<Boolean> = dataStore.data.map { it[Keys.SHOW_ARCHIVED] ?: false }
+
+    suspend fun setShowArchivedSessions(value: Boolean) {
+        dataStore.edit { it[Keys.SHOW_ARCHIVED] = value }
     }
 
     /** Remember that this release was declined, so it is not offered again. */

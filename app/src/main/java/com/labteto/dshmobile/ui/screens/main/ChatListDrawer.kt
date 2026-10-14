@@ -158,6 +158,7 @@ fun ChatListDrawer(
     // to reset every time the drawer was closed.
     val sessionSort by hostsStore.sessionSort.collectAsStateWithLifecycle(initialValue = SORT_MANUAL)
     val sortByRecency = sessionSort == SORT_UPDATED
+    val showArchived by hostsStore.showArchivedSessions.collectAsStateWithLifecycle(initialValue = false)
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     var ungroupedExpanded by remember { mutableStateOf(false) }
@@ -186,8 +187,10 @@ fun ChatListDrawer(
     // alone does not, because an ordinary fork sets a parent too and a fork *is* a session in its
     // own right. Archived sessions are listed with their workspace, dimmed — a separate section
     // would hide them, and the one door into an archived session is its own row.
-    val listable = remember(sessions) {
-        sessions.filter { !it.blank && it.origin != SUBAGENT_ORIGIN }
+    // Archived sessions are listed with their workspace, dimmed — when the toggle says so. Off by
+    // default: a list of live conversations should not carry its dead weight on first open.
+    val listable = remember(sessions, showArchived) {
+        sessions.filter { !it.blank && it.origin != SUBAGENT_ORIGIN && (showArchived || it.sessionId !in archivedIds) }
     }
     val workspaceSessionIds = remember(workspaces) { workspaces.flatMap { it.sessionIds }.toSet() }
 
@@ -266,6 +269,19 @@ fun ChatListDrawer(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
         ) {
+            // The archive toggle sits with the sort chip: both configure what the list shows, and
+            // the glyph is the same one a row's menu uses for the verb. Tinted when on, like the
+            // search icon in the title bar above.
+            DsIconButton(
+                icon = FeatherIcons.Archive,
+                contentDescription = stringResource(
+                    if (showArchived) R.string.chatlist_hide_archived else R.string.chatlist_show_archived,
+                ),
+                onClick = { scope.launch { hostsStore.setShowArchivedSessions(!showArchived) } },
+                tint = if (showArchived) colors.accent else colors.labelTertiary,
+                iconSize = DsTitleBar.iconSize,
+                touchTarget = DsTitleBar.iconTouchTarget,
+            )
             SortChip(sortByRecency) { next ->
                 scope.launch { hostsStore.setSessionSort(if (next) SORT_UPDATED else SORT_MANUAL) }
             }
