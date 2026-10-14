@@ -244,14 +244,19 @@ object ConnectMode {
 /**
  * Whether this endpoint is one that [mode] reaches.
  *
- * The one predicate behind every per-mode list and every per-mode auto-connect. A relay belongs to
- * relay mode whatever address it has; a loopback record belongs to "this phone"; everything else
- * is a harness on the local network. Nothing crosses: a loopback host listed under local network
- * would be offered a subnet check it can never pass, and a LAN host under "this phone" would make
- * that mode's one promise — nothing leaves the device — untrue.
+ * The one predicate behind every per-mode list and every per-mode auto-connect. A paired endpoint —
+ * a relay, or a `dsh-mobile` gateway — belongs to relay mode whatever address it has; a loopback
+ * record belongs to "this phone"; everything else is a harness on the local network. Nothing
+ * crosses: a loopback host listed under local network would be offered a subnet check it can never
+ * pass, and a LAN host under "this phone" would make that mode's one promise — nothing leaves the
+ * device — untrue.
  */
 fun HostConfig.belongsTo(mode: String): Boolean = when (mode) {
-    ConnectMode.RELAY -> isRelay
-    ConnectMode.LOOPBACK -> isLoopback && !isRelay
-    else -> !isRelay && !isLoopback
+    // A gateway belongs to relay mode too, whatever address it has: the user chose "reach my
+    // computer from anywhere" when they paired it, and listing it under local network would make
+    // that choice a suggestion again. `isCredentialed` is the test — `isRelay` alone would send
+    // every gateway to LAN.
+    ConnectMode.RELAY -> isCredentialed
+    ConnectMode.LOOPBACK -> isLoopback && !isCredentialed
+    else -> !isCredentialed && !isLoopback
 }
