@@ -161,7 +161,6 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     var ungroupedExpanded by remember { mutableStateOf(false) }
-    var archivedExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(query) {
         delay(250)
@@ -170,11 +169,10 @@ fun ChatListDrawer(
 
     // Local matching is not debounced: it is a string comparison over a list already in memory, and
     // making someone wait a quarter second for it is what made search feel like it did nothing.
-    val searchHits = remember(sessions, workspaces, archivedIds, query, searchResults) {
+    val searchHits = remember(sessions, workspaces, query, searchResults) {
         deriveSearchResults(
             sessions = sessions,
             workspaces = workspaces,
-            archivedIds = archivedIds,
             query = query,
             contentHits = searchResults,
         )
@@ -186,12 +184,10 @@ fun ChatListDrawer(
     // chevron, no count. A subagent is entered from the composer of the session that owns it, and
     // that is the only door. The `origin` discriminator is what says "subagent"; `parentSessionId`
     // alone does not, because an ordinary fork sets a parent too and a fork *is* a session in its
-    // own right.
-    val listable = remember(sessions, archivedIds) {
-        sessions.filter { it.sessionId !in archivedIds && !it.blank && it.origin != SUBAGENT_ORIGIN }
-    }
-    val archivedSessions = remember(sessions, archivedIds) {
-        sessions.filter { it.sessionId in archivedIds }
+    // own right. Archived sessions are listed with their workspace, dimmed — a separate section
+    // would hide them, and the one door into an archived session is its own row.
+    val listable = remember(sessions) {
+        sessions.filter { !it.blank && it.origin != SUBAGENT_ORIGIN }
     }
     val workspaceSessionIds = remember(workspaces) { workspaces.flatMap { it.sessionIds }.toSet() }
 
@@ -409,6 +405,7 @@ fun ChatListDrawer(
                                 SessionRowItem(
                                     session = session,
                                     isCurrent = session.sessionId == currentSessionId,
+                                    archived = session.sessionId in archivedIds,
                                     store = store,
                                     scope = scope,
                                     onClose = onClose,
@@ -439,6 +436,7 @@ fun ChatListDrawer(
                                 SessionRowItem(
                                     session = session,
                                     isCurrent = session.sessionId == currentSessionId,
+                                    archived = session.sessionId in archivedIds,
                                     store = store,
                                     scope = scope,
                                     onClose = onClose,
@@ -449,24 +447,6 @@ fun ChatListDrawer(
                     }
                 }
 
-                if (archivedSessions.isNotEmpty()) {
-                    anyShown = true
-                    item(key = "archived-header") {
-                        GroupHeader(
-                            label = stringResource(R.string.chatlist_archived),
-                            count = archivedSessions.size,
-                            collapsed = !archivedExpanded,
-                            onToggle = { archivedExpanded = !archivedExpanded },
-                        )
-                    }
-                    if (archivedExpanded) {
-                        items(archivedSessions, key = { "ar-${it.sessionId}" }) { session ->
-                            Box(Modifier.animateItem()) {
-                                SessionRowItem(session, false, store, scope, onClose)
-                            }
-                        }
-                    }
-                }
 
                 if (!anyShown) {
                     item(key = "empty") {
@@ -731,11 +711,12 @@ private fun WorkspaceMenu(
 }
 
 /**
- * One session row: status, title, relative time, and the session verbs on long-press.
+ * One session row: status, title and time on one line, and the session verbs on long-press.
  *
  * A row is a session and nothing else. It carries no indentation and no subagent marker: this list
  * holds the conversations someone started, and what a session spawned is reached from that session's
- * own composer rather than from the list of its peers.
+ * own composer rather than from the list of its peers. An archived session sits in its workspace,
+ * dimmed — the long-press menu offers to bring it back, not to archive it again.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -747,11 +728,13 @@ private fun SessionRowItem(
     onClose: () -> Unit,
     /** Whether the session is pinned; null when the harness has no pinning to offer. */
     pinned: Boolean? = null,
+    archived: Boolean = false,
 ) {
     val colors = DsTheme.colors
     var menuOpen by remember { mutableStateOf(false) }
     var renameOpen by remember { mutableStateOf(false) }
     var archiveConfirmOpen by remember { mutableStateOf(false) }
+    var unarchiveBusy by remember { mutableStateOf(false) }
     var archiveBusy by remember { mutableStateOf<com.labteto.dshmobile.data.ArchiveOutcome.Busy?>(null) }
 
     Box {
@@ -797,32 +780,26 @@ private fun SessionRowItem(
                 size = 12.dp,
             )
             Spacer(Modifier.width(DsSpacing.small))
-            Column(Modifier.weight(1f)) {
+            // One line: the name on the left, the time on the right. The workspace is the group's
+            // header, and a second line under every row was where the list stopped scanning.
+            Row(
+                Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = displaySessionTitle(session),
                     style = DsType.base16,
-                    color = colors.labelPrimary,
+                    color = if (archived) colors.labelCaption else colors.labelPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    session.cwd?.takeIf { it.isNotBlank() }?.let {
-                        Text(
-                            technicalDisplay(basename(it)),
-                            style = DsType.xsmall12,
-                            color = colors.labelCaption,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        Text(" · ", style = DsType.xsmall12, color = colors.labelCaption)
-                    }
-                    Text(
-                        relativeTime(session.updatedAt),
-                        style = DsType.xsmall12,
-                        color = colors.labelCaption,
-                    )
-                }
+                Spacer(Modifier.width(DsSpacing.small))
+                Text(
+                    relativeTime(session.updatedAt),
+                    style = DsType.xsmall12,
+                    color = colors.labelCaption,
+                )
             }
             if (session.pendingInteraction != null) {
                 Spacer(Modifier.width(DsSpacing.xsmall))
@@ -848,9 +825,24 @@ private fun SessionRowItem(
                         scope.launch { store.setPinned(session.sessionId, !pinned) }
                     }
                 }
-                SheetRow(title = stringResource(R.string.chatlist_session_archive)) {
-                    menuOpen = false
-                    archiveConfirmOpen = true
+                if (archived) {
+                    // The session is already archived: the row offers to bring it back, not to
+                    // archive it again. No confirmation — unarchiving is reversible and cheap.
+                    SheetRow(
+                        title = stringResource(if (unarchiveBusy) R.string.common_loading else R.string.chatlist_session_unarchive),
+                        enabled = !unarchiveBusy,
+                    ) {
+                        menuOpen = false
+                        unarchiveBusy = true
+                        scope.launch {
+                            try { store.unarchiveSession(session.sessionId) } finally { unarchiveBusy = false }
+                        }
+                    }
+                } else {
+                    SheetRow(title = stringResource(R.string.chatlist_session_archive)) {
+                        menuOpen = false
+                        archiveConfirmOpen = true
+                    }
                 }
             }
         }

@@ -39,11 +39,12 @@ internal const val SEARCH_RESULT_LIMIT = 30
  * Local rows lead, newest first; content-only rows follow in the host's ranking. A session matched
  * both ways keeps its local position and gains the host's snippet.
  *
- * Three exclusions carry over from the reference. Blank sessions never match: their displayed title
- * is a localized placeholder, so matching on it would make results depend on the UI language.
- * Archived sessions never match either — they are out of the list the query is asking about. And a
+ * Two exclusions carry over from the reference. Blank sessions never match: their displayed title
+ * is a localized placeholder, so matching on it would make results depend on the UI language. And a
  * subagent transcript never matches: this is the drawer's search, the drawer lists no subagents, and
- * a hit there would be the one remaining way into one from the list.
+ * a hit there would be the one remaining way into one from the list. Archived sessions do match —
+ * they sit in their workspace, dimmed, and a query that cannot find them cannot reach the unarchive
+ * verb either.
  *
  * A free function so the ordering and dedup rules can be tested without a device, in the same
  * spirit as `sameSubnet` in the discovery engine.
@@ -51,7 +52,6 @@ internal const val SEARCH_RESULT_LIMIT = 30
 internal fun deriveSearchResults(
     sessions: List<SessionRow>,
     workspaces: List<WorkspaceRow>,
-    archivedIds: Set<String>,
     query: String,
     contentHits: List<Pair<String, String>>,
     limit: Int = SEARCH_RESULT_LIMIT,
@@ -67,7 +67,7 @@ internal fun deriveSearchResults(
         workspaceTitleOf[session.sessionId] ?: session.cwd?.let { basename(it) } ?: ""
 
     fun eligible(session: SessionRow): Boolean =
-        !session.blank && session.sessionId !in archivedIds && session.origin != SUBAGENT_ORIGIN
+        !session.blank && session.origin != SUBAGENT_ORIGIN
 
     val local = sessions
         .filter { eligible(it) }

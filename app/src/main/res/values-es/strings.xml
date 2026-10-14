@@ -98,6 +98,7 @@
     <string name="chatlist_session_rename">Renombrar sesión</string>
     <string name="chatlist_session_fork">Bifurcar sesión</string>
     <string name="chatlist_session_archive">Archivar sesión</string>
+    <string name="chatlist_session_unarchive">Desarchivar sesión</string>
     <string name="chatlist_group_by_workspace">Agrupar por espacio de trabajo</string>
     <string name="chatlist_sort_updated">Ordenar por última actualización</string>
     <string name="chatlist_sort_manual">Orden manual</string>
