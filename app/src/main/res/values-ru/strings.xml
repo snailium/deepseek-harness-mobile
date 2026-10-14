@@ -98,6 +98,7 @@
     <string name="chatlist_session_rename">Переименовать сеанс</string>
     <string name="chatlist_session_fork">Разветвить сеанс</string>
     <string name="chatlist_session_archive">Архивировать сеанс</string>
+    <string name="chatlist_session_unarchive">Восстановить сеанс</string>
     <string name="chatlist_group_by_workspace">Группировать по рабочему пространству</string>
     <string name="chatlist_sort_updated">Сортировать по обновлению</string>
     <string name="chatlist_sort_manual">Вручную</string>

@@ -41,11 +41,10 @@ class SessionSearchTest {
     private fun derive(
         sessions: List<SessionRow>,
         workspaces: List<WorkspaceRow> = emptyList(),
-        archived: Set<String> = emptySet(),
         query: String,
         content: List<Pair<String, String>> = emptyList(),
         limit: Int = SEARCH_RESULT_LIMIT,
-    ) = deriveSearchResults(sessions, workspaces, archived, query, content, limit)
+    ) = deriveSearchResults(sessions, workspaces, query, content, limit)
 
     @Test
     fun `a title substring matches`() {
@@ -86,14 +85,14 @@ class SessionSearchTest {
         assertTrue(result.items.isEmpty())
     }
 
+    /** Archived sessions sit in their workspace, dimmed — a query that cannot find them cannot reach the unarchive verb either. */
     @Test
-    fun `archived sessions never match`() {
+    fun `archived sessions still match`() {
         val result = derive(
             sessions = listOf(session("a", title = "Planning work")),
-            archived = setOf("a"),
             query = "planning",
         )
-        assertTrue(result.items.isEmpty())
+        assertEquals(listOf("a"), result.items.map { it.session.sessionId })
     }
 
     @Test
@@ -171,15 +170,15 @@ class SessionSearchTest {
         assertNull(result.items.single().snippet)
     }
 
+    /** A content hit inside an archived session still surfaces it: the row is in the list, dimmed. */
     @Test
-    fun `a content hit for an archived session is dropped`() {
+    fun `a content hit for an archived session still matches`() {
         val result = derive(
             sessions = listOf(session("a", title = "unrelated")),
-            archived = setOf("a"),
             query = "plan",
             content = listOf("a" to "…plan…"),
         )
-        assertTrue(result.items.isEmpty())
+        assertEquals(listOf("a"), result.items.map { it.session.sessionId })
     }
 
     @Test

@@ -98,6 +98,7 @@
     <string name="chatlist_session_rename">सेशन का नाम बदलें</string>
     <string name="chatlist_session_fork">सेशन फ़ोर्क करें</string>
     <string name="chatlist_session_archive">सेशन संग्रहित करें</string>
+    <string name="chatlist_session_unarchive">सेशन को आर्काइव से वापस लाएँ</string>
     <string name="chatlist_group_by_workspace">कार्यक्षेत्र के अनुसार समूहित करें</string>
     <string name="chatlist_sort_updated">अंतिम अपडेट के अनुसार क्रमबद्ध करें</string>
     <string name="chatlist_sort_manual">मैन्युअल क्रम</string>
