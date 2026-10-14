@@ -99,6 +99,8 @@
     <string name="chatlist_session_fork">تفرع الجلسة</string>
     <string name="chatlist_session_archive">أرشفة الجلسة</string>
     <string name="chatlist_session_unarchive">إلغاء أرشفة الجلسة</string>
+    <string name="chatlist_show_archived">إظهار الجلسات المؤرشفة</string>
+    <string name="chatlist_hide_archived">إخفاء الجلسات المؤرشفة</string>
     <string name="chatlist_group_by_workspace">تجميع حسب مساحة العمل</string>
     <string name="chatlist_sort_updated">ترتيب حسب آخر تحديث</string>
     <string name="chatlist_sort_manual">ترتيب يدوي</string>

@@ -99,6 +99,8 @@
     <string name="chatlist_session_fork">ฟอร์กเซสชัน</string>
     <string name="chatlist_session_archive">เก็บถาวรเซสชัน</string>
     <string name="chatlist_session_unarchive">นำเซสชันออกจากที่เก็บถาวร</string>
+    <string name="chatlist_show_archived">แสดงเซสชันที่เก็บถาวร</string>
+    <string name="chatlist_hide_archived">ซ่อนเซสชันที่เก็บถาวร</string>
     <string name="chatlist_group_by_workspace">จัดกลุ่มตามเวิร์กสเปซ</string>
     <string name="chatlist_sort_updated">เรียงตามการอัปเดตล่าสุด</string>
     <string name="chatlist_sort_manual">เรียงตามลำดับมือ</string>
