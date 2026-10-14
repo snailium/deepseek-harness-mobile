@@ -17,6 +17,9 @@ class ConnectModeTest {
     private val relay = HostConfig(
         id = "c", name = "relay", host = "192.168.1.20", port = 3443, useTls = true, relayDeviceId = "dev",
     )
+    private val gateway = HostConfig(
+        id = "d", name = "gateway", host = "192.168.1.30", port = 4443, useTls = true, gatewayDeviceId = "gw",
+    )
 
     @Test
     fun `stored values read back, and anything else is local network`() {
@@ -40,6 +43,13 @@ class ConnectModeTest {
         assertTrue(relay.belongsTo(ConnectMode.RELAY))
         assertFalse(relay.belongsTo(ConnectMode.LAN))
         assertFalse(relay.belongsTo(ConnectMode.LOOPBACK))
+
+        // A gateway is a paired endpoint too: it belongs to relay mode, whatever address it has.
+        // It is not local network — the user chose "reach my computer from anywhere" when they
+        // enrolled it, and listing it under LAN would make that choice a suggestion again.
+        assertTrue(gateway.belongsTo(ConnectMode.RELAY))
+        assertFalse(gateway.belongsTo(ConnectMode.LAN))
+        assertFalse(gateway.belongsTo(ConnectMode.LOOPBACK))
     }
 
     /** A relay is a relay whatever address it has; the device id is what makes it one. */
