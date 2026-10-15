@@ -394,7 +394,10 @@ fun ChatListDrawer(
                     val roots = workspace.sessionIds
                         .mapNotNull { id -> listable.firstOrNull { it.sessionId == id } }
                         .let { if (sortByRecency) it.sortedByDescending(SessionRow::updatedAt) else it }
-                    if (roots.isEmpty()) continue
+                    // An empty workspace still gets its header: it is where the first session is
+                    // created (the "+" in that header), so hiding workspaces with no sessions would
+                    // hide the only door into them. A freshly created workspace is exactly such a
+                    // one — invisible, and therefore unreachable.
                     anyShown = true
                     // Only the workspace you are working in is open by default: with twenty sessions
                     // in one group, expanding everything buries the list you came for. The explicit
