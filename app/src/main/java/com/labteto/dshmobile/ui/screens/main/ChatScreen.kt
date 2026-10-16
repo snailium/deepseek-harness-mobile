@@ -76,6 +76,7 @@ import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
 import androidx.compose.runtime.LaunchedEffect
 import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.ui.rememberHostsStore
 import androidx.compose.runtime.collectAsState
 import com.labteto.dshmobile.ui.components.TranscriptSearchBar
@@ -257,8 +258,18 @@ fun ChatScreen(
                 onToggleSearch = { search.open = !search.open },
             )
 
-            connectionError?.let {
-                androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
+            // A carrier failure on a slow network is followed by an automatic reconnect that
+            // succeeds a few seconds later. While the loop is still trying, the raw error text
+            // ("remote stream carrier failed") is noise — the user sees "Reconnecting…" instead.
+            // Once the loop gives up (phase leaves RECONNECTING) or the error is a business
+            // failure that will not heal on its own, the real message comes back.
+            val showReconnecting = connectionError != null && connection.phase == ConnectionPhase.RECONNECTING
+            if (showReconnecting) {
+                ConnectionBanner(stringResource(R.string.common_reconnecting))
+            } else {
+                connectionError?.let {
+                    androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
+                }
             }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
