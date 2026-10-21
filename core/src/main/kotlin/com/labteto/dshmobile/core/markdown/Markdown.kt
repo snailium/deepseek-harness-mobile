@@ -53,9 +53,19 @@ sealed interface MdBlock {
 
 sealed interface InlineSegment {
     data class Plain(val text: String) : InlineSegment
-    data class Bold(val text: String) : InlineSegment
-    data class Italic(val text: String) : InlineSegment
-    data class Strikethrough(val text: String) : InlineSegment
+
+    /**
+     * Emphasis carries its inner segments as well as its flat text.
+     *
+     * `**` is not a leaf: Markdown nests, and a reply routinely writes `` **`blocks` 里有 `Table`** ``
+     * — bold around code spans. Treating the emphasis body as opaque text left the backticks
+     * visible inside an otherwise bold run, which is exactly how a rendered reply looked like it had
+     * never been parsed. [children] is the body re-parsed; [text] remains the flat body for callers
+     * that only want the words.
+     */
+    data class Bold(val text: String, val children: List<InlineSegment> = emptyList()) : InlineSegment
+    data class Italic(val text: String, val children: List<InlineSegment> = emptyList()) : InlineSegment
+    data class Strikethrough(val text: String, val children: List<InlineSegment> = emptyList()) : InlineSegment
     data class Code(val text: String) : InlineSegment
     data class Link(val text: String, val url: String) : InlineSegment
 }
@@ -116,7 +126,7 @@ fun parseMarkdown(markdown: String): List<MdBlock> {
                 }
                 parsed += MdBlock.Blockquote(quote)
             }
-            trimmed.startsWith("|") && lines.getOrNull(i + 1)?.let { isTableSeparator(it) } == true -> {
+            startsTable(lines, i) -> {
                 val headerCells = splitTableRow(trimmed)
                 val alignments = parseAlignments(splitTableRow(lines[i + 1]), headerCells.size)
                 i += 2 // header + separator
@@ -131,7 +141,14 @@ fun parseMarkdown(markdown: String): List<MdBlock> {
             else -> {
                 val para = mutableListOf(line.trim())
                 i++
-                while (i < lines.size && lines[i].isNotBlank() && !isSpecialLine(lines[i])) {
+                // A table may start immediately after the prose that introduces it, with no blank
+                // line between: a reply often writes "same model for comparison:" and then the
+                // table. The header line is not special on its own, so the table head has to be
+                // recognized here — by looking at the line after it — or the paragraph swallows
+                // the whole table and the reply shows raw pipe rows.
+                while (i < lines.size && lines[i].isNotBlank() && !isSpecialLine(lines[i]) &&
+                    !startsTable(lines, i)
+                ) {
                     para += lines[i].trim()
                     i++
                 }
@@ -203,6 +220,17 @@ private fun isTableSeparator(line: String): Boolean {
 }
 
 /**
+ * Whether a table starts at [index]: a pipe row whose next line is a separator row.
+ *
+ * Shared by the block dispatcher and the paragraph loop. The header line alone is not `special` —
+ * a bare pipe row is just prose — so the only thing that identifies a table is the separator
+ * beneath it, and every place that has to stop at a table has to look one line ahead.
+ */
+private fun startsTable(lines: List<String>, index: Int): Boolean =
+    lines[index].trimStart().startsWith("|") &&
+        lines.getOrNull(index + 1)?.let { isTableSeparator(it) } == true
+
+/**
  * Splits `| a | b | c |` into the three cell strings, trimming each.
  * [expectedCount] pads short rows with empty cells so every row lines up
  * under the header (a harness may truncate trailing empty cells).
@@ -244,7 +272,9 @@ fun parseInlineSegments(text: String): List<InlineSegment> {
                 val end = text.indexOf("**", i + 2)
                 if (end != -1 && end > i + 2) {
                     flush()
-                    segments += InlineSegment.Bold(text.substring(i + 2, end))
+                    val body = text.substring(i + 2, end)
+                    // Re-parse the body: emphasis wraps other inline markup, it does not suppress it.
+                    segments += InlineSegment.Bold(body, parseInlineSegments(body))
                     i = end + 2
                 } else {
                     sb.append(text[i]); i++
@@ -254,7 +284,8 @@ fun parseInlineSegments(text: String): List<InlineSegment> {
                 val end = text.indexOf("~~", i + 2)
                 if (end != -1 && end > i + 2) {
                     flush()
-                    segments += InlineSegment.Strikethrough(text.substring(i + 2, end))
+                    val body = text.substring(i + 2, end)
+                    segments += InlineSegment.Strikethrough(body, parseInlineSegments(body))
                     i = end + 2
                 } else {
                     sb.append(text[i]); i++
@@ -266,7 +297,8 @@ fun parseInlineSegments(text: String): List<InlineSegment> {
                 // (e.g. "2 * 3" stays literal).
                 if (end != -1 && end > i + 1 && text[i + 1] != ' ') {
                     flush()
-                    segments += InlineSegment.Italic(text.substring(i + 1, end))
+                    val body = text.substring(i + 1, end)
+                    segments += InlineSegment.Italic(body, parseInlineSegments(body))
                     i = end + 1
                 } else {
                     sb.append(text[i]); i++

@@ -467,4 +467,34 @@ class EventFoldTest {
         ).todos
         assertNull(emptied)
     }
+
+    @Test
+    fun unknownBlockTypePreservesText() {
+        // A block type the app doesn't recognize (e.g. "markdown" or "content") should still
+        // carry its text so the renderer can display it, rather than dropping it silently.
+        val events = listOf(
+            event("turn/start", 0, buildJsonObject { put("turn", 1) }),
+            event("assistant/chunk", 1, buildJsonObject {
+                put("turn", 1); put("step", 1)
+                putJsonObject("chunk") { put("type", "block-start"); put("index", 0); put("blockType", "markdown") }
+            }),
+            event("assistant/chunk", 2, buildJsonObject {
+                put("turn", 1); put("step", 1)
+                putJsonObject("chunk") { put("type", "text-delta"); put("index", 0); put("text", "hello **world**") }
+            }),
+            event("assistant/message", 3, buildJsonObject {
+                put("turn", 1); put("step", 1)
+                putJsonObject("message") { put("id", "a1") }
+            }),
+            event("turn/end", 4, buildJsonObject {
+                put("turn", 1)
+                putJsonObject("reason") { put("kind", "completed") }
+            }),
+        )
+        val snapshot = EventFold("s1").fold(events)
+        val assistant = snapshot.nodes.filterIsInstance<AssistantMessageNode>().first()
+        val block = assistant.blocks.first()
+        assertEquals("markdown", block.kind)
+        assertEquals("hello **world**", block.text)
+    }
 }

@@ -115,17 +115,63 @@ class MarkdownTest {
         assertEquals(
             listOf(
                 InlineSegment.Plain("a "),
-                InlineSegment.Bold("b"),
+                InlineSegment.Bold("b", listOf(InlineSegment.Plain("b"))),
                 InlineSegment.Plain(" "),
-                InlineSegment.Italic("c"),
+                InlineSegment.Italic("c", listOf(InlineSegment.Plain("c"))),
                 InlineSegment.Plain(" "),
                 InlineSegment.Code("d"),
                 InlineSegment.Plain(" "),
-                InlineSegment.Strikethrough("e"),
+                InlineSegment.Strikethrough("e", listOf(InlineSegment.Plain("e"))),
                 InlineSegment.Plain(" "),
                 InlineSegment.Link("f", "https://x.y"),
             ),
             segments,
+        )
+    }
+
+    @Test
+    fun emphasisWrapsCodeSpansInsteadOfSwallowingThem() {
+        // Reported from a real reply: `1. **`blocks` 里有 `Table`**` rendered bold *and* with the
+        // backticks still visible, because the emphasis body was taken as opaque text. Emphasis
+        // nests, so the body is re-parsed and the renderer walks the children.
+        val segs = parseInlineSegments("**`blocks` 里有 `Table`**")
+        assertEquals(1, segs.size)
+        val bold = segs[0] as InlineSegment.Bold
+        assertEquals("`blocks` 里有 `Table`", bold.text)
+        assertEquals(
+            listOf(
+                InlineSegment.Code("blocks"),
+                InlineSegment.Plain(" 里有 "),
+                InlineSegment.Code("Table"),
+            ),
+            bold.children,
+        )
+    }
+
+    @Test
+    fun italicAndStrikethroughAlsoWrapCodeSpans() {
+        val italic = parseInlineSegments("*see `x`*").single() as InlineSegment.Italic
+        assertTrue(italic.children.any { it is InlineSegment.Code && it.text == "x" })
+        val strike = parseInlineSegments("~~`old`~~").single() as InlineSegment.Strikethrough
+        assertTrue(strike.children.any { it is InlineSegment.Code && it.text == "old" })
+    }
+
+    @Test
+    fun codeSpansInsideAnOrderedListItemAreParsed() {
+        // Reported from a real reply: a numbered list whose items name identifiers in backticks
+        // rendered with the backticks visible. The block parser was right; the renderer carried a
+        // second, older inline parser. This pins the grammar the renderer now shares.
+        val item = parseMarkdown("1. `blocks` 里有 `Table`，但表格仍然显示成原始 pipe 文本")
+            .filterIsInstance<MdBlock.ListItem>()
+            .single()
+        assertEquals(
+            listOf(
+                InlineSegment.Code("blocks"),
+                InlineSegment.Plain(" 里有 "),
+                InlineSegment.Code("Table"),
+                InlineSegment.Plain("，但表格仍然显示成原始 pipe 文本"),
+            ),
+            parseInlineSegments(item.text),
         )
     }
 

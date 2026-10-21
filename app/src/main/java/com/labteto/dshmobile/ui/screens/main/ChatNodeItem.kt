@@ -431,9 +431,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                     )
                 }
                 "file" -> parseFileRef(block)?.let { ref -> FileChip(name = ref.name, bytes = ref.bytes) }
-                else -> block.text?.let {
-                    Text(it, style = DsType.caption11, color = colors.labelTertiary)
-                }
+                else -> if (!block.text.isNullOrBlank()) MarkdownText(block.text.orEmpty())
             }
         }
         if (node.interrupted) {
