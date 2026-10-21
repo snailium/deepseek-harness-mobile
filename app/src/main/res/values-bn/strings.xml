@@ -664,4 +664,8 @@
     <string name="connect_gateway_pair_this">পেয়ার</string>
     <string name="connect_gateway_encrypted">এনক্রিপ্টেড</string>
     <string name="connect_gateway_plaintext">এনক্রিপ্ট ছাড়া</string>
+    <string name="chat_history_title">ইতিহাস</string>
+    <string name="chat_history_empty">এখনও কোনো বার্তা পাঠানো হয়নি।</string>
+    <string name="chat_history_no_match">কোনো বার্তা মেলেনি।</string>
+    <string name="chat_history_image">ছবি</string>
 </resources>

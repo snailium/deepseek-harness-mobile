@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -126,6 +127,9 @@ internal fun ChatTranscript(
      */
     focusSeq: Long? = null,
     modifier: Modifier = Modifier,
+    /** A message the reader picked out of the history sheet, still waiting to be scrolled to. */
+    jumpToSeq: Long? = null,
+    onJumpConsumed: () -> Unit = {},
 ) {
     // Only the nodes that draw something: a zero-height item still costs its 4dp gap, and a turn's
     // worth of structural events stacks those gaps into a blank band under the chrome.
@@ -168,7 +172,8 @@ internal fun ChatTranscript(
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
-    // that was open before.
+    // that was open before. Following the tail is handled just below, where the anchoring the
+    // reversal buys is overridden only when it would otherwise cost the reader the newest row.
     var lastSession by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(sessionId) {
         if (sessionId == lastSession) return@LaunchedEffect
@@ -176,26 +181,45 @@ internal fun ChatTranscript(
         if (itemCount > 0) listState.scrollToItem(0)
     }
 
-    // Follow the tail while the reader is already at it.
+    // Following the tail is free only while the tail is one growing row. The layout keeps the first
+    // visible *key* anchored, and in a reversed list that key is the bottom row: insert a row below
+    // it — a tool card, the next message segment, a question card, the reader's own message — and
+    // the new row takes index 0 while the viewport holds the old bottom row exactly where it was,
+    // leaving the arrival one scroll past the edge. Nothing animated it into place either, so the
+    // reader watching a reply arrives at a dead screen until they drag.
     //
-    // The reverse layout was assumed to make this unnecessary: newest is index 0, so a new row
-    // appears where the list is anchored and "following the tail costs no scroll". That holds only
-    // while the viewport is *exactly* at index 0. It stops holding as soon as anything moves the
-    // list off it — and adding content does: a tool call appends a row and the streaming row grows
-    // one line at a time, both of which push the anchored position past the anchor. Once that
-    // happens nothing brings it back, so a running turn stops following and the reader is left
-    // behind a "Jump to newest" button they did not ask for.
+    // Pin index 0 again while the reader is at the bottom. `requestScrollToItem` is the one call
+    // that overrides the key anchoring for the coming measure; it is instant and schedules no
+    // animation, so it cannot race the next delta the way a per-frame scroll would.
     //
-    // The row count is the trigger rather than a scroll listener: this should fire when the
-    // transcript gains a row, not on every pixel of a scroll the reader is driving. `atNewest` is
-    // read outside the effect so the decision uses the position from *before* the new row landed,
-    // which is the one that says whether the reader was following.
-    val followTail = atNewest.value
-    LaunchedEffect(itemCount, sessionId) {
-        if (itemCount == 0 || !followTail) return@LaunchedEffect
-        // Not animated: the row is being appended as it arrives, and an animation would lag the
-        // content it is chasing — the list would visibly trail the streaming reply.
-        listState.scrollToItem(0)
+    // Following is intent, not position: the anchoring above moves the first visible index to 1 on
+    // its own when a row lands below, and reading that as "the reader scrolled away" would switch
+    // following off at the exact moment it is needed. Only a scroll session — a drag, or the fling
+    // that follows one, both of which `isScrollInProgress` covers — moves the reader on purpose, so
+    // where the list comes to rest at the end of one is the whole of the signal.
+    //
+    // Primed from the position rather than assumed: the list state is hoisted above the tab swap
+    // and outlives this composition. Today the session-open scroll above lands every new
+    // composition on the tail anyway, so this only matters if that scroll ever stops doing so.
+    // The fork's tolerance, kept: a row that is only *partly* visible at the top still counts as
+    // the tail being in view, so a reader a few pixels off does not lose the follow. The strict
+    // test reads a row that is one pixel off as "the reader left", and a reader who has not
+    // touched the screen should not be told the tail is gone.
+    fun atTail(): Boolean = atNewest.value
+    var followTail by remember(sessionId) { mutableStateOf(true) }
+    LaunchedEffect(listState, sessionId) {
+        followTail = atTail()
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling) return@collect
+            followTail = atTail()
+        }
+    }
+    LaunchedEffect(itemCount, followTail) {
+        // itemCount rather than the rows themselves: a delta changes the text of a row, not how
+        // many rows there are, and only the arrival of a row can land the tail out of view.
+        if (followTail && itemCount > 0 && !listState.isScrollInProgress) {
+            listState.requestScrollToItem(0)
+        }
     }
 
     // Reaching the oldest loaded message pulls the next page. The guard matters: this effect sits
@@ -248,6 +272,47 @@ internal fun ChatTranscript(
                 autoPages++
             }
             onLoadOlder()
+        }
+    }
+
+    // A pick from the history sheet. The sheet knows only sequences; which row index a sequence owns
+    // is decided by the grouping above, so the lookup happens here rather than there.
+    //
+    // Keyed on the pick alone. Re-running on every row change would restart a jump halfway through
+    // whenever a running reply added a row, and the sheet only offers prompts that are loaded, so
+    // there is no later page worth waiting for. The pick is consumed however the jump ends —
+    // landed, missed, or cut short by the reader's own drag — so a leftover cannot fire later and
+    // pull them back.
+    //
+    // Following the tail is switched off first, or the next row a running reply adds would pin the
+    // tail back under a reader who deliberately left it. Picking the tail itself keeps it on.
+    LaunchedEffect(jumpToSeq) {
+        val seq = jumpToSeq ?: return@LaunchedEffect
+        try {
+            val index = historyRowIndex(rows, seq) ?: return@LaunchedEffect
+            if (index == 0) {
+                followTail = true
+                listState.requestScrollToItem(0)
+                return@LaunchedEffect
+            }
+            followTail = false
+            // The prompt goes to the top of the viewport, not the bottom. A reversed list puts the
+            // item it scrolls to at its start, which is the bottom edge: the prompt would sit on the
+            // composer with the reply it asked for out of view below it, and the screen filled with
+            // the turn before. Both steps are instant; the second needs the prompt measured, since
+            // its height decides how far back to come, and clamps at the tail on its own.
+            listState.scrollToItem(index)
+            val info = listState.layoutInfo
+            val item = info.visibleItemsInfo.firstOrNull { it.key == seq } ?: return@LaunchedEffect
+            val contentEnd = info.viewportEndOffset - info.afterContentPadding
+            listState.scrollBy((item.offset + item.size - contentEnd).toFloat())
+            // Read where the jump came to rest rather than leaving it to the scroll-session watcher:
+            // both scrolls start and finish inside one frame, so it never sees them. A newest prompt
+            // whose turn is shorter than the screen stops at the tail, and a reader left at the tail
+            // with following off would watch the next reply land out of view.
+            followTail = atTail()
+        } finally {
+            onJumpConsumed()
         }
     }
 
@@ -380,10 +445,11 @@ private const val STREAMING_ROW_KEY = "streaming-tail"
  *
  * [offerManual] is the third case: automatic paging has spent its budget on a session whose events
  * are mostly not messages, so the list may still be too short to scroll. Without a button there
- * would be nothing left to trigger a page, and the rest of the history would be unreachable.
+ * would be nothing left to trigger a page, and the rest of the history would be unreachable. The
+ * history sheet always passes it: nothing scrolls a sheet to its end to page for it.
  */
 @Composable
-private fun LoadOlderRow(
+internal fun LoadOlderRow(
     loading: Boolean,
     failed: Boolean,
     offerManual: Boolean,
