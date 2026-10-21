@@ -405,6 +405,20 @@ internal fun carrierMessage(status: Int, body: String? = null): String = when (s
     // Saying so beats "not a harness", which is what this used to read as: the address was right
     // and the attachment was too big.
     413 -> "the harness refused the request as too large (HTTP 413)"
+    // `dsh-mobile` 0.6.13 split its inbound rejections three ways. These two mean the gateway was
+    // reachable and heard this device: it stopped reading because the request did not arrive in
+    // time (408), or refused the headers as oversized (431). Both used to answer a bare 400, and
+    // reading as "not a harness" sent people to check a hostname that was never the problem. The
+    // gateway names its own code (`request_timeout` / `headers_too_large`), so echo it when present.
+    408 -> refusalReason(body)?.let { "the gateway stopped reading the request: $it (HTTP 408)" }
+        ?: "the gateway timed out receiving the request (HTTP 408)"
+    431 -> refusalReason(body)?.let { "the gateway refused oversized request headers: $it (HTTP 431)" }
+        ?: "the gateway refused oversized request headers (HTTP 431)"
+    // The third 0.6.13 branch, and the only one a retry cannot fix: the gateway answered, so the
+    // bytes reached the harness's address, but its HTTP parser rejected them. "Malformed" is the
+    // whole instruction — sending the same request again changes nothing.
+    400 -> refusalReason(body)?.let { "the gateway rejected a malformed request: $it (HTTP 400)" }
+        ?: "the gateway rejected a malformed request (HTTP 400)"
     // Only a relay throttles; the harness itself does not.
     429 -> "rate limited before the harness (HTTP 429)"
     // A relay or reverse proxy answered and the harness behind it did not.

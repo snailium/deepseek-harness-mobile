@@ -182,6 +182,14 @@ sealed interface ConnectFailure {
             TransportFailure.TLS -> TlsFailure
             TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN, TransportFailure.OTHER,
             TransportFailure.UPSTREAM_TIMEOUT,
+            // `dsh-mobile` 0.6.13's two new rejections. Both come from a gateway that was reached
+            // and answered, so they are real harness addresses too — flattening them into "not a
+            // harness" would repeat the 504 mistake this list already documents. Their carrier
+            // message names the gateway's own code, which is more use than a generic verdict.
+            TransportFailure.REQUEST_TIMEOUT, TransportFailure.HEADERS_TOO_LARGE,
+            // The third 0.6.13 branch: a packet the gateway's parser rejected. Same reasoning, and
+            // the carrier wording says the bytes were malformed rather than that the address is off.
+            TransportFailure.MALFORMED_REQUEST,
             -> message?.takeIf { it.isNotBlank() }?.let { Other(it) } ?: fallback
             null -> fallback
         }
