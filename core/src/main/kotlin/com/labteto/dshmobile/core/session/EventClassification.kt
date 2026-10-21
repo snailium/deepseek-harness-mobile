@@ -57,6 +57,12 @@ object EventClassification {
         "subagent/descriptor",
         // Harness 0.1.7: the agent's tool set changed. Folded to a context disclosure row.
         "developer/message",
+        // The durable record of a background job: it registered, and it settled. Folded to a job
+        // row, because a job's start and its outcome are two moments in the conversation and the
+        // transcript is where a moment belongs. The live job list in the details panel shows the
+        // jobs running *now*; these events are the ones that outlive it.
+        "job/registered",
+        "job/settled",
     )
 
     /**
