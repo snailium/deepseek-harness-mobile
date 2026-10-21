@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Build and publish a signed APK to the local :7777 server.
+# Build and publish a signed APK to the workspace's apk/ directory, shared over dsh-share-plus.
 #
 # Usage:  scripts/release.sh              build, stamp, publish
 #         scripts/release.sh --dry-run    show the version it would use, build nothing
@@ -149,7 +149,19 @@ NAME="dsh-mobile-$VERSION+$STAMP.apk"
 mkdir -p "$WORKSPACE_ROOT/apk"
 cp "$APK" "$WORKSPACE_ROOT/apk/$NAME"
 
-URL="http://192.168.111.90:7777/apk/$NAME"
+# Copying into `apk/` *is* publishing. `dsh-share-plus` holds that directory as a read-only
+# mount, so the file is downloadable the moment it lands here — nothing is uploaded, registered,
+# or restarted, and the listing picks it up on the next request.
+#
+# The mount also does the two things a plain `python3 -m http.server` could not: it types `.apk`
+# as `application/vnd.android.package-archive` with `Content-Disposition: attachment`, so a phone
+# offers to install instead of downloading a blob, and it rebinds at boot, so a link survives a
+# dsh restart. The mount itself is configured once on the Plugins page and never by this script.
+#
+# The `+` in the filename must be escaped for a URL; the server decodes it back to `+`.
+SHARE_HOST="${DSH_SHARE_HOST:-192.168.111.90}"
+SHARE_PORT="${DSH_SHARE_PORT:-3082}"
+URL="http://$SHARE_HOST:$SHARE_PORT/apk/${NAME//+/%2B}"
 
 echo
 echo "published: $NAME"
@@ -157,16 +169,19 @@ echo "url:       $URL"
 echo "version:   $VERSION  (unchanged — this path does not version; only the weekly release advances it)"
 echo "commit:    $SHORT_SHA"
 
-# The URL *is* the deliverable here, so it is checked the way the signature is: a build is not handed
-# over with a link that does not answer. The server is a plain `python3 -m http.server` with no
-# supervisor — nothing restarts it — so it is the one part of this pipeline that is simply absent some
-# of the time, and a dead link used to be printed with the same confidence as a good one.
+# The URL *is* the deliverable, so it gets checked the way the signature does. This is not
+# confirming the copy — the copy is already done — it is catching the two ways the link can be
+# dead anyway, which need different advice: the dsh-web process being down (nothing listening)
+# versus the mount being absent (server up, path 404). A build is not handed over with a link
+# that does not answer.
 CODE="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$URL" 2>/dev/null || true)"
 if [ "$CODE" = "200" ]; then
-  echo "served:    200"
+  echo "served:    200 (dsh-share-plus :$SHARE_PORT)"
 else
   echo "served:    ${CODE:-no response}  <- WARNING: the URL does not answer, so nobody can download this"
-  echo "           start the server: cd $WORKSPACE_ROOT && python3 -m http.server 7777 --bind 0.0.0.0"
+  echo "           the file is on disk at $WORKSPACE_ROOT/apk/$NAME"
+  echo "           if dsh-web is down, start it; if it is up, dsh-share-plus is missing an 'apk'"
+  echo "           mount for $WORKSPACE_ROOT/apk/ (Plugins -> dsh-share-plus -> Configure)"
 fi
 echo
 echo "The APK server serves the workspace root, so the /apk/ segment is part of the URL."
