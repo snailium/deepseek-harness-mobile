@@ -37,20 +37,6 @@ CONTAINER="${DSH_CI_CONTAINER:-dsh-ci}"
 IMAGE="dsh-android-ci:latest"
 MEMORY="${DSH_CI_MEMORY:-6g}"
 CPUS="${DSH_CI_CPUS:-12}"
-# `unless-stopped` rather than `always`: the container comes back after a reboot of the .101
-# host, but a deliberate `rgradlew --stop` still keeps it down. It also matches what the other
-# containers on that box use.
-RESTART="${DSH_CI_RESTART:-unless-stopped}"
-# Heap sizes for the two JVMs a Gradle build starts.
-#
-# The repo sets `org.gradle.jvmargs=-Xmx4g`, and the Kotlin daemon inherits that value unless
-# `kotlin.daemon.jvmargs` says otherwise — so one build starts *two* JVMs that may each take
-# 4 GB of heap. Measured inside the container: Gradle daemon 2.6 GB resident, Kotlin daemon
-# 2.4 GB, peak 5.07 GB against a 6 GB limit. That is one unlucky build away from an OOM kill,
-# and the .101 host shares its memory with the inference boxes (b70-sycl alone holds 10.7 GB),
-# so the cap is lowered here rather than the container limit raised there.
-GRADLE_HEAP="${DSH_CI_GRADLE_HEAP:-2g}"
-KOTLIN_HEAP="${DSH_CI_KOTLIN_HEAP:-1500m}"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
@@ -74,55 +60,14 @@ ensure_container() {
         echo "rgradlew: rebuild it with: rsync scripts/ci-Dockerfile $HOST:$DIR/Dockerfile && docker build -t $IMAGE $DIR" >&2
         exit 2
     fi
-    # A container that exists but is not running is the normal state after the host reboots,
-    # and `docker run --name` refuses a name that is already taken — so the existing one is
-    # started and re-configured instead of being recreated. Recreating it would also throw away
-    # the Gradle and Kotlin daemons, which is most of the win for the incremental case.
-    if remote "docker container inspect $CONTAINER >/dev/null 2>&1"; then
-        # `docker update` also re-applies the limits, so a container created by an older version
-        # of this script picks up a changed MEMORY/CPUS instead of keeping the old ones.
-        remote "docker update --restart $RESTART --memory $MEMORY --cpus $CPUS $CONTAINER >/dev/null"
-        remote "docker start $CONTAINER >/dev/null"
-    else
-        # The container idles so the Gradle daemon and the Kotlin daemon survive between
-        # invocations; recreating it per build would pay the daemon start-up every time, which is
-        # most of the win for the incremental case.
-        #
-        # The restart policy is what keeps it alive across a reboot of the .101 host. Without it
-        # the container is created with the default `no`, and the next reboot leaves the build
-        # box down until someone notices — which is exactly what happened on 2026-10-20.
-        remote "docker run -d --name $CONTAINER --restart $RESTART --memory=$MEMORY --cpus=$CPUS \
-            -v $DIR/workspace:/workspace -v $DIR/gradle-home:/opt/gradle-home \
-            -w /workspace $IMAGE sleep infinity >/dev/null"
-    fi
+    # The container idles so the Gradle daemon and the Kotlin daemon survive between
+    # invocations; recreating it per build would pay the daemon start-up every time, which is
+    # most of the win for the incremental case.
+    remote "docker run -d --name $CONTAINER --memory=$MEMORY --cpus=$CPUS \
+        -v $DIR/workspace:/workspace -v $DIR/gradle-home:/opt/gradle-home \
+        -w /workspace $IMAGE sleep infinity >/dev/null"
     # A fresh container has an empty /opt/gradle-home only if the bind mount is new; the mount
     # is persistent, so a warm cache is the normal case.
-}
-
-# Keep the JVM heaps inside what the container can hold.
-#
-# The override lives in `GRADLE_USER_HOME/gradle.properties`, which outranks the project's own
-# `gradle.properties` — so the repository keeps the -Xmx4g it wants for local builds, and only
-# the remote build box is constrained. Nothing is installed on the host to make that happen;
-# the file is inside the bind mount the container already uses.
-apply_memory_limits() {
-    local target="$DIR/gradle-home/gradle.properties"
-    local want
-    want="$(printf 'org.gradle.jvmargs=-Xmx%s -Dfile.encoding=UTF-8 -XX:+UseParallelGC\nkotlin.daemon.jvmargs=-Xmx%s\n' \
-        "$GRADLE_HEAP" "$KOTLIN_HEAP")"
-    local have
-    have="$(remote "cat $target 2>/dev/null || true")"
-    if [[ "$have" == "$want" ]]; then
-        return
-    fi
-    # A daemon started with different jvmargs is not reused: Gradle would start a *second* one
-    # beside the old, and the old lingers for its three-hour idle timeout — two daemons where
-    # there should be one, which is the very thing the heap cap is meant to prevent. Stopping
-    # them first keeps exactly one alive.
-    remote "docker exec $CONTAINER ./gradlew --stop >/dev/null 2>&1 || true"
-    # The content goes over stdin rather than inside the command string: a heredoc nested in an
-    # ssh command does not survive the hop.
-    printf '%s' "$want" | remote "cat > $target"
 }
 
 # Local paths, and the exclusions that keep the transfer to source only.
@@ -174,7 +119,6 @@ if [[ $# -eq 0 ]]; then
 fi
 
 ensure_container
-apply_memory_limits
 sync_to_remote
 
 # Each argument is quoted before it crosses the ssh hop. `ssh host "cmd $*"` would split on
