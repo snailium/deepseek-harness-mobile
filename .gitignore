@@ -17,3 +17,7 @@ node_modules/
 
 # Scratch directory for the merge/rebase audits described in FORK-NOTES. Regenerated, never committed.
 .audit/
+
+# Scratch directory for merge resolutions and the like. Same reasoning: it holds working copies
+# that are read once and thrown away, and a `git add -A` must not be able to commit them.
+.tmp/
