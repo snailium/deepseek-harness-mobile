@@ -201,11 +201,8 @@ internal fun ChatTranscript(
     // Primed from the position rather than assumed: the list state is hoisted above the tab swap
     // and outlives this composition. Today the session-open scroll above lands every new
     // composition on the tail anyway, so this only matters if that scroll ever stops doing so.
-    // The fork's tolerance, kept: a row that is only *partly* visible at the top still counts as
-    // the tail being in view, so a reader a few pixels off does not lose the follow. The strict
-    // test reads a row that is one pixel off as "the reader left", and a reader who has not
-    // touched the screen should not be told the tail is gone.
-    fun atTail(): Boolean = atNewest.value
+    fun atTail(): Boolean =
+        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
     var followTail by remember(sessionId) { mutableStateOf(true) }
     LaunchedEffect(listState, sessionId) {
         followTail = atTail()
