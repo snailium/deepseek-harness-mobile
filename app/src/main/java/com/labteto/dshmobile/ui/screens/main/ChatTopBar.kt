@@ -76,6 +76,7 @@ internal fun ChatTopBar(
     tab: ChatTab,
     onOpenDrawer: () -> Unit,
     onOpenModels: () -> Unit,
+    onOpenHistory: () -> Unit,
     onOpenPresets: () -> Unit,
     onOpenSubagents: () -> Unit,
     onOpenDetails: () -> Unit,
@@ -83,6 +84,8 @@ internal fun ChatTopBar(
     /** Opens the session's workspace screen; disabled when the harness reports no workspace. */
     onOpenWorkspace: () -> Unit,
     workspaceEnabled: Boolean,
+    /** False while no session is open, where there is no history to pick from yet. */
+    historyEnabled: Boolean,
     /** Transcript search: the query, where the cursor sits, and how many messages matched. */
     searchQuery: String = "",
     searchPosition: Int = 0,
@@ -206,6 +209,8 @@ internal fun ChatTopBar(
             subagentCount = subagentCount,
             onOpenModels = onOpenModels,
             onOpenSubagents = onOpenSubagents,
+            onOpenHistory = onOpenHistory,
+            historyEnabled = historyEnabled,
         )
     }
 }
@@ -355,6 +360,8 @@ private fun ChatTabRow(
     subagentCount: Int,
     onOpenModels: () -> Unit,
     onOpenSubagents: () -> Unit,
+    onOpenHistory: () -> Unit,
+    historyEnabled: Boolean,
 ) {
     val colors = DsTheme.colors
     Row(
@@ -425,6 +432,19 @@ private fun ChatTabRow(
             onClick = onOpenModels,
             modifier = Modifier.weight(1f).widthIn(max = 320.dp).height(32.dp),
         )
+        // Beside the model chip rather than next to the info button: both answer "what is this
+        // session doing", and a fixed position lets the thumb learn it instead of hunting a
+        // gap that the growing model label keeps moving. The chip is the one weighted child in
+        // this row, so the button is measured first and the model name takes what is left.
+        if (historyEnabled) {
+            DsIconButton(
+                icon = FeatherIcons.List,
+                contentDescription = stringResource(R.string.chat_history_title),
+                onClick = onOpenHistory,
+                tint = colors.labelSecondary,
+                iconSize = 18.dp,
+            )
+        }
     }
     Spacer(
         Modifier
