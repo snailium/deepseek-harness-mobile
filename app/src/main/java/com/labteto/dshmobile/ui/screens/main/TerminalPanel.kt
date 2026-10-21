@@ -241,6 +241,12 @@ private fun TerminalWeb(
     var connected by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf(false) }
+    // TEMPORARY scroll diagnostics. The terminal's touch scrolling reportedly moves one row no
+    // matter how far a finger travels, and it does not reproduce on desktop: xterm's own
+    // translate-pixels-to-lines path is correct there, so the fault is in how Android WebView
+    // delivers the gesture. Guessing at a fix would mean shipping blind, so the page reports what
+    // it actually sees and this line shows it over the terminal. Removed once the cause is known.
+    var scrollDiag by remember { mutableStateOf<String?>(null) }
     var environment by remember { mutableStateOf<TerminalEnvironment?>(null) }
     val attachmentId = remember(reconnect) { UUID.randomUUID().toString() }
     val input = remember { Channel<String>(64) }
@@ -261,7 +267,13 @@ private fun TerminalWeb(
             addJavascriptInterface(TerminalBridge { message ->
                 scope.launch {
                     val json = runCatching { JSONObject(message) }.getOrNull() ?: return@launch
-                    if (json.optString("type") == "ready") ready = true else input.send(message)
+                    when (json.optString("type")) {
+                        "ready" -> ready = true
+                        // Scroll diagnostics carry no terminal state; they must never reach the
+                        // input channel, which would try to parse them as keystrokes.
+                        "diag" -> scrollDiag = json.optString("text").takeIf { it.isNotEmpty() }
+                        else -> input.send(message)
+                    }
                 }
             }, "TerminalHost")
             val js = assets.js
@@ -298,7 +310,60 @@ private fun TerminalWeb(
                 window.renderFrame=function(frame){if(frame.type==='snapshot'){term.reset();term.resize(frame.info.cols,frame.info.rows);term.write(frame.screen||'')}else if(frame.type==='output')term.write(frame.data||'')};
                 window.setWritable=function(value){term.options.disableStdin=!value;if(value){measure();term.focus()}};
                 window.setTheme=function(bg,fg){term.options.theme={background:bg,foreground:fg,cursor:fg};document.body.style.background=bg};
-                term.onData(data=>post({type:'input',data}));window.addEventListener('resize',measure);post({type:'ready'});
+                term.onData(data=>post({type:'input',data}));window.addEventListener('resize',measure);
+                // TEMPORARY scroll diagnostics. Watches the real touch stream on the terminal root
+                // (a *passive* listener, so it cannot change what xterm itself does) and reports,
+                // per gesture: which element the finger landed on, how far it moved, and how much
+                // of that movement the viewport actually kept. A gesture whose `kept` stays at one
+                // row while `moved` grows is the reported symptom; the hit element and the scroll
+                // area's height then say whether the cause is a swallowed gesture or a short
+                // scroll area. Remove together with the `scrollDiag` state once diagnosed.
+                (function(){
+                    const root=document.querySelector('.xterm');
+                    let startY=0,moved=0,first=null,lastSent=0;
+                    function snap(){
+                        const vp=document.querySelector('.xterm-viewport');
+                        const area=document.querySelector('.xterm-scroll-area');
+                        const core=term._core;
+                        return {
+                            vp:vp, area:area,
+                            scrollTop:vp?Math.round(vp.scrollTop):-1,
+                            maxTop:vp?Math.round(vp.scrollHeight-vp.clientHeight):-1,
+                            areaH:area?Math.round(parseFloat(area.style.height||'0')):-1,
+                            ydisp:term.buffer.active.viewportY,
+                            lines:term.buffer.active.length,
+                            rowH:core&&core.viewport?Math.round(core.viewport._currentRowHeight):-1,
+                        };
+                    }
+                    function report(phase){
+                        const s=snap();
+                        // Line the person can compare against what they see.
+                        return phase+' hit='+(first||'?')
+                            +' moved='+Math.round(moved)+'px'
+                            +' kept='+s.scrollTop+'/'+s.maxTop
+                            +' area='+s.areaH+' row='+s.rowH
+                            +' y='+s.ydisp+'/'+s.lines;
+                    }
+                    root.addEventListener('touchstart',function(e){
+                        const t=e.touches[0];
+                        startY=t?t.pageY:0; moved=0;
+                        const el=document.elementFromPoint(t?t.clientX:0,t?t.clientY:0);
+                        first=el?(el.tagName.toLowerCase()+(el.className?('.'+String(el.className).split(' ')[0]):'')):'none';
+                        post({type:'diag',text:report('start')});
+                    },{passive:true});
+                    root.addEventListener('touchmove',function(e){
+                        const t=e.touches[0];
+                        if(!t)return;
+                        moved=startY-t.pageY;
+                        // Throttle: the overlay is for a human to read, not a trace log.
+                        const now=Date.now();
+                        if(now-lastSent>120){lastSent=now;post({type:'diag',text:report('move')});}
+                    },{passive:true});
+                    root.addEventListener('touchend',function(){
+                        post({type:'diag',text:report('end')});
+                    },{passive:true});
+                })();
+                post({type:'ready'});
                 </script></body></html>
             """.trimIndent(), "text/html", "utf-8", null)
         }
@@ -399,6 +464,19 @@ private fun TerminalWeb(
                 onKey = { data -> view.evaluateJavascript("sendKey(${JSONObject.quote(data)})", null) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             )
+            // TEMPORARY: the live scroll diagnostics. Top-start keeps it clear of the D-pad.
+            scrollDiag?.let { text ->
+                Text(
+                    text,
+                    style = DsType.small13,
+                    color = colors.labelPrimary,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(8.dp)
+                        .background(colors.bgLayer1.copy(alpha = 0.88f))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+            }
         }
     }
 }

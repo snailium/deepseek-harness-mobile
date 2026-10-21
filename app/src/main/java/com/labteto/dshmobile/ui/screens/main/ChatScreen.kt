@@ -470,6 +470,10 @@ fun ChatScreen(
                 )
             }
 
+            // DIAG: what the Markdown renderer received and parsed, above the composer. Temporary
+            // read-out for the "markdown shows as raw text" report; remove with MarkdownDiagnostics.
+            com.labteto.dshmobile.ui.components.MarkdownDiagnosticsBar()
+
             Composer(
                 draft = draft,
                 onDraftChange = submitter::onDraftChange,

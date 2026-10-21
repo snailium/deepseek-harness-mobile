@@ -437,7 +437,7 @@ private class FoldState(private val sessionId: String) {
             )
             else -> ChatBlock(
                 kind = assembled?.get("type")?.jsonPrimitive?.contentOrNull ?: acc.kind,
-                text = assembled?.get("text")?.jsonPrimitive?.contentOrNull,
+                text = assembled?.get("text")?.jsonPrimitive?.contentOrNull ?: acc.text.toString().takeIf { it.isNotEmpty() },
                 toolCallId = assembled?.get("id")?.jsonPrimitive?.contentOrNull ?: acc.toolCallId,
                 toolName = assembled?.get("name")?.jsonPrimitive?.contentOrNull ?: acc.toolName,
                 argumentsJson = assembled?.get("arguments")?.jsonPrimitive?.contentOrNull ?: acc.arguments.toString(),

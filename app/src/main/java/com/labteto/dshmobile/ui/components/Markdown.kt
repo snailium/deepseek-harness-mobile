@@ -77,6 +77,8 @@ import com.labteto.dshmobile.ui.theme.Ds
 import com.labteto.dshmobile.core.markdown.safeHttpUrl
 import com.labteto.dshmobile.core.markdown.MdBlock
 import com.labteto.dshmobile.core.markdown.parseMarkdown
+import com.labteto.dshmobile.core.markdown.parseInlineSegments
+import com.labteto.dshmobile.core.markdown.InlineSegment
 import androidx.compose.ui.text.style.TextDecoration
 import kotlin.math.pow
 
@@ -123,7 +125,30 @@ fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     // The parser lives in :core (pure JVM) so it is unit-testable and survives a renderer rewrite.
     // List items arrive one per block, so runs of them are regrouped here: the renderer needs the
     // whole list at once to number an ordered list and to keep the markers in one column.
-    val blocks = remember(text) { groupListBlocks(parseMarkdown(text)) }
+    val blocks = remember(text) {
+        val parsed = groupListBlocks(parseMarkdown(text))
+        // DIAG: records what actually reaches the renderer and what it parsed to, so the chat
+        // screen can show it without adb. See MarkdownDiagnostics.
+        MarkdownDiagnostics.record(
+            text,
+            parsed.map {
+                when (it) {
+                    // DIAG: a list row also names the inline kinds of its first item. A backtick
+                    // that survives a rendered list is either an unparsed span (no Code here) or a
+                    // Code span whose text still carries its markers (Code here, ticks visible).
+                    is RenderBlock.ListRun -> "ListRun(${it.items.size})[" +
+                        it.items.firstOrNull()?.let { item ->
+                            parseInlineSegments(item.text).joinToString(",") { segment ->
+                                segment::class.simpleName.orEmpty() +
+                                    if (segment is InlineSegment.Code) "\u2039${segment.text.take(12)}\u203a" else ""
+                            }
+                        }.orEmpty() + "]"
+                    is RenderBlock.Of -> it.block::class.simpleName.orEmpty()
+                }
+            },
+        )
+        parsed
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         blocks.forEach { render ->
             when (render) {
@@ -196,87 +221,26 @@ private fun groupListBlocks(blocks: List<MdBlock>): List<RenderBlock> {
 
 // ---- Inline rendering ------------------------------------------------------
 
-private sealed interface InlineSegment {
-    data class Plain(val text: String) : InlineSegment
-    data class Bold(val text: String) : InlineSegment
-    data class Italic(val text: String) : InlineSegment
-    data class Code(val text: String) : InlineSegment
-    data class Link(val text: String, val url: String) : InlineSegment
-}
 
-private fun parseInlineSegments(text: String): List<InlineSegment> {
-    val segments = mutableListOf<InlineSegment>()
-    val sb = StringBuilder()
-    var i = 0
-    fun flush() {
-        if (sb.isNotEmpty()) {
-            segments += InlineSegment.Plain(sb.toString())
-            sb.clear()
-        }
-    }
-    while (i < text.length) {
-        when {
-            text.startsWith("`", i) -> {
-                val end = text.indexOf('`', i + 1)
-                if (end != -1) {
-                    flush()
-                    segments += InlineSegment.Code(text.substring(i + 1, end))
-                    i = end + 1
-                } else {
-                    sb.append(text[i]); i++
-                }
-            }
-            text.startsWith("**", i) -> {
-                val end = text.indexOf("**", i + 2)
-                if (end != -1) {
-                    flush()
-                    segments += InlineSegment.Bold(text.substring(i + 2, end))
-                    i = end + 2
-                } else {
-                    sb.append(text[i]); i++
-                }
-            }
-            text.startsWith("*", i) -> {
-                val end = text.indexOf("*", i + 1)
-                if (end != -1) {
-                    flush()
-                    segments += InlineSegment.Italic(text.substring(i + 1, end))
-                    i = end + 1
-                } else {
-                    sb.append(text[i]); i++
-                }
-            }
-            text.startsWith("[", i) -> {
-                val close = text.indexOf("](", i + 1)
-                if (close != -1) {
-                    val end = text.indexOf(')', close + 2)
-                    if (end != -1) {
-                        flush()
-                        segments += InlineSegment.Link(text.substring(i + 1, close), text.substring(close + 2, end))
-                        i = end + 1
-                    } else {
-                        sb.append(text[i]); i++
-                    }
-                } else {
-                    sb.append(text[i]); i++
-                }
-            }
-            else -> {
-                sb.append(text[i]); i++
-            }
-        }
-    }
-    flush()
-    return segments
-}
+
+//
+// The inline grammar lives in :core beside the block parser, as one implementation. This file used
+// to carry a second, older copy — it had no `~~strikethrough~~`, its `*` test accepted a space
+// after the opener (so `2 * 3` became italic), and it required a non-empty `**bold**`. Two parsers
+// for one syntax means a fix in one is not a fix, which is exactly what happened here.
 
 /** Renders one line of markdown with bold/italic/code/link spans. */
 @Composable
 private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
+    // A code span gets a fill as well as a face. Monospace alone was invisible next to CJK body
+    // text — the glyphs are the same width and, until now, the same colour — so a reader could not
+    // tell a rendered `code` from a literal one. The tint is the block code surface, one step off
+    // the page, which is what marks it without repeating the backticks.
     val codeStyle = style.copy(
         fontFamily = DsType.codeFont,
         color = colors.labelPrimary,
+        background = colors.codeBlockBg,
     )
     val openFile = LocalFileOpener.current
     val openFolder = LocalFolderOpener.current
@@ -343,7 +307,7 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     }
 }
 
-private fun buildInlineContent(
+internal fun buildInlineContent(
     text: String,
     codeStyle: TextStyle,
     colors: DsColors,
@@ -351,40 +315,68 @@ private fun buildInlineContent(
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
     var pills = 0
-    parseInlineSegments(text).forEach { segment ->
-        when (segment) {
-            is InlineSegment.Plain -> builder.append(segment.text)
-            is InlineSegment.Bold -> builder.withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(segment.text) }
-            is InlineSegment.Italic -> builder.withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(segment.text) }
-            is InlineSegment.Code -> builder.withStyle(
-                SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
-            ) { append(segment.text) }
-            is InlineSegment.Link -> {
-                val path = if (safeHttpUrl(segment.url) == null) previewPath(segment.url) else null
-                if (path != null) {
-                    // A path into the session's workspace is an artifact, not a web link: it is
-                    // drawn as a pill (see the inline content above) so it reads as a file you can
-                    // open, and never as a blue word that may go anywhere.
-                    builder.pushStringAnnotation("path", path)
-                    builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
-                    builder.pop()
-                } else {
-                    // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles
-                    // the former itself — tap goes to the listener, long-press still reaches the
-                    // enclosing SelectionContainer — whereas the string form was only readable by
-                    // ClickableText, which consumes the long-press. That is what forced linked
-                    // lines to opt out of selection entirely.
-                    builder.withLink(
-                        LinkAnnotation.Clickable(
-                            tag = segment.url,
-                            styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
-                            linkInteractionListener = { onLink(segment.url) },
-                        ),
-                    ) { append(segment.text) }
+    // Emphasis nests — `**`code` in bold**` is an ordinary thing for a reply to write — so the
+    // segments are appended recursively rather than flattened. A flat `append(segment.text)` here
+    // put the emphasis body in as opaque text, which is how backticks survived inside a bold run.
+    fun append(segments: List<InlineSegment>, inherited: SpanStyle = SpanStyle()) {
+        segments.forEach { segment ->
+            when (segment) {
+                is InlineSegment.Plain -> {
+                    if (inherited == SpanStyle()) builder.append(segment.text)
+                    else builder.withStyle(inherited) { builder.append(segment.text) }
+                }
+                is InlineSegment.Bold -> append(
+                    segment.children.ifEmpty { listOf(InlineSegment.Plain(segment.text)) },
+                    inherited.copy(fontWeight = FontWeight.Bold),
+                )
+                is InlineSegment.Italic -> append(
+                    segment.children.ifEmpty { listOf(InlineSegment.Plain(segment.text)) },
+                    inherited.copy(fontStyle = FontStyle.Italic),
+                )
+                is InlineSegment.Strikethrough -> append(
+                    segment.children.ifEmpty { listOf(InlineSegment.Plain(segment.text)) },
+                    inherited.copy(textDecoration = TextDecoration.LineThrough),
+                )
+                // A code span keeps the emphasis it sits in — bold code is still bold — but takes
+                // the mono face unconditionally. It is emitted as one flattened span rather than a
+                // style nested inside the emphasis's style: with two overlapping spans Kotlin's
+                // SpanStyle merge leaves the inner one's fontFamily subject to how the renderer
+                // flattens the stack, which in practice dropped the mono face inside bold.
+                is InlineSegment.Code -> builder.withStyle(
+                    inherited.copy(
+                        fontFamily = codeStyle.fontFamily,
+                        color = codeStyle.color,
+                        background = codeStyle.background,
+                    ),
+                ) { builder.append(segment.text) }
+                is InlineSegment.Link -> {
+                    val path = if (safeHttpUrl(segment.url) == null) previewPath(segment.url) else null
+                    if (path != null) {
+                        // A path into the session's workspace is an artifact, not a web link: it is
+                        // drawn as a pill (see the inline content above) so it reads as a file you can
+                        // open, and never as a blue word that may go anywhere.
+                        builder.pushStringAnnotation("path", path)
+                        builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
+                        builder.pop()
+                    } else {
+                        // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles
+                        // the former itself — tap goes to the listener, long-press still reaches the
+                        // enclosing SelectionContainer — whereas the string form was only readable by
+                        // ClickableText, which consumes the long-press. That is what forced linked
+                        // lines to opt out of selection entirely.
+                        builder.withLink(
+                            LinkAnnotation.Clickable(
+                                tag = segment.url,
+                                styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                                linkInteractionListener = { onLink(segment.url) },
+                            ),
+                        ) { builder.append(segment.text) }
+                    }
                 }
             }
         }
     }
+    append(parseInlineSegments(text))
     return builder.toAnnotatedString()
 }
 
