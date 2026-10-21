@@ -102,11 +102,28 @@ if $DRY_RUN; then
   exit 0
 fi
 
+# Which Gradle to run the *secret-free* steps with.
+#
+# The tests and the lint are the slow part of a release and need nothing from this machine but
+# the source tree, so `RGRADLEW=1` runs them on .101 through the isolated container — see the
+# `dsh-mobile-remote-build` skill. `assembleRelease` stays local on purpose: it needs the
+# keystore and its password, both of which live in this workspace and are not copied to the
+# build host. Moving them to save one build would put a signing key on another machine for no
+# reason; the tests are where the minutes go.
+if [[ "${RGRADLEW:-0}" == "1" ]]; then
+  GRADLE_TESTS=(./scripts/rgradlew)
+  GRADLE_LINT=(./scripts/rgradlew)
+  echo "==> heavy steps run on .101 via ./scripts/rgradlew (RGRADLEW=1)"
+else
+  GRADLE_TESTS=(./gradlew)
+  GRADLE_LINT=(./gradlew)
+fi
+
 echo "==> tests"
-./gradlew :core:test :mock-harness:test :app:testDebugUnitTest --console=plain
+"${GRADLE_TESTS[@]}" :core:test :mock-harness:test :app:testDebugUnitTest --console=plain
 
 echo "==> lint"
-./gradlew :app:lintDebug --console=plain
+"${GRADLE_LINT[@]}" :app:lintDebug --console=plain
 
 echo "==> signed release APK ($VERSION)"
 ./gradlew :app:assembleRelease --console=plain
