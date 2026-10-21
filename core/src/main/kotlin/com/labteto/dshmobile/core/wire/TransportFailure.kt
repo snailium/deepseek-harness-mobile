@@ -81,6 +81,52 @@ enum class TransportFailure {
      */
     UPSTREAM_DOWN,
 
+    /**
+     * HTTP 504 from a gateway that gave up waiting for the harness.
+     *
+     * Distinct from [UPSTREAM_DOWN] because the remedy is the opposite. A 502 means nothing is
+     * behind the gateway and reconnecting is right; a 504 means something *is* there and is still
+     * working — the gateway's own deadline was simply shorter than the work. `dsh-mobile` returns
+     * this as `{"error":"upstream_timeout"}` from its `upstreamApiTimeoutMs`, which defaults to 0
+     * (disabled) since 0.5.6 precisely because `/compact` kept hitting it at 30s.
+     *
+     * Guessing [NOT_A_HARNESS] here — the old behaviour, since 504 fell through the `else` — told
+     * the reader their address was wrong while the summary they asked for was still being written.
+     */
+    UPSTREAM_TIMEOUT,
+
+    /**
+     * HTTP 408: the gateway stopped reading the request because it did not arrive in time.
+     *
+     * `dsh-mobile` 0.6.13 split its inbound parser rejections so a receive timeout is told apart
+     * from a malformed packet: Node's `ERR_HTTP_REQUEST_TIMEOUT` becomes `408 request_timeout`
+     * instead of folding into `400 bad_request`. It is the peer's own deadline, not this device's
+     * socket timeout — the connection was established and the gateway was listening, which is what
+     * separates it from [TIMEOUT] and from [NOT_A_HARNESS]. A slow tunnel is the usual cause, so
+     * retrying is reasonable rather than a reason to re-check the address.
+     */
+    REQUEST_TIMEOUT,
+
+    /**
+     * HTTP 431: the request's headers were larger than the gateway accepts.
+     *
+     * Added by `dsh-mobile` 0.6.13 for Node's `HPE_HEADER_OVERFLOW`, which previously surfaced as
+     * `400 bad_request`. Shares [TOO_LARGE]'s verdict deliberately: both mean "something this
+     * device sent is bigger than the peer accepts, send less", and the person-facing instruction is
+     * the same whether it was the body (413) or the headers (431).
+     */
+    HEADERS_TOO_LARGE,
+
+    /**
+     * HTTP 400: the gateway's own HTTP parser rejected the request bytes.
+     *
+     * `dsh-mobile` 0.6.13's third inbound branch, and the one that is *not* actionable by sending
+     * less: 408 asks for a faster request and 431 for smaller headers, but a malformed packet means
+     * the bytes were invalid and repeating them changes nothing. It is still proof the gateway was
+     * reached — it parsed enough to answer — which is why it must not read as [NOT_A_HARNESS].
+     */
+    MALFORMED_REQUEST,
+
     /** Something answered, but it does not speak the harness protocol. */
     NOT_A_HARNESS,
 
@@ -134,9 +180,23 @@ object TransportFailures {
         401 -> TransportFailure.UNAUTHENTICATED
         403 -> TransportFailure.TRUST_FENCE
         404 -> TransportFailure.NOT_FOUND
+        // `dsh-mobile` 0.6.13 distinguishes these two from a bare 400. Both mean the gateway was
+        // reachable and heard this device; neither is a wrong address. Without them a slow tunnel
+        // or an oversized header told the reader to go and re-check their hostname.
+        408 -> TransportFailure.REQUEST_TIMEOUT
+        431 -> TransportFailure.HEADERS_TOO_LARGE
         413 -> TransportFailure.TOO_LARGE
         429 -> TransportFailure.RATE_LIMITED
+        // `dsh-mobile` 0.6.13's third branch: a packet its own HTTP parser rejected outright. The
+        // gateway answered it, so this is unambiguously the harness — reading it as "not a harness"
+        // would send someone to re-check an address that had just spoken HTTP back at them. Kept
+        // apart from the other two because the remedy differs: those ask for a smaller or faster
+        // request, this one means the bytes were invalid and a retry alone will not help.
+        400 -> TransportFailure.MALFORMED_REQUEST
         502 -> TransportFailure.UPSTREAM_DOWN
+        // A gateway that stopped waiting for the harness. Not "not a harness": the address was
+        // right and the work was still running when the gateway's own deadline expired.
+        504 -> TransportFailure.UPSTREAM_TIMEOUT
         0 -> classify(e.cause)
         // A 5xx or a stray 200-shaped answer from something that is not the harness.
         else -> TransportFailure.NOT_A_HARNESS

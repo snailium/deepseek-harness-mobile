@@ -174,13 +174,23 @@ sealed interface ConnectFailure {
             TransportFailure.TIMEOUT, TransportFailure.UNREACHABLE -> Timeout
             TransportFailure.DNS -> DnsFailure
             // A no-argument call cannot be refused as too large, so 413 is something that is not
-            // the harness. A throttle and a dead upstream, by contrast, are real harness addresses
-            // and carry wording that says so, so they keep their message instead of being flattened
-            // into "not a harness" and sending the person to re-check an address that was right.
+            // the harness. A throttle, a dead upstream and a gateway that gave up waiting, by
+            // contrast, are all real harness addresses and carry wording that says so, so they keep
+            // their message instead of being flattened into "not a harness" and sending the person
+            // to re-check an address that was right.
             TransportFailure.NOT_FOUND, TransportFailure.NOT_A_HARNESS, TransportFailure.TOO_LARGE -> NotAHarness
             TransportFailure.TLS -> TlsFailure
-            TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN, TransportFailure.OTHER ->
-                message?.takeIf { it.isNotBlank() }?.let { Other(it) } ?: fallback
+            TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN, TransportFailure.OTHER,
+            TransportFailure.UPSTREAM_TIMEOUT,
+            // `dsh-mobile` 0.6.13's two new rejections. Both come from a gateway that was reached
+            // and answered, so they are real harness addresses too — flattening them into "not a
+            // harness" would repeat the 504 mistake this list already documents. Their carrier
+            // message names the gateway's own code, which is more use than a generic verdict.
+            TransportFailure.REQUEST_TIMEOUT, TransportFailure.HEADERS_TOO_LARGE,
+            // The third 0.6.13 branch: a packet the gateway's parser rejected. Same reasoning, and
+            // the carrier wording says the bytes were malformed rather than that the address is off.
+            TransportFailure.MALFORMED_REQUEST,
+            -> message?.takeIf { it.isNotBlank() }?.let { Other(it) } ?: fallback
             null -> fallback
         }
     }
