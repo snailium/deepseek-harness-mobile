@@ -7,6 +7,7 @@ import com.labteto.dshmobile.core.session.CommandNode
 import com.labteto.dshmobile.core.session.CompactionNode
 import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
+import com.labteto.dshmobile.core.session.JobNode
 import com.labteto.dshmobile.core.session.OtherNode
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
@@ -113,6 +114,8 @@ internal fun ChatNode.rendersContent(
     is RetryNode -> true
     is TurnErrorNode -> true
     is CommandNode -> true
+    // A background job's start and its outcome are two moments in the conversation.
+    is JobNode -> true
     // Session naming is already reflected in the top bar, not an assistant reply.
     is TitleNode -> false
     is SubagentNode -> true
