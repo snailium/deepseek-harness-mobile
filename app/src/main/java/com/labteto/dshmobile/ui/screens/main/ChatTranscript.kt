@@ -190,16 +190,31 @@ internal fun ChatTranscript(
     // happens nothing brings it back, so a running turn stops following and the reader is left
     // behind a "Jump to newest" button they did not ask for.
     //
-    // The row count is the trigger rather than a scroll listener: this should fire when the
-    // transcript gains a row, not on every pixel of a scroll the reader is driving. `atNewest` is
-    // read outside the effect so the decision uses the position from *before* the new row landed,
-    // which is the one that says whether the reader was following.
-    val followTail = atNewest.value
-    LaunchedEffect(itemCount, sessionId) {
-        if (itemCount == 0 || !followTail) return@LaunchedEffect
-        // Not animated: the row is being appended as it arrives, and an animation would lag the
-        // content it is chasing — the list would visibly trail the streaming reply.
-        listState.scrollToItem(0)
+    // Following is intent, not position: the anchoring above moves the first visible index to 1 on
+    // its own when a row lands below, and reading that as "the reader scrolled away" would switch
+    // following off at the exact moment it is needed. Only a scroll session — a drag, or the fling
+    // that follows one, both of which `isScrollInProgress` covers — moves the reader on purpose, so
+    // where the list comes to rest at the end of one is the whole of the signal.
+    //
+    // Primed from the position rather than assumed: the list state is hoisted above the tab swap
+    // and outlives this composition. Today the session-open scroll above lands every new
+    // composition on the tail anyway, so this only matters if that scroll ever stops doing so.
+    fun atTail(): Boolean =
+        listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+    var followTail by remember(sessionId) { mutableStateOf(true) }
+    LaunchedEffect(listState, sessionId) {
+        followTail = atTail()
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (scrolling) return@collect
+            followTail = atTail()
+        }
+    }
+    LaunchedEffect(itemCount, followTail) {
+        // itemCount rather than the rows themselves: a delta changes the text of a row, not how
+        // many rows there are, and only the arrival of a row can land the tail out of view.
+        if (followTail && itemCount > 0 && !listState.isScrollInProgress) {
+            listState.requestScrollToItem(0)
+        }
     }
 
     // Reaching the oldest loaded message pulls the next page. The guard matters: this effect sits
