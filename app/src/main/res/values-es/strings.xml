@@ -661,4 +661,8 @@
     <string name="connect_gateway_pair_this">Emparejar</string>
     <string name="connect_gateway_encrypted">Cifrado</string>
     <string name="connect_gateway_plaintext">Sin cifrar</string>
+    <string name="chat_history_title">Historial</string>
+    <string name="chat_history_empty">Todavía no hay mensajes enviados.</string>
+    <string name="chat_history_no_match">Ningún mensaje coincide.</string>
+    <string name="chat_history_image">Imagen</string>
 </resources>

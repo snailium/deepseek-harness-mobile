@@ -661,4 +661,8 @@
     <string name="connect_gateway_pair_this">पेयर करें</string>
     <string name="connect_gateway_encrypted">एन्क्रिप्टेड</string>
     <string name="connect_gateway_plaintext">एन्क्रिप्शन रहित</string>
+    <string name="chat_history_title">इतिहास</string>
+    <string name="chat_history_empty">अभी तक कोई संदेश नहीं भेजा गया।</string>
+    <string name="chat_history_no_match">कोई संदेश मेल नहीं खाता।</string>
+    <string name="chat_history_image">छवि</string>
 </resources>

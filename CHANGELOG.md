@@ -3,6 +3,24 @@
 All notable changes to DSH Mobile are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); the project uses SemVer.
 
+## [Unreleased]
+
+### Added
+
+- A history button beside the model chip lists the messages you sent in this session, with each
+  one's time, a search field once the list is long, and a marker for prompts that carried an image.
+  Picking one jumps the transcript to it, with the prompt at the top of the screen and its reply
+  below. The list covers the history loaded so far; while there is more, "Load older messages" at
+  the foot of the sheet pages it in. Replies are not listed: the harness records a turn as many
+  assistant steps, so the few hundred of them would bury the prompts you were looking for.
+
+### Fixed
+
+- The transcript now keeps up with a reply that adds rows. A tool card, the next message segment,
+  a question card or the turn's final message used to land just below the bottom edge and stay
+  there until you dragged it into view. If you scroll up to read, the view stays where you left
+  it, and it follows again once you're back at the bottom.
+
 ## [0.16.0] - 2026-10-12
 
 - Target DeepSeek Harness 0.2.1-alpha.2.

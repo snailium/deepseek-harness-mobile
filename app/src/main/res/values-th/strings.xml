@@ -661,4 +661,8 @@
     <string name="connect_gateway_pair_this">จับคู่</string>
     <string name="connect_gateway_encrypted">เข้ารหัส</string>
     <string name="connect_gateway_plaintext">ไม่เข้ารหัส</string>
+    <string name="chat_history_title">ประวัติ</string>
+    <string name="chat_history_empty">ยังไม่มีข้อความที่ส่ง</string>
+    <string name="chat_history_no_match">ไม่มีข้อความที่ตรงกัน</string>
+    <string name="chat_history_image">รูปภาพ</string>
 </resources>

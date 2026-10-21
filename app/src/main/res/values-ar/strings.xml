@@ -661,4 +661,8 @@
     <string name="connect_gateway_pair_this">اقتران</string>
     <string name="connect_gateway_encrypted">مشفَّر</string>
     <string name="connect_gateway_plaintext">غير مشفَّر</string>
+    <string name="chat_history_title">السجل</string>
+    <string name="chat_history_empty">لا مطالبات بعد.</string>
+    <string name="chat_history_no_match">لا توجد رسائل مطابقة.</string>
+    <string name="chat_history_image">صورة</string>
 </resources>
