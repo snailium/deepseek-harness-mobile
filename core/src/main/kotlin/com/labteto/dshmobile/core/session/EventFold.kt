@@ -322,6 +322,8 @@ private class FoldState(private val sessionId: String) {
 
             "command/run", "command/done" -> nodes.add(CommandNode(event.seq, event.type, data))
 
+            "job/registered", "job/settled" -> nodes.add(JobNode(event.seq, event.type, data))
+
             "session/title" -> {
                 val title = data.jsonObject["title"]?.jsonPrimitive?.contentOrNull ?: return
                 nodes.add(TitleNode(event.seq, title))

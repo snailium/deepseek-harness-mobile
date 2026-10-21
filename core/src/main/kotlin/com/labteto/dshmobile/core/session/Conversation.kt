@@ -137,6 +137,17 @@ data class CompactionNode(override val seq: Long, val kind: String, val data: Js
 data class RetryNode(override val seq: Long, val kind: String, val data: JsonElement) : ChatNode
 data class TurnErrorNode(override val seq: Long, val message: String, val code: String?) : ChatNode
 data class CommandNode(override val seq: Long, val kind: String, val data: JsonElement) : ChatNode
+
+/**
+ * A background job's durable record: `job/registered` when it started, `job/settled` when it
+ * finished.
+ *
+ * The harness emits the two as separate events, so this is two rows. [kind] is the event type,
+ * which is what tells them apart — a `job/settled` carries the outcome, a `job/registered` does
+ * not. The payload is the event's own `data`, left as JSON because the shape differs between the
+ * two and only the fields the harness documents are read.
+ */
+data class JobNode(override val seq: Long, val kind: String, val data: JsonElement) : ChatNode
 data class TitleNode(override val seq: Long, val title: String) : ChatNode
 data class WorkflowNode(override val seq: Long, val kind: String, val data: JsonElement) : ChatNode
 data class SubagentNode(override val seq: Long, val data: JsonElement) : ChatNode

@@ -253,6 +253,8 @@
     <string name="jobs_completed">Completed</string>
     <string name="jobs_killed">Killed</string>
     <string name="jobs_failed">Failed</string>
+    <string name="job_row_started">Background job started</string>
+    <string name="job_row_settled">Background job finished</string>
     <string name="workflow_title">Workflow</string>
     <string name="workflow_members">%1$d members</string>
     <string name="workflow_running">Running</string>

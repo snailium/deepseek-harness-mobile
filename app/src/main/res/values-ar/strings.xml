@@ -204,6 +204,8 @@
     <string name="jobs_completed">مكتملة</string>
     <string name="jobs_killed">مُنهَية</string>
     <string name="jobs_failed">فاشلة</string>
+    <string name="job_row_started">بدأت المهمة الخلفية</string>
+    <string name="job_row_settled">انتهت المهمة الخلفية</string>
     <string name="workflow_title">سير العمل</string>
     <string name="workflow_members">%1$d عضو</string>
     <string name="workflow_running">قيد التشغيل</string>

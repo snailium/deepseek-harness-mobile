@@ -204,6 +204,8 @@
     <string name="jobs_completed">पूर्ण</string>
     <string name="jobs_killed">समाप्त</string>
     <string name="jobs_failed">विफल</string>
+    <string name="job_row_started">बैकग्राउंड कार्य शुरू हुआ</string>
+    <string name="job_row_settled">बैकग्राउंड कार्य पूरा हुआ</string>
     <string name="workflow_title">वर्कफ़्लो</string>
     <string name="workflow_members">%1$d सदस्य</string>
     <string name="workflow_running">चालू</string>

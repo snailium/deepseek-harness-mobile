@@ -204,6 +204,8 @@
     <string name="jobs_completed">Concluídos</string>
     <string name="jobs_killed">Encerrados</string>
     <string name="jobs_failed">Com falha</string>
+    <string name="job_row_started">Trabalho em segundo plano iniciado</string>
+    <string name="job_row_settled">Trabalho em segundo plano concluído</string>
     <string name="workflow_title">Fluxo de trabalho</string>
     <string name="workflow_members">%1$d membros</string>
     <string name="workflow_running">Em execução</string>

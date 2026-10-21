@@ -204,6 +204,8 @@
     <string name="jobs_completed">مکمل</string>
     <string name="jobs_killed">ختم شدہ</string>
     <string name="jobs_failed">ناکام</string>
+    <string name="job_row_started">پس منظر کا کام شروع ہوا</string>
+    <string name="job_row_settled">پس منظر کا کام ختم ہوا</string>
     <string name="workflow_title">ورک فلو</string>
     <string name="workflow_members">%1$d ارکان</string>
     <string name="workflow_running">چل رہا ہے</string>

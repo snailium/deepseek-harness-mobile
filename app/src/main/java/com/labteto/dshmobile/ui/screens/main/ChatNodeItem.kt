@@ -53,7 +53,9 @@ import com.labteto.dshmobile.core.session.CommandNode
 import com.labteto.dshmobile.core.session.CompactionNode
 import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
+import com.labteto.dshmobile.core.session.JobNode
 import com.labteto.dshmobile.core.session.OtherNode
+import com.labteto.dshmobile.core.wire.dto.JobStatus
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
 import com.labteto.dshmobile.core.session.SubagentNode
@@ -218,6 +220,8 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
         }
 
         is CommandNode -> CommandRow(node)
+
+        is JobNode -> JobRow(node)
 
         is WorkflowNode -> WorkflowRow(node.data, context.onOpenSubagent)
 
@@ -651,6 +655,66 @@ private fun RewindMarkerRow() {
             color = colors.labelTertiary,
         )
         HorizontalDivider(modifier = Modifier.weight(1f), color = colors.borderL1)
+    }
+}
+
+/**
+ * One background job's start or its outcome.
+ *
+ * The harness emits two events for a job — `job/registered` when it starts and `job/settled`
+ * when it settles — and they arrive as separate rows, the way a command's run and done do. The
+ * leading glyph gives way to a state dot once the job has an outcome, because the outcome is the
+ * part worth reading at a glance: a job that failed should not look like a job that finished.
+ */
+@Composable
+private fun JobRow(node: JobNode) {
+    val colors = DsTheme.colors
+    val data = node.data as? JsonObject
+    val kind = data?.get("kind").asString().orEmpty()
+    val label = data?.get("label").asString().orEmpty()
+    val detail = data?.get("detail").asString().orEmpty()
+    // A `job/registered` carries no status: the job is running by definition until it settles.
+    val settled = node.kind == "job/settled"
+    val status = if (settled) JobStatus.fromWire(data?.get("status").asString()) else JobStatus.RUNNING
+    val state = when (status) {
+        JobStatus.RUNNING, JobStatus.STOPPING -> DisclosureState.Running
+        JobStatus.COMPLETED -> DisclosureState.Idle
+        JobStatus.KILLED -> DisclosureState.Stopped
+        JobStatus.FAILED -> DisclosureState.Error
+        JobStatus.UNKNOWN -> DisclosureState.Idle
+    }
+    var expanded by remember(node.seq) { mutableStateOf(false) }
+    DisclosureRow(
+        title = stringResource(if (settled) R.string.job_row_settled else R.string.job_row_started),
+        summary = listOf(kind, label).filter { it.isNotEmpty() }.joinToString(" · ").ifEmpty { null },
+        icon = FeatherIcons.Activity,
+        state = state,
+        expanded = expanded,
+        onToggle = { expanded = !expanded },
+        trailing = {
+            Text(
+                jobStatusLabel(status) ?: status.name.lowercase(),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+        },
+    ) {
+        // The producer's own words come first: "exit code: 3" is the reason a job failed, and
+        // it is the one field the collapsed row cannot show.
+        if (detail.isNotEmpty()) {
+            Text(
+                detail,
+                style = DsType.caption11,
+                color = colors.labelSecondary,
+                modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
+            )
+        }
+        Text(
+            node.data.toString(),
+            style = DsType.caption11.copy(fontFamily = DsType.codeFont),
+            color = colors.labelCaption,
+            modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
+        )
     }
 }
 

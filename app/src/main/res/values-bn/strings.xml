@@ -204,6 +204,8 @@
     <string name="jobs_completed">সম্পন্ন</string>
     <string name="jobs_killed">বন্ধ করা হয়েছে</string>
     <string name="jobs_failed">ব্যর্থ</string>
+    <string name="job_row_started">ব্যাকগ্রাউন্ড কাজ শুরু হয়েছে</string>
+    <string name="job_row_settled">ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে</string>
     <string name="workflow_title">ওয়ার্কফ্লো</string>
     <string name="workflow_members">%1$d জন সদস্য</string>
     <string name="workflow_running">চলমান</string>
