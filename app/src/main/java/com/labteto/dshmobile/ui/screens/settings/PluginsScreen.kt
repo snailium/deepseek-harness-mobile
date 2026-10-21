@@ -659,9 +659,7 @@ internal fun buildSettingPatch(path: List<String>, value: JsonElement): JsonObje
     }
 }
 
-
 /**
->>>>>>> f4046c3 (Bump the plugins page font one step up from the title and search bar down)
  * Whether a bundle answers a query.
  *
  * The version is matched as well as the name: a user chasing a specific release types what they see,
