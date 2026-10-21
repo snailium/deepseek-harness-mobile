@@ -1,0 +1,44 @@
+# Isolated Android build environment for deepseek-harness-mobile.
+#
+# Everything the build needs lives inside this image or in the bind mounts under
+# /datastore/android-ci, so nothing is installed onto the host. The host only ever sees
+# Docker's own storage and those three directories.
+FROM eclipse-temurin:17-jdk-jammy
+
+ARG ANDROID_CMDLINE_TOOLS=11076708
+ARG ANDROID_PLATFORM=android-35
+ARG ANDROID_BUILD_TOOLS=34.0.0
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      git curl unzip ca-certificates tar xz-utils rsync \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV PATH=${PATH}:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools
+
+# The SDK is baked into the image so a build never depends on downloading it. Licenses are
+# accepted here, at build time, rather than by piping `yes` at run time.
+RUN mkdir -p ${ANDROID_HOME}/cmdline-tools \
+ && curl -fsSL -o /tmp/cmdline.zip \
+      "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS}_latest.zip" \
+ && unzip -q /tmp/cmdline.zip -d /tmp/cmdline \
+ && mv /tmp/cmdline/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest \
+ && rm -rf /tmp/cmdline.zip /tmp/cmdline \
+ && yes | sdkmanager --licenses >/dev/null \
+ && sdkmanager --install \
+      "platform-tools" \
+      "platforms;${ANDROID_PLATFORM}" \
+      "build-tools;${ANDROID_BUILD_TOOLS}" \
+ && rm -rf ${ANDROID_HOME}/.temp ${ANDROID_HOME}/emulator
+
+# UID 1000 matches the host user so the bind-mounted workspace and Gradle home stay writable
+# without running the build as root, which would leave root-owned files in the repo.
+RUN groupadd -g 1000 build 2>/dev/null || true \
+ && useradd -u 1000 -g 1000 -m -s /bin/bash build 2>/dev/null || true
+ENV GRADLE_USER_HOME=/opt/gradle-home
+RUN mkdir -p /opt/gradle-home /workspace && chown -R 1000:1000 /opt/gradle-home /workspace
+USER 1000:1000
+WORKDIR /workspace
