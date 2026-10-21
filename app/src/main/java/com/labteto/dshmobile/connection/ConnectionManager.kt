@@ -9,6 +9,7 @@ import com.labteto.dshmobile.core.wire.DshApiClient
 import com.labteto.dshmobile.core.wire.dto.HostDescription
 import com.labteto.dshmobile.core.wire.LoopConfig
 import com.labteto.dshmobile.core.wire.GenerationFailure
+import com.labteto.dshmobile.core.wire.GenerationTicket
 import com.labteto.dshmobile.core.wire.HandshakeStep
 import com.labteto.dshmobile.core.wire.LoopSinks
 import com.labteto.dshmobile.ui.screens.connect.ConnectFailure
@@ -18,6 +19,7 @@ import com.labteto.dshmobile.core.wire.dto.RemoteEventFrame
 import com.labteto.dshmobile.core.wire.TransportFailure
 import com.labteto.dshmobile.core.wire.TransportFailures
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -77,6 +79,15 @@ class ConnectionManager @Inject constructor(
     private var loop: ConnectionLoop? = null
     private var api: DshApiClient? = null
     private var activeHost: HostConfig? = null
+
+    /**
+     * Decides which in-flight reconnect may install its loop; see [GenerationTicket].
+     *
+     * [reconnectIfNeeded] builds its client and loop off the caller's thread, so more than one can
+     * be in flight. Only the newest may install, and [connect]/[disconnect] invalidate the rest so
+     * a reconnect started before a host change cannot install a connection for the old host.
+     */
+    private val reconnectTicket = GenerationTicket()
 
     /**
      * The current generation, or null while disconnected.
@@ -185,8 +196,13 @@ class ConnectionManager @Inject constructor(
     }
 
     fun disconnect() {
-        loop?.stop()
+        // Invalidates any reconnect still building its client, then stops what is running. Taking
+        // the field first means a reconnect that lands between here and the stop cannot install a
+        // loop nothing will ever stop.
+        reconnectTicket.invalidate()
+        val running = loop
         loop = null
+        running?.stop()
         api = null
         generation = null
         activeHost = null
@@ -194,16 +210,57 @@ class ConnectionManager @Inject constructor(
         _state.value = ConnectionUiState()
     }
 
+    /**
+     * Replace the live connection, keeping the same host.
+     *
+     * Every path here opens a real socket, so the one rule that matters is that the loop it
+     * replaces is stopped *and* that the replacement lands on the same field it checked. The
+     * earlier version stopped the old loop and then built the new one inside a `scope.launch`,
+     * which left two windows open. A [connect] or [disconnect] arriving between the stop and the
+     * launch would null the field, and the launched body would then assign over whatever the
+     * newcomer had installed, orphaning a loop whose scope keeps it — and its socket — alive for
+     * the life of the process. Calling this twice in quick succession, a repeated tap on the
+     * reconnect banner or the keep-alive worker firing during a manual retry, leaked a socket per
+     * call. That is the growing connection count a phone shows after a few hours.
+     *
+     * A generation ticket closes both windows. It is claimed synchronously, on the caller's thread,
+     * and the launched body only installs its loop when its ticket is still the newest; a body that
+     * lost the race stops the loop it built instead of publishing it. [disconnect] and [connect]
+     * bump the same ticket, so an in-flight reconnect cannot resurrect a connection the user has
+     * since dropped or redirected.
+     */
     fun reconnectIfNeeded() {
         val host = activeHost ?: return
-        loop?.stop()
+        val ticket = reconnectTicket.claim()
+        val replaced = loop
+        loop = null
+        // Stopped here rather than inside the coroutine: the old socket must be gone before the
+        // next one is allowed to exist, whichever call wins.
+        replaced?.stop()
         scope.launch {
             // Rebuilding through the factory rather than reusing `api` blindly: a relay token can be
             // rotated or dropped while the app is backgrounded, and the credential is baked into the
             // client at construction. This is the path [KeepAliveWorker] takes, which is exactly
             // when that is most likely to have happened.
-            api = clientFactory.clientFor(host)
-            loop = ConnectionLoop(muxFactory(host), sinks, LoopConfig()).also { it.start() }
+            val client = try {
+                clientFactory.clientFor(host)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // The loop is already stopped; leaving the state as it is lets the next keep-alive
+                // tick try again rather than publishing a connection that was never built.
+                return@launch
+            }
+            val built = ConnectionLoop(muxFactory(host), sinks, LoopConfig())
+            // Only the newest reconnect may publish. A superseded one stops what it built, so the
+            // socket it opened does not outlive the decision to replace it.
+            if (!reconnectTicket.mayPublish(ticket)) {
+                built.stop()
+                return@launch
+            }
+            api = client
+            loop = built
+            built.start()
         }
     }
 
