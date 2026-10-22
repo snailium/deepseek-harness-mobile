@@ -12,6 +12,15 @@ internal class PreviewTab(val path: String) {
     var eof by mutableStateOf(false)
     var busy by mutableStateOf(false)
     var error by mutableStateOf<String?>(null)
+
+    /**
+     * The page size the host accepted, or null while the host is serving its own.
+     *
+     * The client asks for no size at all and takes what the host offers; a host that refuses the
+     * page on bytes is asked again with fewer lines, and the size that worked is kept here so
+     * every later page is the same size.
+     */
+    var pageLimit by mutableStateOf<Int?>(null)
 }
 
 internal class PanelState(val key: ComposerKey) {

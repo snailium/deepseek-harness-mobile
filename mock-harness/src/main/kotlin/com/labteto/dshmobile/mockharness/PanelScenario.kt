@@ -5,11 +5,29 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Stateful, credential-free fixtures for the panel contracts, at harness 0.1.7. Never runs a shell. */
 class PanelScenario(private val harness: MockHarness) {
+    companion object {
+        /**
+         * The host's own page rules, at harness 0.2.1-rc.2.
+         *
+         * A page holds at most `maxLines` lines and at most `maxBytes` of them, and a request
+         * that names a page bigger than `maxLines` is refused outright rather than trimmed. The
+         * mock models both, because a client that names its own page size has to be tested
+         * against a host that refuses the ones it names.
+         */
+        const val MAX_LINES = 5000
+        const val MAX_PAGE_BYTES = 2 * 1024 * 1024
+    }
     val archived = mutableSetOf("archived-demo")
     val feedback = ConcurrentHashMap<String, JsonObject>()
     val files = ConcurrentHashMap<String, ByteArray>().apply {
         put("README.md", "# Preview fixture\n\nTwo photos belong in one prompt.\n".toByteArray())
         put("index.html", "<h1>Isolated preview</h1><script>document.body.innerHTML='UNSAFE'</script>".toByteArray())
+        // A document longer than the page size a client used to ask for, so a preview that asks
+        // the host for its own page size gets all of it in one page.
+        put("LONG.md", (1..1200).joinToString("\n") { "line $it" }.toByteArray())
+        // A document whose first page is over the host's byte cap, so the host refuses it and the
+        // client has to ask again with fewer lines.
+        put("WIDE.md", (1..1200).joinToString("\n") { "line $it " + "x".repeat(1800) }.toByteArray())
     }
     val terminals = ConcurrentHashMap<String, JsonObject>()
     /** Sessions with work still running, which `workspace/archiveSession` refuses without `stopActivity`. */
@@ -81,10 +99,23 @@ class PanelScenario(private val harness: MockHarness) {
                     if (method == "read") {
                         val range = request.getValue("range").jsonObject
                         val offset = range["offset"]?.jsonPrimitive?.int ?: 1
-                        val limit = range["limit"]?.jsonPrimitive?.int ?: 500
+                        // The host owns the page size: a request that names none gets the host's
+                        // own page, and one that names a bigger page than the host serves is
+                        // refused outright rather than trimmed.
+                        val limit = range["limit"]?.jsonPrimitive?.int ?: MAX_LINES
+                        if (limit > MAX_LINES) {
+                            throw MockHarness.RemoteFailure("gateway/bad-request", "limit must be at most $MAX_LINES")
+                        }
                         val lines = bytes.toString(Charsets.UTF_8).lines()
                         val page = lines.drop(offset - 1).take(limit)
-                        put("offset", offset); put("text", page.joinToString("\n")); put("lines", page.size); put("eof", offset - 1 + page.size >= lines.size)
+                        val pageText = page.joinToString("\n")
+                        if (pageText.toByteArray().size > MAX_PAGE_BYTES) {
+                            throw MockHarness.RemoteFailure(
+                                "workspace-file/too-large",
+                                "lines $offset-${offset + page.size - 1} of \"$path\" exceed the $MAX_PAGE_BYTES byte cap",
+                            )
+                        }
+                        put("offset", offset); put("text", pageText); put("lines", page.size); put("eof", offset - 1 + page.size >= lines.size)
                     }
                 }
             }
