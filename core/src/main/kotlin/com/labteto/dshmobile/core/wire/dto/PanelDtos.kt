@@ -6,7 +6,19 @@ import kotlinx.serialization.json.JsonElement
 /** Browser-safe contracts, first transcribed at upstream 0d1f500. */
 @Serializable data class PermissionCatalog(val options: List<PresetOption> = emptyList())
 @Serializable data class WorkspaceUnarchiveSessionRequest(val sessionId: String)
-@Serializable data class WorkspaceFileRange(val offset: Int = 1, val limit: Int = 500)
+/**
+ * Which lines of a workspace file to read.
+ *
+ * [limit] is the number of lines a page holds, and it is **optional on purpose**: the host caps a
+ * page by its own configured `maxLines` and serves that when the request says nothing about a
+ * size. This client used to send 500 lines of its own, which is a smaller page than the host is
+ * willing to serve, and it cut a document short at a line that had nothing to do with the file —
+ * a README of 600 lines lost its last hundred, and the preview ended there.
+ *
+ * A host that answers `workspace-file/too-large` has refused the page on *bytes*, not lines; the
+ * client then asks for fewer lines — see `PreviewPaging`.
+ */
+@Serializable data class WorkspaceFileRange(val offset: Int = 1, val limit: Int? = null)
 @Serializable data class WorkspaceByteRange(val offset: Long = 0, val length: Int = 262144)
 @Serializable data class WorkspaceFileStat(val absolutePath: String, val version: String, val bytes: Long? = null)
 @Serializable data class WorkspaceFileText(val absolutePath: String, val version: String, val bytes: Long? = null,
