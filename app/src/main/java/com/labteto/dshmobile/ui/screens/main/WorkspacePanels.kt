@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,23 @@ import com.labteto.dshmobile.core.wire.PreviewPaging
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsButtonSize
+import com.labteto.dshmobile.ui.components.DsButtonVariant
+import com.labteto.dshmobile.ui.components.DsIconButton
+import com.labteto.dshmobile.ui.components.DsPill
+import com.labteto.dshmobile.ui.components.DsSegment
+import com.labteto.dshmobile.ui.components.DsSegmented
+import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.MarkdownText
@@ -89,6 +107,44 @@ internal suspend fun readWorkspacePage(
 @Composable
 internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: () -> Unit) {
     val colors = DsTheme.colors
+    val sessions by store.sessions.collectAsStateWithLifecycle()
+    val cwd = sessions.firstOrNull { it.sessionId == state.key.sessionId }?.cwd
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = colors.bgBase) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DsIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.common_back),
+                        onClick = onDismiss,
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.panel_workspace), style = DsType.large20, color = colors.labelPrimary)
+                        cwd?.let {
+                            Text(technicalDisplay(it), style = DsType.caption11, color = colors.labelCaption, softWrap = true)
+                        }
+                    }
+                }
+                // `weight`, not `fillMaxSize`: the panel body is the *rest* of the column, and a
+                // weight says exactly that. A `fillMaxSize` child takes the column's whole height
+                // and is then placed below the title row, so anything that does not subtract the
+                // space already taken leaves the preview hanging off the bottom of the screen.
+                WorkspacePanelBody(store, state, Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/**
+ * The workspace browser itself — Files / Preview / Terminal — without the screen's header, which
+ * [WorkspacePanels] draws around it.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WorkspacePanelBody(store: SessionStore, state: PanelState, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val key = state.key
@@ -370,6 +426,21 @@ private fun DocumentPreview(
                 if (!tab.eof && tab.text != null && max > 0 && max - value <= autoLoadSlack) loadMore()
             }
     }
+    // DIAG: the scroll's own numbers, sampled rather than read in the composition so the read-out
+    // does not recompose the header on every frame of a drag. `maxValue + viewport` is the content's
+    // measured height, and comparing it with the text's own length is what says whether the
+    // document is short or the viewport is tall. Remove once the report is closed.
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var scrollValue by remember { mutableIntStateOf(0) }
+    var scrollMax by remember { mutableIntStateOf(0) }
+    var viewportBounds by remember { mutableStateOf("") }
+    LaunchedEffect(tab) {
+        while (true) {
+            scrollValue = tab.scroll.value
+            scrollMax = tab.scroll.maxValue
+            delay(500)
+        }
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
         // File header: name, path and size on the left; the three actions on the right.
         DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
@@ -383,7 +454,16 @@ private fun DocumentPreview(
                 Spacer(Modifier.width(DsSpacing.small))
                 Column(Modifier.weight(1f)) {
                     val name = tab.path.substringAfterLast('/').substringAfterLast('\\')
-                    Text(technicalDisplay(name), style = DsType.std14Strong, color = colors.labelPrimary)
+                    // One line, ellipsized. A long name used to wrap, and a name that wraps
+                    // splits mid-word ("optimization_result.m" / "d") and makes the header taller
+                    // than the file's own importance warrants.
+                    Text(
+                        technicalDisplay(name),
+                        style = DsType.std14Strong,
+                        color = colors.labelPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     // The folder it is in, when it is in one; a root file would only repeat its name.
                     val folder = tab.path.replace('\\', '/').substringBeforeLast('/', "")
                     val meta = listOfNotNull(
@@ -394,6 +474,19 @@ private fun DocumentPreview(
                         SelectionContainer {
                             Text(meta, style = DsType.caption11, color = colors.labelCaption, softWrap = true)
                         }
+                    }
+                    // DIAG: scroll geometry, sampled. See the note where the sampler is declared.
+                    val text = tab.text
+                    if (text != null) {
+                        val screen = LocalConfiguration.current.screenHeightDp
+                        Text(
+                            "DIAG scroll $scrollValue/$scrollMax · vp $viewportHeight · " +
+                                "content ${scrollMax + viewportHeight} · box $viewportBounds · " +
+                                "screen ${screen}dp · chars ${text.length} · " +
+                                "lines ${text.count { it == '\n' } + 1}",
+                            style = DsType.caption11,
+                            color = colors.warnLabel,
+                        )
                     }
                 }
                 if (canOpenOnHost == true) DsIconButton(
@@ -483,6 +576,11 @@ private fun DocumentPreview(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .onSizeChanged { viewportHeight = it.height }
+                        .onGloballyPositioned { coords ->
+                            val b = coords.boundsInRoot()
+                            viewportBounds = "${b.top.toInt()}..${b.bottom.toInt()}"
+                        }
                         .clip(DsShapes.block)
                         .background(if (markdown) androidx.compose.ui.graphics.Color.Transparent else colors.bgLayer1)
                         .then(if (markdown) Modifier else Modifier.border(1.dp, colors.borderL2, DsShapes.block)),
