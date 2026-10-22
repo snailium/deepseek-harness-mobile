@@ -25,12 +25,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.core.wire.DshApiClient
+import com.labteto.dshmobile.core.wire.PreviewPaging
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
@@ -62,6 +65,39 @@ import java.io.File
 internal fun <T> RpcResult<T>.requireValue(): T = when (this) {
     is RpcResult.Ok -> value
     is RpcResult.Err -> throw IllegalStateException("${error.code}: ${error.message}")
+}
+
+/**
+ * One page of a workspace file, and the page size that was used to get it.
+ *
+ * The request names no page size, so the host serves the page it is configured to serve — the
+ * biggest one it is willing to, and the only size the client cannot know for itself. A client
+ * that named its own size would be guessing: too small and it cuts a document short at a line
+ * that means nothing, too large and the host refuses the request outright.
+ *
+ * A host that refuses a page on *bytes* (`workspace-file/too-large`) is asked again with fewer
+ * lines, halving down to a floor. A file of long lines is the case this exists for: it fits in a
+ * page of a hundred lines and not in a page of a thousand, and the reader should see it rather
+ * than an error. The size that worked is returned so every later page is the same size.
+ */
+internal suspend fun readWorkspacePage(
+    api: DshApiClient,
+    sessionId: String,
+    path: String,
+    offset: Int,
+    limit: Int?,
+): Pair<WorkspaceFileText, Int?> {
+    var size = limit
+    while (true) {
+        when (val result = api.workspaceFileRead(sessionId, path, WorkspaceFileRange(offset, size))) {
+            is RpcResult.Ok -> return result.value to size
+            is RpcResult.Err -> {
+                val next = if (PreviewPaging.isTooLarge(result.error.code)) PreviewPaging.nextPageSize(size) else null
+                if (next == null) throw IllegalStateException("${result.error.code}: ${result.error.message}")
+                size = next
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -362,7 +398,10 @@ private fun DocumentPreview(
                 ) { onDirectory(); return@launch }
                 val stat = statResult.requireValue()
                 val changed = stat.version != tab.stat?.version
-                if (changed) { tab.text = null; tab.bytes = null; tab.nextLine = 1; tab.eof = false }
+                if (changed) {
+                    tab.text = null; tab.bytes = null; tab.nextLine = 1; tab.eof = false
+                    tab.pageLimit = null
+                }
                 tab.stat = stat
                 if (binary && tab.bytes == null) {
                     if ((stat.bytes ?: 0) > 32L * 1024 * 1024) error(context.getString(R.string.panel_too_large))
@@ -372,7 +411,8 @@ private fun DocumentPreview(
                     tab.bytes = data.data
                     tab.eof = true
                 } else if (!binary && (tab.text == null || more)) {
-                    val data = api.workspaceFileRead(key.sessionId, tab.path, WorkspaceFileRange(tab.nextLine)).requireValue()
+                    val (data, usedLimit) = readWorkspacePage(api, key.sessionId, tab.path, tab.nextLine, tab.pageLimit)
+                    tab.pageLimit = usedLimit
                     if (data.version != stat.version) error(context.getString(R.string.panel_changed))
                     if (tab.text.orEmpty().length + data.text.length > 4 * 1024 * 1024) error(context.getString(R.string.panel_too_large))
                     tab.text = if (more && !changed) tab.text.orEmpty() + "\n" + data.text else data.text
@@ -386,6 +426,22 @@ private fun DocumentPreview(
     }
     LaunchedEffect(tab) { load() }
     LaunchedEffect(tab.stat) { if (tab.stat == null) load() }
+    // The document keeps growing as the reader reaches its end.
+    //
+    // A page boundary is not the end of a file, and a reader who has scrolled to the bottom
+    // should not have to go looking for a button to keep reading — the "Load more" button is
+    // still there for the case where the file is short enough to fit on screen already. Only a
+    // document that is taller than the viewport can reach the end by scrolling, so the
+    // auto-extension is limited to that: a file that already fits must not turn into a run of
+    // round trips nobody asked for.
+    val loadMore by rememberUpdatedState<() -> Unit> { { load(true) } }
+    val autoLoadSlack = with(LocalDensity.current) { 400.dp.toPx() }
+    LaunchedEffect(tab) {
+        snapshotFlow { tab.scroll.value to tab.scroll.maxValue }
+            .collect { (value, max) ->
+                if (!tab.eof && tab.text != null && max > 0 && max - value <= autoLoadSlack) loadMore()
+            }
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
         // File header: name, path and size on the left; the three actions on the right.
         DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
