@@ -19,7 +19,12 @@ class PanelContractsEndToEndTest {
             assertTrue((api.workspaceUnarchiveSession("archived-demo") as RpcResult.Ok).value.archivedSessionIds.isEmpty())
             assertTrue(scenario.archived.isEmpty())
             val listing = (api.workspaceFileList("cold-child", ".") as RpcResult.Ok).value
-            assertEquals(2, listing.entries.size)
+            // The four fixtures: the two small ones and the two that exercise a page size.
+            assertEquals(4, listing.entries.size)
+            assertEquals(
+                listOf("LONG.md", "README.md", "WIDE.md", "index.html"),
+                listing.entries.map { it.name },
+            )
             val page = (api.workspaceFileRead("cold-child", "README.md", WorkspaceFileRange(1, 1)) as RpcResult.Ok).value
             assertEquals("# Preview fixture", page.text)
             assertFalse(page.eof)
