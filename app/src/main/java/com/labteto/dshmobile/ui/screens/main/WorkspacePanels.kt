@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -40,7 +41,11 @@ import com.labteto.dshmobile.data.SessionStore
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
@@ -125,7 +130,11 @@ internal fun WorkspacePanels(store: SessionStore, state: PanelState, onDismiss: 
                         }
                     }
                 }
-                WorkspacePanelBody(store, state, Modifier.fillMaxSize())
+                // `weight`, not `fillMaxSize`: the panel body is the *rest* of the column, and a
+                // weight says exactly that. A `fillMaxSize` child takes the column's whole height
+                // and is then placed below the title row, so anything that does not subtract the
+                // space already taken leaves the preview hanging off the bottom of the screen.
+                WorkspacePanelBody(store, state, Modifier.weight(1f))
             }
         }
     }
@@ -442,6 +451,21 @@ private fun DocumentPreview(
                 if (!tab.eof && tab.text != null && max > 0 && max - value <= autoLoadSlack) loadMore()
             }
     }
+    // DIAG: the scroll's own numbers, sampled rather than read in the composition so the read-out
+    // does not recompose the header on every frame of a drag. `maxValue + viewport` is the content's
+    // measured height, and comparing it with the text's own length is what says whether the
+    // document is short or the viewport is tall. Remove once the report is closed.
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var scrollValue by remember { mutableIntStateOf(0) }
+    var scrollMax by remember { mutableIntStateOf(0) }
+    var viewportBounds by remember { mutableStateOf("") }
+    LaunchedEffect(tab) {
+        while (true) {
+            scrollValue = tab.scroll.value
+            scrollMax = tab.scroll.maxValue
+            delay(500)
+        }
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
         // File header: name, path and size on the left; the three actions on the right.
         DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
@@ -455,7 +479,16 @@ private fun DocumentPreview(
                 Spacer(Modifier.width(DsSpacing.small))
                 Column(Modifier.weight(1f)) {
                     val name = tab.path.substringAfterLast('/').substringAfterLast('\\')
-                    Text(technicalDisplay(name), style = DsType.std14Strong, color = colors.labelPrimary)
+                    // One line, ellipsized. A long name used to wrap, and a name that wraps
+                    // splits mid-word ("optimization_result.m" / "d") and makes the header taller
+                    // than the file's own importance warrants.
+                    Text(
+                        technicalDisplay(name),
+                        style = DsType.std14Strong,
+                        color = colors.labelPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     // The folder it is in, when it is in one; a root file would only repeat its name.
                     val folder = tab.path.replace('\\', '/').substringBeforeLast('/', "")
                     val meta = listOfNotNull(
@@ -466,6 +499,19 @@ private fun DocumentPreview(
                         SelectionContainer {
                             Text(meta, style = DsType.caption11, color = colors.labelCaption, softWrap = true)
                         }
+                    }
+                    // DIAG: scroll geometry, sampled. See the note where the sampler is declared.
+                    val text = tab.text
+                    if (text != null) {
+                        val screen = LocalConfiguration.current.screenHeightDp
+                        Text(
+                            "DIAG scroll $scrollValue/$scrollMax · vp $viewportHeight · " +
+                                "content ${scrollMax + viewportHeight} · box $viewportBounds · " +
+                                "screen ${screen}dp · chars ${text.length} · " +
+                                "lines ${text.count { it == '\n' } + 1}",
+                            style = DsType.caption11,
+                            color = colors.warnLabel,
+                        )
                     }
                 }
                 if (canOpenOnHost == true) DsIconButton(
@@ -555,6 +601,11 @@ private fun DocumentPreview(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .onSizeChanged { viewportHeight = it.height }
+                        .onGloballyPositioned { coords ->
+                            val b = coords.boundsInRoot()
+                            viewportBounds = "${b.top.toInt()}..${b.bottom.toInt()}"
+                        }
                         .clip(DsShapes.block)
                         .background(if (markdown) androidx.compose.ui.graphics.Color.Transparent else colors.bgLayer1)
                         .then(if (markdown) Modifier else Modifier.border(1.dp, colors.borderL2, DsShapes.block)),
