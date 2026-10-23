@@ -448,7 +448,7 @@
     <string name="pair_key_plaintext">This address is not encrypted, so the token and everything you send travel in the clear.</string>
     <string name="pair_fail_not_a_code">That is not a relay pairing code.</string>
     <string name="pair_fail_too_new">That code comes from a newer relay (version %1$d) than this app understands. Update DSH Mobile.</string>
-    <string name="pair_fail_expired">That code has expired. Reload the relay\'s pairing page for a new one.</string>
+    <string name="pair_fail_expired">That pairing code or QR code has expired. Codes work once and last a few minutes — generate a new one on the computer and try again.</string>
     <string name="pair_fail_rejected">The relay refused that code. Codes work once and expire after a few minutes — reload the pairing page and try the new one.</string>
     <string name="pair_fail_rate_limited">Too many attempts. Wait %1$d seconds and try again.</string>
     <string name="pair_fail_not_a_relay">%1$s answered, but it does not accept pairing. Use the address the relay printed when it started, not the harness\'s own.</string>
@@ -457,6 +457,7 @@
     <string name="pair_fail_url">Enter the relay address, including https://</string>
     <string name="pair_fail_code">Enter the code shown on the relay\'s pairing page.</string>
     <string name="pair_fail_not_a_gateway">%1$s answered, but nothing there serves the DSH Mobile pairing routes. Check that the dsh-mobile plugin is enabled on that computer.</string>
+    <string name="pair_fail_gateway_not_relay">%1$s is a DSH Mobile gateway, not a relay. Pair with the code or QR the DSH Mobile panel shows for the Android app — a relay pairing code cannot work here.</string>
     <string name="pair_fail_gateway_ca">The certificate at %1$s is not the one this pairing code names. Do not pair — this code belongs to a different computer, or something else is answering at that address.</string>
     <string name="pair_fail_address_required">This pairing key names the computer but not its address. Enter the address shown on the DSH Mobile panel, for example 192.168.1.20:3443.</string>
     <string name="connect_gateway_pair_this">Pair</string>

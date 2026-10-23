@@ -444,7 +444,7 @@
     <string name="pair_key_plaintext">Этот адрес не шифруется, поэтому токен и всё отправляемое передаются открытым текстом.</string>
     <string name="pair_fail_not_a_code">Это не код сопряжения с реле.</string>
     <string name="pair_fail_too_new">Этот код от более нового реле (версия %1$d), чем понимает приложение. Обновите DSH Mobile.</string>
-    <string name="pair_fail_expired">Срок действия кода истёк. Обновите страницу сопряжения реле, чтобы получить новый.</string>
+    <string name="pair_fail_expired">Срок действия этого кода или QR-кода сопряжения истёк. Коды одноразовые и действуют несколько минут — создайте новый на компьютере и повторите попытку.</string>
     <string name="pair_fail_rejected">Реле отклонило этот код. Коды одноразовые и действуют несколько минут — обновите страницу сопряжения и введите новый.</string>
     <string name="pair_fail_rate_limited">Слишком много попыток. Подождите %1$d с и повторите.</string>
     <string name="pair_fail_not_a_relay">%1$s ответил, но не принимает сопряжение. Используйте адрес, который реле напечатало при запуске, а не адрес самого harness.</string>
@@ -658,6 +658,7 @@
     <string name="update_install_started">Загрузка в Termux. Установщик откроется по завершении.</string>
     <string name="update_install_failed">Termux не смог установить обновление (%1$s).</string>
     <string name="pair_fail_not_a_gateway">%1$s ответил, но там нет маршрутов сопряжения DSH Mobile. Проверьте, включён ли плагин dsh-mobile на этом компьютере.</string>
+    <string name="pair_fail_gateway_not_relay">%1$s — это шлюз DSH Mobile, а не реле. Используйте код или QR-код, который панель DSH Mobile показывает для приложения Android: код реле здесь не работает.</string>
     <string name="pair_fail_gateway_ca">Сертификат на %1$s — не тот, что указан в этом коде сопряжения. Не сопрягайте: код принадлежит другому компьютеру либо по этому адресу отвечает что-то другое.</string>
     <string name="pair_fail_address_required">Этот ключ сопряжения называет компьютер, но не его адрес. Введите адрес, показанный на панели DSH Mobile, например 192.168.1.20:3443.</string>
     <string name="connect_gateway_pair_this">Сопряжение</string>

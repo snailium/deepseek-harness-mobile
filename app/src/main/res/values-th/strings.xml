@@ -444,7 +444,7 @@
     <string name="pair_key_plaintext">ที่อยู่นี้ไม่ได้เข้ารหัส โทเคนและทุกอย่างที่คุณส่งจึงเดินทางแบบเปิดเผย</string>
     <string name="pair_fail_not_a_code">นี่ไม่ใช่รหัสจับคู่รีเลย์</string>
     <string name="pair_fail_too_new">รหัสนี้มาจากรีเลย์รุ่นใหม่กว่า (เวอร์ชัน %1$d) ที่แอปนี้เข้าใจ กรุณาอัปเดต DSH Mobile</string>
-    <string name="pair_fail_expired">รหัสนี้หมดอายุแล้ว โหลดหน้าจับคู่ของรีเลย์ใหม่เพื่อรับรหัสใหม่</string>
+    <string name="pair_fail_expired">รหัสจับคู่หรือ QR นี้หมดอายุแล้ว รหัสใช้ได้ครั้งเดียวและหมดอายุในไม่กี่นาที — สร้างใหม่บนคอมพิวเตอร์แล้วลองอีกครั้ง</string>
     <string name="pair_fail_rejected">รีเลย์ปฏิเสธรหัสนี้ รหัสใช้ได้ครั้งเดียวและหมดอายุภายในไม่กี่นาที — โหลดหน้าจับคู่ใหม่แล้วลองรหัสใหม่</string>
     <string name="pair_fail_rate_limited">พยายามมากเกินไป รอ %1$d วินาทีแล้วลองอีกครั้ง</string>
     <string name="pair_fail_not_a_relay">%1$s ตอบกลับ แต่ไม่รับการจับคู่ ใช้ที่อยู่ที่รีเลย์พิมพ์ออกมาตอนเริ่มทำงาน ไม่ใช่ที่อยู่ของ harness เอง</string>
@@ -658,6 +658,7 @@
     <string name="update_install_started">กำลังดาวน์โหลดใน Termux ตัวติดตั้งจะเปิดเมื่อเสร็จ</string>
     <string name="update_install_failed">Termux ติดตั้งอัปเดตไม่ได้ (%1$s)</string>
     <string name="pair_fail_not_a_gateway">%1$s ตอบกลับ แต่ไม่มีเส้นทางการจับคู่ของ DSH Mobile ตรวจสอบว่าเปิดใช้งานปลั๊กอิน dsh-mobile บนคอมพิวเตอร์เครื่องนั้นแล้ว</string>
+    <string name="pair_fail_gateway_not_relay">%1$s เป็นเกตเวย์ DSH Mobile ไม่ใช่รีเลย์ ใช้รหัสหรือ QR ที่แผง DSH Mobile แสดงสำหรับแอป Android — รหัสของรีเลย์ใช้ที่นี่ไม่ได้</string>
     <string name="pair_fail_gateway_ca">ใบรับรองที่ %1$s ไม่ใช่ใบที่รหัสจับคู่นี้ระบุ อย่าจับคู่ — รหัสนี้เป็นของคอมพิวเตอร์เครื่องอื่น หรือมีสิ่งอื่นตอบกลับที่ที่อยู่นั้น</string>
     <string name="pair_fail_address_required">คีย์จับคู่นี้ระบุชื่อคอมพิวเตอร์แต่ไม่ได้ระบุที่อยู่ ป้อนที่อยู่ที่แสดงในแผง DSH Mobile เช่น 192.168.1.20:3443</string>
     <string name="connect_gateway_pair_this">จับคู่</string>

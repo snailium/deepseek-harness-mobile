@@ -444,7 +444,7 @@
     <string name="pair_key_plaintext">यह पता एन्क्रिप्टेड नहीं है, इसलिए टोकन और आपकी भेजी हर चीज़ खुले रूप में जाती है।</string>
     <string name="pair_fail_not_a_code">यह रिले पेयरिंग कोड नहीं है।</string>
     <string name="pair_fail_too_new">यह कोड इस ऐप की समझ से नए रिले (संस्करण %1$d) का है। DSH Mobile अपडेट करें।</string>
-    <string name="pair_fail_expired">यह कोड समाप्त हो चुका है। नया पाने के लिए रिले का पेयरिंग पेज दोबारा लोड करें।</string>
+    <string name="pair_fail_expired">यह पेयरिंग कोड या QR कोड समाप्त हो चुका है। कोड एक ही बार चलते हैं और कुछ मिनटों में समाप्त हो जाते हैं — कंप्यूटर पर नया बनाकर फिर कोशिश करें।</string>
     <string name="pair_fail_rejected">रिले ने यह कोड अस्वीकार कर दिया। कोड एक ही बार चलते हैं और कुछ मिनटों में समाप्त हो जाते हैं — पेयरिंग पेज दोबारा लोड करें और नया कोड आज़माएँ।</string>
     <string name="pair_fail_rate_limited">बहुत ज़्यादा कोशिशें। %1$d सेकंड रुकें और फिर कोशिश करें।</string>
     <string name="pair_fail_not_a_relay">%1$s ने जवाब दिया, पर वह पेयरिंग स्वीकार नहीं करता। रिले ने शुरू होते समय जो पता छापा था वही इस्तेमाल करें, harness का अपना पता नहीं।</string>
@@ -658,6 +658,7 @@
     <string name="update_install_started">Termux में डाउनलोड हो रहा है। पूरा होने पर इंस्टॉलर खुलेगा।</string>
     <string name="update_install_failed">Termux अपडेट इंस्टॉल नहीं कर सका (%1$s)।</string>
     <string name="pair_fail_not_a_gateway">%1$s ने उत्तर दिया, लेकिन वहाँ DSH Mobile की पेयरिंग रूट उपलब्ध नहीं हैं। जाँचें कि उस कंप्यूटर पर dsh-mobile प्लगइन सक्षम है।</string>
+    <string name="pair_fail_gateway_not_relay">%1$s एक DSH Mobile गेटवे है, रिले नहीं। DSH Mobile पैनल में Android ऐप के लिए दिखाया गया कोड या QR इस्तेमाल करें — रिले कोड यहाँ काम नहीं करता।</string>
     <string name="pair_fail_gateway_ca">%1$s पर मौजूद प्रमाणपत्र वह नहीं है जिसे यह पेयरिंग कोड बताता है। पेयर न करें — यह कोड किसी दूसरे कंप्यूटर का है, या उस पते पर कुछ और उत्तर दे रहा है।</string>
     <string name="pair_fail_address_required">यह पेयरिंग कुंजी कंप्यूटर का नाम बताती है, पता नहीं। DSH Mobile पैनल में दिखाया गया पता दर्ज करें, जैसे 192.168.1.20:3443।</string>
     <string name="connect_gateway_pair_this">पेयर करें</string>

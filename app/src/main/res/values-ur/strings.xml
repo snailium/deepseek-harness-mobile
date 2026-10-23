@@ -444,7 +444,7 @@
     <string name="pair_key_plaintext">یہ پتہ مشفّر نہیں ہے، اس لیے ٹوکن اور آپ کی بھیجی ہوئی ہر چیز کھلی حالت میں سفر کرتی ہے۔</string>
     <string name="pair_fail_not_a_code">یہ ریلے کا جوڑا کوڈ نہیں ہے۔</string>
     <string name="pair_fail_too_new">یہ کوڈ ایک ایسے نئے ریلے (ورژن ‎%1$d‎) کا ہے جسے یہ ایپ نہیں سمجھتی۔ DSH Mobile اپ ڈیٹ کریں۔</string>
-    <string name="pair_fail_expired">اس کوڈ کی میعاد ختم ہو چکی ہے۔ نیا کوڈ لینے کے لیے ریلے کا جوڑا صفحہ دوبارہ لوڈ کریں۔</string>
+    <string name="pair_fail_expired">اس جوڑا کوڈ یا QR کوڈ کی میعاد ختم ہو چکی ہے۔ کوڈ ایک ہی بار چلتے ہیں اور چند منٹ میں ختم ہو جاتے ہیں — کمپیوٹر پر نیا بنا کر دوبارہ کوشش کریں۔</string>
     <string name="pair_fail_rejected">ریلے نے یہ کوڈ مسترد کر دیا۔ کوڈ ایک ہی بار چلتے ہیں اور چند منٹ میں ختم ہو جاتے ہیں — جوڑا صفحہ دوبارہ لوڈ کر کے نیا کوڈ آزمائیں۔</string>
     <string name="pair_fail_rate_limited">بہت زیادہ کوششیں۔ ‎%1$d‎ سیکنڈ انتظار کر کے دوبارہ کوشش کریں۔</string>
     <string name="pair_fail_not_a_relay">‎%1$s‎ نے جواب دیا، مگر یہ جوڑا قبول نہیں کرتا۔ وہی پتہ استعمال کریں جو ریلے نے شروع ہوتے وقت چھاپا تھا، harness کا اپنا پتہ نہیں۔</string>
@@ -658,6 +658,7 @@
     <string name="update_install_started">Termux میں ڈاؤن لوڈ ہو رہا ہے۔ مکمل ہونے پر انسٹالر کھلے گا۔</string>
     <string name="update_install_failed">Termux اپ ڈیٹ انسٹال نہیں کر سکا (%1$s)۔</string>
     <string name="pair_fail_not_a_gateway">%1$s نے جواب دیا، مگر وہاں DSH Mobile کے پیئرنگ روٹس موجود نہیں۔ دیکھیں کہ اُس کمپیوٹر پر dsh-mobile پلگ اِن فعال ہے۔</string>
+    <string name="pair_fail_gateway_not_relay">%1$s ایک DSH Mobile گیٹ وے ہے، ریلے نہیں۔ DSH Mobile پینل میں Android ایپ کے لیے دکھایا گیا کوڈ یا QR استعمال کریں — ریلے کا کوڈ یہاں کام نہیں کرتا۔</string>
     <string name="pair_fail_gateway_ca">%1$s پر موجود سرٹیفکیٹ وہ نہیں جس کا یہ پیئرنگ کوڈ بتاتا ہے۔ پیئر نہ کریں — یہ کوڈ کسی دوسرے کمپیوٹر کا ہے، یا اُس پتے پر کوئی اور جواب دے رہا ہے۔</string>
     <string name="pair_fail_address_required">یہ پیئرنگ کلید کمپیوٹر کا نام بتاتی ہے مگر پتہ نہیں۔ DSH Mobile پینل میں دکھایا گیا پتہ درج کریں، مثلاً 192.168.1.20:3443۔</string>
     <string name="connect_gateway_pair_this">پیئر کریں</string>
