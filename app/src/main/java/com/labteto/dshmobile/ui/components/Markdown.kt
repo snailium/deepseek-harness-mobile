@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -31,6 +32,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -106,6 +108,15 @@ fun isFolderReference(path: String): Boolean {
  * ordered lists, blockquotes, and paragraphs with inline **bold**, *italic*,
  * `code` chips and [links](https://example.com). Tables render as plain text.
  */
+
+/** Temporary diagnostic holder for the workspace preview's "painted but not measured" tail. */
+object MarkdownDiag {
+    val lastLineCount = mutableIntStateOf(0)
+    val lastLayoutHeight = mutableIntStateOf(0)
+    val lastNodeHeight = mutableIntStateOf(0)
+    val maxLineCount = mutableIntStateOf(0)
+}
+
 @Composable
 fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
@@ -317,7 +328,17 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     val dismissToken = LocalSelectionDismiss.current.value
     key(dismissToken) {
         SelectionContainer(modifier = modifier) {
-            Text(result, style = style, inlineContent = inlineContent)
+            Text(
+                result,
+                style = style,
+                inlineContent = inlineContent,
+                onTextLayout = { r ->
+                    MarkdownDiag.lastLineCount.intValue = r.lineCount
+                    MarkdownDiag.lastLayoutHeight.intValue = r.size.height
+                    if (r.lineCount > MarkdownDiag.maxLineCount.intValue) MarkdownDiag.maxLineCount.intValue = r.lineCount
+                },
+                modifier = Modifier.onSizeChanged { MarkdownDiag.lastNodeHeight.intValue = it.height },
+            )
         }
     }
 }
