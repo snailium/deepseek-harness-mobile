@@ -424,7 +424,7 @@
     <string name="pair_key_plaintext">Esta dirección no va cifrada, así que el token y todo lo que envíes viajan en claro.</string>
     <string name="pair_fail_not_a_code">Ese no es un código de emparejamiento de relé.</string>
     <string name="pair_fail_too_new">Ese código procede de un relé más reciente (versión %1$d) de lo que entiende esta app. Actualiza DSH Mobile.</string>
-    <string name="pair_fail_expired">Ese código ha caducado. Recarga la página de emparejamiento del relé para obtener uno nuevo.</string>
+    <string name="pair_fail_expired">Ese código o QR de emparejamiento ha caducado. Los códigos sirven una sola vez y caducan en unos minutos: genera uno nuevo en el ordenador e inténtalo otra vez.</string>
     <string name="pair_fail_rejected">El relé rechazó ese código. Los códigos sirven una sola vez y caducan en unos minutos: recarga la página de emparejamiento y prueba con el nuevo.</string>
     <string name="pair_fail_rate_limited">Demasiados intentos. Espera %1$d segundos y vuelve a intentarlo.</string>
     <string name="pair_fail_not_a_relay">%1$s respondió, pero no acepta emparejamientos. Usa la dirección que imprimió el relé al arrancar, no la del propio harness.</string>
@@ -608,6 +608,7 @@
     <string name="update_install_started">Descargando en Termux. El instalador se abrirá al terminar.</string>
     <string name="update_install_failed">Termux no pudo instalar la actualización (%1$s).</string>
     <string name="pair_fail_not_a_gateway">%1$s respondió, pero allí no hay rutas de emparejamiento de DSH Mobile. Comprueba que el plugin dsh-mobile esté activado en ese equipo.</string>
+    <string name="pair_fail_gateway_not_relay">%1$s es una puerta de enlace de DSH Mobile, no un relé. Usa el código o el QR que el panel de DSH Mobile muestra para la app de Android: un código de relé no funciona aquí.</string>
     <string name="pair_fail_gateway_ca">El certificado en %1$s no es el que indica este código de emparejamiento. No emparejes: este código pertenece a otro equipo, o algo distinto responde en esa dirección.</string>
     <string name="pair_fail_address_required">Esta clave de emparejamiento nombra el equipo pero no su dirección. Introduce la dirección que muestra el panel de DSH Mobile, por ejemplo 192.168.1.20:3443.</string>
     <string name="connect_gateway_pair_this">Emparejar</string>

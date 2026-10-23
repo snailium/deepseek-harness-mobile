@@ -15,15 +15,18 @@ import com.labteto.dshmobile.connection.RelayIdentity
 import com.labteto.dshmobile.core.wire.MobileAccess
 import com.labteto.dshmobile.core.wire.MobileAccessInvite
 import com.labteto.dshmobile.core.wire.MobileAccessInviteResult
+import com.labteto.dshmobile.core.wire.MobileAccessMetadata
 import com.labteto.dshmobile.core.wire.MobileAccessPairing
 import com.labteto.dshmobile.core.wire.MobileAccessTls
 import com.labteto.dshmobile.core.wire.NativePairOutcome
 import com.labteto.dshmobile.core.wire.ObservedKey
 import com.labteto.dshmobile.core.wire.PairingPayloadResult
+import com.labteto.dshmobile.core.wire.RelayClaimReading
+import com.labteto.dshmobile.core.wire.relayClaimReading
 import com.labteto.dshmobile.core.wire.RelayOrigin
-import com.labteto.dshmobile.core.wire.RelayPairOutcome
 import com.labteto.dshmobile.core.wire.RelayPairing
 import com.labteto.dshmobile.core.wire.RelayPairingPayload
+import com.labteto.dshmobile.core.wire.RelayPairOutcome
 import com.labteto.dshmobile.core.wire.RelayTls
 import com.labteto.dshmobile.core.wire.TransportFailure
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -91,7 +94,15 @@ sealed interface PairFailure {
     /** A pairing payload from a relay newer than this build. */
     data class TooNew(val version: Int) : PairFailure
 
-    /** The code had already expired before it was sent, so there was nothing to try. */
+    /**
+     * The code is no longer the one the computer will accept.
+     *
+     * Two ways it gets here. A scanned relay payload carries its own `expiresAt`, so a stale QR is
+     * rejected before anything is sent. A `dsh-mobile` gateway puts no deadline in its invitation;
+     * its claim answers 401 instead, deliberately without saying whether the code was wrong, spent
+     * or stale. Expiry is the reading a person can act on — a QR left on screen goes stale in
+     * minutes, and opening a new pairing window invalidates the previous one at once.
+     */
     data object Expired : PairFailure
 
     /** The relay refused the code: wrong, expired, or already claimed. */
@@ -102,6 +113,16 @@ sealed interface PairFailure {
 
     /** Something answered but does not serve the claim endpoint. */
     data class NotARelay(val authority: String) : PairFailure
+
+    /**
+     * The address is a `dsh-mobile` gateway, and a relay pairing code was tried against it.
+     *
+     * Nothing is wrong with the address, and the code was never read — the gateway answers a relay
+     * claim with a bare 403 because it arrives without the session and CSRF headers every one of
+     * its own routes wants. Its own pairing is the app key or QR its panel shows, so this is the
+     * one failure whose advice is "use the other product's invitation", never "fix the relay".
+     */
+    data class GatewayNotRelay(val authority: String) : PairFailure
 
     /**
      * The relay is there and its fence refused the address it was reached by.
@@ -337,7 +358,11 @@ class PairViewModel @Inject constructor(
             }
             when (val outcome = MobileAccessPairing.nativePair(origin, invite.token, name, claimClient)) {
                 is NativePairOutcome.Paired -> enrolGateway(parsed, invite, outcome, caDer, fingerprint)
-                NativePairOutcome.Rejected -> fail(PairFailure.Rejected)
+                // 401 is the gateway declining the token without saying why: wrong, expired, or
+                // replaced by a newer window. Expiry is the one a reader can act on, and it is the
+                // common case — a QR left on screen goes stale after a few minutes, and opening a
+                // new pairing window invalidates the previous one immediately.
+                NativePairOutcome.Rejected -> fail(PairFailure.Expired)
                 NativePairOutcome.HostRefused -> fail(PairFailure.HostRefused(authority))
                 is NativePairOutcome.RateLimited -> fail(PairFailure.RateLimited(outcome.retryAfterSeconds))
                 is NativePairOutcome.Unreachable -> fail(
@@ -387,6 +412,18 @@ class PairViewModel @Inject constructor(
         connectionManager.connect(config)
     }
 
+    /**
+     * What [baseUrl] says it is, asked over a connection that trusts anything.
+     *
+     * A pairing that already failed must not turn into a second failure: an address that will not
+     * answer is simply unidentified, and the original reading stands. Unpinned on purpose — the
+     * address is exactly the one not yet trusted.
+     */
+    private suspend fun servedByGateway(baseUrl: String): MobileAccessMetadata? =
+        runCatching {
+            MobileAccessPairing.metadata(baseUrl, MobileAccessTls.unpinnedClient(okHttpClient))
+        }.getOrNull()
+
     private fun claim(url: String, code: String, fingerprint: String?) {
         _state.update { it.copy(stage = PairStage.Claiming, failure = null) }
         viewModelScope.launch {
@@ -423,8 +460,21 @@ class PairViewModel @Inject constructor(
             when (val outcome = RelayPairing.claim(effective, code, name, client)) {
                 is RelayPairOutcome.Paired -> enrol(parsed, outcome, fingerprint ?: observed.pin)
                 RelayPairOutcome.Rejected -> fail(PairFailure.Rejected)
-                RelayPairOutcome.HostRefused -> fail(PairFailure.HostRefused(authority))
-                RelayPairOutcome.NotARelay -> fail(PairFailure.NotARelay(authority))
+                // Both refusals read the same from a bare status, and the advice they carry is
+                // opposite — edit the relay's host list, or pair with a different product
+                // entirely. Ask the address what it serves before telling the reader to edit
+                // anything: only a gateway answers `/mobile-access/metadata`.
+                RelayPairOutcome.HostRefused, RelayPairOutcome.NotARelay -> {
+                    val reading = relayClaimReading(outcome, servedByGateway(effective))
+                    fail(
+                        when (reading) {
+                            RelayClaimReading.GatewayNotRelay ->
+                                PairFailure.GatewayNotRelay(authority)
+                            RelayClaimReading.HostFence -> PairFailure.HostRefused(authority)
+                            else -> PairFailure.NotARelay(authority)
+                        },
+                    )
+                }
                 is RelayPairOutcome.RateLimited -> fail(PairFailure.RateLimited(outcome.retryAfterSeconds))
                 is RelayPairOutcome.Unreachable -> fail(
                     if (outcome.kind == TransportFailure.CERTIFICATE_PIN) {

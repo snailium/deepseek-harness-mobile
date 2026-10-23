@@ -424,7 +424,7 @@
     <string name="pair_key_plaintext">该地址未加密，令牌和你发送的一切都会以明文传输。</string>
     <string name="pair_fail_not_a_code">这不是中继配对码。</string>
     <string name="pair_fail_too_new">该配对码来自比本应用更新的中继（版本 %1$d）。请更新 DSH Mobile。</string>
-    <string name="pair_fail_expired">该配对码已失效。请刷新中继的配对页面获取新的配对码。</string>
+    <string name="pair_fail_expired">该配对码或二维码已过期。配对码只能使用一次，且几分钟后失效——请在电脑端重新生成，然后重试。</string>
     <string name="pair_fail_rejected">中继拒绝了该配对码。配对码只能使用一次，并会在几分钟后失效——请刷新配对页面并使用新的配对码。</string>
     <string name="pair_fail_rate_limited">尝试次数过多。请等待 %1$d 秒后重试。</string>
     <string name="pair_fail_not_a_relay">%1$s 有应答，但不接受配对。请使用中继启动时打印的地址，而不是 harness 自身的地址。</string>
@@ -433,6 +433,7 @@
     <string name="pair_fail_url">请输入中继地址，包含 https://</string>
     <string name="pair_fail_code">请输入中继配对页面上显示的配对码。</string>
     <string name="pair_fail_not_a_gateway">%1$s 有应答，但该地址上没有 DSH Mobile 的配对接口。请确认那台电脑上已启用 dsh-mobile 插件。</string>
+    <string name="pair_fail_gateway_not_relay">%1$s 是 DSH Mobile 网关，不是中继。请使用 DSH Mobile 面板中为 Android App 生成的配对码或二维码——中继配对码在这里无法使用。</string>
     <string name="pair_fail_gateway_ca">%1$s 提供的证书与该配对密钥指明的不一致。请不要配对——该密钥属于另一台电脑，或者该地址上可能是别的东西在应答。</string>
     <string name="pair_fail_address_required">该配对密钥指明了电脑，但没有指明地址。请输入 DSH Mobile 面板上显示的地址，例如 192.168.1.20:3443。</string>
     <string name="connect_gateway_pair_this">配对</string>

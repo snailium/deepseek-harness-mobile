@@ -424,7 +424,7 @@
     <string name="pair_key_plaintext">هذا العنوان غير مُشفَّر، لذا ينتقل الرمز وكل ما ترسله بنص واضح.</string>
     <string name="pair_fail_not_a_code">هذا ليس رمز اقتران مُرحِّل.</string>
     <string name="pair_fail_too_new">هذا الرمز صادر عن مُرحِّل أحدث (الإصدار %1$d) مما يفهمه هذا التطبيق. حدّث DSH Mobile.</string>
-    <string name="pair_fail_expired">انتهت صلاحية هذا الرمز. أعد تحميل صفحة اقتران المُرحِّل للحصول على رمز جديد.</string>
+    <string name="pair_fail_expired">انتهت صلاحية رمز الاقتران أو رمز QR هذا. تُستخدم الرموز مرة واحدة وتنتهي خلال دقائق — أنشئ رمزًا جديدًا على الحاسوب وحاول مجددًا.</string>
     <string name="pair_fail_rejected">رفض المُرحِّل هذا الرمز. تُستخدم الرموز مرة واحدة وتنتهي خلال دقائق — أعد تحميل صفحة الاقتران وجرّب الرمز الجديد.</string>
     <string name="pair_fail_rate_limited">محاولات كثيرة جدًا. انتظر %1$d ثانية ثم أعد المحاولة.</string>
     <string name="pair_fail_not_a_relay">استجاب %1$s لكنه لا يقبل الاقتران. استخدم العنوان الذي طبعه المُرحِّل عند بدء التشغيل، لا عنوان harness نفسه.</string>
@@ -608,6 +608,7 @@
     <string name="update_install_started">جارٍ التنزيل في Termux. سيُفتح المثبّت عند الانتهاء.</string>
     <string name="update_install_failed">تعذّر على Termux تثبيت التحديث (%1$s).</string>
     <string name="pair_fail_not_a_gateway">%1$s استجاب، لكن لا شيء هناك يقدّم مسارات الاقتران في DSH Mobile. تحقّق من تفعيل إضافة dsh-mobile على ذلك الحاسوب.</string>
+    <string name="pair_fail_gateway_not_relay">%1$s بوابة DSH Mobile وليس مُرحِّلًا. استخدم الرمز أو رمز QR الذي تعرضه لوحة DSH Mobile لتطبيق Android — رمز المُرحِّل لا يعمل هنا.</string>
     <string name="pair_fail_gateway_ca">الشهادة على %1$s ليست تلك التي يشير إليها رمز الاقتران. لا تقترن — هذا الرمز يخص حاسوبًا آخر، أو أن شيئًا آخر يستجيب على ذلك العنوان.</string>
     <string name="pair_fail_address_required">مفتاح الاقتران يسمّي الحاسوب لكن ليس عنوانه. أدخل العنوان المعروض في لوحة DSH Mobile، مثل 192.168.1.20:3443.</string>
     <string name="connect_gateway_pair_this">اقتران</string>
