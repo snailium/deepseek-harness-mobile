@@ -62,6 +62,7 @@ import com.labteto.dshmobile.ui.theme.DsType
 import androidx.compose.ui.unit.sp
 import com.labteto.dshmobile.ui.components.DsCard
 import com.labteto.dshmobile.ui.components.MarkdownText
+import com.labteto.dshmobile.ui.components.MarkdownDiag
 import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsTheme
 import kotlinx.coroutines.*
@@ -459,6 +460,7 @@ private fun DocumentPreview(
     var scrollValue by remember { mutableIntStateOf(0) }
     var scrollMax by remember { mutableIntStateOf(0) }
     var viewportBounds by remember { mutableStateOf("") }
+    var contentHeight by remember { mutableIntStateOf(0) }
     LaunchedEffect(tab) {
         while (true) {
             scrollValue = tab.scroll.value
@@ -506,9 +508,11 @@ private fun DocumentPreview(
                         val screen = LocalConfiguration.current.screenHeightDp
                         Text(
                             "DIAG scroll $scrollValue/$scrollMax · vp $viewportHeight · " +
-                                "content ${scrollMax + viewportHeight} · box $viewportBounds · " +
+                                "content ${scrollMax + viewportHeight} · measured $contentHeight · box $viewportBounds · " +
                                 "screen ${screen}dp · chars ${text.length} · " +
-                                "lines ${text.count { it == '\n' } + 1}",
+                                "lines ${text.count { it == '\n' } + 1} · " +
+                                "lastLC ${MarkdownDiag.lastLineCount.intValue} · lastLH ${MarkdownDiag.lastLayoutHeight.intValue} · " +
+                                "lastNH ${MarkdownDiag.lastNodeHeight.intValue} · maxLC ${MarkdownDiag.maxLineCount.intValue}",
                             style = DsType.caption11,
                             color = colors.warnLabel,
                         )
@@ -617,7 +621,7 @@ private fun DocumentPreview(
                             .then(if (markdown) Modifier else Modifier.horizontalScroll(rememberScrollState()))
                             .padding(DsSpacing.medium),
                     ) {
-                        if (markdown) DocumentMarkdown(tab.text.orEmpty())
+                        if (markdown) Box(Modifier.onSizeChanged { contentHeight = it.height }) { DocumentMarkdown(tab.text.orEmpty()) }
                         else Text(
                             tab.text.orEmpty(),
                             style = DsType.caption11.copy(fontFamily = DsType.codeFont, fontSize = 12.sp, lineHeight = 18.sp),

@@ -244,6 +244,28 @@ class MarkdownTest {
         assertNull(item.checked)
     }
 
+    // ---- List item continuation lines -----------------------------------------
+
+    @Test
+    fun orderedListItemAbsorbsIndentedContinuationLines() {
+        val blocks = parseMarkdown("1. first item\n   continuation of first\n2. second item")
+        val items = blocks.filterIsInstance<MdBlock.ListItem>()
+        assertEquals(2, items.size)
+        assertEquals("first item\ncontinuation of first", items[0].text)
+        assertEquals("second item", items[1].text)
+        assertTrue(blocks.none { it is MdBlock.Paragraph })
+    }
+
+    @Test
+    fun bulletListItemAbsorbsIndentedContinuationLines() {
+        val blocks = parseMarkdown("- top item\n  continuation line\n- next item")
+        val items = blocks.filterIsInstance<MdBlock.ListItem>()
+        assertEquals(2, items.size)
+        assertEquals("top item\ncontinuation line", items[0].text)
+        assertEquals("next item", items[1].text)
+        assertTrue(blocks.none { it is MdBlock.Paragraph })
+    }
+
     // ---- safeHttpUrl ----------------------------------------------------------
 
     @Test

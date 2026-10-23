@@ -108,14 +108,35 @@ fun parseMarkdown(markdown: String): List<MdBlock> {
             }
             trimmed.startsWith("- ") || trimmed.startsWith("* ") || trimmed.startsWith("+ ") -> {
                 while (i < lines.size && isListLine(lines[i], ordered = false)) {
-                    parsed += listLine(lines[i], ordered = false)
+                    val item = listLine(lines[i], ordered = false)
                     i++
+                    // An indented, non-special line that follows a list item is that
+                    // item's continuation text (CommonMark lazy/indented continuation).
+                    // Absorb it so a multi-line item stays one item and keeps its marker.
+                    val cont = mutableListOf<String>()
+                    while (i < lines.size && lines[i].isNotBlank() && !isSpecialLine(lines[i])) {
+                        val indent = lines[i].length - lines[i].trimStart().length
+                        if (indent == 0) break
+                        cont += lines[i].trim()
+                        i++
+                    }
+                    val text = if (cont.isEmpty()) item.text else item.text + "\n" + cont.joinToString("\n")
+                    parsed += item.copy(text = text)
                 }
             }
             ORDERED_MARKER_REGEX.containsMatchIn(trimmed) -> {
                 while (i < lines.size && isListLine(lines[i], ordered = true)) {
-                    parsed += listLine(lines[i], ordered = true)
+                    val item = listLine(lines[i], ordered = true)
                     i++
+                    val cont = mutableListOf<String>()
+                    while (i < lines.size && lines[i].isNotBlank() && !isSpecialLine(lines[i])) {
+                        val indent = lines[i].length - lines[i].trimStart().length
+                        if (indent == 0) break
+                        cont += lines[i].trim()
+                        i++
+                    }
+                    val text = if (cont.isEmpty()) item.text else item.text + "\n" + cont.joinToString("\n")
+                    parsed += item.copy(text = text)
                 }
             }
             trimmed.startsWith(">") -> {
