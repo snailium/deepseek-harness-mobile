@@ -55,6 +55,7 @@ import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
 import com.labteto.dshmobile.core.session.JobNode
 import com.labteto.dshmobile.core.session.OtherNode
+import com.labteto.dshmobile.core.wire.dto.JobStatus
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
 import com.labteto.dshmobile.core.session.SubagentNode

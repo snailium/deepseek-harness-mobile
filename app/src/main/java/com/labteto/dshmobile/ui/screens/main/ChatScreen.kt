@@ -240,6 +240,7 @@ fun ChatScreen(
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
                 onOpenModels = { sheet = ChatSheet.Models },
+                onOpenHistory = { sheet = ChatSheet.History },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
                 // Disabled rather than hidden when there is no session to point at, which is what

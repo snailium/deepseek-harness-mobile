@@ -72,6 +72,7 @@ internal fun ChatTopBar(
     tab: ChatTab,
     onOpenDrawer: () -> Unit,
     onOpenModels: () -> Unit,
+    onOpenHistory: () -> Unit,
     onOpenDetails: () -> Unit,
     onTabChange: (ChatTab) -> Unit,
     /** Opens the session's workspace screen; disabled when the harness reports no workspace. */
@@ -185,6 +186,8 @@ internal fun ChatTopBar(
             onTabChange = onTabChange,
             models = models,
             onOpenModels = onOpenModels,
+            onOpenHistory = onOpenHistory,
+            historyEnabled = historyEnabled,
         )
     }
 }
@@ -301,6 +304,8 @@ private fun ChatTabRow(
     onTabChange: (ChatTab) -> Unit,
     models: SessionModelsValue?,
     onOpenModels: () -> Unit,
+    onOpenHistory: () -> Unit,
+    historyEnabled: Boolean,
 ) {
     val colors = DsTheme.colors
     Row(
