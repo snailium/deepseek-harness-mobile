@@ -35,6 +35,11 @@ class LocalizedStringsTest {
         "Tool call",
         // Summary joining an untranslated tool name with a relativised path.
         "\$toolName · \$relative",
+        // Markdown.kt's block-list regex sources and the adjacent-string scanner artifact
+        // ("x" to Regex(...)) — regex markup, not user-facing copy. Adopted from upstream 0.19.0.
+        "^([\\\\t ]*)([-*+])\\\\s+(.*)$",
+        "^([\\\\t ]*)\\\\d+\\\\.\\\\s+(.*)$",
+        " to Regex(",
     )
 
     @Test

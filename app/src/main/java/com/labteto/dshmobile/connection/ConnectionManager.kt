@@ -12,6 +12,8 @@ import com.labteto.dshmobile.core.wire.GenerationFailure
 import com.labteto.dshmobile.core.wire.HandshakeStep
 import com.labteto.dshmobile.core.wire.LoopSinks
 import com.labteto.dshmobile.ui.screens.connect.ConnectFailure
+import com.labteto.dshmobile.core.wire.GatewayHeaders
+import com.labteto.dshmobile.core.wire.MobileAccess
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
 import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.WsDownlink
@@ -62,6 +64,8 @@ class ConnectionManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val hostsStore: HostsStore,
+    private val gatewayIdentities: GatewayIdentityStore,
+    private val gatewaySessions: GatewaySessions,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -136,7 +140,17 @@ class ConnectionManager @Inject constructor(
      * the probe use, so a manual probe and the real connection always speak the same wire.
      */
     fun clientFor(config: HostConfig): DshApiClient {
-        val headers = config.authHeaders
+        // A paired gateway authenticates with a session cookie plus two anti-forgery headers, not
+        // with `config.authHeaders` — and they ride the same `extraHeaders` seam an edge proxy uses,
+        // so the transport stays upstream's. The session is renewed in `connect`; reading it here is
+        // what keeps this function synchronous.
+        val session = gatewaySessions.cached(config.id)
+        val origin = MobileAccess.originOf(config.baseUrl)
+        val headers = if (session != null && origin != null) {
+            GatewayHeaders.forSession(session.token, origin, session.csrf)
+        } else {
+            config.authHeaders
+        }
         return DshApiClient(
             transport = OkHttpRpcTransport(config.baseUrl, okHttpClient, extraHeaders = headers),
             wsFactory = { path, sink ->
@@ -158,6 +172,11 @@ class ConnectionManager @Inject constructor(
      */
     suspend fun connect(config: HostConfig) {
         disconnect()
+        // A gateway's session expires in minutes and is re-minted from the durable device token, so
+        // it is refreshed here rather than failing the first request of every launch.
+        if (gatewayIdentities.get(config.id) != null) {
+            gatewaySessions.ensure(config.id, config.baseUrl)
+        }
         activeHost = config
         _state.value = ConnectionUiState(
             phase = ConnectionPhase.CONNECTING,

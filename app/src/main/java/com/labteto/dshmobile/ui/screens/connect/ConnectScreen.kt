@@ -90,6 +90,9 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
     var cfClientId by rememberSaveable { mutableStateOf("") }
     var cfClientSecret by rememberSaveable { mutableStateOf("") }
     var showToken by rememberSaveable { mutableStateOf(false) }
+    // Its own dialog rather than a section of this form: a gateway pairing key is not an address
+    // credential, and folding it in here would make the two fields lie about each other.
+    var showGatewayPair by rememberSaveable { mutableStateOf(false) }
     var showSecret by rememberSaveable { mutableStateOf(false) }
     // Until the user touches the Advanced controls the scheme and port follow the address field;
     // the first edit hands them over to the explicit values.
@@ -414,6 +417,15 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     variant = DsButtonVariant.Info,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // The dsh-mobile gateway is a second kind of endpoint, and its key is not an
+                // address credential — see GatewayPairSheet.
+                DsButton(
+                    text = stringResource(R.string.gateway_pair_title),
+                    onClick = { showGatewayPair = true },
+                    enabled = !state.connecting,
+                    variant = DsButtonVariant.Ghost,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
                 state.failure?.let { failure ->
                     ConnectFailureBlock(
@@ -516,6 +528,9 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
             )
         }
     }
+        if (showGatewayPair) {
+            GatewayPairSheet(onDismiss = { showGatewayPair = false })
+        }
 }
 
 /**

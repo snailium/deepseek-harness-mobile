@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The dsh-mobile gateway pairing sheet's strings, in their own catalogue on purpose.
+
+    Upstream's `strings.xml` is the file this fork conflicts on most: it changes on nearly every
+    release, and a merge hands back a conflict per locale. Keeping our keys in a file upstream does
+    not have means a future merge cannot touch them, which is the same rule the Kotlin files follow.
+
+    `tools:ignore="MissingTranslation"` is scoped to this file and this file only. The gateways that
+    can appear here are remote endpoints reached through a tunnel; the sheet is rarely seen, and an
+    English fallback is a better trade than a machine translation of security wording that a reader
+    would trust. Translating these is a follow-up, not a blocker.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="gateway_pair_title">Pair with DSH Mobile gateway</string>
+    <string name="gateway_pair_hint">Paste the key or pairing link the DSH Mobile panel shows for the Android app. A dsh1. or dsh2. key is the whole credential; the address is only needed when the key is bare.</string>
+    <string name="gateway_key_label">Pairing key or link</string>
+    <string name="gateway_address_label">Gateway address</string>
+    <string name="gateway_address_placeholder">https://dsh2.example.com</string>
+    <string name="gateway_device_name_label">Name for this device</string>
+    <string name="gateway_action_pair">Pair</string>
+    <string name="gateway_action_pairing">Pairing…</string>
+    <string name="gateway_action_cancel">Cancel</string>
+
+    <string name="gateway_msg_not_a_key">That is not a DSH Mobile pairing key or link.</string>
+    <string name="gateway_msg_address_required">A bare key names the computer but not its address. Add the address the DSH Mobile panel shows.</string>
+    <string name="gateway_msg_not_a_gateway">%1$s answered, but nothing there serves the DSH Mobile pairing routes. Is the dsh-mobile plugin enabled?</string>
+    <string name="gateway_msg_ca_mismatch">The certificate at %1$s is not the one this key names. Do not pair: this key belongs to a different computer, or something else is answering at that address.</string>
+    <string name="gateway_msg_rejected">That pairing key is no longer valid. Keys work once and expire after a few minutes, and generating a new one replaces the old — get a fresh key on the computer and try again.</string>
+    <string name="gateway_msg_host_refused">%1$s refused this request. Only addresses the gateway knows itself by are accepted.</string>
+    <string name="gateway_msg_rate_limited">Too many attempts. Wait %1$d seconds and try again.</string>
+    <string name="gateway_msg_unreachable">Could not reach %1$s. Check the address, and that the gateway is running and reachable from this phone.</string>
+    <string name="gateway_msg_failed">Pairing failed.</string>
+</resources>
