@@ -102,6 +102,11 @@ internal fun probeOutcomeOf(
         // so it is what gets shown.
         TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN,
         TransportFailure.UPSTREAM_TIMEOUT,
+        // `dsh-mobile` 0.6.13's receive timeout and oversized-header rejection. Both are emitted by
+        // a gateway that was reached, so they belong on this side of the line with the others.
+        TransportFailure.REQUEST_TIMEOUT, TransportFailure.HEADERS_TOO_LARGE,
+        // The third 0.6.13 branch — a packet the gateway's parser rejected. Still proof it answered.
+        TransportFailure.MALFORMED_REQUEST,
         TransportFailure.OTHER, null,
         -> ProbeOutcome.Other(detail)
     }

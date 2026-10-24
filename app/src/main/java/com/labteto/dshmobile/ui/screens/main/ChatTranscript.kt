@@ -172,7 +172,8 @@ internal fun ChatTranscript(
 
     // Opening a session lands on its newest message. In reverse layout that is index 0, which is
     // also where the list starts, so this only has to undo a position inherited from the session
-    // that was open before.
+    // that was open before. Following the tail is handled just below, where the anchoring the
+    // reversal buys is overridden only when it would otherwise cost the reader the newest row.
     var lastSession by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(sessionId) {
         if (sessionId == lastSession) return@LaunchedEffect
@@ -180,15 +181,16 @@ internal fun ChatTranscript(
         if (itemCount > 0) listState.scrollToItem(0)
     }
 
-    // Follow the tail while the reader is already at it.
+    // Following the tail is free only while the tail is one growing row. The layout keeps the first
+    // visible *key* anchored, and in a reversed list that key is the bottom row: insert a row below
+    // it — a tool card, the next message segment, a question card, the reader's own message — and
+    // the new row takes index 0 while the viewport holds the old bottom row exactly where it was,
+    // leaving the arrival one scroll past the edge. Nothing animated it into place either, so the
+    // reader watching a reply arrives at a dead screen until they drag.
     //
-    // The reverse layout was assumed to make this unnecessary: newest is index 0, so a new row
-    // appears where the list is anchored and "following the tail costs no scroll". That holds only
-    // while the viewport is *exactly* at index 0. It stops holding as soon as anything moves the
-    // list off it — and adding content does: a tool call appends a row and the streaming row grows
-    // one line at a time, both of which push the anchored position past the anchor. Once that
-    // happens nothing brings it back, so a running turn stops following and the reader is left
-    // behind a "Jump to newest" button they did not ask for.
+    // Pin index 0 again while the reader is at the bottom. `requestScrollToItem` is the one call
+    // that overrides the key anchoring for the coming measure; it is instant and schedules no
+    // animation, so it cannot race the next delta the way a per-frame scroll would.
     //
     // Following is intent, not position: the anchoring above moves the first visible index to 1 on
     // its own when a row lands below, and reading that as "the reader scrolled away" would switch
@@ -367,7 +369,11 @@ internal fun ChatTranscript(
                         .fillMaxWidth()
                         .clickable { selectionDismiss.value++ },
                 ) {
-                    ChatNodeItem(node = node, context = context)
+                    when (row) {
+                        is TranscriptRow.Message -> ChatNodeItem(node = row.node, context = context)
+                        is TranscriptRow.Tools -> ToolGroupRow(row.calls, context)
+                        is TranscriptRow.Context -> ContextGroupRow(row.nodes, context)
+                    }
                 }
             }
         }

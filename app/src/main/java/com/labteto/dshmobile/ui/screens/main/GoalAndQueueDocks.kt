@@ -32,6 +32,9 @@ import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.components.DsDialog
 import com.labteto.dshmobile.ui.components.DsMenu
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import com.labteto.dshmobile.ui.components.DsPill
 import com.labteto.dshmobile.ui.components.MenuItem
 import com.labteto.dshmobile.ui.components.StateDot
@@ -70,7 +73,7 @@ internal fun GoalBar(goal: GoalSnapshot, store: SessionStore, modifier: Modifier
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(8.dp))
-        DsPill(text = stringResource(goalPhaseLabelRes(goal.phase)))
+        GoalPhaseBadge(goal.phase)
         Spacer(Modifier.width(4.dp))
         DsMenu(
             anchor = {
@@ -238,4 +241,16 @@ internal fun QueueDock(queue: List<QueueItem>, store: SessionStore, modifier: Mo
             }
         }
     }
+}
+
+/**
+ * A status is descriptive, not a disabled action; suppress the shared pill's click semantics.
+ *
+ * Upstream 0.13.0 extracted this from the two goal renderings; both use it, so it lives here with
+ * the goal bar rather than being duplicated in `Docks.kt`.
+ */
+@Composable
+internal fun GoalPhaseBadge(phase: GoalPhase) {
+    val label = stringResource(goalPhaseLabelRes(phase))
+    Box(Modifier.clearAndSetSemantics { contentDescription = label }) { DsPill(text = label) }
 }

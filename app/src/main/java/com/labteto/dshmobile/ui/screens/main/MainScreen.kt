@@ -2,8 +2,17 @@ package com.labteto.dshmobile.ui.screens.main
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.theme.DsTheme
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -34,7 +43,6 @@ import com.labteto.dshmobile.ui.components.rememberDsToast
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
-import androidx.compose.ui.unit.dp
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import kotlinx.coroutines.launch
 
@@ -95,6 +103,7 @@ fun MainScreen(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
                 onClose = { scope.launch { drawerState.close() } },
                 onOpenSettings = onOpenSettings,
                 onOpenPlugins = onOpenPlugins,
+                onOpenAutomations = { automationSession = null; automationsOpen = true; scope.launch { drawerState.close() } },
                 modifier = Modifier.fillMaxHeight().width(306.dp),
             )
         },
@@ -213,6 +222,7 @@ fun MainScreen(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
                     )
                     DetailsPanel(
                         onClose = { detailsOpen = false },
+                        onOpenAutomations = { automationSession = store.currentSessionId.value; automationsOpen = true; detailsOpen = false },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .width(detailsWidth),

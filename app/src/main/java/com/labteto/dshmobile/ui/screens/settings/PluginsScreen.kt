@@ -82,7 +82,7 @@ import androidx.compose.foundation.rememberScrollState
  * Installed sections — and it is *not* the Settings tab called "Built-in plugins". Those are two
  * different services and the difference is the whole design here:
  *
- * - **Bundles** ([PluginBundle]) is what an operator installs and turns on. Seventeen entries on a
+ * - **Bundles** ([ProfileBundle]) is what an operator installs and turns on. Seventeen entries on a
  *   stock profile, each owning a *set* of loader rows. Toggling one is the supported operation the
  *   harness's own page offers.
  * - **Built-in plugins** (`pluginInventory/list` / `pluginManager/listPlugins`) is the flat
@@ -445,7 +445,7 @@ internal fun PluginsTitleBar(onClose: () -> Unit, actions: (@Composable () -> Un
  */
 @Composable
 private fun BundleList(
-    bundles: List<PluginBundle>,
+    bundles: List<ProfileBundle>,
     total: Int,
     mutation: PluginMutationState?,
     liveRows: List<PluginManagerRow>,

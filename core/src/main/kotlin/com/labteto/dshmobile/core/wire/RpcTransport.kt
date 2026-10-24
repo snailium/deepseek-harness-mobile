@@ -157,6 +157,8 @@ class OkHttpRpcTransport(
         .writeTimeout(writeTimeoutMs, TimeUnit.MILLISECONDS)
         .build()
 
+    private val packageClient by lazy { httpClient.newBuilder().readTimeout(0, TimeUnit.MILLISECONDS).callTimeout(0, TimeUnit.MILLISECONDS).build() }
+
     override suspend fun post(path: String, body: String): RpcHttpResponse =
         suspendCancellableCoroutine { continuation ->
             val target = resolveHarnessUrl(base.toString(), path)
@@ -169,7 +171,10 @@ class OkHttpRpcTransport(
                 .gatewayMutation(origin, csrf)
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
-            val call = httpClient.newCall(request)
+            // Package operations are host-owned and may outlive the ordinary RPC read budget.
+            // Keep the connection budget, and let explicit cancellation or the host settle them.
+            val carrier = if (path in setOf("/api/pluginManager/installBundle", "/api/pluginManager/waitForInstall")) packageClient else httpClient
+            val call = carrier.newCall(request)
             continuation.invokeOnCancellation { call.cancel() }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {

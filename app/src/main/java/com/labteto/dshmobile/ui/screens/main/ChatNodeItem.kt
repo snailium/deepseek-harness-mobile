@@ -599,8 +599,18 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
         // file changing or being deleted, and shares the transcript's decoded-image cache.
         val images = remember(result?.content) { toolResultImages(result?.content) }
         images.forEach { ref ->
-            AttachmentImage(
+            // Resolved here, in the screen layer, and handed to the component as a state: the same
+            // split every other image in this file uses, and the one `lint/` enforces — a
+            // `ui/components/` composable may not reach the session store, so upstream 0.15.0's
+            // `attachmentId`-taking signature is the one thing of its image work this fork cannot
+            // adopt. Its fullscreen viewer (`ImageViewer`) came across untouched.
+            val imageState by rememberAttachmentImageState(
                 attachmentId = ref.attachmentId,
+                intrinsicWidth = ref.width,
+                intrinsicHeight = ref.height,
+            )
+            AttachmentImage(
+                state = imageState,
                 intrinsicWidth = ref.width,
                 intrinsicHeight = ref.height,
                 contentDescription = ref.name,

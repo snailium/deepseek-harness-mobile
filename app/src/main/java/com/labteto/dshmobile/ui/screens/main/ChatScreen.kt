@@ -171,6 +171,9 @@ fun ChatScreen(
             defaultMode = appSettings.promptMode,
         )
     }
+    // The `@` picker's open state. The draft and the send mode moved into `ComposerSubmitter`;
+    // this stays here because it is a property of the screen's overlay, not of the draft.
+    var referencePicker by remember(composer.key) { mutableStateOf<AtQuery?>(null) }
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
 
     var panelKey by remember { mutableStateOf<ComposerKey?>(null) }
@@ -205,22 +208,25 @@ fun ChatScreen(
         commands = commands,
         imageLimits = imageLimits,
         report = responder::report,
+        onOpenPopup = { name, ui -> popup = name to ui },
     )
     val draft = submitter.draft
     val attachments = submitter.attachments
     val mode = submitter.mode
     val filePicker = rememberFilePicker(submitter)
     val imagePicker = rememberImagePicker(submitter)
-
     androidx.compose.runtime.CompositionLocalProvider(
         com.labteto.dshmobile.ui.media.LocalAttachmentScope provides (composer.key.host to composer.key.sessionId),
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
-        store.panels.get(composer.key).open(path); panelKey = composer.key
-    }) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = colors.bgBase,
+            store.panels.get(composer.key).open(path); panelKey = composer.key
+        },
+        // A folder link opens Files *at that directory* rather than a preview of it: upstream
+        // 0.15.0's file pills call this, and `browse` is the panel's own way to land on a listing.
+        com.labteto.dshmobile.ui.components.LocalFolderOpener provides { path: String ->
+            store.panels.get(composer.key).browse(path); panelKey = composer.key
+        },
     ) {
+    Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
         // The activity draws edge to edge, so every top-level surface has to consume the insets
         // itself or the chrome ends up underneath the status bar. safeDrawing covers the status
         // bar, the gesture area and the keyboard in one modifier.
@@ -248,13 +254,11 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
-                // Null when there is no session to point at, which hides the button rather than
-                // offering a tap that does nothing.
-                onOpenWorkspace = if (currentSessionId != null) {
-                    { panelKey = composer.key }
-                } else {
-                    null
-                },
+                // Disabled rather than hidden when there is no session to point at, which is what
+                // upstream 0.15.0's labelled button beside the tabs does with this pair.
+                onOpenWorkspace = { panelKey = composer.key },
+                workspaceEnabled = currentSessionId != null,
+                historyEnabled = currentSessionId != null,
                 searchQuery = search.query,
                 // The counter is 1-based and reads 0/0 when nothing matches.
                 searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
@@ -351,35 +355,19 @@ fun ChatScreen(
                             context = nodeContext,
                             listState = chatListState,
                             onLoadOlder = { scope.launch { store.loadOlder() } },
+                            focusSeq = currentMatch?.seq,
                             jumpToSeq = pendingJumpSeq,
                             onJumpConsumed = { pendingJumpSeq = null },
                         )
-                        .togetherWith(fadeOut(DsAnimations.fade)) using SizeTransform(clip = false)
-                },
-                modifier = Modifier.weight(1f),
-                label = "chatTab",
-            ) { current ->
-                when (current) {
-                    ChatTab.Chat -> ChatTranscript(
-                        conversation = conversation,
-                        loading = conversation == null && currentSessionId != null,
-                        loadingOlder = loadingOlder,
-                        loadOlderFailed = loadOlderFailed,
-                        context = nodeContext,
-                        listState = chatListState,
-                        onLoadOlder = { scope.launch { store.loadOlder() } },
-                        focusSeq = currentMatch?.seq,
-                    )
-                    ChatTab.Trajectory -> TrajectoryTab(
-                        conversation = conversation,
-                        stats = sessionStats,
-                        usage = tokenUsage,
-                        cwd = currentSession?.cwd,
-                        listState = trajectoryListState,
-                    )
+                        ChatTab.Trajectory -> TrajectoryTab(
+                            conversation = conversation,
+                            stats = sessionStats,
+                            usage = tokenUsage,
+                            cwd = workingDirectory,
+                            listState = trajectoryListState,
+                        )
+                    }
                 }
-            }
-
             conversation?.let { conv ->
                 PageColumn(spacing = 4.dp) {
                     // The to-do list lives in the pinned bar above the transcript, not here:
@@ -512,6 +500,27 @@ fun ChatScreen(
                 // changes and compares by identity, so the composer always holds the current one.
                 onSend = { submitter.send(it) },
                 onStop = { scope.launch { store.cancelTurn() } },
+                modifier = Modifier.heightIn(max = composerMaxHeight),
+                references = composer.references,
+                onAddReference = {
+                    referencePicker = activeReference(draft, composer.selection) ?: AtQuery(composer.selection, composer.selection, "")
+                },
+                onOpenReference = { reference ->
+                    if (reference.kind == "session") scope.launch { store.openSession(reference.target) }
+                    else {
+                        val panel = store.panels.get(composer.key)
+                        if (reference.kind == "folder") {
+                            panel.directory = reference.target
+                            panel.section = 0
+                            // Reopening the panel must load this target, not reuse the previous
+                            // directory's cached rows. Its existing launch effect loads null listings.
+                            panel.listing = null
+                        } else panel.open(reference.target)
+                        panelKey = composer.key
+                    }
+                },
+                cursor = composer.selection,
+                onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
             )
 
             StatsFooter(stats = sessionStats, usage = tokenUsage)
@@ -527,7 +536,7 @@ fun ChatScreen(
         PopupSelectSheet(
             command = name,
             spec = spec,
-            context = commandContext(composer.key.sessionId, composer.key.host),
+            context = submitter.commandContext(composer.key.sessionId, composer.key.host),
             onDismiss = { popup = null },
         )
     }
@@ -544,7 +553,7 @@ fun ChatScreen(
             onRunCommand = { line ->
                 val name = line.removePrefix("/").substringBefore(' ')
                 if (attachments.isEmpty()) {
-                    scope.launch { responder.report(store.runCommand(line)) }
+                    if (!submitter.dispatchDecorated(line)) scope.launch { responder.report(store.runCommand(line)) }
                 } else {
                     toast.second(context.getString(R.string.err_command_no_images, name))
                 }
@@ -606,7 +615,7 @@ fun ChatScreen(
 }
 
 /** Which sheet, if any, is open over the chat surface. */
-private enum class ChatSheet { Commands, Attachments, Models, Presets, Subagents }
+private enum class ChatSheet { Commands, Attachments, Models, History, Presets, Subagents }
 
 /**
  * A picked document's display name and size, as its provider reports them.

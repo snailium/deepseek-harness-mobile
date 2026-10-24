@@ -92,21 +92,24 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         var pairUrl by rememberSaveable { mutableStateOf<String?>(null) }
         val showMain = connection.phase == ConnectionPhase.CONNECTED ||
             (connection.phase == ConnectionPhase.RECONNECTING && connection.hasConnected)
-        when {
-            showPlugins -> PluginsScreen(onClose = { showPlugins = false })
-            showSettings -> SettingsScreen(onClose = { showSettings = false })
-            showPair -> PairScreen(onClose = { showPair = false }, prefillUrl = pairUrl)
-            showMain -> MainScreen(
-                onOpenSettings = { showSettings = true },
-                onOpenPlugins = { showPlugins = true },
-            )
-            else -> ConnectScreen(
-                onOpenSettings = { showSettings = true },
-                onPair = { url ->
-                    pairUrl = url
-                    showPair = true
-                },
-            )
+        Box(Modifier.fillMaxSize()) {
+            when {
+                showPlugins -> PluginsScreen(onClose = { showPlugins = false })
+                showSettings -> SettingsScreen(onClose = { showSettings = false })
+                showPair -> PairScreen(onClose = { showPair = false }, prefillUrl = pairUrl)
+                showMain -> MainScreen(
+                    onOpenSettings = { showSettings = true },
+                    onOpenPlugins = { showPlugins = true },
+                )
+                else -> ConnectScreen(
+                    onOpenSettings = { showSettings = true },
+                    onPair = { url ->
+                        pairUrl = url
+                        showPair = true
+                    },
+                )
+            }
+            DsToastHost(toast, modifier = Modifier.fillMaxWidth())
         }
 
         // Offered over whatever is on screen, and only once per release: dismissing records the

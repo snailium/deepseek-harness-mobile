@@ -127,6 +127,7 @@ fun ChatListDrawer(
     onClose: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPlugins: () -> Unit,
+    onOpenAutomations: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val colors = DsTheme.colors
@@ -798,7 +799,7 @@ private fun SessionRowItem(
             Spacer(Modifier.width(DsSpacing.small))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = sessionTitle(session),
+                    text = displaySessionTitle(session),
                     style = DsType.base16,
                     color = colors.labelPrimary,
                     maxLines = 1,
@@ -807,7 +808,7 @@ private fun SessionRowItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     session.cwd?.takeIf { it.isNotBlank() }?.let {
                         Text(
-                            basename(it),
+                            technicalDisplay(basename(it)),
                             style = DsType.xsmall12,
                             color = colors.labelCaption,
                             maxLines = 1,
@@ -925,7 +926,7 @@ private fun SearchResultRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = sessionTitle(hit.session),
+                text = displaySessionTitle(hit.session),
                 style = DsType.base16,
                 color = colors.labelPrimary,
                 maxLines = 1,

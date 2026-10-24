@@ -142,7 +142,7 @@ import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
 import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.Flow
 import com.labteto.dshmobile.core.wire.dto.SettingsDescribeValue
@@ -551,7 +551,7 @@ class SessionStore @Inject constructor(
     /** The host's plugin inventory, or null when this deployment does not expose one. */
     val plugins: StateFlow<PluginInventorySnapshot?> = _plugins.asStateFlow()
 
-    private val _pluginBundles = MutableStateFlow<List<PluginBundle>?>(null)
+    private val _pluginBundles = MutableStateFlow<List<ProfileBundle>?>(null)
 
     /**
      * The profile's bundles — the installed set and the catalog — or null when the deployment
@@ -561,7 +561,7 @@ class SessionStore @Inject constructor(
      * services: the inventory says what is mounted, the manager says what a user installed and can
      * turn off. A harness can expose either without the other.
      */
-    val pluginBundles: StateFlow<List<PluginBundle>?> = _pluginBundles.asStateFlow()
+    val pluginBundles: StateFlow<List<ProfileBundle>?> = _pluginBundles.asStateFlow()
 
     private val _pluginRows = MutableStateFlow<List<PluginManagerRow>?>(null)
 

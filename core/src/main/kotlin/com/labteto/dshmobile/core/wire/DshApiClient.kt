@@ -19,7 +19,7 @@ import com.labteto.dshmobile.core.wire.dto.LlmModelDiscoveryRequest
 import com.labteto.dshmobile.core.wire.dto.LlmProviderInfo
 import com.labteto.dshmobile.core.wire.dto.ModelCatalog
 import com.labteto.dshmobile.core.wire.dto.AgentPresetComposition
-import com.labteto.dshmobile.core.wire.dto.PluginBundle
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
 import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
@@ -961,11 +961,11 @@ class DshApiClient(
     /**
      * `pluginManager/listBundles` — the bundles a profile composes, installed and available.
      *
-     * This is where the harness page's Official and Installed sections come from: [PluginBundle.installed]
+     * This is where the harness page's Official and Installed sections come from: [ProfileBundle.installed]
      * divides them, and a bundle's own `rows` describe the plugin rows it contributes.
      */
-    suspend fun pluginManagerListBundles(): RpcResult<List<PluginBundle>> =
-        arrayResult("pluginManager/listBundles", PluginBundle.serializer()) { it.name.isNotBlank() }
+    suspend fun pluginManagerListBundles(): RpcResult<List<ProfileBundle>> =
+        arrayResult("pluginManager/listBundles", ProfileBundle.serializer()) { it.name.isNotBlank() }
 
     /**
      * `pluginManager/setPluginEnabled` — turn one plugin row on or off, live.

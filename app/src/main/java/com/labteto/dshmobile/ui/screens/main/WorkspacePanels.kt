@@ -56,12 +56,15 @@ import com.labteto.dshmobile.ui.components.DsSegment
 import com.labteto.dshmobile.ui.components.DsSegmented
 import com.labteto.dshmobile.ui.components.EmptyHero
 import com.labteto.dshmobile.ui.components.FeatherIcons
-import com.labteto.dshmobile.ui.components.DsIconButton
+import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
+import com.labteto.dshmobile.ui.theme.DsType
+import androidx.compose.ui.unit.sp
+import com.labteto.dshmobile.ui.components.DsCard
 import com.labteto.dshmobile.ui.components.MarkdownText
 import com.labteto.dshmobile.ui.components.MarkdownDiag
 import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsTheme
-import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.*
 import java.io.File
 
@@ -216,54 +219,39 @@ internal fun WorkspacePanelBody(store: SessionStore, state: PanelState, modifier
             catch (_: Exception) { /* As above: the feed is an optimisation, not a dependency. */ }
         }
     }
-    CompositionLocalProvider(com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
-        state.open(activeDocument?.let { com.labteto.dshmobile.core.session.resolvePreviewReference(it, path) } ?: path)
-    }) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = DsTheme.colors.bgBase) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                // The unified 44dp title bar every other screen uses: a back arrow, then the page's
-                // own title. The old Row of two TextButtons read as a different kind of header and
-                // did not line up with the rest of the app.
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(DsTitleBar.height)
-                        .padding(top = DsSpacing.small),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
-                ) {
-                    DsIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.common_back),
-                        onClick = onDismiss,
-                        tint = colors.labelTertiary,
-                        iconSize = DsTitleBar.iconSize,
-                        touchTarget = DsTitleBar.iconTouchTarget,
-                    )
-                    Text(
-                        stringResource(R.string.panel_workspace_title),
-                        style = DsTitleBar.titleStyle,
-                        color = colors.labelPrimary,
-                    )
-                }
-                TabRow(selectedTabIndex = state.section) {
-                    listOf(R.string.panel_files, R.string.panel_preview, R.string.panel_terminal).forEachIndexed { i, title ->
-                        Tab(selected = state.section == i, onClick = { state.section = i }, text = { Text(stringResource(title)) })
-                    }
-                }
+    // A link in a previewed document is relative to that document, folders as much as files.
+    fun resolve(path: String) = activeDocument?.let { com.labteto.dshmobile.core.session.resolvePreviewReference(it, path) } ?: path
+    CompositionLocalProvider(
+        com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String -> state.open(resolve(path)) },
+        com.labteto.dshmobile.ui.components.LocalFolderOpener provides { path: String -> state.browse(resolve(path)) },
+    ) {
+            val colors = DsTheme.colors
+            Column(modifier.padding(horizontal = DsSpacing.medium), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+                DsSegmented(
+                    segments = listOf(
+                        DsSegment("0", stringResource(R.string.panel_files)),
+                        DsSegment("1", stringResource(R.string.panel_preview) + state.previews.size.takeIf { it > 0 }?.let { " · $it" }.orEmpty()),
+                        DsSegment("2", stringResource(R.string.panel_terminal)),
+                    ),
+                    selectedKey = state.section.toString(),
+                    onSelect = { state.section = it.toInt() },
+                    role = Role.Tab,
+                    stretch = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 when (state.section) {
                     0 -> {
                         // The breadcrumb: a folder icon for the workspace root (tappable — jumps back
                         // to "."), then each directory level separated by ›. Tapping any segment
-                        // re-lists that directory — the old Root / Parent / Retry buttons are gone,
-                        // navigation is the path itself. Symmetric 8dp vertical padding so the row
-                        // sits evenly between the tab bar and the listing.
+                        // re-lists that directory. Upstream 0.15.0 puts a Root / Parent / Retry trio
+                        // here; the path *is* the navigation, and a segment tap does both of the
+                        // first two, so the trio would be three buttons saying what the row already
+                        // says. The reload affordance is the pull below, not a fourth button.
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = DsSpacing.small),
+                                .padding(horizontal = DsSpacing.small, vertical = DsSpacing.small),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
@@ -290,11 +278,19 @@ internal fun WorkspacePanelBody(store: SessionStore, state: PanelState, modifier
                                 }
                             }
                         }
-                        state.error?.let { Text(it, Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error) }
-                        if (state.listing?.truncated == true) Text(stringResource(R.string.panel_truncated), Modifier.padding(16.dp))
+                        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = colors.accent, trackColor = colors.borderL1)
+                        state.error?.let { Text(it, style = DsType.small13, color = colors.error) }
+                        if (state.listing?.truncated == true) {
+                            Text(stringResource(R.string.panel_truncated), style = DsType.caption11, color = colors.warnLabel)
+                        }
+                        val entries = state.listing?.entries.orEmpty()
+                            .sortedWith(compareBy({ it.type != "directory" }, { it.name.lowercase() }))
+                        if (!state.busy && state.listing != null && entries.isEmpty() && state.error == null) {
+                            Text(stringResource(R.string.panel_empty_folder), style = DsType.std14, color = colors.labelTertiary, modifier = Modifier.padding(DsSpacing.medium))
+                        }
                         // Pull to refresh: a directory can change under the user (the agent writes
-                        // files while they browse), and the old Refresh button is gone with Root /
-                        // Parent, so the list itself carries the reload affordance.
+                        // files while they browse), and the breadcrumb's root glyph is navigation
+                        // rather than a reload — so the list itself carries the affordance.
                         val pullState = rememberPullToRefreshState()
                         PullToRefreshBox(
                             isRefreshing = state.busy,
@@ -302,16 +298,46 @@ internal fun WorkspacePanelBody(store: SessionStore, state: PanelState, modifier
                             modifier = Modifier.weight(1f),
                             state = pullState,
                         ) {
-                            LazyColumn(Modifier.fillMaxSize(), state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() }) {
-                                items(state.listing?.entries.orEmpty(), key = { it.name }) { entry ->
-                                    ListItem(headlineContent = { Text(entry.name) },
-                                        supportingContent = { Text(if (entry.type == "directory") stringResource(R.string.panel_folder) else entry.size?.let { "$it B" }.orEmpty()) },
-                                        modifier = Modifier.clickable(enabled = !state.busy) {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() },
+                            verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
+                        ) {
+                            items(entries, key = { it.name }) { entry ->
+                                val directory = entry.type == "directory"
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(DsShapes.row)
+                                        .clickable(enabled = !state.busy) {
                                             val path = if (state.directory == ".") entry.name else "${state.directory}/${entry.name}"
-                                            if (entry.type == "directory") listDirectory(path) else state.open(path)
-                                        })
+                                            if (directory) listDirectory(path) else state.open(path)
+                                        }
+                                        .padding(horizontal = DsSpacing.small, vertical = DsSpacing.xsmall),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(DsSpacing.small),
+                                ) {
+                                    Icon(
+                                        if (directory) FeatherIcons.Folder else FeatherIcons.FileText,
+                                        null,
+                                        Modifier.size(18.dp),
+                                        tint = if (directory) colors.accent else colors.labelTertiary,
+                                    )
+                                    Text(
+                                        technicalDisplay(entry.name),
+                                        style = DsType.std14,
+                                        color = colors.labelPrimary,
+                                        modifier = Modifier.weight(1f),
+                                        softWrap = true,
+                                    )
+                                    if (directory) {
+                                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp), tint = colors.labelCaption)
+                                    } else {
+                                        entry.size?.let { Text(formatBytes(it), style = DsType.caption11, color = colors.labelCaption) }
+                                    }
                                 }
                             }
+                        }
                         }
                     }
                     1 -> {

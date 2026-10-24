@@ -64,7 +64,6 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionItem
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
-import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.launch

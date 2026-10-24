@@ -240,7 +240,7 @@ object PromptMode {
     const val STEER: String = "steer"
 }
 
-/** The two ways the app can reach a harness. Persisted as [AppSettings.connectMode]. */
+/** The three ways the app can reach a harness. Persisted as [AppSettings.connectMode]. */
 object ConnectMode {
     /**
      * A harness on this very device — in Termux, or forwarded here with `adb reverse` — reached

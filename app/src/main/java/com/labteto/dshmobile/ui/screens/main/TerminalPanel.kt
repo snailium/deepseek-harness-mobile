@@ -30,7 +30,6 @@ import com.labteto.dshmobile.data.SessionStore
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.ui.Alignment
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
@@ -41,7 +40,6 @@ import com.labteto.dshmobile.ui.components.FeatherIcons
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsType
 import com.labteto.dshmobile.ui.theme.DsTheme
-import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.serialization.json.*
@@ -95,8 +93,12 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { error = e.message }
     }
-    Column(modifier.fillMaxWidth()) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
+    val colors = DsTheme.colors
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+        // Toolbar: which shell, a new one, refresh. Not scrollable and not wrapping: the row is a
+        // fixed four items, and upstream's `Spacer(weight(1f))` below needs a bounded width — a
+        // `weight` inside a `horizontalScroll` row is measured at infinity and cannot work.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
             Box {
                 DsPill(
                     text = state.shells.firstOrNull { it.path == state.shellPath }?.name ?: stringResource(R.string.terminal_shell),

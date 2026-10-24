@@ -62,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -297,11 +296,35 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
     val result = remember(text, style, codeStyle, colors) {
         buildInlineContent(text, codeStyle, colors) { raw -> onLink(raw) }
     }
-    // Every line goes inside a SelectionContainer now. Links are LinkAnnotations, which `Text`
-    // handles without swallowing the long-press, so a line containing a link is selectable and
-    // copyable exactly like prose — the old ClickableText split, which forced linked lines to give
-    // up selection, is gone. Re-keyed on the shared dismiss token so a tap elsewhere in the
-    // transcript clears the selection (see ChatTranscript).
+    // Each pill has a slot of its own, as wide as its label at the pill's (slightly smaller, mono)
+    // size plus icon and padding, so the line is laid out around exactly that pill. A label wider
+    // than most of the screen is capped and ellipsized rather than run past the edge.
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val maxPillWidth = LocalConfiguration.current.screenWidthDp.dp * 0.7f
+    val pillStyle = remember(style) { style.copy(fontFamily = DsType.codeFont, fontSize = style.fontSize * 0.9f) }
+    val inlineContent = remember(result, pillStyle, density, maxPillWidth) {
+        val lineHeight = style.lineHeight.takeIf { it.isSp }?.let { it.value } ?: (style.fontSize.value * 1.5f)
+        result.getStringAnnotations("path", 0, result.length).withIndex().associate { (index, ann) ->
+            val label = result.text.substring(ann.start, ann.end)
+            val width = with(density) {
+                // 1dp of slack so rounding through sp never ellipsizes a label that fits.
+                val natural = measurer.measure(label, pillStyle).size.width + (13 + 4 + 16 + 1).dp.roundToPx()
+                minOf(natural, maxPillWidth.roundToPx()).toSp()
+            }
+            filePillId(index) to InlineTextContent(
+                Placeholder(width, (lineHeight * 0.95f).sp, PlaceholderVerticalAlign.TextCenter),
+            ) { FilePill(path = ann.item, label = label, style = style) }
+        }
+    }
+    // One rendering path, and everything in it is selectable. Links are `LinkAnnotation`s, which
+    // `Text` handles itself without swallowing the long-press; workspace paths are inline content
+    // whose pill carries its own `clickable`, so a tap on the pill opens the file and a tap
+    // anywhere else does not. Upstream 0.15.0 split these into two branches — a `SelectionContainer`
+    // when a line had no links, a `Text` with a hand-rolled hit test when it had — which is exactly
+    // the trade this fork removed earlier: a line with a link gave up selection. Keeping both
+    // features in one path is why this is not upstream's shape. Re-keyed on the shared dismiss
+    // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
     val dismissToken = LocalSelectionDismiss.current.value
     key(dismissToken) {
         SelectionContainer(modifier = modifier) {
@@ -337,18 +360,28 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles the
-                // former itself — tap goes to the listener, long-press still reaches the enclosing
-                // SelectionContainer — whereas the string form was only readable by ClickableText,
-                // which consumes the long-press. That is what forced linked lines to opt out of
-                // selection entirely.
-                builder.withLink(
-                    LinkAnnotation.Clickable(
-                        tag = segment.url,
-                        styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
-                        linkInteractionListener = { onLink(segment.url) },
-                    ),
-                ) { append(segment.text) }
+                val path = if (safeHttpUrl(segment.url) == null) previewPath(segment.url) else null
+                if (path != null) {
+                    // A path into the session's workspace is an artifact, not a web link: it is
+                    // drawn as a pill (see the inline content above) so it reads as a file you can
+                    // open, and never as a blue word that may go anywhere.
+                    builder.pushStringAnnotation("path", path)
+                    builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
+                    builder.pop()
+                } else {
+                    // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles
+                    // the former itself — tap goes to the listener, long-press still reaches the
+                    // enclosing SelectionContainer — whereas the string form was only readable by
+                    // ClickableText, which consumes the long-press. That is what forced linked
+                    // lines to opt out of selection entirely.
+                    builder.withLink(
+                        LinkAnnotation.Clickable(
+                            tag = segment.url,
+                            styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                            linkInteractionListener = { onLink(segment.url) },
+                        ),
+                    ) { append(segment.text) }
+                }
             }
         }
     }
