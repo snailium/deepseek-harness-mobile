@@ -66,6 +66,7 @@ class ConnectionManager @Inject constructor(
     private val hostsStore: HostsStore,
     private val gatewayIdentities: GatewayIdentityStore,
     private val gatewaySessions: GatewaySessions,
+    private val deviceCredentials: DeviceCredentialStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -174,7 +175,12 @@ class ConnectionManager @Inject constructor(
         disconnect()
         // A gateway's session expires in minutes and is re-minted from the durable device token, so
         // it is refreshed here rather than failing the first request of every launch.
-        if (gatewayIdentities.get(config.id) != null) {
+        //
+        // The identity is *not* required: renewal needs only the address and the device token, and
+        // an install that paired before identities moved into their own store has the token without
+        // one. Keying this on the identity alone made those installs look unpaired — the token was
+        // there, the session it could buy never was, and every request answered 401.
+        if (gatewayIdentities.get(config.id) != null || deviceCredentials.token(config.id) != null) {
             gatewaySessions.ensure(config.id, config.baseUrl)
         }
         activeHost = config

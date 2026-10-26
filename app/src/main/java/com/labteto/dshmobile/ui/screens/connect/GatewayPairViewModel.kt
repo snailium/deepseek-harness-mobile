@@ -23,6 +23,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -59,6 +60,15 @@ class GatewayPairViewModel @Inject constructor(
         val busy: Boolean = false,
         val message: GatewayPairMessage? = null,
         val failed: Boolean = false,
+        /**
+         * Set once this device is enrolled, so the sheet can close.
+         *
+         * Without it the dialog stayed open after a successful claim, and a second tap on "Pair"
+         * sent the same single-use key again. The gateway answers 401 to that — it cannot tell a
+         * spent key from a wrong one — so a pairing that had already worked reported "no longer
+         * valid" and the device appeared on the computer while the phone said it had failed.
+         */
+        val pairedHostId: String? = null,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -104,6 +114,19 @@ class GatewayPairViewModel @Inject constructor(
         }
         _state.update { it.copy(busy = true, message = null, failed = false) }
         viewModelScope.launch {
+            // Already paired with this computer? Then the key is only a way to name it again, and
+            // spending it would fail: a used key answers 401, which reads as "expired" even though
+            // the pairing worked. Reconnect instead, so re-scanning an old QR is harmless.
+            val knownId = identities.all().entries
+                .firstOrNull { it.value.instanceId == invite.instanceId }
+                ?.key
+            val knownHost = knownId?.let { id -> hostsStore.hosts.first().firstOrNull { it.id == id } }
+            if (knownHost != null) {
+                sessions.ensure(knownHost.id, knownHost.baseUrl)
+                _state.update { it.copy(busy = false, pairedHostId = knownHost.id) }
+                connectionManager.connect(knownHost)
+                return@launch
+            }
             runCatching { claim(invite, origin, current.deviceName.ifBlank { defaultGatewayDeviceName() }) }
                 .onFailure { error ->
                     _state.update {
@@ -177,7 +200,7 @@ class GatewayPairViewModel @Inject constructor(
         )
         if (response.deviceToken.isNotBlank()) credentials.put(config.id, response.deviceToken)
         sessions.adopt(config.id, response.sessionToken, response.csrfToken, response.sessionExpiresAt)
-        _state.update { it.copy(busy = false, message = null, failed = false) }
+        _state.update { it.copy(busy = false, message = null, failed = false, pairedHostId = config.id) }
         connectionManager.connect(config)
     }
 

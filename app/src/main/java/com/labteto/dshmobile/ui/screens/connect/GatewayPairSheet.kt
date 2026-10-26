@@ -9,6 +9,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -43,6 +44,10 @@ fun GatewayPairSheet(
     val colors = DsTheme.colors
     val needsAddress = state.address.isBlank() || (state.keyOrLink.isNotBlank() && !state.keyOrLink.contains("://"))
     val scan = rememberGatewayQrScanner(onText = viewModel::scanned)
+    // A claim succeeded: close, rather than leaving a spent key on screen for a second tap.
+    LaunchedEffect(state.pairedHostId) {
+        if (state.pairedHostId != null) onDismiss()
+    }
 
     AlertDialog(
         onDismissRequest = { if (!state.busy) onDismiss() },
@@ -102,7 +107,7 @@ fun GatewayPairSheet(
         confirmButton = {
             TextButton(
                 onClick = viewModel::pair,
-                enabled = !state.busy && state.keyOrLink.isNotBlank(),
+                enabled = !state.busy && state.pairedHostId == null && state.keyOrLink.isNotBlank(),
             ) {
                 Text(stringResource(if (state.busy) R.string.gateway_action_pairing else R.string.gateway_action_pair))
             }

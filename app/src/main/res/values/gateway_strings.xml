@@ -28,7 +28,7 @@
     <string name="gateway_msg_address_required">A bare key names the computer but not its address. Add the address the DSH Mobile panel shows.</string>
     <string name="gateway_msg_not_a_gateway">%1$s answered, but nothing there serves the DSH Mobile pairing routes. Is the dsh-mobile plugin enabled?</string>
     <string name="gateway_msg_ca_mismatch">The certificate at %1$s is not the one this key names. Do not pair: this key belongs to a different computer, or something else is answering at that address.</string>
-    <string name="gateway_msg_rejected">That pairing key is no longer valid. Keys work once and expire after a few minutes, and generating a new one replaces the old — get a fresh key on the computer and try again.</string>
+    <string name="gateway_msg_rejected">That pairing key has already been used or has expired. A key works once, lasts a few minutes, and is replaced when a new one is generated — get a fresh key on the computer and try again.</string>
     <string name="gateway_msg_host_refused">%1$s refused this request. Only addresses the gateway knows itself by are accepted.</string>
     <string name="gateway_msg_rate_limited">Too many attempts. Wait %1$d seconds and try again.</string>
     <string name="gateway_msg_unreachable">Could not reach %1$s. Check the address, and that the gateway is running and reachable from this phone.</string>
