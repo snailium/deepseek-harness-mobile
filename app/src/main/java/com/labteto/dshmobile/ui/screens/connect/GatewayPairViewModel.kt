@@ -71,6 +71,17 @@ class GatewayPairViewModel @Inject constructor(
         it.copy(keyOrLink = value, address = invite?.origin ?: it.address, message = null, failed = false)
     }
 
+    /**
+     * A QR was read.
+     *
+     * It is claimed immediately rather than filling the form and waiting for a tap: the key is
+     * single-use and expires in minutes, and pointing the camera at one is already a yes.
+     */
+    fun scanned(text: String) {
+        setKeyOrLink(text)
+        pair()
+    }
+
     fun setAddress(value: String) = _state.update { it.copy(address = value, message = null, failed = false) }
 
     fun setDeviceName(value: String) = _state.update { it.copy(deviceName = value) }

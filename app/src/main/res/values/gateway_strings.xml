@@ -18,6 +18,8 @@
     <string name="gateway_address_label">Gateway address</string>
     <string name="gateway_address_placeholder">https://dsh2.example.com</string>
     <string name="gateway_device_name_label">Name for this device</string>
+    <string name="gateway_scan">Scan QR code</string>
+    <string name="gateway_scan_prompt">Point the camera at the pairing QR on the computer</string>
     <string name="gateway_action_pair">Pair</string>
     <string name="gateway_action_pairing">Pairing…</string>
     <string name="gateway_action_cancel">Cancel</string>

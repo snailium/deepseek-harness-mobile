@@ -125,6 +125,8 @@ dependencies {
     implementation(libs.androidx.hilt.navigation.compose)
 
     implementation(libs.hilt.android)
+    // QR scanning for a gateway pairing key — ours; upstream ships no scanner.
+    implementation(libs.zxing.android.embedded)
     ksp(libs.hilt.compiler)
 
     implementation(libs.kotlinx.coroutines.android)

@@ -17,6 +17,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.ui.components.DsButton
+import com.labteto.dshmobile.ui.components.DsButtonVariant
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -40,6 +42,7 @@ fun GatewayPairSheet(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val colors = DsTheme.colors
     val needsAddress = state.address.isBlank() || (state.keyOrLink.isNotBlank() && !state.keyOrLink.contains("://"))
+    val scan = rememberGatewayQrScanner(onText = viewModel::scanned)
 
     AlertDialog(
         onDismissRequest = { if (!state.busy) onDismiss() },
@@ -50,6 +53,13 @@ fun GatewayPairSheet(
                     stringResource(R.string.gateway_pair_hint),
                     style = DsType.caption11,
                     color = colors.labelSecondary,
+                )
+                DsButton(
+                    text = stringResource(R.string.gateway_scan),
+                    onClick = { if (!state.busy) scan() },
+                    enabled = !state.busy,
+                    variant = DsButtonVariant.Info,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = state.keyOrLink,

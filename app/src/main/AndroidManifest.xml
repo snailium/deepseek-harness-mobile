@@ -9,6 +9,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!--
+        Ours, for the gateway pairing QR. Declared `required="false"` so a phone without a camera
+        still installs: the key can always be typed, and the scanner is a convenience rather than
+        the only way in.
+    -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
     <application
         android:name=".DshApplication"
         android:allowBackup="true"
