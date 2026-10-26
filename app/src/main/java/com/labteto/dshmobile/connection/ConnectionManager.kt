@@ -52,6 +52,13 @@ data class ConnectionUiState(
     val attempts: Int = 0,
     /** True once at least one generation completed the readiness handshake. */
     val hasConnected: Boolean = false,
+    /**
+     * DIAG: what the gateway session layer did for this endpoint. Temporary.
+     *
+     * A refused renewal and an absent gateway produce the same screen otherwise, and only the
+     * phone can tell us which one it is.
+     */
+    val gatewayNote: String? = null,
 )
 
 /**
@@ -180,14 +187,17 @@ class ConnectionManager @Inject constructor(
         // an install that paired before identities moved into their own store has the token without
         // one. Keying this on the identity alone made those installs look unpaired — the token was
         // there, the session it could buy never was, and every request answered 401.
+        var note: String? = null
         if (gatewayIdentities.get(config.id) != null || deviceCredentials.token(config.id) != null) {
             gatewaySessions.ensure(config.id, config.baseUrl)
+            note = gatewaySessions.diagnose(config.id)
         }
         activeHost = config
         _state.value = ConnectionUiState(
             phase = ConnectionPhase.CONNECTING,
             host = config,
             stage = ConnectStage.OpeningStreams,
+            gatewayNote = note,
         )
         val client = clientFor(config)
         api = client

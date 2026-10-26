@@ -33,6 +33,24 @@ class GatewaySessions @Inject constructor(
     private val sessions = ConcurrentHashMap<String, Session>()
 
     /**
+     * DIAG: what the last attempt to get a session for each host did.
+     *
+     * Temporary read-out. Without it a refused renewal is indistinguishable on screen from a
+     * gateway that is not there, and that is exactly the question this build has to answer.
+     */
+    private val outcomes = ConcurrentHashMap<String, String>()
+
+    fun note(hostId: String): String = outcomes[hostId] ?: "none"
+
+    /** DIAG: a one-line summary of everything the session layer knows about [hostId]. */
+    suspend fun diagnose(hostId: String): String {
+        val token = credentials.token(hostId) != null
+        val identity = identities.get(hostId) != null
+        val session = cached(hostId) != null
+        return "gw id=${hostId.take(8)} token=$token id-rec=$identity session=$session renew=${note(hostId)}"
+    }
+
+    /**
      * The session for [hostId], when it is still worth using.
      *
      * Anything inside the last 30 seconds counts as expired: a request that starts now may still be
@@ -62,13 +80,20 @@ class GatewaySessions @Inject constructor(
      * to try is harder to diagnose than one that says what the gateway said.
      */
     suspend fun ensure(hostId: String, baseUrl: String): Boolean {
-        if (cached(hostId) != null) return true
-        val deviceToken = credentials.token(hostId) ?: return false
+        if (cached(hostId) != null) {
+            outcomes[hostId] = "cached"
+            return true
+        }
+        val deviceToken = credentials.token(hostId) ?: run {
+            outcomes[hostId] = "no-token"
+            return false
+        }
         val identity = identities.get(hostId)
         val client = pinnedClient(identity?.caDerB64)
         return when (val outcome = MobileAccessPairing.nativeRenew(baseUrl, deviceToken, client)) {
             is NativeRenewOutcome.Renewed -> {
                 adopt(hostId, outcome.response.sessionToken, outcome.response.csrfToken, outcome.response.sessionExpiresAt)
+                outcomes[hostId] = "renewed"
                 true
             }
             // Revoked is the one answer that cannot be recovered: the device is gone from the
@@ -76,9 +101,21 @@ class GatewaySessions @Inject constructor(
             // network fault.
             NativeRenewOutcome.Revoked -> {
                 credentials.remove(hostId)
+                outcomes[hostId] = "revoked"
                 false
             }
-            else -> false
+            NativeRenewOutcome.HostRefused -> {
+                outcomes[hostId] = "host-refused"
+                false
+            }
+            is NativeRenewOutcome.RateLimited -> {
+                outcomes[hostId] = "rate-limited"
+                false
+            }
+            is NativeRenewOutcome.Unreachable -> {
+                outcomes[hostId] = "unreachable:${outcome.failure.kind}"
+                false
+            }
         }
     }
 

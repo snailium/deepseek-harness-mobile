@@ -427,6 +427,13 @@ fun ConnectScreen(onOpenSettings: () -> Unit, viewModel: ConnectViewModel = hilt
                     modifier = Modifier.fillMaxWidth(),
                 )
                 if (state.connecting) ConnectProgressRow(state.stage, state.attempted)
+                // DIAG (remove once the gateway report closes): what the session layer did, and
+                // which failure the classifier chose. The second one names the status class the
+                // loop saw, which the prose above deliberately hides.
+                val diag = listOfNotNull(state.gatewayNote, state.failure?.toString()).joinToString("\n")
+                if (diag.isNotBlank()) {
+                    Text("DIAG\n$diag", style = DsType.caption11, color = colors.warnLabel)
+                }
                 state.failure?.let { failure ->
                     ConnectFailureBlock(
                         failure = failure,

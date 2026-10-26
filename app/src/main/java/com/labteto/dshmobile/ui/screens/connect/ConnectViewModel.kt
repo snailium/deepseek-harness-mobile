@@ -80,6 +80,8 @@ data class ConnectUiState(
     val retrying: Boolean = false,
     /** A remote (off-LAN) manual attempt awaiting the user's confirmation. */
     val pendingRemoteConfirm: PendingRemoteConnect? = null,
+    /** DIAG (temporary): what the gateway session layer did for the attempted endpoint. */
+    val gatewayNote: String? = null,
 ) {
     /**
      * Derived, never stored.
@@ -142,6 +144,7 @@ class ConnectViewModel @Inject constructor(
                             else -> conn.failure
                         },
                         retrying = !owned && !connected && conn.attempts > 0,
+                        gatewayNote = conn.gatewayNote,
                         // The Recent card's liveness dot used to be greyed by the failure callback
                         // that no longer exists; without this a dead entry keeps looking healthy.
                         recentStatus = current.attempted
