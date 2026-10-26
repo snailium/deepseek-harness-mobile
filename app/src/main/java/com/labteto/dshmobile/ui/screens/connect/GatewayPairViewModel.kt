@@ -98,6 +98,18 @@ class GatewayPairViewModel @Inject constructor(
 
     fun clearMessage() = _state.update { it.copy(message = null, failed = false) }
 
+    /**
+     * Acknowledge the [UiState.pairedHostId] signal.
+     *
+     * It has to be consumed, not just read. This view model outlives the dialog (it is scoped to the
+     * activity, like every Hilt view model behind this screen), so a latched value closes the *next*
+     * dialog the instant it opens — which is exactly how "the pairing window vanished and I cannot
+     * pair again" happens. The key and any message go with it: they describe a pairing that is over.
+     */
+    fun acknowledgePaired() = _state.update {
+        it.copy(pairedHostId = null, keyOrLink = "", address = "", message = null, failed = false)
+    }
+
     /** Read, verify, claim, remember, connect. */
     fun pair() {
         val current = _state.value

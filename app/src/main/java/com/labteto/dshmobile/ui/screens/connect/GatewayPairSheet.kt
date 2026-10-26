@@ -46,7 +46,11 @@ fun GatewayPairSheet(
     val scan = rememberGatewayQrScanner(onText = viewModel::scanned)
     // A claim succeeded: close, rather than leaving a spent key on screen for a second tap.
     LaunchedEffect(state.pairedHostId) {
-        if (state.pairedHostId != null) onDismiss()
+        if (state.pairedHostId != null) {
+            onDismiss()
+            // Clear it, or reopening this dialog closes it again on the first frame.
+            viewModel.acknowledgePaired()
+        }
     }
 
     AlertDialog(
