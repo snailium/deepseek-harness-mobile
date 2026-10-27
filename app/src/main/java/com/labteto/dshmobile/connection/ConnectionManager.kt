@@ -15,6 +15,7 @@ import com.labteto.dshmobile.ui.screens.connect.ConnectFailure
 import com.labteto.dshmobile.core.wire.GatewayHeaders
 import com.labteto.dshmobile.core.wire.MobileAccess
 import com.labteto.dshmobile.core.wire.OkHttpRpcTransport
+import com.labteto.dshmobile.core.wire.RpcTransportException
 import com.labteto.dshmobile.core.wire.ServerRequest
 import com.labteto.dshmobile.core.wire.WsDownlink
 import com.labteto.dshmobile.core.wire.WsDownlinkSink
@@ -147,18 +148,21 @@ class ConnectionManager @Inject constructor(
      * Build a client for [config] with its scheme and auth headers — the same client the loop and
      * the probe use, so a manual probe and the real connection always speak the same wire.
      */
+    /**
+     * The headers [config] authenticates with.
+     *
+     * A paired gateway sends a session cookie plus two anti-forgery headers instead of the harness's
+     * own `authHeaders`; both are ordinary headers, so they ride the `extraHeaders` seam an edge
+     * proxy uses and the transport stays upstream's.
+     */
+    fun headersFor(config: HostConfig): Map<String, String> {
+        val session = gatewaySessions.cached(config.id) ?: return config.authHeaders
+        val origin = MobileAccess.originOf(config.baseUrl) ?: return config.authHeaders
+        return GatewayHeaders.forSession(session.token, origin, session.csrf)
+    }
+
     fun clientFor(config: HostConfig): DshApiClient {
-        // A paired gateway authenticates with a session cookie plus two anti-forgery headers, not
-        // with `config.authHeaders` — and they ride the same `extraHeaders` seam an edge proxy uses,
-        // so the transport stays upstream's. The session is renewed in `connect`; reading it here is
-        // what keeps this function synchronous.
-        val session = gatewaySessions.cached(config.id)
-        val origin = MobileAccess.originOf(config.baseUrl)
-        val headers = if (session != null && origin != null) {
-            GatewayHeaders.forSession(session.token, origin, session.csrf)
-        } else {
-            config.authHeaders
-        }
+        val headers = headersFor(config)
         return DshApiClient(
             transport = OkHttpRpcTransport(config.baseUrl, okHttpClient, extraHeaders = headers),
             wsFactory = { path, sink ->
@@ -190,7 +194,19 @@ class ConnectionManager @Inject constructor(
         var note: String? = null
         if (gatewayIdentities.get(config.id) != null || deviceCredentials.token(config.id) != null) {
             gatewaySessions.ensure(config.id, config.baseUrl)
-            note = gatewaySessions.diagnose(config.id)
+            // DIAG: prove what the gateway says to an ordinary authenticated call, before the loop
+            // turns its answer into prose. The status is the fact this report is missing.
+            val headers = headersFor(config)
+            val probe = runCatching {
+                OkHttpRpcTransport(config.baseUrl, okHttpClient, extraHeaders = headers)
+                    .post("/api/host.describe", "{}")
+            }
+            val status = probe.getOrNull()?.status
+                ?: (probe.exceptionOrNull() as? RpcTransportException)?.status
+                ?: -1
+            note = gatewaySessions.diagnose(config.id) +
+                " cookie=${if (headers.containsKey(GatewayHeaders.COOKIE)) "yes" else "no"}" +
+                " probe=$status"
         }
         activeHost = config
         _state.value = ConnectionUiState(

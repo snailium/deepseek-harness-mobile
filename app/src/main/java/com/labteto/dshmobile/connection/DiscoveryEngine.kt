@@ -155,7 +155,11 @@ class DiscoveryEngine @Inject constructor(
                 TransportFailure.TIMEOUT -> ProbeOutcome.Timeout
                 TransportFailure.DNS -> ProbeOutcome.DnsFailure
                 TransportFailure.UNREACHABLE -> ProbeOutcome.Unreachable
-                TransportFailure.NOT_FOUND, TransportFailure.NOT_A_HARNESS -> ProbeOutcome.NotAHarness
+                // A harness that answers 404 to `host.describe` is a harness: the method is gone
+                // in 0.2.1, and calling the address "not a harness" sent the reader to re-check a
+                // port that was never wrong. Reachable, without a description.
+                TransportFailure.NOT_FOUND -> ProbeOutcome.Reachable(HostDescription("", "", null, null, 0, false))
+                TransportFailure.NOT_A_HARNESS -> ProbeOutcome.NotAHarness
                 TransportFailure.OTHER, null -> ProbeOutcome.Other(result.error.message)
             }
         }

@@ -264,9 +264,30 @@ class ConnectionLoop(
                 ),
             )
             is RpcResult.Err -> {
-                muxWs.close()
-                hostWs.close()
-                Opened.Failed(GenerationFailure.DescribeFailed(describe.error))
+                // `host.describe` is a caption, not a permission. Harness 0.2.1 answers 404 for it
+                // (the method the 0.1.x client was written against is gone), and treating that as
+                // "this is not a harness" refused a session that was otherwise ready: both streams
+                // were already open, the credential was accepted, and every real call works.
+                //
+                // So a not-found answer means "connected, description unknown", which is what the
+                // screen already renders for a host that does not describe itself.
+                if (TransportFailures.of(describe.error) == TransportFailure.NOT_FOUND) {
+                    Opened.Ok(
+                        Generation(
+                            muxWs = muxWs,
+                            hostWs = hostWs,
+                            muxFrames = muxFrames,
+                            hostFrames = hostFrames,
+                            muxFailed = muxFailed,
+                            hostFailed = hostFailed,
+                            description = HostDescription("", "", null, null, 0, false),
+                        ),
+                    )
+                } else {
+                    muxWs.close()
+                    hostWs.close()
+                    Opened.Failed(GenerationFailure.DescribeFailed(describe.error))
+                }
             }
         }
     }
