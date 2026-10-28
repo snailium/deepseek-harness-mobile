@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name" translatable="false">DSH Mobile</string>
     <string name="app_long_name">DeepSeek Harness Remote</string>
     <string name="common_cancel">Cancel</string>
@@ -127,7 +127,7 @@
     <string name="chat_composer_mode">Send mode</string>
     <string name="chat_composer_mode_queue_hint">Runs after the current turn finishes</string>
     <string name="chat_composer_mode_steer_hint">Interrupts the running turn</string>
-    <string name="chat_composer_steer_idle">Steering needs a running turn</string>
+    <string name="chat_composer_steer_idle" tools:ignore="MissingTranslation">Steering needs a running turn</string>
     <string name="chat_tab">Chat</string>
     <string name="chat_todo_title">To-dos</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>

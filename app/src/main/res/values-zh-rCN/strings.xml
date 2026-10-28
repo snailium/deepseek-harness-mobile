@@ -304,6 +304,7 @@
     <string name="chat_composer_mode">发送方式</string>
     <string name="chat_composer_mode_queue_hint">在当前回合结束后执行</string>
     <string name="chat_composer_mode_steer_hint">插入正在进行的回合</string>
+    <string name="chat_composer_steer_idle">提示插话需要正在运行的轮次</string>
     <string name="chat_tab">对话</string>
     <string name="chat_todo_title">待办</string>
     <string name="chat_todo_progress">%1$d/%2$d</string>
