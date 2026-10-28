@@ -102,7 +102,11 @@ sealed interface ConnectFailure {
          * meaning "add this address to the harness's trusted hosts", because the two arrive as the
          * same status with no body a WebSocket upgrade could carry.
          */
-        fun from(outcome: ProbeOutcome, relay: Boolean = false): ConnectFailure = when (outcome) {
+        fun from(
+            outcome: ProbeOutcome,
+            relay: Boolean = false,
+            gateway: Boolean = false,
+        ): ConnectFailure = when (outcome) {
             is ProbeOutcome.Reachable -> Other("")
             ProbeOutcome.PairingRequired -> PairingRequired
             ProbeOutcome.CertificateChanged -> CertificateChanged
@@ -112,7 +116,16 @@ sealed interface ConnectFailure {
             // the branch below still covers a 401 that reaches here with a relay in front without
             // having been through `DiscoveryEngine.probeOutcome`.
             ProbeOutcome.RelayUnauthenticated -> RelayUnauthenticated
-            ProbeOutcome.Unauthenticated -> if (relay) RelayUnauthenticated else Unauthenticated
+            // Three different facts behind one status. Behind a relay a 401 is the *relay's* own
+            // upstream sign-in, which the phone cannot fix. Behind a gateway it is this device's
+            // session, and the device token that mints one has been refused — after the transport's
+            // own renewal retry — so the remedy really is to pair again. Directly at a harness it is
+            // the browser session, obtainable from the launch token.
+            ProbeOutcome.Unauthenticated -> when {
+                gateway -> PairingRequired
+                relay -> RelayUnauthenticated
+                else -> Unauthenticated
+            }
             ProbeOutcome.Refused -> Refused
             ProbeOutcome.Timeout -> Timeout
             ProbeOutcome.DnsFailure -> DnsFailure
@@ -125,9 +138,13 @@ sealed interface ConnectFailure {
         }
 
         /** Map a failure from inside the connection loop's readiness handshake. */
-        fun from(failure: GenerationFailure, relay: Boolean = false): ConnectFailure = when (failure) {
+        fun from(
+            failure: GenerationFailure,
+            relay: Boolean = false,
+            gateway: Boolean = false,
+        ): ConnectFailure = when (failure) {
             is GenerationFailure.MuxTimedOut -> StreamsBlocked
-            is GenerationFailure.MuxFailed -> fromKind(failure.kind, failure.message, StreamsBlocked, relay)
+            is GenerationFailure.MuxFailed -> fromKind(failure.kind, failure.message, StreamsBlocked, relay, gateway)
             // The ready frame replaced `host.describe` as the last handshake step, so this is where
             // "reached it, could not finish" now lands.
             is GenerationFailure.ReadyFailed -> fromKind(
@@ -135,6 +152,7 @@ sealed interface ConnectFailure {
                 failure.error.message,
                 Other(failure.error.message),
                 relay,
+                gateway,
             )
         }
 
@@ -143,21 +161,36 @@ sealed interface ConnectFailure {
             message: String?,
             fallback: ConnectFailure,
             relay: Boolean = false,
+            gateway: Boolean = false,
         ): ConnectFailure = when (kind) {
             TransportFailure.CERTIFICATE_PIN -> CertificateChanged
             TransportFailure.TRUST_FENCE -> if (relay) PairingRequired else TrustFence
-            TransportFailure.UNAUTHENTICATED -> if (relay) RelayUnauthenticated else Unauthenticated
+            TransportFailure.UNAUTHENTICATED -> when {
+                gateway -> PairingRequired
+                relay -> RelayUnauthenticated
+                else -> Unauthenticated
+            }
             TransportFailure.REFUSED -> Refused
             TransportFailure.TIMEOUT, TransportFailure.UNREACHABLE -> Timeout
             TransportFailure.DNS -> DnsFailure
             // A no-argument call cannot be refused as too large, so 413 is something that is not
-            // the harness. A throttle and a dead upstream, by contrast, are real harness addresses
-            // and carry wording that says so, so they keep their message instead of being flattened
-            // into "not a harness" and sending the person to re-check an address that was right.
+            // the harness. A throttle, a dead upstream and a gateway that gave up waiting, by
+            // contrast, are all real harness addresses and carry wording that says so, so they keep
+            // their message instead of being flattened into "not a harness" and sending the person
+            // to re-check an address that was right.
             TransportFailure.NOT_FOUND, TransportFailure.NOT_A_HARNESS, TransportFailure.TOO_LARGE -> NotAHarness
             TransportFailure.TLS -> TlsFailure
-            TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN, TransportFailure.OTHER ->
-                message?.takeIf { it.isNotBlank() }?.let { Other(it) } ?: fallback
+            TransportFailure.RATE_LIMITED, TransportFailure.UPSTREAM_DOWN, TransportFailure.OTHER,
+            TransportFailure.UPSTREAM_TIMEOUT,
+            // `dsh-mobile` 0.6.13's two new rejections. Both come from a gateway that was reached
+            // and answered, so they are real harness addresses too — flattening them into "not a
+            // harness" would repeat the 504 mistake this list already documents. Their carrier
+            // message names the gateway's own code, which is more use than a generic verdict.
+            TransportFailure.REQUEST_TIMEOUT, TransportFailure.HEADERS_TOO_LARGE,
+            // The third 0.6.13 branch: a packet the gateway's parser rejected. Same reasoning, and
+            // the carrier wording says the bytes were malformed rather than that the address is off.
+            TransportFailure.MALFORMED_REQUEST,
+            -> message?.takeIf { it.isNotBlank() }?.let { Other(it) } ?: fallback
             null -> fallback
         }
     }

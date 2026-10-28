@@ -355,6 +355,20 @@ internal object FeatherIcons {
         }
     }
 
+    /** `shield` — permission presets and gateway indicator. */
+    val Shield: ImageVector by lazy {
+        feather("Shield") {
+            moveTo(12f, 22f)
+            reflectiveCurveTo(20f, 18f, 20f, 12f)
+            lineTo(20f, 5f)
+            lineTo(12f, 2f)
+            lineTo(4f, 5f)
+            lineTo(4f, 12f)
+            curveTo(4f, 18f, 12f, 22f, 12f, 22f)
+            close()
+        }
+    }
+
 }
 
 // ---------------------------------------------------------------------------

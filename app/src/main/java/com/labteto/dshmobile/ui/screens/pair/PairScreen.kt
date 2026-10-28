@@ -224,10 +224,16 @@ private fun PairFailureBlock(failure: PairFailure) {
         PairFailure.Rejected -> stringResource(R.string.pair_fail_rejected)
         is PairFailure.RateLimited -> stringResource(R.string.pair_fail_rate_limited, failure.seconds)
         is PairFailure.NotARelay -> stringResource(R.string.pair_fail_not_a_relay, failure.authority)
+        is PairFailure.GatewayNotRelay ->
+            stringResource(R.string.pair_fail_gateway_not_relay, failure.authority)
         is PairFailure.HostRefused -> stringResource(R.string.pair_fail_host_refused, failure.authority)
         is PairFailure.Unreachable -> stringResource(R.string.pair_fail_unreachable, failure.authority)
         is PairFailure.CertificateMismatch ->
             stringResource(R.string.pair_fail_certificate, failure.authority)
+        is PairFailure.NotAGateway -> stringResource(R.string.pair_fail_not_a_gateway, failure.authority)
+        is PairFailure.GatewayCaMismatch ->
+            stringResource(R.string.pair_fail_gateway_ca, failure.authority)
+        PairFailure.AddressRequired -> stringResource(R.string.pair_fail_address_required)
         PairFailure.InvalidUrl -> stringResource(R.string.pair_fail_url)
         PairFailure.InvalidCode -> stringResource(R.string.pair_fail_code)
     }

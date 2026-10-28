@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -8,17 +10,29 @@ plugins {
 }
 
 /**
- * The release version, taken from the git tag the release workflow is building.
- *
- * `DSH_VERSION_NAME` is the tag without its leading `v`. Hardcoding it here meant every tag after
- * the first shipped an APK still claiming to be the first — same `versionCode`, so Android saw no
- * upgrade at all. The code is derived from the name so it rises with semver on its own; the
- * fallback is what a local `assembleRelease` builds.
+ * The version, read from the fork's own `version.properties` at the repository root.
  */
-val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.18.0"
+val forkVersionFile = rootProject.file("version.properties")
+val forkVersionProps = Properties().apply {
+    require(forkVersionFile.exists()) { "missing ${forkVersionFile.path} — see its header" }
+    forkVersionFile.inputStream().use { load(it) }
+}
+
+/** The fork's own release count, e.g. `0.4.20`. */
+val forkVersion: String = forkVersionProps.getProperty("forkVersion").trim()
+
+/** The harness line this build is for, e.g. `0.2.1`. A claim, not a counter. */
+val harnessVersion: String = forkVersionProps.getProperty("harnessVersion").trim()
+
+/**
+ * `DSH_VERSION_NAME` overrides the whole name, which is what the release workflow uses; otherwise
+ * the name is composed from the two halves.
+ */
+val dshVersionName: String = System.getenv("DSH_VERSION_NAME")?.takeIf { it.isNotBlank() }
+    ?: "$forkVersion-dsh.$harnessVersion"
 
 val dshVersionCode: Int = dshVersionName
-    .substringBefore('-')
+    .substringBefore("-dsh.").substringBefore('-')
     .split('.')
     .mapNotNull { it.toIntOrNull() }
     .let { parts ->

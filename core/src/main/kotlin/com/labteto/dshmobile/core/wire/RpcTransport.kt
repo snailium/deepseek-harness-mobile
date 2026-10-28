@@ -123,6 +123,18 @@ class OkHttpRpcTransport(
     writeTimeoutMs: Long = 30_000,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * The `Origin` a `dsh-mobile` gateway's trust fence demands of every mutating request.
+     *
+     * Null for a direct harness and for a relay, neither of which reads the header. Set whenever the
+     * endpoint is a gateway: its fence refuses a POST that arrives without an accepted origin with a
+     * bare 403, before any route runs — indistinguishable, from the caller's side, from a wrong
+     * credential. It is derived from [baseUrl] by the caller rather than accepted from a user, so
+     * the value and the address can never disagree.
+     */
+    private val origin: String? = null,
+    /** The `x-dsh-mobile-csrf` value a gateway demands alongside [origin] on a mutation. */
+    private val csrf: String? = null,
 ) : RpcTransport {
 
     private val base: HttpUrl = baseUrl.toHttpUrl()
@@ -144,6 +156,7 @@ class OkHttpRpcTransport(
                 .header("Content-Type", "application/json")
                 .authorized(authorization)
                 .cookied(cookie)
+                .gatewayMutation(origin, csrf)
                 .post(body.toRequestBody(JSON_MEDIA_TYPE))
                 .build()
             // Package operations are host-owned and may outlive the ordinary RPC read budget.
@@ -262,6 +275,7 @@ class OkHttpRpcTransport(
             .header("Host", hostHeader)
             .authorized(authorization)
             .cookied(cookie)
+            .gatewayMutation(origin, csrf)
             .post(requestBody)
             .build()
         val response = try {
@@ -313,6 +327,25 @@ internal fun Request.Builder.cookied(cookie: String?): Request.Builder =
     if (cookie == null) this else header("Cookie", cookie)
 
 /**
+ * Attach what a `dsh-mobile` gateway demands of a *mutating* request: its `Origin`, and the CSRF
+ * token that proves the caller is the session holder rather than a page that borrowed a cookie.
+ *
+ * Both are required and neither substitutes for the other — verified against 0.5.3, where a POST
+ * carrying the session cookie but no CSRF answers 403, and one carrying the CSRF but no origin
+ * answers 403 as well. Only GET and HEAD are exempt, which is why this is applied at the two
+ * mutating call sites and not to the download path.
+ *
+ * `Origin` is a forbidden header on a browser `fetch`, which is the point: it cannot be forged by
+ * page script, and a client that is not a page simply states it.
+ */
+internal fun Request.Builder.gatewayMutation(origin: String?, csrf: String?): Request.Builder {
+    var builder = this
+    if (origin != null) builder = builder.header(MobileAccess.ORIGIN_HEADER, origin)
+    if (csrf != null) builder = builder.header(MobileAccess.CSRF_HEADER, csrf)
+    return builder
+}
+
+/**
  * The `Host` header for requests against [base].
  *
  * The port is omitted when it is the scheme's default, which is what a relay behind a name on :443
@@ -360,10 +393,31 @@ internal fun carrierMessage(status: Int, body: String? = null): String = when (s
     // Saying so beats "not a harness", which is what this used to read as: the address was right
     // and the attachment was too big.
     413 -> "the harness refused the request as too large (HTTP 413)"
+    // `dsh-mobile` 0.6.13 split its inbound rejections three ways. These two mean the gateway was
+    // reachable and heard this device: it stopped reading because the request did not arrive in
+    // time (408), or refused the headers as oversized (431). Both used to answer a bare 400, and
+    // reading as "not a harness" sent people to check a hostname that was never the problem. The
+    // gateway names its own code (`request_timeout` / `headers_too_large`), so echo it when present.
+    408 -> refusalReason(body)?.let { "the gateway stopped reading the request: $it (HTTP 408)" }
+        ?: "the gateway timed out receiving the request (HTTP 408)"
+    431 -> refusalReason(body)?.let { "the gateway refused oversized request headers: $it (HTTP 431)" }
+        ?: "the gateway refused oversized request headers (HTTP 431)"
+    // The third 0.6.13 branch, and the only one a retry cannot fix: the gateway answered, so the
+    // bytes reached the harness's address, but its HTTP parser rejected them. "Malformed" is the
+    // whole instruction — sending the same request again changes nothing.
+    400 -> refusalReason(body)?.let { "the gateway rejected a malformed request: $it (HTTP 400)" }
+        ?: "the gateway rejected a malformed request (HTTP 400)"
     // Only a relay throttles; the harness itself does not.
     429 -> "rate limited before the harness (HTTP 429)"
     // A relay or reverse proxy answered and the harness behind it did not.
     502 -> "nothing answered behind the relay (HTTP 502)"
+    // A gateway answered *for* the harness, having given up waiting for it. Named as such because
+    // the fix is a gateway setting, not a reconnect: `upstreamApiTimeoutMs` is 0 (no deadline) by
+    // default since dsh-mobile 0.5.6, so a 504 here means that deployment raised it from 0 or is
+    // older than 0.5.6 and is still on the 30s default. The body usually says `upstream_timeout`,
+    // which is worth echoing when present.
+    504 -> refusalReason(body)?.let { "the gateway stopped waiting for the harness: $it (HTTP 504)" }
+        ?: "the gateway stopped waiting for the harness (HTTP 504)"
     // A relay in front of the harness runs its own fence, and when it refuses, the harness never
     // sees the request at all — so naming the harness sends people to debug the wrong machine.
     // The relay says why in the body; when it does, that reason is the message. Otherwise the
@@ -433,6 +487,15 @@ open class WsChannel(
     private val sink: WsChannelSink,
     private val authorization: String? = null,
     private val cookie: String? = null,
+    /**
+     * The `Origin` a `dsh-mobile` gateway demands of the upgrade as well as of a POST.
+     *
+     * The gateway's fence runs on `handleUpgrade` before the path is even matched, and it refuses
+     * a handshake with no accepted origin with the same bare 403 it uses for a mutation — verified:
+     * the identical upgrade answers 101 with the header and 403 without it. There is no CSRF
+     * requirement on an upgrade, which is why only the origin is carried here.
+     */
+    private val origin: String? = null,
 ) {
     @Volatile
     private var webSocket: WebSocket? = null
@@ -473,12 +536,12 @@ open class WsChannel(
     open fun start() {
         if (started) return
         started = true
-        val request = Request.Builder()
+        val builder = Request.Builder()
             .url(url)
             .authorized(authorization)
             .cookied(cookie)
-            .build()
-        webSocket = client.newWebSocket(request, listener)
+        if (origin != null) builder.header(MobileAccess.ORIGIN_HEADER, origin)
+        webSocket = client.newWebSocket(builder.build(), listener)
     }
 
     /**
