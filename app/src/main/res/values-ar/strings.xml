@@ -98,6 +98,9 @@
     <string name="chatlist_session_rename">إعادة تسمية الجلسة</string>
     <string name="chatlist_session_fork">تفرع الجلسة</string>
     <string name="chatlist_session_archive">أرشفة الجلسة</string>
+    <string name="chatlist_session_unarchive">إلغاء أرشفة الجلسة</string>
+    <string name="chatlist_show_archived">إظهار الجلسات المؤرشفة</string>
+    <string name="chatlist_hide_archived">إخفاء الجلسات المؤرشفة</string>
     <string name="chatlist_group_by_workspace">تجميع حسب مساحة العمل</string>
     <string name="chatlist_sort_updated">ترتيب حسب آخر تحديث</string>
     <string name="chatlist_sort_manual">ترتيب يدوي</string>
@@ -493,7 +496,7 @@
     <string name="terminal_control">تولي التحكم</string>
     <string name="feedback_note">ملاحظة التقييم (اختيارية)</string>
     <string name="feedback_send">إرسال التقييم</string>
-    <string name="workspace_changes">تغييرات الملفات في الدور %1$d</string>
+    <string name="workspace_changes">تغييرات الملفات في هذا الدور</string>
     <string name="workspace_changes_unknown">تم تلخيص تغييرات الملفات</string>
     <string name="workspace_changes_more">%1$d أخرى غير معروضة</string>
     <string name="workspace_changes_gone">قائمة الملفات لم تعد متاحة</string>

@@ -98,6 +98,9 @@
     <string name="chatlist_session_rename">Renombrar sesión</string>
     <string name="chatlist_session_fork">Bifurcar sesión</string>
     <string name="chatlist_session_archive">Archivar sesión</string>
+    <string name="chatlist_session_unarchive">Desarchivar sesión</string>
+    <string name="chatlist_show_archived">Mostrar sesiones archivadas</string>
+    <string name="chatlist_hide_archived">Ocultar sesiones archivadas</string>
     <string name="chatlist_group_by_workspace">Agrupar por espacio de trabajo</string>
     <string name="chatlist_sort_updated">Ordenar por última actualización</string>
     <string name="chatlist_sort_manual">Orden manual</string>
@@ -493,7 +496,7 @@
     <string name="terminal_control">Tomar control</string>
     <string name="feedback_note">Comentario (opcional)</string>
     <string name="feedback_send">Enviar comentario</string>
-    <string name="workspace_changes">Cambios de archivos del turno %1$d</string>
+    <string name="workspace_changes">Cambios de archivos en este turno</string>
     <string name="workspace_changes_unknown">Cambios de archivos resumidos</string>
     <string name="workspace_changes_more">%1$d más sin mostrar</string>
     <string name="workspace_changes_gone">Lista de archivos no disponible</string>

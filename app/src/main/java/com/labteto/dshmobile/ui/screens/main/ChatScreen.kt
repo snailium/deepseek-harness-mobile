@@ -76,6 +76,7 @@ import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
 import androidx.compose.runtime.LaunchedEffect
 import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.ui.rememberHostsStore
 import androidx.compose.runtime.collectAsState
 import com.labteto.dshmobile.ui.components.TranscriptSearchBar
@@ -235,23 +236,11 @@ fun ChatScreen(
                 title = title,
                 running = conversation?.running == true,
                 models = models,
-                // The harness pins the preset once a session has started, so the chip — which
-                // reads as a picker — is only offered while the session is still blank. After
-                // that the preset is a fact, and the Details panel states it as one.
-                agentPresetLabel = currentSession?.agentPreset
-                    ?.takeIf { agentPresets?.modeSelectionEnabled != false && currentSession.blank }
-                    ?.let { agentPresetLabel(it, agentPresets) },
-                subagentCount = subagents.size,
                 detailsOpen = detailsOpen,
                 tab = tab,
                 onOpenDrawer = onOpenDrawer,
                 onOpenModels = { sheet = ChatSheet.Models },
                 onOpenHistory = { sheet = ChatSheet.History },
-                onOpenPresets = {
-                    scope.launch { store.refreshAgentPresets() }
-                    sheet = ChatSheet.Presets
-                },
-                onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
                 // Disabled rather than hidden when there is no session to point at, which is what
@@ -270,8 +259,18 @@ fun ChatScreen(
                 onToggleSearch = { search.open = !search.open },
             )
 
-            connectionError?.let {
-                androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
+            // A carrier failure on a slow network is followed by an automatic reconnect that
+            // succeeds a few seconds later. While the loop is still trying, the raw error text
+            // ("remote stream carrier failed") is noise — the user sees "Reconnecting…" instead.
+            // Once the loop gives up (phase leaves RECONNECTING) or the error is a business
+            // failure that will not heal on its own, the real message comes back.
+            val showReconnecting = connectionError != null && connection.phase == ConnectionPhase.RECONNECTING
+            if (showReconnecting) {
+                ConnectionBanner(stringResource(R.string.common_reconnecting))
+            } else {
+                connectionError?.let {
+                    androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
+                }
             }
             if (conversation?.gap == true) {
                 ConnectionBanner(stringResource(R.string.common_reconnecting))
@@ -472,6 +471,10 @@ fun ChatScreen(
                 )
             }
 
+            // DIAG: what the Markdown renderer received and parsed, above the composer. Temporary
+            // read-out for the "markdown shows as raw text" report; remove with MarkdownDiagnostics.
+            com.labteto.dshmobile.ui.components.MarkdownDiagnosticsBar()
+
             Composer(
                 draft = draft,
                 onDraftChange = submitter::onDraftChange,
@@ -491,6 +494,11 @@ fun ChatScreen(
                 preparing = composer.preparing,
                 onOpenCommands = { sheet = ChatSheet.Commands },
                 onOpenAttachments = { sheet = ChatSheet.Attachments },
+                // The subagent chip lives in the composer, immediately left of the permission
+                // trigger: both are round glyphs opening a sheet, so they read as one group there,
+                // and the tab row gets its width back for the model name.
+                subagentCount = subagents.size,
+                onOpenSubagents = { sheet = ChatSheet.Subagents },
                 // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
                 // which keeps what it has when the new value is equal to it, and a reference to a
                 // local function equals every other reference to that function whatever it

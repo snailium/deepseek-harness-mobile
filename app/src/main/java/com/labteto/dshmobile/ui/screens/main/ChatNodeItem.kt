@@ -38,6 +38,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.ui.rememberSessionStore
+import com.labteto.dshmobile.ui.components.ChangedFileRowModel
+import com.labteto.dshmobile.ui.components.ChangedFilesCard
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
@@ -59,7 +61,6 @@ import com.labteto.dshmobile.core.session.GoalNode
 import com.labteto.dshmobile.core.session.JobNode
 import com.labteto.dshmobile.core.session.OtherNode
 import com.labteto.dshmobile.core.wire.dto.JobStatus
-import com.labteto.dshmobile.core.wire.dto.WorkspaceChangedFile
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
 import com.labteto.dshmobile.core.session.SubagentNode
@@ -312,76 +313,41 @@ private fun WorkspaceChangesRow(node: OtherNode) {
     val loaded = key != null && summaries.containsKey(key)
     val summary = key?.let { summaries[it] }
 
-    Column(Modifier.fillMaxWidth().padding(vertical = DsSpacing.tiny)) {
-        Text(
-            if (turn != null) {
-                stringResource(R.string.workspace_changes, turn)
-            } else {
-                stringResource(R.string.workspace_changes_unknown)
-            },
-            style = DsType.caption11,
-            color = colors.labelTertiary,
-        )
-        Column(Modifier.padding(start = DsSpacing.medium, top = DsSpacing.tiny)) {
-            when {
-                summary != null -> {
-                    summary.files.forEach { file -> ChangedFileRow(file) }
-                    // The host caps the list, and `total` counts the ones it dropped. Saying so is
-                    // the difference between a truncated list and a wrong one.
-                    if (summary.total > summary.files.size) {
-                        Text(
-                            stringResource(R.string.workspace_changes_more, summary.total - summary.files.size),
-                            style = DsType.caption11,
-                            color = colors.labelTertiary,
-                        )
-                    }
-                }
-                // Unavailable is a fact about the transcript, not a failure to report.
-                loaded -> Text(
-                    stringResource(R.string.workspace_changes_gone),
-                    style = DsType.caption11,
-                    color = colors.labelTertiary,
-                )
-            }
-        }
-    }
-}
-
-/** One changed file: its path, then its line counts. */
-@Composable
-private fun ChangedFileRow(file: WorkspaceChangedFile) {
-    val colors = DsTheme.colors
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            // The harness's `display` form: relative inside the session's cwd, `../` above it,
-            // `~` under home. Already slash-separated, so it needs no rewriting for a phone.
-            file.display,
-            style = DsType.caption11,
-            color = colors.labelSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(Modifier.width(DsSpacing.small))
-        if (file.hasCounts) {
-            // Only when the harness actually counted. A binary or oversized file reports 0/0, and
-            // rendering that blindly would claim "nothing changed" about a file it could not read.
-            Text("+${file.added}", style = DsType.caption11, color = colors.success)
-            Spacer(Modifier.width(DsSpacing.tiny))
-            Text("\u2212${file.deleted}", style = DsType.caption11, color = colors.error)
+    ChangedFilesCard(
+        // The card is anchored to the row's own event, so "this turn" already names the right
+        // one — no need to repeat the number in the title. The fallback covers a snapshot that
+        // lost its `turn` field; it still says what the card shows without claiming a number.
+        title = if (turn != null) {
+            stringResource(R.string.workspace_changes)
         } else {
-            Text(
-                stringResource(
-                    if (file.binary) R.string.workspace_changes_binary else R.string.workspace_changes_oversized,
-                ),
-                style = DsType.caption11,
-                color = colors.labelTertiary,
+            stringResource(R.string.workspace_changes_unknown)
+        },
+        // `null` is the host having no summary — normal once a session is disposed — while an
+        // empty list means it answered and the turn changed nothing. Only the fetch's own outcome
+        // distinguishes them, which is why the map stores null rather than dropping the key.
+        files = summary?.files?.map { file ->
+            ChangedFileRowModel(
+                display = file.display,
+                added = file.added.takeIf { file.hasCounts },
+                deleted = file.deleted.takeIf { file.hasCounts },
+                uncountedLabel = if (file.hasCounts) {
+                    null
+                } else {
+                    stringResource(
+                        if (file.binary) R.string.workspace_changes_binary else R.string.workspace_changes_oversized,
+                    )
+                },
             )
-        }
-    }
+        },
+        // Not fetched yet renders nothing: the card would otherwise flash "unavailable" on the
+        // first frame of every row, which is a lie about a request that is still in flight.
+        unavailableLabel = stringResource(R.string.workspace_changes_gone).takeIf { loaded },
+        // The host caps the list, and `total` counts what it dropped; saying so is the difference
+        // between a truncated list and a wrong one.
+        moreLabel = summary
+            ?.takeIf { it.total > it.files.size }
+            ?.let { stringResource(R.string.workspace_changes_more, it.total - it.files.size) },
+    )
 }
 
 /** Event types that carry no user-facing content; they frame the transcript rather than fill it. */
@@ -542,9 +508,7 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                     )
                 }
                 "file" -> parseFileRef(block)?.let { ref -> FileChip(name = ref.name, bytes = ref.bytes) }
-                else -> block.text?.let {
-                    Text(it, style = DsType.caption11, color = colors.labelTertiary)
-                }
+                else -> if (!block.text.isNullOrBlank()) MarkdownText(block.text.orEmpty())
             }
         }
         if (node.interrupted) {
@@ -641,10 +605,15 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
     }
     val startedAt = context.eventTimes[node.seq]
     val endedAt = result?.let { context.eventTimes[it.seq] }
+    // The elapsed time rides the header line's trailing edge, not a line of its own: as its own
+    // line it read as a separate item above the call and broke the card's scan rhythm. It also
+    // drifted to the *left* margin, outside the card, because it was emitted before `ToolCard` as a
+    // sibling in the column rather than passed into it.
     val elapsed = if (startedAt != null && endedAt != null) {
         com.labteto.dshmobile.ui.components.formatDurationMs((endedAt - startedAt).coerceAtLeast(0))
-    } else null
-    if (!compact && elapsed != null) Text(elapsed, style = DsType.caption11, color = colors.labelCaption)
+    } else {
+        null
+    }
     ToolCard(
         view = card,
         expanded = expanded,
@@ -671,6 +640,15 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
                 Icon(FeatherIcons.ChevronRight, null, Modifier.size(14.dp).graphicsLayer { rotationZ = chevron }, tint = colors.labelTertiary)
             }
         }) else null,
+        trailing = elapsed?.let { text ->
+            {
+                Text(
+                    text,
+                    style = DsType.caption11,
+                    color = colors.labelCaption,
+                )
+            }
+        },
     )
     if (holdOpen) ToolHoldMenu(node, result, row.filePath, context) { holdOpen = false }
     AnimatedVisibility(

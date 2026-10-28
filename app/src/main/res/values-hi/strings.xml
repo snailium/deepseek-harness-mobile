@@ -98,6 +98,9 @@
     <string name="chatlist_session_rename">सेशन का नाम बदलें</string>
     <string name="chatlist_session_fork">सेशन फ़ोर्क करें</string>
     <string name="chatlist_session_archive">सेशन संग्रहित करें</string>
+    <string name="chatlist_session_unarchive">सेशन को आर्काइव से वापस लाएँ</string>
+    <string name="chatlist_show_archived">संग्रहित सत्र दिखाएँ</string>
+    <string name="chatlist_hide_archived">संग्रहित सत्र छिपाएँ</string>
     <string name="chatlist_group_by_workspace">कार्यक्षेत्र के अनुसार समूहित करें</string>
     <string name="chatlist_sort_updated">अंतिम अपडेट के अनुसार क्रमबद्ध करें</string>
     <string name="chatlist_sort_manual">मैन्युअल क्रम</string>
@@ -493,7 +496,7 @@
     <string name="terminal_control">नियंत्रण लें</string>
     <string name="feedback_note">प्रतिक्रिया (वैकल्पिक)</string>
     <string name="feedback_send">प्रतिक्रिया भेजें</string>
-    <string name="workspace_changes">टर्न %1$d की फ़ाइल परिवर्तन</string>
+    <string name="workspace_changes">इस टर्न में फ़ाइल परिवर्तन</string>
     <string name="workspace_changes_unknown">फ़ाइल परिवर्तन संक्षेपित</string>
     <string name="workspace_changes_more">%1$d और नहीं दिखाए गए</string>
     <string name="workspace_changes_gone">फ़ाइल सूची अब उपलब्ध नहीं</string>
