@@ -86,6 +86,7 @@ import com.labteto.dshmobile.core.wire.dto.WorkspaceSessionActiveDetails
 import com.labteto.dshmobile.core.wire.dto.jobRowsOf
 import com.labteto.dshmobile.core.wire.dto.subagentEntriesFromCatalog
 import com.labteto.dshmobile.core.wire.dto.SubagentPromptRequest
+import com.labteto.dshmobile.core.wire.dto.TodoItem
 import com.labteto.dshmobile.core.wire.dto.TokenUsageView
 import com.labteto.dshmobile.core.wire.dto.USER_QUESTIONS_REQUEST_EVENT
 import com.labteto.dshmobile.core.wire.dto.UnknownSubagentListEntry
@@ -97,6 +98,7 @@ import com.labteto.dshmobile.core.wire.dto.WorkspaceFollowFrameSerializer
 import com.labteto.dshmobile.core.wire.dto.WorkspaceRenameRequest
 import com.labteto.dshmobile.core.wire.dto.WorkspaceValue
 import com.labteto.dshmobile.core.wire.dto.WorkspaceView
+import com.labteto.dshmobile.core.wire.dto.WorkspaceChangesSummary
 import com.labteto.dshmobile.core.wire.dto.imageRejectionOf
 import com.labteto.dshmobile.core.wire.RpcError
 import com.labteto.dshmobile.core.wire.TransportFailures
@@ -138,6 +140,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
+import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
+import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
+import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.Flow
+import com.labteto.dshmobile.core.wire.dto.SettingsDescribeValue
 
 /** Current CAS identity from a bare goal/ref or the harness's `{ goal: ... }` projection. */
 internal fun goalRefFromProjection(value: JsonElement?): GoalRef? {
@@ -308,6 +316,15 @@ sealed interface ArchiveOutcome {
 }
 
 /**
+ * The `RpcError.code` a 404 from an HTTP route carries.
+ *
+ * `transportError()` maps a 404 status to this string rather than to a `session/not-found`-style
+ * domain code, because for a route the distinction is "this capability answered nothing" rather
+ * than "this named thing does not exist". Compared as a string, like every other code check here.
+ */
+private const val CHANGES_UNAVAILABLE = "capability-unavailable"
+
+/**
  * Single source of truth for the connected harness's live state. All public surface is
  * [StateFlow]; every RPC error becomes [connectionError] and never throws. The store survives
  * reconnects by re-baselining on the connection state transition and on `session/subscribed`.
@@ -381,6 +398,22 @@ class SessionStore @Inject constructor(
     /** Coalesces transcript rebuilds during a stream; see [observeRebuildTicks]. */
     private val rebuildTicks = Channel<Unit>(Channel.CONFLATED)
 
+    /**
+     * A session id the app was launched to open — e.g. from a notification tap — which may not be
+     * connected yet when it arrives, so it is held here and opened on the first successful connect
+     * of this process instead of being dropped. Cleared once [openSession] consumes it.
+     */
+    private var pendingDeepLink: String? = null
+
+    /** Stash a session to open as soon as (or after) the app connects; see [pendingDeepLink]. */
+    fun requestOpenSession(sessionId: String) {
+        if (currentSessionId.value == sessionId && connectionState.value.hasConnected) return
+        pendingDeepLink = sessionId
+        scope.launch {
+            if (connectionManager.state.value.phase == ConnectionPhase.CONNECTED) triggerBaseline()
+        }
+    }
+
     // ------------------------------------------------------------------ public StateFlows
     private val _sessions = MutableStateFlow<List<SessionRow>>(emptyList())
     val sessions: StateFlow<List<SessionRow>> = _sessions.asStateFlow()
@@ -409,6 +442,21 @@ class SessionStore @Inject constructor(
 
     private val _currentConversation = MutableStateFlow<ConversationSnapshot?>(null)
     val currentConversation: StateFlow<ConversationSnapshot?> = _currentConversation.asStateFlow()
+
+    /**
+     * The agent's live to-do list for the open session, or null when there is none to show.
+     *
+     * Derived by the fold from the event stream and carried on the snapshot — reading it off the
+     * transcript's nodes instead went stale, because the fold's node cache is shared across
+     * rebuilds. See `FoldState.liveTodos`.
+     */
+    val todos: StateFlow<List<TodoItem>?> = currentConversation
+        .map { it?.todos }
+        .stateIn(scope, SharingStarted.Eagerly, null)
+
+    /** The session list's pull-to-refresh is in flight. */
+    private val _refreshingSessions = MutableStateFlow(false)
+    val refreshingSessions: StateFlow<Boolean> = _refreshingSessions.asStateFlow()
 
     private val _jobs = MutableStateFlow<List<JobView>>(emptyList())
     val jobs: StateFlow<List<JobView>> = _jobs.asStateFlow()
@@ -465,11 +513,16 @@ class SessionStore @Inject constructor(
     private val _subagentMode = MutableStateFlow<String?>(null)
     val subagentMode: StateFlow<String?> = _subagentMode.asStateFlow()
 
-    private val _pendingApproval = MutableStateFlow<PendingApproval?>(null)
-    val pendingApproval: StateFlow<PendingApproval?> = _pendingApproval.asStateFlow()
+    // One card per session, not one slot for the host: several sessions can each be blocked on a
+    // question or an approval at once, and a single shared slot made answering one session's card
+    // clobber the others' — they vanished from every screen except the web client. The open
+    // session reads its own entry; the chat list's `pendingInteraction` dot is fed by the same
+    // per-session registries below.
+    private val _pendingApprovals = MutableStateFlow<Map<String, PendingApproval>>(emptyMap())
+    val pendingApprovals: StateFlow<Map<String, PendingApproval>> = _pendingApprovals.asStateFlow()
 
-    private val _pendingQuestions = MutableStateFlow<PendingQuestions?>(null)
-    val pendingQuestions: StateFlow<PendingQuestions?> = _pendingQuestions.asStateFlow()
+    private val _pendingQuestions = MutableStateFlow<Map<String, PendingQuestions>>(emptyMap())
+    val pendingQuestions: StateFlow<Map<String, PendingQuestions>> = _pendingQuestions.asStateFlow()
 
     private val _commands = MutableStateFlow<List<CommandDescriptor>>(emptyList())
     val commands: StateFlow<List<CommandDescriptor>> = _commands.asStateFlow()
@@ -481,10 +534,68 @@ class SessionStore @Inject constructor(
     private val _agentPresets = MutableStateFlow<AgentPresetListValue?>(null)
     val agentPresets: StateFlow<AgentPresetListValue?> = _agentPresets.asStateFlow()
 
+    /**
+     * `(sessionId, event seq)` → the turn's changed files, or `null` when the host has none.
+     *
+     * A missing key means "not fetched yet"; `null` means "fetched, nothing to show". See
+     * [loadWorkspaceChanges].
+     */
+    private val _changesSummaries =
+        MutableStateFlow<Map<Pair<String, Int>, WorkspaceChangesSummary?>>(emptyMap())
+
+    /** Coordinates already asked for, so a recomposition cannot re-issue the same request. */
+    private val changesSummaryAttempted = HashSet<Pair<String, Int>>()
+
     private val _plugins = MutableStateFlow<PluginInventorySnapshot?>(null)
 
     /** The host's plugin inventory, or null when this deployment does not expose one. */
     val plugins: StateFlow<PluginInventorySnapshot?> = _plugins.asStateFlow()
+
+    private val _pluginBundles = MutableStateFlow<List<ProfileBundle>?>(null)
+
+    /**
+     * The profile's bundles — the installed set and the catalog — or null when the deployment
+     * composes no plugin manager.
+     *
+     * Separate from [plugins] because they answer different questions and come from different
+     * services: the inventory says what is mounted, the manager says what a user installed and can
+     * turn off. A harness can expose either without the other.
+     */
+    val pluginBundles: StateFlow<List<ProfileBundle>?> = _pluginBundles.asStateFlow()
+
+    private val _pluginRows = MutableStateFlow<List<PluginManagerRow>?>(null)
+
+    /** The manager's per-row view, which carries `patchId` and editability the inventory lacks. */
+    val pluginRows: StateFlow<List<PluginManagerRow>?> = _pluginRows.asStateFlow()
+
+    private val _settings = MutableStateFlow<SettingsDescribeValue?>(null)
+
+    /**
+     * The configuration plane's namespaces and their compiled schemas, or null when unreachable.
+     *
+     * Null has two causes worth not conflating, and the page reports both: a harness that composes
+     * no settings service (404), and a **relay** that refuses the call — `settings/…` is in the
+     * relay's `PRIVILEGED_METHODS`, so a paired phone gets 403 over the network while the same call
+     * succeeds on the LAN. That asymmetry is the reason a config form cannot be assumed to work
+     * wherever the bundle switches do.
+     */
+    val settings: StateFlow<SettingsDescribeValue?> = _settings.asStateFlow()
+
+    private val _pluginMutation = MutableStateFlow<PluginMutationState?>(null)
+
+    /** The plugin toggle currently in flight, for a spinner and a disabled switch. */
+    val pluginMutation: StateFlow<PluginMutationState?> = _pluginMutation.asStateFlow()
+
+    /**
+     * One-shot plugin mutation outcomes.
+     *
+     * A channel rather than a flow: a refusal is a thing that happened once and deserves a toast, and
+     * a state flow would re-deliver it on every recomposition or config change. Buffered so a
+     * mutation that lands while the page is being rebuilt is not dropped, but not conflated —
+     * two toggles in a row are two separate things to report.
+     */
+    private val _pluginEvents = Channel<PluginMutationOutcome>(Channel.BUFFERED)
+    val pluginEvents: Flow<PluginMutationOutcome> = _pluginEvents.receiveAsFlow()
 
     /** The preset a switch is in flight for, cleared when the projection reports it as effective. */
     private val _pendingPermission = MutableStateFlow<String?>(null)
@@ -569,6 +680,16 @@ class SessionStore @Inject constructor(
     // separate approval id.
     private val approvalRequests = HashMap<String, ApprovalRequest>() // eventId -> request
     private val questionEvents = PendingQuestionRegistry()
+
+    /**
+     * An answer the user submitted whose `$events/result` POST failed, held for one retry.
+     *
+     * The host replays a still-pending waterfall on the next generation, so the same logical
+     * question comes back and the answer is still valid — and no double-answer is possible,
+     * because the old generation's eventId is dead. This is what removes the "Could not reach the
+     * harness." toast in the common case where the socket was briefly down at submit time.
+     */
+    private var pendingQuestionRetry: Pair<String, AskUserQuestionAnswer>? = null
 
     // Open-session fold state.
     private var currentId: String? = null
@@ -771,6 +892,13 @@ class SessionStore @Inject constructor(
             launch { refreshPermissionCatalog() }
             // The list is the one read the landing session is chosen from, so it alone is awaited.
             refreshSessions()
+            // A deep link (notification tap) outranks the remembered-session resolver: it names
+            // the session the user asked for, and may have arrived before this connect finished.
+            pendingDeepLink?.let { sid ->
+                pendingDeepLink = null
+                openSession(sid)
+                return@coroutineScope
+            }
             // On a reconnect `currentSessionId` is already set, so the resolver only ever runs on
             // the first connect of a process — no double-open, and reconnect keeps reopening what
             // was open.
@@ -915,11 +1043,15 @@ class SessionStore @Inject constructor(
     private fun forgetRequest(eventId: String) {
         val approval = synchronized(lock) { approvalRequests.remove(eventId) }
         if (approval != null) {
+            // The card and the row dot move together under the lock, for the reason [forgetQuestions]
+            // gives. Only this session's own card is touched — other sessions keep theirs.
             synchronized(lock) {
                 removePendingLocked(approval.sessionId, "approval")
                 emitSessionsLocked()
+                if (_pendingApprovals.value[approval.sessionId]?.approvalId == eventId) {
+                    _pendingApprovals.value = _pendingApprovals.value - approval.sessionId
+                }
             }
-            if (_pendingApproval.value?.approvalId == eventId) _pendingApproval.value = null
             return
         }
         val sessionId = synchronized(lock) {
@@ -941,9 +1073,9 @@ class SessionStore @Inject constructor(
             removePendingLocked(sessionId, "question")
             removePendingLocked(sessionId, "plan-review")
             emitSessionsLocked()
-            val shown = _pendingQuestions.value
-            if (shown?.sessionId == sessionId && (eventId == null || shown.rpcId == eventId)) {
-                _pendingQuestions.value = null
+            val shown = _pendingQuestions.value[sessionId]
+            if (shown != null && (eventId == null || shown.rpcId == eventId)) {
+                _pendingQuestions.value = _pendingQuestions.value - sessionId
             }
         }
     }
@@ -1176,7 +1308,9 @@ class SessionStore @Inject constructor(
             addPendingLocked(sessionId, "approval")
             emitSessionsLocked()
         }
-        _pendingApproval.value = PendingApproval(
+        // One entry per session: a second approval for the same session replaces its card, and a
+        // different session's card is left exactly where it was.
+        _pendingApprovals.value = _pendingApprovals.value + (sessionId to PendingApproval(
             sessionId = sessionId,
             // The event id is the approval id now: 0.1.2 correlates a pending request by the
             // frame's own `eventId` and mints nothing separate.
@@ -1184,7 +1318,7 @@ class SessionStore @Inject constructor(
             rpcId = eventId,
             toolName = request.toolName,
             reason = reason,
-        )
+        ))
     }
 
     private fun handleQuestionRequested(
@@ -1205,7 +1339,15 @@ class SessionStore @Inject constructor(
             // whether to clear the card by reading that registration, so a request that installed
             // one but not yet the other could have its card taken by an answer to the request it
             // just replaced.
-            _pendingQuestions.value = PendingQuestions(sessionId, eventId, questions)
+            _pendingQuestions.value = _pendingQuestions.value + (sessionId to PendingQuestions(sessionId, eventId, questions))
+        }
+        // The host replays pending waterfalls on a new generation. If the user already answered
+        // this question but the POST failed, re-send now rather than asking them again.
+        val retry = pendingQuestionRetry
+        if (retry != null && retry.first == sessionId) {
+            pendingQuestionRetry = null
+            log("re-sending failed question answer for $sessionId after reconnect replay")
+            scope.launch { answerQuestions(sessionId, retry.second) }
         }
     }
 
@@ -1272,6 +1414,10 @@ class SessionStore @Inject constructor(
             presetBySession.remove(sessionId)
             questionEvents.discard(sessionId)
             emitSessionsLocked()
+            // The dead session's cards would otherwise outlive it — and so would any answer path
+            // that still addressed them to it.
+            _pendingApprovals.value = _pendingApprovals.value - sessionId
+            _pendingQuestions.value = _pendingQuestions.value - sessionId
         }
     }
 
@@ -1481,7 +1627,24 @@ class SessionStore @Inject constructor(
     }
 
     // ------------------------------------------------------------------ public RPC surface
+    /**
+     * Pull the session list from the harness.
+     *
+     * [refreshingSessions] guards re-entry and feeds the drawer's pull-to-refresh indicator; it is
+     * set even when there is no connection, so a disconnected pull still shows (and ends) the
+     * spinner instead of looking like it was never attempted.
+     */
     suspend fun refreshSessions() {
+        if (_refreshingSessions.value) return
+        _refreshingSessions.value = true
+        try {
+            refreshSessionsLocked()
+        } finally {
+            _refreshingSessions.value = false
+        }
+    }
+
+    private suspend fun refreshSessionsLocked() {
         val api = apiOrNull() ?: return
         when (val r = api.sessionList(null)) {
             is RpcResult.Ok -> {
@@ -1526,6 +1689,7 @@ class SessionStore @Inject constructor(
     private fun applyWorkspaceValue(value: WorkspaceValue) = upsertWorkspace(value.workspace)
 
     suspend fun openSession(sessionId: String) = withContext(Dispatchers.Default) {
+        if (pendingDeepLink == sessionId) pendingDeepLink = null
         val api = apiOrNull() ?: return@withContext
         _loadOlderFailed.value = false
         synchronized(lock) {
@@ -2020,8 +2184,11 @@ class SessionStore @Inject constructor(
         val request = synchronized(lock) { approvalRequests[approvalId] }
         if (request == null) {
             log("no pending approval for id $approvalId")
-            // Nothing to answer with, so nothing can arrive to take the panel away either.
-            if (_pendingApproval.value?.approvalId == approvalId) _pendingApproval.value = null
+            // Nothing to answer with, so nothing can arrive to take the panel away either. Only
+            // this session's own card is a corpse — the other sessions keep theirs.
+            if (_pendingApprovals.value[sessionId]?.approvalId == approvalId) {
+                _pendingApprovals.value = _pendingApprovals.value - sessionId
+            }
             return QuestionOutcome.Refused(NOT_PENDING)
         }
         val clientId = connectionManager.generation?.clientId
@@ -2054,7 +2221,7 @@ class SessionStore @Inject constructor(
         val eventId = pendingQuestionEvent(sessionId) ?: return abandonQuestions(sessionId)
         val clientId = connectionManager.generation?.clientId ?: return QuestionOutcome.Unsent
         // The waterfall returns the answer object itself; there is no envelope around it now.
-        return answerOutcome(
+        val outcome = answerOutcome(
             api.answerEvent(
                 clientId = clientId,
                 eventId = eventId,
@@ -2065,6 +2232,11 @@ class SessionStore @Inject constructor(
             "question response",
             sessionId,
         ) { forgetQuestions(sessionId, eventId) }
+        // A refusal means the host read the call and said no — re-sending would only refuse again.
+        // An unsent call means nothing is known about the wait, so it is worth one retry when the
+        // host replays the waterfall on the next generation.
+        if (outcome is QuestionOutcome.Unsent) pendingQuestionRetry = sessionId to answer
+        return outcome
     }
 
     /**
@@ -2507,12 +2679,72 @@ class SessionStore @Inject constructor(
     }
 
     /**
-     * Reload the host's plugin inventory.
+     * Reload the configuration plane.
      *
-     * Host-scoped and read-only — the harness offers no way to change it from here. A deployment
-     * that does not compose `@deepseek-ai/dsh-host-plugin-inventory` answers 404, which leaves the
-     * flow null and takes the settings section off the screen: absence of the capability, not a
-     * failure to report.
+     * Loopback-only on a relayed connection, so a 403 here is expected rather than a fault: it means
+     * the operator is reaching the harness through the relay and the config forms will not be
+     * available. Kept distinct from a 404, which means the deployment composes no settings service
+     * at all.
+     */
+    suspend fun refreshSettings() {
+        val api = apiOrNull() ?: return
+        when (val r = api.settingsDescribe()) {
+            is RpcResult.Ok -> _settings.value = r.value
+            is RpcResult.Err -> {
+                _settings.value = null
+                // 403 is the relay's fence, not a broken harness; it is logged at a lower volume
+                // because it is the ordinary outcome for a phone on the network.
+                log("settings/describe unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+    }
+
+    /**
+     * Patch one settings namespace, then reload it.
+     *
+     * [patch] is a partial JSON object merged into the namespace's user layer, so a caller sends
+     * only the keys it changed. The reload afterwards is what keeps a form honest: the Host folds
+     * the patch through the schema and may normalize it, and the effective value is the only thing
+     * worth showing.
+     *
+     * `expectedRevision` makes the write a compare-and-swap, which is why the caller passes the
+     * revision it drew the form from — a second device editing the same namespace would otherwise
+     * have its change silently overwritten.
+     */
+    suspend fun updateSetting(
+        ns: String,
+        patch: kotlinx.serialization.json.JsonObject,
+        expectedRevision: Long?,
+    ): PluginMutationOutcome {
+        val api = apiOrNull() ?: return PluginMutationOutcome.Failed(code = "offline")
+        val outcome = when (
+            val r = api.settingsUpdate(ns, patch, expectedRevision?.toInt())
+        ) {
+            is RpcResult.Ok -> PluginMutationOutcome.Applied(target = ns, enabled = true)
+            is RpcResult.Err -> when (r.error.code) {
+                "forbidden" -> PluginMutationOutcome.Refused(target = ns, reason = "loopback-only")
+                else -> PluginMutationOutcome.Failed(code = r.error.code)
+            }
+        }
+        if (outcome is PluginMutationOutcome.Applied) refreshSettings()
+        // Announced like every other plugin mutation. A refusal here is the loopback-only rule
+        // declining the edit, and the caller used to drop the return value entirely — so the switch
+        // or the text field simply stayed where the reader put it and the form looked saved. The
+        // page's collector turns this into a sentence.
+        _pluginEvents.send(outcome)
+        return outcome
+    }
+
+    /**
+     * Reload the host's plugin surface: the inventory, the bundles, and the manager's rows.
+     *
+     * Host-scoped. The three calls are attempted together because the page shows one screen built
+     * from all of them, but each stands alone: a deployment can compose the inventory without the
+     * manager, or the manager without the inventory, and each absence is its own capability gap
+     * rather than a failure. A 404 leaves that flow null and the corresponding section off screen.
+     *
+     * The inventory is what the read-only composition view binds to; the manager is what the
+     * editable one binds to. Nothing here is destructive, so a partial answer is still worth showing.
      */
     suspend fun refreshPlugins() {
         val api = apiOrNull() ?: return
@@ -2523,6 +2755,78 @@ class SessionStore @Inject constructor(
                 log("pluginInventory/list unavailable (${r.error.code}): ${r.error.message}")
             }
         }
+        when (val r = api.pluginManagerListBundles()) {
+            is RpcResult.Ok -> _pluginBundles.value = r.value
+            is RpcResult.Err -> {
+                _pluginBundles.value = null
+                log("pluginManager/listBundles unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+        when (val r = api.pluginManagerListPlugins()) {
+            is RpcResult.Ok -> _pluginRows.value = r.value
+            is RpcResult.Err -> {
+                _pluginRows.value = null
+                log("pluginManager/listPlugins unavailable (${r.error.code}): ${r.error.message}")
+            }
+        }
+    }
+
+    /**
+     * Turn one plugin row on or off, then reload so the page shows what the Host actually did.
+     *
+     * The reload is not belt-and-braces: enabling a plugin mounts it, which changes its `fiberPhase`
+     * and can change other rows' composition, so the caller's optimistic value would be a guess. The
+     * result is reported through [pluginMutation] rather than returned, because the page mutates from
+     * a switch callback that has nowhere to put a return value.
+     *
+     * A refusal is a successful call carrying `application: failed` — see [emitMutation].
+     */
+    suspend fun setPluginEnabled(entryId: String, enabled: Boolean) {
+        val api = apiOrNull() ?: return
+        _pluginMutation.value = PluginMutationState(target = entryId, enabled = enabled)
+        try {
+            emitMutation(api.pluginManagerSetPluginEnabled(entryId, enabled))
+            refreshPlugins()
+        } finally {
+            _pluginMutation.value = null
+        }
+    }
+
+    /** Turn a whole bundle on or off, with the same reload-and-report contract as a single row. */
+    suspend fun setBundleEnabled(name: String, enabled: Boolean) {
+        val api = apiOrNull() ?: return
+        _pluginMutation.value = PluginMutationState(target = name, enabled = enabled)
+        try {
+            emitMutation(api.pluginManagerSetBundleEnabled(name, enabled))
+            refreshPlugins()
+        } finally {
+            _pluginMutation.value = null
+        }
+    }
+
+    /**
+     * Report one mutation outcome to whoever is listening.
+     *
+     * Kept separate from the two callers because the interesting branch is the same in both and is
+     * easy to get wrong: the Host answers `ok` for a row it *refused*, so treating the call's success
+     * as the change's success would tell the user a plugin was enabled when it was not.
+     */
+    private suspend fun emitMutation(result: RpcResult<PluginMutationResult>) {
+        val outcome = when (result) {
+            is RpcResult.Ok -> {
+                val value = result.value
+                if (value.applied) {
+                    PluginMutationOutcome.Applied(target = value.target, enabled = value.enabled)
+                } else {
+                    PluginMutationOutcome.Refused(
+                        target = value.target,
+                        reason = value.error?.code ?: value.application,
+                    )
+                }
+            }
+            is RpcResult.Err -> PluginMutationOutcome.Failed(code = result.error.code)
+        }
+        _pluginEvents.send(outcome)
     }
 
     /** Reload the agent-preset roster (host-scoped, so it survives session switches). */
@@ -2533,6 +2837,66 @@ class SessionStore @Inject constructor(
             is RpcResult.Err -> log("agentPreset.list unavailable (${r.error.code}): ${r.error.message}")
         }
     }
+
+    /**
+     * One turn's changed files, fetched on demand for a `workspace/changes` row.
+     *
+     * Keyed by `(sessionId, seq)` because the route is addressed by the *announcing event's*
+     * sequence, not by the turn number the event carries. Results are cached for the process's
+     * life: a summary is immutable once written — the host keeps it only while the session lives,
+     * and the latest event for a turn replaces earlier ones, so a re-fetch of the same coordinates
+     * could only ever return the same value or a 404.
+     *
+     * A 404 is expected rather than exceptional. The host drops summaries when the session is
+     * disposed, so scrolling back through an old transcript finds nothing to show. That is
+     * recorded as an explicit empty state so the row can say "unavailable" instead of spinning or
+     * silently rendering nothing.
+     */
+    suspend fun loadWorkspaceChanges(sessionId: String, seq: Int) {
+        val key = sessionId to seq
+        synchronized(lock) {
+            if (key in changesSummaryAttempted) return
+            changesSummaryAttempted.add(key)
+        }
+        // The mark is a promise that this turn has been asked for; dropping out here without
+        // releasing it would make a momentary disconnect permanent — the key says "already tried",
+        // so the turn's changed files could never be loaded again once the connection came back.
+        val api = apiOrNull() ?: run {
+            synchronized(lock) { changesSummaryAttempted.remove(key) }
+            return
+        }
+        when (val r = api.workspaceChangesSummary(sessionId, seq)) {
+            is RpcResult.Ok -> _changesSummaries.value = _changesSummaries.value + (key to r.value)
+            is RpcResult.Err ->
+                if (r.error.code == CHANGES_UNAVAILABLE) {
+                    // Normal: the session was disposed, or this host never recorded the turn.
+                    _changesSummaries.value = _changesSummaries.value + (key to null)
+                } else {
+                    // A transport failure is not a "no changes" answer. Forget the attempt so a
+                    // later recomposition can retry rather than caching the outage as a fact.
+                    synchronized(lock) { changesSummaryAttempted.remove(key) }
+                    log("workspaceChanges.summary unavailable (${r.error.code}): ${r.error.message}")
+                }
+        }
+    }
+
+    /**
+     * A loaded summary, `null` for "the host has none", or absent for "not asked yet".
+     *
+     * The three states are distinct on purpose: the row must be able to tell "still loading" from
+     * "there is nothing to show", because only one of them is worth waiting for.
+     */
+    fun workspaceChanges(sessionId: String, seq: Int): WorkspaceChangesSummary? =
+        _changesSummaries.value[sessionId to seq]
+
+    /**
+     * The same map, exposed as state so a composing row recomposes when its summary lands.
+     *
+     * [workspaceChanges] answers the question; this is what makes the answer arrive. A row that
+     * only called the former would read "not fetched yet" once and never look again.
+     */
+    val changesSummaries: StateFlow<Map<Pair<String, Int>, WorkspaceChangesSummary?>> =
+        _changesSummaries.asStateFlow()
 
     /**
      * Pin an agent preset onto the open session. The harness only allows this while the session is

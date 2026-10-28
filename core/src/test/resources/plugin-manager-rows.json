@@ -1,0 +1,93 @@
+[
+ {
+  "entryId": "include",
+  "moduleName": "cordis:include",
+  "enabled": true,
+  "fiberPhase": "active",
+  "readOnlyReason": "unaddressable"
+ },
+ {
+  "entryId": "include:tool-plugin-manager",
+  "moduleName": "@deepseek-ai/dsh-plugin-manager/tools",
+  "enabled": false,
+  "fiberPhase": null,
+  "patchId": "tool-plugin-manager"
+ },
+ {
+  "entryId": "include:plugin-manager",
+  "moduleName": "@deepseek-ai/dsh-plugin-manager",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-plugin-manager",
+   "description": "Current-profile plugin and bundle management shared by dsh CLI, Web and agent tools"
+  },
+  "readOnlyReason": "management-required"
+ },
+ {
+  "entryId": "include:llm",
+  "moduleName": "@deepseek-ai/dsh-llm",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-llm",
+   "description": "Provider-neutral LLM service interface for the DeepSeek Harness"
+  },
+  "patchId": "llm"
+ },
+ {
+  "entryId": "include:github-image-watch-ingress",
+  "moduleName": "@deepseek-ai/dsh-webhook-github",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-webhook-github",
+   "description": "Signed GitHub HTTP webhook adapter for the DeepSeek Harness webhook runtime"
+  },
+  "readOnlyReason": "unaddressable"
+ },
+ {
+  "entryId": "include:llm",
+  "moduleName": "@deepseek-ai/dsh-llm",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-llm",
+   "description": "Provider-neutral LLM service interface for the DeepSeek Harness"
+  },
+  "patchId": "llm"
+ },
+ {
+  "entryId": "include:deepseek-llm-api-extensions",
+  "moduleName": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
+   "description": "Additive request-field registry for the official DeepSeek LLM API adapter"
+  },
+  "patchId": "deepseek-llm-api-extensions"
+ },
+ {
+  "entryId": "include:session",
+  "moduleName": "@deepseek-ai/dsh-session",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-session",
+   "description": "Event-sourced session store for the DeepSeek Harness"
+  },
+  "patchId": "session"
+ },
+ {
+  "entryId": "include:session-log-deepseek",
+  "moduleName": "@deepseek-ai/dsh-session-log-deepseek",
+  "enabled": true,
+  "fiberPhase": "active",
+  "meta": {
+   "title": "@deepseek-ai/dsh-session-log-deepseek",
+   "description": "Incremental lossless session-log request extension for the official DeepSeek LLM API"
+  },
+  "patchId": "session-log-deepseek"
+ }
+]

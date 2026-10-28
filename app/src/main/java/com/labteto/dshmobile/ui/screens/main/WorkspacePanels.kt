@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
@@ -10,30 +11,41 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.labteto.dshmobile.R
+import com.labteto.dshmobile.core.wire.DshApiClient
+import com.labteto.dshmobile.core.wire.PreviewPaging
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.*
 import com.labteto.dshmobile.data.SessionStore
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
@@ -51,6 +63,8 @@ import com.labteto.dshmobile.ui.theme.DsType
 import androidx.compose.ui.unit.sp
 import com.labteto.dshmobile.ui.components.DsCard
 import com.labteto.dshmobile.ui.components.MarkdownText
+import com.labteto.dshmobile.ui.components.MarkdownDiag
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsTheme
 import kotlinx.coroutines.*
 import java.io.File
@@ -60,6 +74,40 @@ internal fun <T> RpcResult<T>.requireValue(): T = when (this) {
     is RpcResult.Err -> throw IllegalStateException("${error.code}: ${error.message}")
 }
 
+/**
+ * One page of a workspace file, and the page size that was used to get it.
+ *
+ * The request names no page size, so the host serves the page it is configured to serve — the
+ * biggest one it is willing to, and the only size the client cannot know for itself. A client
+ * that named its own size would be guessing: too small and it cuts a document short at a line
+ * that means nothing, too large and the host refuses the request outright.
+ *
+ * A host that refuses a page on *bytes* (`workspace-file/too-large`) is asked again with fewer
+ * lines, halving down to a floor. A file of long lines is the case this exists for: it fits in a
+ * page of a hundred lines and not in a page of a thousand, and the reader should see it rather
+ * than an error. The size that worked is returned so every later page is the same size.
+ */
+internal suspend fun readWorkspacePage(
+    api: DshApiClient,
+    sessionId: String,
+    path: String,
+    offset: Int,
+    limit: Int?,
+): Pair<WorkspaceFileText, Int?> {
+    var size = limit
+    while (true) {
+        when (val result = api.workspaceFileRead(sessionId, path, WorkspaceFileRange(offset, size))) {
+            is RpcResult.Ok -> return result.value to size
+            is RpcResult.Err -> {
+                val next = if (PreviewPaging.isTooLarge(result.error.code)) PreviewPaging.nextPageSize(size) else null
+                if (next == null) throw IllegalStateException("${result.error.code}: ${result.error.message}")
+                size = next
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WorkspacePanels(
     store: SessionStore,
@@ -90,7 +138,11 @@ internal fun WorkspacePanels(
                         }
                     }
                 }
-                WorkspacePanelBody(store, state, Modifier.fillMaxSize(), onMention)
+                // `weight`, not `fillMaxSize`: the panel body is the *rest* of the column, and a
+                // weight says exactly that. A `fillMaxSize` child takes the column's whole height
+                // and is then placed below the title row, so anything that does not subtract the
+                // space already taken leaves the preview hanging off the bottom of the screen.
+                WorkspacePanelBody(store, state, Modifier.weight(1f), onMention)
             }
         }
     }
@@ -100,6 +152,7 @@ internal fun WorkspacePanels(
  * The workspace browser itself — Files / Preview / Terminal — without the screen's header, which
  * [WorkspacePanels] draws around it.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WorkspacePanelBody(
     store: SessionStore,
@@ -201,38 +254,43 @@ internal fun WorkspacePanelBody(
                 )
                 when (state.section) {
                     0 -> {
-                        // Toolbar: where you are, and the two moves that are always meaningful.
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
-                            DsButton(
-                                text = stringResource(R.string.panel_root),
-                                icon = FeatherIcons.Folder,
-                                onClick = { listDirectory(".") },
-                                enabled = !state.busy && state.directory != ".",
-                                variant = DsButtonVariant.Outline,
-                                size = DsButtonSize.Small,
+                        // The breadcrumb: a folder icon for the workspace root (tappable — jumps back
+                        // to "."), then each directory level separated by ›. Tapping any segment
+                        // re-lists that directory. Upstream 0.15.0 puts a Root / Parent / Retry trio
+                        // here; the path *is* the navigation, and a segment tap does both of the
+                        // first two, so the trio would be three buttons saying what the row already
+                        // says. The reload affordance is the pull below, not a fourth button.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = DsSpacing.small, vertical = DsSpacing.small),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                FeatherIcons.Folder,
+                                stringResource(R.string.panel_workspace_root),
+                                tint = colors.labelTertiary,
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clickable(enabled = !state.busy) { listDirectory(".") },
                             )
-                            DsButton(
-                                text = stringResource(R.string.panel_parent),
-                                icon = FeatherIcons.CornerLeftUp,
-                                onClick = { listDirectory(state.directory.substringBeforeLast('/', ".").ifEmpty { "." }) },
-                                enabled = !state.busy && state.directory != ".",
-                                variant = DsButtonVariant.Outline,
-                                size = DsButtonSize.Small,
-                            )
-                            Spacer(Modifier.weight(1f))
-                            DsIconButton(
-                                icon = FeatherIcons.RefreshCw,
-                                contentDescription = stringResource(R.string.common_retry),
-                                onClick = { listDirectory(state.directory) },
-                                enabled = !state.busy,
-                            )
+                            val segments = state.directory.split('/').filter { it.isNotEmpty() }
+                            if (segments.isEmpty()) {
+                                Text(stringResource(R.string.panel_workspace_root), style = DsType.small13Strong, color = colors.labelPrimary)
+                            } else {
+                                segments.forEachIndexed { i, segment ->
+                                    val path = segments.take(i + 1).joinToString("/")
+                                    Text(
+                                        segment,
+                                        style = if (i == segments.lastIndex) DsType.small13Strong else DsType.small13,
+                                        color = if (i == segments.lastIndex) colors.labelPrimary else colors.labelTertiary,
+                                        modifier = Modifier.clickable(enabled = !state.busy) { listDirectory(path) },
+                                    )
+                                    Text(" › ", style = DsType.small13, color = colors.labelCaption)
+                                }
+                            }
                         }
-                        Text(
-                            technicalDisplay(if (state.directory == ".") "/" else state.directory),
-                            style = DsType.caption11,
-                            color = colors.labelCaption,
-                            softWrap = true,
-                        )
                         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = colors.accent, trackColor = colors.borderL1)
                         state.error?.let { Text(it, style = DsType.small13, color = colors.error) }
                         if (state.listing?.truncated == true) {
@@ -243,8 +301,18 @@ internal fun WorkspacePanelBody(
                         if (!state.busy && state.listing != null && entries.isEmpty() && state.error == null) {
                             Text(stringResource(R.string.panel_empty_folder), style = DsType.std14, color = colors.labelTertiary, modifier = Modifier.padding(DsSpacing.medium))
                         }
+                        // Pull to refresh: a directory can change under the user (the agent writes
+                        // files while they browse), and the breadcrumb's root glyph is navigation
+                        // rather than a reload — so the list itself carries the affordance.
+                        val pullState = rememberPullToRefreshState()
+                        PullToRefreshBox(
+                            isRefreshing = state.busy,
+                            onRefresh = { listDirectory(state.directory) },
+                            modifier = Modifier.weight(1f),
+                            state = pullState,
+                        ) {
                         LazyColumn(
-                            Modifier.weight(1f),
+                            Modifier.fillMaxSize(),
                             state = state.directoryScroll.getOrPut(state.directory) { androidx.compose.foundation.lazy.LazyListState() },
                             verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny),
                         ) {
@@ -286,6 +354,7 @@ internal fun WorkspacePanelBody(
                                     }
                                 }
                             }
+                        }
                         }
                     }
                     1 -> {
@@ -359,7 +428,10 @@ private fun DocumentPreview(
                 ) { onDirectory(); return@launch }
                 val stat = statResult.requireValue()
                 val changed = stat.version != tab.stat?.version
-                if (changed) { tab.text = null; tab.bytes = null; tab.nextLine = 1; tab.eof = false }
+                if (changed) {
+                    tab.text = null; tab.bytes = null; tab.nextLine = 1; tab.eof = false
+                    tab.pageLimit = null
+                }
                 tab.stat = stat
                 if (binary && tab.bytes == null) {
                     if ((stat.bytes ?: 0) > 32L * 1024 * 1024) error(context.getString(R.string.panel_too_large))
@@ -369,7 +441,8 @@ private fun DocumentPreview(
                     tab.bytes = data.data
                     tab.eof = true
                 } else if (!binary && (tab.text == null || more)) {
-                    val data = api.workspaceFileRead(key.sessionId, tab.path, WorkspaceFileRange(tab.nextLine)).requireValue()
+                    val (data, usedLimit) = readWorkspacePage(api, key.sessionId, tab.path, tab.nextLine, tab.pageLimit)
+                    tab.pageLimit = usedLimit
                     if (data.version != stat.version) error(context.getString(R.string.panel_changed))
                     if (tab.text.orEmpty().length + data.text.length > 4 * 1024 * 1024) error(context.getString(R.string.panel_too_large))
                     tab.text = if (more && !changed) tab.text.orEmpty() + "\n" + data.text else data.text
@@ -383,6 +456,38 @@ private fun DocumentPreview(
     }
     LaunchedEffect(tab) { load() }
     LaunchedEffect(tab.stat) { if (tab.stat == null) load() }
+    // The document keeps growing as the reader reaches its end.
+    //
+    // A page boundary is not the end of a file, and a reader who has scrolled to the bottom
+    // should not have to go looking for a button to keep reading — the "Load more" button is
+    // still there for the case where the file is short enough to fit on screen already. Only a
+    // document that is taller than the viewport can reach the end by scrolling, so the
+    // auto-extension is limited to that: a file that already fits must not turn into a run of
+    // round trips nobody asked for.
+    val loadMore by rememberUpdatedState<() -> Unit> { { load(true) } }
+    val autoLoadSlack = with(LocalDensity.current) { 400.dp.toPx() }
+    LaunchedEffect(tab) {
+        snapshotFlow { tab.scroll.value to tab.scroll.maxValue }
+            .collect { (value, max) ->
+                if (!tab.eof && tab.text != null && max > 0 && max - value <= autoLoadSlack) loadMore()
+            }
+    }
+    // DIAG: the scroll's own numbers, sampled rather than read in the composition so the read-out
+    // does not recompose the header on every frame of a drag. `maxValue + viewport` is the content's
+    // measured height, and comparing it with the text's own length is what says whether the
+    // document is short or the viewport is tall. Remove once the report is closed.
+    var viewportHeight by remember { mutableIntStateOf(0) }
+    var scrollValue by remember { mutableIntStateOf(0) }
+    var scrollMax by remember { mutableIntStateOf(0) }
+    var viewportBounds by remember { mutableStateOf("") }
+    var contentHeight by remember { mutableIntStateOf(0) }
+    LaunchedEffect(tab) {
+        while (true) {
+            scrollValue = tab.scroll.value
+            scrollMax = tab.scroll.maxValue
+            delay(500)
+        }
+    }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
         // File header: name, path and size on the left; the three actions on the right.
         DsCard(verticalArrangement = Arrangement.spacedBy(DsSpacing.tiny)) {
@@ -396,7 +501,16 @@ private fun DocumentPreview(
                 Spacer(Modifier.width(DsSpacing.small))
                 Column(Modifier.weight(1f)) {
                     val name = tab.path.substringAfterLast('/').substringAfterLast('\\')
-                    Text(technicalDisplay(name), style = DsType.std14Strong, color = colors.labelPrimary)
+                    // One line, ellipsized. A long name used to wrap, and a name that wraps
+                    // splits mid-word ("optimization_result.m" / "d") and makes the header taller
+                    // than the file's own importance warrants.
+                    Text(
+                        technicalDisplay(name),
+                        style = DsType.std14Strong,
+                        color = colors.labelPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     // The folder it is in, when it is in one; a root file would only repeat its name.
                     val folder = tab.path.replace('\\', '/').substringBeforeLast('/', "")
                     val meta = listOfNotNull(
@@ -407,6 +521,21 @@ private fun DocumentPreview(
                         SelectionContainer {
                             Text(meta, style = DsType.caption11, color = colors.labelCaption, softWrap = true)
                         }
+                    }
+                    // DIAG: scroll geometry, sampled. See the note where the sampler is declared.
+                    val text = tab.text
+                    if (text != null) {
+                        val screen = LocalConfiguration.current.screenHeightDp
+                        Text(
+                            "DIAG scroll $scrollValue/$scrollMax · vp $viewportHeight · " +
+                                "content ${scrollMax + viewportHeight} · measured $contentHeight · box $viewportBounds · " +
+                                "screen ${screen}dp · chars ${text.length} · " +
+                                "lines ${text.count { it == '\n' } + 1} · " +
+                                "lastLC ${MarkdownDiag.lastLineCount.intValue} · lastLH ${MarkdownDiag.lastLayoutHeight.intValue} · " +
+                                "lastNH ${MarkdownDiag.lastNodeHeight.intValue} · maxLC ${MarkdownDiag.maxLineCount.intValue}",
+                            style = DsType.caption11,
+                            color = colors.warnLabel,
+                        )
                     }
                 }
                 if (canOpenOnHost == true) DsIconButton(
@@ -496,6 +625,11 @@ private fun DocumentPreview(
                     Modifier
                         .weight(1f)
                         .fillMaxWidth()
+                        .onSizeChanged { viewportHeight = it.height }
+                        .onGloballyPositioned { coords ->
+                            val b = coords.boundsInRoot()
+                            viewportBounds = "${b.top.toInt()}..${b.bottom.toInt()}"
+                        }
                         .clip(DsShapes.block)
                         .background(if (markdown) androidx.compose.ui.graphics.Color.Transparent else colors.bgLayer1)
                         .then(if (markdown) Modifier else Modifier.border(1.dp, colors.borderL2, DsShapes.block)),
@@ -507,7 +641,7 @@ private fun DocumentPreview(
                             .then(if (markdown) Modifier else Modifier.horizontalScroll(rememberScrollState()))
                             .padding(DsSpacing.medium),
                     ) {
-                        if (markdown) DocumentMarkdown(tab.text.orEmpty())
+                        if (markdown) Box(Modifier.onSizeChanged { contentHeight = it.height }) { DocumentMarkdown(tab.text.orEmpty()) }
                         else Text(
                             tab.text.orEmpty(),
                             style = DsType.caption11.copy(fontFamily = DsType.codeFont, fontSize = 12.sp, lineHeight = 18.sp),
@@ -531,6 +665,57 @@ private fun DocumentPreview(
     }
 }
 
+/**
+ * A PDF held open for as long as its bytes are the ones on screen.
+ *
+ * `PdfRenderer` needs a seekable descriptor, so the bytes have to reach disk once — but the *page*
+ * is not part of that. The renderer used to be built and torn down inside a `LaunchedEffect` keyed
+ * on the page number, so every Previous/Next tap rewrote the whole document to the cache, re-parsed
+ * it, built a fresh renderer and deleted the file again. Slow, and a lot of pointless flash writes
+ * for a document that had not changed.
+ */
+private class PdfDocument(private val context: Context) {
+    private var file: File? = null
+    private var descriptor: ParcelFileDescriptor? = null
+    private var renderer: PdfRenderer? = null
+
+    val pageCount: Int get() = renderer?.pageCount ?: 0
+
+    /** Writes and opens [bytes]; false when they are not a PDF this device can read. */
+    fun open(bytes: ByteArray): Boolean {
+        close()
+        return try {
+            val created = File.createTempFile("preview-", ".pdf", context.cacheDir)
+            created.writeBytes(bytes)
+            val fd = ParcelFileDescriptor.open(created, ParcelFileDescriptor.MODE_READ_ONLY)
+            val pdf = PdfRenderer(fd)
+            file = created; descriptor = fd; renderer = pdf
+            pdf.pageCount > 0
+        } catch (_: Exception) {
+            close(); false
+        }
+    }
+
+    /** Renders one page from the open document, or null when there is nothing to render. */
+    fun render(page: Int): androidx.compose.ui.graphics.ImageBitmap? {
+        val pdf = renderer ?: return null
+        return pdf.openPage(page.coerceIn(0, pdf.pageCount - 1)).use { p ->
+            val scale = minOf(2f, 2048f / maxOf(p.width, p.height))
+            val image = Bitmap.createBitmap((p.width * scale).toInt().coerceAtLeast(1), (p.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            image.eraseColor(android.graphics.Color.WHITE)
+            p.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+            image.asImageBitmap()
+        }
+    }
+
+    fun close() {
+        runCatching { renderer?.close() }
+        runCatching { descriptor?.close() }
+        runCatching { file?.delete() }
+        renderer = null; descriptor = null; file = null
+    }
+}
+
 @Composable
 private fun PdfPreview(bytes: ByteArray, modifier: Modifier) {
     val context = LocalContext.current
@@ -538,28 +723,18 @@ private fun PdfPreview(bytes: ByteArray, modifier: Modifier) {
     var count by remember(bytes) { mutableIntStateOf(0) }
     var failure by remember(bytes) { mutableStateOf(false) }
     var bitmap by remember(bytes, page) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    LaunchedEffect(bytes, page) {
-        bitmap = withContext(Dispatchers.IO) {
-            val file = File.createTempFile("preview-", ".pdf", context.cacheDir)
-            try {
-                file.writeBytes(bytes)
-                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
-                    PdfRenderer(fd).use { pdf ->
-                        count = pdf.pageCount
-                        if (count == 0) return@withContext null
-                        pdf.openPage(page.coerceIn(0, count - 1)).use { p ->
-                            val scale = minOf(2f, 2048f / maxOf(p.width, p.height))
-                            val image = Bitmap.createBitmap((p.width * scale).toInt().coerceAtLeast(1), (p.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
-                            image.eraseColor(android.graphics.Color.WHITE)
-                            p.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            image.asImageBitmap()
-                        }
-                    }
-                }
-            } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { failure = true; null }
-            finally { file.delete() }
-        }
+    val document = remember(bytes) { PdfDocument(context) }
+    DisposableEffect(document) { onDispose { document.close() } }
+    // Opened once per document; the page effect below only ever renders from this one handle.
+    LaunchedEffect(document, bytes) {
+        val opened = withContext(Dispatchers.IO) { document.open(bytes) }
+        count = document.pageCount
+        failure = !opened
+    }
+    LaunchedEffect(document, page, count) {
+        // count changes when the document is finally open, which is what sequences this after it.
+        if (count == 0) return@LaunchedEffect
+        bitmap = withContext(Dispatchers.IO) { runCatching { document.render(page) }.getOrNull() }
     }
     Column(modifier) {
         if (failure) Text(stringResource(R.string.panel_failed))

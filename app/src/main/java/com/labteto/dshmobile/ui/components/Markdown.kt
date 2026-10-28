@@ -24,22 +24,30 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.core.session.previewPath
 import com.labteto.dshmobile.ui.theme.DsColors
 import com.labteto.dshmobile.ui.theme.DsShapes
 import androidx.compose.foundation.text.InlineTextContent
@@ -54,7 +62,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import com.labteto.dshmobile.ui.theme.DsTheme
@@ -101,6 +108,15 @@ fun isFolderReference(path: String): Boolean {
  * ordered lists, blockquotes, and paragraphs with inline **bold**, *italic*,
  * `code` chips and [links](https://example.com). Tables render as plain text.
  */
+
+/** Temporary diagnostic holder for the workspace preview's "painted but not measured" tail. */
+object MarkdownDiag {
+    val lastLineCount = mutableIntStateOf(0)
+    val lastLayoutHeight = mutableIntStateOf(0)
+    val lastNodeHeight = mutableIntStateOf(0)
+    val maxLineCount = mutableIntStateOf(0)
+}
+
 @Composable
 fun MarkdownText(text: String, modifier: Modifier = Modifier) {
     val colors = DsTheme.colors
@@ -262,13 +278,24 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
         fontFamily = DsType.codeFont,
         color = colors.labelPrimary,
     )
-    val result = remember(text, style, codeStyle, colors) {
-        buildInlineContent(text, codeStyle, colors)
-    }
     val openFile = LocalFileOpener.current
     val openFolder = LocalFolderOpener.current
     val uriHandler = LocalUriHandler.current
-    val hasLinks = remember(result) { result.getStringAnnotations("url", 0, result.length).isNotEmpty() }
+    // Read through a state holder so the remembered string below does not have to be a key of the
+    // caller's lambdas: a link annotation carries its listener, and re-keying on a lambda that is
+    // rebuilt every recomposition would rebuild the whole styled string with it. Reading the
+    // delegate inside the listener picks up the current handler at tap time.
+    val onLink by rememberUpdatedState<(String) -> Unit> { raw ->
+        // http(s) goes to the browser, anything else is treated as a path into the session's own
+        // files. The scheme check lives in core so a reply cannot smuggle `intent:`/`file:` past
+        // this handler by dressing it up as a link.
+        val url = safeHttpUrl(raw)
+        if (url != null) runCatching { uriHandler.openUri(url) }
+        else previewPath(raw)?.let(openFile)
+    }
+    val result = remember(text, style, codeStyle, colors) {
+        buildInlineContent(text, codeStyle, colors) { raw -> onLink(raw) }
+    }
     // Each pill has a slot of its own, as wide as its label at the pill's (slightly smaller, mono)
     // size plus icon and padding, so the line is laid out around exactly that pill. A label wider
     // than most of the screen is capped and ellipsized rather than run past the edge.
@@ -290,50 +317,37 @@ private fun InlineMarkdown(text: String, style: TextStyle, modifier: Modifier = 
             ) { FilePill(path = ann.item, label = label, style = style) }
         }
     }
-    if (!hasLinks) {
-        // Nothing to tap, so the text is laid out inside a SelectionContainer instead: long-press
-        // selects and the platform handles the copy affordance. A ClickableText swallows the
-        // long-press, which is why the two cannot share one branch. Re-keyed on the shared dismiss
-        // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
-        val dismissToken = LocalSelectionDismiss.current.value
-        key(dismissToken) {
-            SelectionContainer(modifier = modifier) {
-                Text(result, style = style)
-            }
+    // One rendering path, and everything in it is selectable. Links are `LinkAnnotation`s, which
+    // `Text` handles itself without swallowing the long-press; workspace paths are inline content
+    // whose pill carries its own `clickable`, so a tap on the pill opens the file and a tap
+    // anywhere else does not. Upstream 0.15.0 split these into two branches — a `SelectionContainer`
+    // when a line had no links, a `Text` with a hand-rolled hit test when it had — which is exactly
+    // the trade this fork removed earlier: a line with a link gave up selection. Keeping both
+    // features in one path is why this is not upstream's shape. Re-keyed on the shared dismiss
+    // token so a tap elsewhere in the transcript clears the selection (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
+    key(dismissToken) {
+        SelectionContainer(modifier = modifier) {
+            Text(
+                result,
+                style = style,
+                inlineContent = inlineContent,
+                onTextLayout = { r ->
+                    MarkdownDiag.lastLineCount.intValue = r.lineCount
+                    MarkdownDiag.lastLayoutHeight.intValue = r.size.height
+                    if (r.lineCount > MarkdownDiag.maxLineCount.intValue) MarkdownDiag.maxLineCount.intValue = r.lineCount
+                },
+                modifier = Modifier.onSizeChanged { MarkdownDiag.lastNodeHeight.intValue = it.height },
+            )
         }
-        return
     }
-    // `Text` with its own hit test rather than `ClickableText`: the pills are inline content, which
-    // ClickableText cannot host. Taps resolve to a character offset through the layout result,
-    // exactly as ClickableText does internally. A pill is clickable itself: the offset under its
-    // right half is the one after it, so an offset lookup would leave half of every pill dead.
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    Text(
-        result,
-        modifier = modifier.pointerInput(result) {
-            detectTapGestures { position ->
-                val offset = layout?.getOffsetForPosition(position) ?: return@detectTapGestures
-                if (result.getStringAnnotations("path", offset, offset).isNotEmpty()) return@detectTapGestures
-                result.getStringAnnotations("url", offset, offset).firstOrNull()?.item?.let { raw ->
-                    // http(s) goes to the browser, anything else is treated as a path into the
-                    // session's own files. The scheme check lives in core so a reply cannot smuggle
-                    // `intent:`/`file:` past this handler by dressing it up as a link.
-                    val url = safeHttpUrl(raw)
-                    if (url != null) runCatching { uriHandler.openUri(url) }
-                    else com.labteto.dshmobile.ui.screens.main.previewPath(raw)?.let { openWorkspaceReference(it, openFile, openFolder) }
-                }
-            }
-        },
-        style = style,
-        inlineContent = inlineContent,
-        onTextLayout = { layout = it },
-    )
 }
 
 private fun buildInlineContent(
     text: String,
     codeStyle: TextStyle,
     colors: DsColors,
+    onLink: (String) -> Unit,
 ): AnnotatedString {
     val builder = AnnotatedString.Builder()
     var pills = 0
@@ -346,19 +360,28 @@ private fun buildInlineContent(
                 SpanStyle(fontFamily = codeStyle.fontFamily, color = codeStyle.color),
             ) { append(segment.text) }
             is InlineSegment.Link -> {
-                val path = if (safeHttpUrl(segment.url) == null) com.labteto.dshmobile.ui.screens.main.previewPath(segment.url) else null
-                builder.pushStringAnnotation("url", segment.url)
+                val path = if (safeHttpUrl(segment.url) == null) previewPath(segment.url) else null
                 if (path != null) {
                     // A path into the session's workspace is an artifact, not a web link: it is
-                    // drawn as a pill (see [InlineMarkdown]'s inlineContent) so it reads as a file
-                    // you can open, and never as a blue word that may go anywhere.
+                    // drawn as a pill (see the inline content above) so it reads as a file you can
+                    // open, and never as a blue word that may go anywhere.
                     builder.pushStringAnnotation("path", path)
                     builder.appendInlineContent(filePillId(pills++), segment.text.ifBlank { path })
                     builder.pop()
                 } else {
-                    builder.withStyle(SpanStyle(color = colors.accent)) { append(segment.text) }
+                    // A LinkAnnotation rather than a bare `"url"` string annotation. `Text` handles
+                    // the former itself — tap goes to the listener, long-press still reaches the
+                    // enclosing SelectionContainer — whereas the string form was only readable by
+                    // ClickableText, which consumes the long-press. That is what forced linked
+                    // lines to opt out of selection entirely.
+                    builder.withLink(
+                        LinkAnnotation.Clickable(
+                            tag = segment.url,
+                            styles = TextLinkStyles(style = SpanStyle(color = colors.accent)),
+                            linkInteractionListener = { onLink(segment.url) },
+                        ),
+                    ) { append(segment.text) }
                 }
-                builder.pop()
             }
         }
     }

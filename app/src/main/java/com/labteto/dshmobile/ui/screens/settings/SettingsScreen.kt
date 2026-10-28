@@ -66,8 +66,6 @@ import com.labteto.dshmobile.connection.AppSettings
 import com.labteto.dshmobile.connection.ConnectionPhase
 import com.labteto.dshmobile.connection.ConnectionUiState
 import com.labteto.dshmobile.core.DshCore
-import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
-import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.termux.HarnessControl
 import com.labteto.dshmobile.termux.TermuxPaths
@@ -84,7 +82,7 @@ import com.labteto.dshmobile.ui.components.DsIconButton
 import com.labteto.dshmobile.ui.components.DsMenu
 import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.MenuItem
-import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.SettingsCard
 import com.labteto.dshmobile.ui.components.StateDot
 import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ToggleRow
@@ -93,8 +91,14 @@ import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import java.util.Locale
+import com.labteto.dshmobile.ui.components.SectionHeader
+import com.labteto.dshmobile.ui.components.DsBottomSheet
+import com.labteto.dshmobile.ui.components.DisclosureRow
+import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
+import com.labteto.dshmobile.core.wire.dto.PluginFiberPhase
 
 /**
  * App settings, grouped into cards.
@@ -123,9 +127,10 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
 
     val hostsCleared = stringResource(R.string.settings_forget_hosts_done)
     val sessionsCleared = stringResource(R.string.settings_clear_last_sessions_done)
+    val refusalUnaddressable = stringResource(R.string.plugins_locked_unaddressable)
 
-    // Fetched on open rather than kept live: the inventory only changes when the harness is
-    // restarted with a different composition, and nothing pushes that over the wire.
+    // Fetched on open rather than kept live: the composition only changes when the harness restarts
+    // or when a toggle is applied here, and a toggle reloads explicitly.
     LaunchedEffect(Unit) { store.refreshPlugins() }
 
     Surface(modifier = Modifier.fillMaxSize(), color = colors.bgBase) {
@@ -137,15 +142,27 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     .padding(horizontal = DsSpacing.comfortable, vertical = DsSpacing.medium),
                 verticalArrangement = Arrangement.spacedBy(DsSpacing.comfortable),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The screen's title bar: the same 44dp row, icon and type constants as every other
+                // page's — a back control at 18dp/24dp and the title in base16Strong.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(DsTitleBar.height)
+                        .padding(top = DsSpacing.small),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+                ) {
                     DsIconButton(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.common_back),
                         onClick = onClose,
+                        tint = colors.labelTertiary,
+                        iconSize = DsTitleBar.iconSize,
+                        touchTarget = DsTitleBar.iconTouchTarget,
                     )
                     Text(
                         stringResource(R.string.settings_title),
-                        style = DsType.large20,
+                        style = DsTitleBar.titleStyle,
                         color = colors.labelPrimary,
                     )
                 }
@@ -262,6 +279,17 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
                     ) { viewModel.set { it.copy(keepConnectedInBackground = !it.keepConnectedInBackground) } }
                 }
 
+                // The keyboard's own behaviour, not the harness's: the composer field is
+                // multi-line, so enter inserting a newline is the default and sending is opted
+                // into rather than out of.
+                SettingsCard(stringResource(R.string.settings_composer)) {
+                    ToggleRow(
+                        stringResource(R.string.settings_enter_to_send),
+                        settings.enterToSend,
+                        stringResource(R.string.settings_enter_to_send_hint),
+                    ) { viewModel.set { it.copy(enterToSend = !it.enterToSend) } }
+                }
+
                 SettingsCard(stringResource(R.string.settings_harness)) {
                     connectionState.description?.let { host ->
                         // Only the home directory survives from `host.describe`; the version and
@@ -371,9 +399,19 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
         }
     }
 
+    // Upstream's entry point, kept as upstream built it: when the host offers the pluginManager
+    // capability this opens the full manager, and on a host without it the read-only sheet.
+    //
+    // The fork has a second plugin page of its own (`BuiltInPluginsScreen`), reached from the chat
+    // list's plugin button rather than from here. The two overlap — same namespace, same four calls
+    // — and upstream's is the superset, so which one survives is still an open decision. Both are
+    // reachable in this build on purpose; nothing here should be read as having settled it.
     if (pluginsOpen) {
+        // Two different things wear the word "plugin" here. This entry is the *system* rows the
+        // profile composes, which is what a switch can act on; the packages an operator installs are
+        // bundles, and they open from the chat list's own button. See FORK-NOTES.
         if (pluginManagementAvailable == false) plugins?.let { PluginsSheet(it, onDismiss = { pluginsOpen = false }) }
-        else com.labteto.dshmobile.ui.screens.main.PluginManagerScreen(onClose = { pluginsOpen = false }, onDraftOpened = { pluginsOpen = false; onClose() })
+        else ManagedPluginsScreen(onClose = { pluginsOpen = false })
     }
 
     if (showDisconnectDialog) {
@@ -407,37 +445,20 @@ fun SettingsScreen(onClose: () -> Unit, viewModel: SettingsViewModel = hiltViewM
     }
 }
 
-/** One settings group as a raised card, so groups read as blocks rather than a running list. */
-@Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
-    val colors = DsTheme.colors
-    Column(Modifier.fillMaxWidth().animateContentSize()) {
-        SectionHeader(title)
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(DsShapes.block)
-                .background(colors.bgLayer1)
-                .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
-            verticalArrangement = Arrangement.spacedBy(DsSpacing.xsmall),
-        ) {
-            content()
-        }
-    }
-}
+
 
 /**
  * The host's composed plugins, as one row that opens the list.
  *
- * A stock web composition mounts around forty of them. Inlined into a page that already scrolls,
- * that buries everything below it and gives the list no room of its own; the count is the part
- * worth seeing without asking, so the card carries that and the rest lives in [PluginsSheet].
+ * A stock web composition mounts around two hundred loader entries. Inlined into a page that
+ * already scrolls, that buries everything below it and gives the list no room of its own; the count
+ * is the part worth seeing without asking, so the card carries that and the rest lives in
+ * [PluginsScreen].
  *
  * Read-only, because that is all the harness offers a client: `pluginInventory/list` has no
- * counterpart that changes anything, and the `settings.*` calls behind the web UI's configurable
- * plugin cards edit a document this app has no editor for. Enabling or disabling one means
- * editing `cordis.patch.yml` on the harness computer.
- */
+ * counterpart that changes anything for the *inventory* half, and the `pluginManager` calls behind
+ * Add/Remove actions are loopback-pinned and answer 403 over the network. Enabling or disabling one
+ * means editing `cordis.patch.yml` on the harness computer. */
 @Composable
 private fun PluginsCard(inventory: PluginInventorySnapshot, onOpen: () -> Unit) {
     val colors = DsTheme.colors
@@ -579,28 +600,8 @@ private fun PluginRow(entry: PluginInventoryEntry) {
     }
 }
 
-@StringRes
-private fun pluginPhaseLabel(phase: PluginFiberPhase?): Int = when (phase) {
-    PluginFiberPhase.PENDING -> R.string.plugins_phase_pending
-    PluginFiberPhase.LOADING -> R.string.plugins_phase_loading
-    PluginFiberPhase.ACTIVE -> R.string.plugins_phase_active
-    PluginFiberPhase.FAILED -> R.string.plugins_phase_failed
-    PluginFiberPhase.UNLOADING -> R.string.plugins_phase_unloading
-    null -> R.string.plugins_phase_unmounted
-}
-
-/**
- * `@deepseek-ai/dsh-client-ui-plan` → `ui-plan`.
- *
- * Ported from the harness's own `moduleShortName`, prefix for prefix, so the two lists name the
- * same plugin the same way.
- */
-private fun moduleShortName(moduleName: String): String {
-    val prefixes = listOf("cordis:", "cordis-plugin-", "dsh-host-", "dsh-client-", "dsh-")
-    var name = moduleName.substringAfterLast('/')
-    for (prefix in prefixes) name = name.removePrefix(prefix)
-    return name.ifBlank { moduleName }
-}
+// `pluginPhaseLabel` lives in `BuiltInPluginsScreen.kt`: the fork's read-only page needs it too,
+// and two same-package top-level functions with one signature are a conflicting overload.
 
 /**
  * Start, stop and auto-start for the harness on this device, from wherever the user is.

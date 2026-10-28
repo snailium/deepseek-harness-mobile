@@ -182,26 +182,38 @@ class ConnectionLoop(
 
     private suspend fun runLoop() {
         var attempt = 0
-        while (currentCoroutineContext().isActive) {
-            safeSink { sinks.onStateChange(ConnectionState.RECONNECTING) }
-            when (val opened = openGeneration()) {
-                is Opened.Ok -> {
-                    attempt = 0
-                    safeSink { sinks.onConnected(opened.generation) }
-                    safeSink { sinks.onStateChange(ConnectionState.CONNECTED) }
-                    consumeEvents(opened.events)
-                    closeGeneration()
-                }
+        // The socket is closed from `finally`, not from the two branches below.
+        //
+        // Closing in the loop body covered a failed attempt and a stream that ended, but not a
+        // cancellation unwinding out of `consumeEvents`: that throws, so the close on the next line
+        // never ran. Nothing leaked in practice only because `stop()` closes the generation too —
+        // which makes the correctness of every socket on the process's use of `stop()` rather than
+        // on this loop. A caller that cancels the scope instead, or a future path that ends the
+        // loop some other way, would leak one socket per pass.
+        try {
+            while (currentCoroutineContext().isActive) {
+                safeSink { sinks.onStateChange(ConnectionState.RECONNECTING) }
+                when (val opened = openGeneration()) {
+                    is Opened.Ok -> {
+                        attempt = 0
+                        safeSink { sinks.onConnected(opened.generation) }
+                        safeSink { sinks.onStateChange(ConnectionState.CONNECTED) }
+                        consumeEvents(opened.events)
+                        closeGeneration()
+                    }
 
-                is Opened.Failed -> {
-                    attempt += 1
-                    val reported = attempt
-                    closeGeneration()
-                    safeSink { sinks.onGenerationFailed(reported, opened.failure) }
+                    is Opened.Failed -> {
+                        attempt += 1
+                        val reported = attempt
+                        closeGeneration()
+                        safeSink { sinks.onGenerationFailed(reported, opened.failure) }
+                    }
                 }
+                if (!currentCoroutineContext().isActive) break
+                config.delay(nextBackoff(attempt))
             }
-            if (!currentCoroutineContext().isActive) break
-            config.delay(nextBackoff(attempt))
+        } finally {
+            closeGeneration()
         }
     }
 

@@ -18,7 +18,11 @@ import com.labteto.dshmobile.core.wire.dto.LlmDiscoveredModel
 import com.labteto.dshmobile.core.wire.dto.LlmModelDiscoveryRequest
 import com.labteto.dshmobile.core.wire.dto.LlmProviderInfo
 import com.labteto.dshmobile.core.wire.dto.ModelCatalog
+import com.labteto.dshmobile.core.wire.dto.AgentPresetComposition
+import com.labteto.dshmobile.core.wire.dto.ProfileBundle
 import com.labteto.dshmobile.core.wire.dto.PluginInventoryEntry
+import com.labteto.dshmobile.core.wire.dto.PluginManagerRow
+import com.labteto.dshmobile.core.wire.dto.PluginMutationResult
 import com.labteto.dshmobile.core.wire.dto.PluginInventorySnapshot
 import com.labteto.dshmobile.core.wire.dto.REMOTE_EVENT_RESULT_ENDPOINT
 import com.labteto.dshmobile.core.wire.dto.RemoteEventOutcome
@@ -80,6 +84,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -883,17 +888,138 @@ class DshApiClient(
     suspend fun pluginInventoryList(): RpcResult<PluginInventorySnapshot> =
         when (val result = callEmpty<JsonElement>("pluginInventory/list")) {
             is RpcResult.Ok -> {
-                val entries = (result.value as? JsonObject)?.get("entries") as? JsonArray
+                val value = result.value as? JsonObject
+                    ?: return RpcResult.Ok(PluginInventorySnapshot())
+                // Rows are narrowed one at a time rather than decoded from the raw object: the
+                // answer now carries `meta` and the preset compositions in the same row shape, and
+                // a package whose manifest declares a field this build has never seen must cost
+                // that one row rather than the whole page.
                 RpcResult.Ok(
                     PluginInventorySnapshot(
-                        entries = entries.orEmpty().mapNotNull { row ->
-                            runCatching {
-                                decodeFromJsonElement(PluginInventoryEntry.serializer(), row)
-                            }.getOrNull()
-                        },
+                        entries = value.decodeRows("entries"),
+                        agentPresets = value.decodePresets(),
+                        managementAvailable = value["managementAvailable"]
+                            ?.jsonPrimitive?.booleanOrNull ?: false,
                     ),
                 )
             }
+            is RpcResult.Err -> result
+        }
+
+    /**
+     * Decode the `entries` array, dropping any row this build cannot read.
+     *
+     * A missing key and a wrong-typed one both read as "no rows", which is the right answer for an
+     * older harness that does not send the key at all.
+     */
+    private fun JsonObject.decodeRows(key: String): List<PluginInventoryEntry> =
+        (this[key] as? JsonArray).orEmpty().mapNotNull { row ->
+            runCatching { decodeFromJsonElement(PluginInventoryEntry.serializer(), row) }.getOrNull()
+        }.filter { it.isUsable() }
+
+    /**
+     * Decode the `agentPresets` array, narrowing each preset's rows by the same rule.
+     *
+     * The rows are decoded one at a time *before* the preset that owns them, because a preset is
+     * rejected wholesale by its own serializer the moment one of its rows is missing a required
+     * member — `rows` is a `List<PluginInventoryEntry>` and the codec has no opinion about partial
+     * success inside it. Narrowing first keeps one unreadable row to that row, which is the whole
+     * point of decoding the top-level list this way.
+     */
+    private fun JsonObject.decodePresets(): List<AgentPresetComposition> =
+        (this["agentPresets"] as? JsonArray).orEmpty().mapNotNull { row ->
+            val preset = row as? JsonObject ?: return@mapNotNull null
+            val id = preset["id"]?.jsonPrimitive?.contentOrNull
+            if (id.isNullOrBlank()) return@mapNotNull null
+            AgentPresetComposition(
+                id = id,
+                isDefault = preset["isDefault"]?.jsonPrimitive?.booleanOrNull ?: false,
+                rows = preset.decodeRows("rows"),
+            )
+        }
+
+    /**
+     * Whether a decoded row carries enough identity to display.
+     *
+     * Decoding is not the only bar: a row whose `moduleName` is empty decodes cleanly and then has
+     * no name to print, and one with no `entryId` cannot be keyed in a list. Both are dropped here
+     * so every caller that produces rows agrees on what a usable row is.
+     */
+    private fun PluginInventoryEntry.isUsable(): Boolean =
+        entryId.isNotBlank() && moduleName.isNotBlank()
+
+    // -------------------------------------------------------------- plugin management
+
+    /**
+     * `pluginManager/listPlugins` — the profile's plugin rows, each with its editability.
+     *
+     * Distinct from [pluginInventoryList]: this is the service the harness's own Plugins page drives,
+     * and every row carries a `patchId` (the handle an override names) and a `readOnlyReason` (why
+     * the Host would refuse a toggle, or null when it would not). Both are absent from the inventory.
+     *
+     * A harness without the manager composes answers 404, which surfaces as `capability-unavailable`
+     * and is the caller's cue to fall back to the read-only inventory rather than report a failure.
+     */
+    suspend fun pluginManagerListPlugins(): RpcResult<List<PluginManagerRow>> =
+        arrayResult("pluginManager/listPlugins", PluginManagerRow.serializer()) {
+            it.entryId.isNotBlank() && it.moduleName.isNotBlank()
+        }
+
+    /**
+     * `pluginManager/listBundles` — the bundles a profile composes, installed and available.
+     *
+     * This is where the harness page's Official and Installed sections come from: [ProfileBundle.installed]
+     * divides them, and a bundle's own `rows` describe the plugin rows it contributes.
+     */
+    suspend fun pluginManagerListBundles(): RpcResult<List<ProfileBundle>> =
+        arrayResult("pluginManager/listBundles", ProfileBundle.serializer()) { it.name.isNotBlank() }
+
+    /**
+     * `pluginManager/setPluginEnabled` — turn one plugin row on or off, live.
+     *
+     * The result's `application` is the field that matters, not the call's success: the Host answers
+     * `ok` with `application: "failed"` and an error code for a row it refuses, so a caller that
+     * reads only `ok` reports a change that did not happen.
+     */
+    suspend fun pluginManagerSetPluginEnabled(entryId: String, enabled: Boolean): RpcResult<PluginMutationResult> =
+        call(
+            "pluginManager/setPluginEnabled",
+            args {
+                put("id", JsonPrimitive(entryId))
+                put("enabled", JsonPrimitive(enabled))
+            },
+        )
+
+    /** `pluginManager/setBundleEnabled` — turn a whole bundle on or off, live. */
+    suspend fun pluginManagerSetBundleEnabled(name: String, enabled: Boolean): RpcResult<PluginMutationResult> =
+        call(
+            "pluginManager/setBundleEnabled",
+            args {
+                put("name", JsonPrimitive(name))
+                put("enabled", JsonPrimitive(enabled))
+            },
+        )
+
+    /**
+     * Invoke one Remote endpoint that answers a top-level JSON array, decoding rows individually.
+     *
+     * A row this build cannot read costs that row rather than the list, which is the contract every
+     * catalog in this client keeps. [keep] narrows further: a decoded row that has no name to print
+     * is not usable and is dropped by the same rule.
+     */
+    private suspend inline fun <reified T> arrayResult(
+        endpoint: String,
+        serializer: KSerializer<T>,
+        crossinline keep: (T) -> Boolean,
+    ): RpcResult<List<T>> =
+        when (val result = call<JsonElement>(endpoint, JsonObject(emptyMap()))) {
+            is RpcResult.Ok -> RpcResult.Ok(
+                (result.value as? JsonArray).orEmpty()
+                    .mapNotNull { row ->
+                        runCatching { decodeFromJsonElement(serializer, row) }.getOrNull()
+                    }
+                    .filter(keep),
+            )
             is RpcResult.Err -> result
         }
 
@@ -961,6 +1087,41 @@ class DshApiClient(
         RpcResult.Ok(transport.download("/api/session.export?$query", consume))
     } catch (e: RpcTransportException) {
         RpcResult.Err(transportError(e))
+    } catch (e: IOException) {
+        RpcResult.Err(RpcError("internal", e.message ?: "download failed", JsonObject(emptyMap())))
+    }
+
+    /**
+     * `workspace/changes` — one turn's changed-file summary, over
+     * `GET /api/changes.summary?sessionId=…&seq=…`.
+     *
+     * A GET route rather than an RPC, like [sessionExport]: the summary is kept on the Host only
+     * while its session lives, and the durable event announces it with nothing but a turn number.
+     * The handler answers a **bare** summary object — not the `{ok, value}` envelope the POST
+     * routes use — and strips `cwd` and the snapshot ids on purpose, so the DTO models only what
+     * actually arrives.
+     *
+     * `seq` is the *announcing event's* sequence, not the turn number; the two differ, and the
+     * route needs the former.
+     *
+     * Answers [RpcError.Code.NOT_FOUND] once the session was disposed or the host never recorded
+     * the turn, which is a normal outcome for an old transcript rather than a failure to surface.
+     */
+    suspend fun workspaceChangesSummary(
+        sessionId: String,
+        seq: Int,
+    ): RpcResult<WorkspaceChangesSummary> = try {
+        val query = "sessionId=${encodeQueryComponent(sessionId)}&seq=$seq"
+        // The route answers JSON; `download` is the only authenticated GET this transport has, so
+        // the body is read here rather than at the call site.
+        val text = transport.download("/api/changes.summary?$query") { _, _, body ->
+            body.bufferedReader().use { it.readText() }
+        }
+        RpcResult.Ok(WireJson.decodeFromString(WorkspaceChangesSummary.serializer(), text))
+    } catch (e: RpcTransportException) {
+        RpcResult.Err(transportError(e))
+    } catch (e: SerializationException) {
+        RpcResult.Err(RpcError("internal", e.message ?: "malformed change summary", JsonObject(emptyMap())))
     } catch (e: IOException) {
         RpcResult.Err(RpcError("internal", e.message ?: "download failed", JsonObject(emptyMap())))
     }

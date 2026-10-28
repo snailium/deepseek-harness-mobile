@@ -6,6 +6,7 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.components.PageColumn
 import com.labteto.dshmobile.ui.media.sampleSizeFor
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.labteto.dshmobile.core.wire.dto.AskUserQuestionAnswer
@@ -45,9 +46,7 @@ import com.labteto.dshmobile.core.wire.dto.AskUserQuestionOption
 import com.labteto.dshmobile.core.wire.RpcResult
 import com.labteto.dshmobile.core.wire.dto.CommandSubmitAttachment
 import com.labteto.dshmobile.core.wire.dto.ImageLimitsView
-import com.labteto.dshmobile.data.CommandOutcome
 import com.labteto.dshmobile.data.PromptOutcome
-import com.labteto.dshmobile.data.QuestionOutcome
 import com.labteto.dshmobile.data.SessionStore
 import com.labteto.dshmobile.ui.components.ApprovalPanel
 import com.labteto.dshmobile.ui.components.ConnectionBanner
@@ -61,12 +60,10 @@ import com.labteto.dshmobile.ui.screens.main.commands.CommandContext
 import com.labteto.dshmobile.ui.screens.main.commands.CommandDecorations
 import com.labteto.dshmobile.ui.screens.main.commands.CommandUiSpec
 import com.labteto.dshmobile.ui.screens.main.commands.PopupSelectSheet
-import com.labteto.dshmobile.ui.screens.main.commands.RewindDecoration
 import com.labteto.dshmobile.ui.screens.main.commands.SlashMenu
 import com.labteto.dshmobile.ui.screens.main.commands.SlashRow
 import com.labteto.dshmobile.ui.screens.main.commands.activeSlash
 import com.labteto.dshmobile.ui.theme.DsAnimations
-import com.labteto.dshmobile.ui.components.AnimatedPresence
 import com.labteto.dshmobile.ui.theme.DsTheme
 import androidx.compose.ui.res.stringResource
 import com.labteto.dshmobile.R
@@ -77,6 +74,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import com.labteto.dshmobile.core.session.readImageBounded
 import com.labteto.dshmobile.core.wire.dto.ImageRejection
+import androidx.compose.runtime.LaunchedEffect
+import com.labteto.dshmobile.connection.AppSettings
+import com.labteto.dshmobile.ui.rememberHostsStore
+import androidx.compose.runtime.collectAsState
+import com.labteto.dshmobile.ui.components.TranscriptSearchBar
+import com.labteto.dshmobile.ui.theme.DsSpacing
 
 /**
  * The chat surface: chrome, transcript or trajectory, the persistent docks, and the composer.
@@ -98,7 +101,35 @@ fun ChatScreen(
     val toast = rememberDsToast()
 
     val conversation by store.currentConversation.collectAsStateWithLifecycle()
+    // The fold derives the live to-do list from the event stream (see SessionStore.todos);
+    // dismissal is keyed on the list itself, so a new `todo/write` restores the bar.
+    val liveTodos = store.todos.collectAsStateWithLifecycle().value
+    var todosDismissed by remember(liveTodos) { mutableStateOf(false) }
     val currentSessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    // In-transcript search. The bar is collapsible: the toolbar's search icon opens it, and a ×
+    // inside the bar closes it. The query and cursor live above the tab swap — they belong to the
+    // session rather than to either view, and stepping past the last hit wraps to the first.
+    // The finder's four values are one thing — the cursor only means anything against the current
+    // query's results, and the query only against the open session — so they travel together in a
+    // holder. See `TranscriptSearchState`.
+    val search = rememberTranscriptSearchState(currentSessionId)
+    // Scanned only while the bar is open, and only for a real query.
+    //
+    // `conversation.nodes` is a fresh list on every fold tick — `EventFold` builds it as
+    // `nodes + provisionalNodes()` — and a streaming turn ticks many times a second. Keying this
+    // on the node list alone re-scanned the whole transcript per token even with the finder closed,
+    // which is the common case and pure waste. Short-circuiting on `open` and on a blank query also
+    // skips the per-node `lowercase` the scan does.
+    val matches = if (!search.open || search.query.isBlank()) {
+        emptyList()
+    } else {
+        remember(conversation?.nodes, search.query) {
+            search.matches(conversation?.nodes.orEmpty())
+        }
+    }
+    val cursor = search.cursorIn(matches)
+    val currentMatch = search.current(matches)
+
     val sessions by store.sessions.collectAsStateWithLifecycle()
     val models by store.models.collectAsStateWithLifecycle()
     val skills by store.skills.collectAsStateWithLifecycle()
@@ -110,7 +141,9 @@ fun ChatScreen(
     val connectionError by store.connectionError.collectAsStateWithLifecycle()
     val loadingOlder by store.loadingOlder.collectAsStateWithLifecycle()
     val loadOlderFailed by store.loadOlderFailed.collectAsStateWithLifecycle()
-    val pendingApproval by store.pendingApproval.collectAsStateWithLifecycle()
+    // One card per session: the open session reads its own entry, so another session's answer
+    // (or `cancel` frame) never takes this one's panel away.
+    val pendingApprovals by store.pendingApprovals.collectAsStateWithLifecycle()
     val pendingQuestions by store.pendingQuestions.collectAsStateWithLifecycle()
     val permissions by store.permissions.collectAsStateWithLifecycle()
     val pendingPermission by store.pendingPermission.collectAsStateWithLifecycle()
@@ -128,16 +161,20 @@ fun ChatScreen(
         ?: currentSessionId.orEmpty()
 
     val connection by store.connectionState.collectAsStateWithLifecycle()
+    // The persisted send mode seeds each new draft; the details panel's card writes it.
+    val hostsStore = rememberHostsStore()
+    val appSettings by hostsStore.settings.collectAsState(initial = AppSettings())
     val hostKey = connection.host?.let { "${it.baseUrl}|${it.id}" }.orEmpty()
     val composer = remember(hostKey, currentSessionId) {
-        store.composers.get(ComposerKey(hostKey, currentSessionId.orEmpty()))
+        store.composers.get(
+            ComposerKey(hostKey, currentSessionId.orEmpty()),
+            defaultMode = appSettings.promptMode,
+        )
     }
+    // The `@` picker's open state. The draft and the send mode moved into `ComposerSubmitter`;
+    // this stays here because it is a property of the screen's overlay, not of the draft.
     var referencePicker by remember(composer.key) { mutableStateOf<AtQuery?>(null) }
-    var draft by composer::text
-    var sentTick by remember { mutableIntStateOf(0) }
-    var mode by composer::mode
     var tab by rememberSaveable { mutableStateOf(ChatTab.Chat) }
-    val attachments = composer.attachments
 
     var panelKey by remember { mutableStateOf<ComposerKey?>(null) }
     var feedback by remember { mutableStateOf<Triple<ComposerKey, String, Boolean>?>(null) }
@@ -154,312 +191,37 @@ fun ChatScreen(
     }
     // A decorated command's picker (the phone's `popupSelect`), keyed by the command it serves.
     var popup by remember(composer.key) { mutableStateOf<Pair<String, CommandUiSpec.PopupSelect>?>(null) }
-    // A message held and sent to rewind, by sequence and preview: rewind's picker, opened on its pick.
-    var rewindFrom by remember(composer.key) { mutableStateOf<Pair<Long, String>?>(null) }
-    // A held prompt waiting on the reader's say-so before it replaces a draft they had started.
-    var replaceDraftWith by remember(composer.key) { mutableStateOf<String?>(null) }
-    var composerFocusTick by remember { mutableIntStateOf(0) }
 
     // Hoisted above the tab swap so each view keeps its own scroll position across switches.
     val chatListState = rememberLazyListState()
     val trajectoryListState = rememberLazyListState()
 
-    val commandFailed = stringResource(R.string.err_command_failed)
-    val unknownCommand = stringResource(R.string.err_command_unknown)
+    // Answering the harness — approvals, plan reviews, question batches — and the mapping from its
+    // reply to something the reader can act on. See `HarnessResponder`.
+    val responder = rememberHarnessResponder(store = store, toast = { toast.second(it) })
 
-    fun report(outcome: CommandOutcome) {
-        when (outcome) {
-            is CommandOutcome.Ok -> outcome.text?.takeIf { it.isNotBlank() }?.let { toast.second(it) }
-            is CommandOutcome.Unknown -> toast.second(unknownCommand.format(outcome.line))
-            is CommandOutcome.Failed -> toast.second(commandFailed.format(outcome.message))
-        }
-    }
-
-    val answerRefused = stringResource(R.string.questions_answer_refused)
-    val answerUnsent = stringResource(R.string.questions_answer_unsent)
-
-    /**
-     * What to tell the user about a question response, or null when the harness took it.
-     *
-     * A refusal is worth naming rather than swallowing: the host's wait stays open and the tool
-     * call that opened it stays blocked, so a card that quietly did nothing would leave the session
-     * stuck with no explanation.
-     */
-    fun refusalOf(outcome: QuestionOutcome): String? = when (outcome) {
-        is QuestionOutcome.Accepted -> null
-        is QuestionOutcome.Refused -> answerRefused.format(outcome.reason)
-        is QuestionOutcome.Unsent -> answerUnsent
-    }
-
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        val selection = store.composers.imagePickTarget
-        val target = selection?.first
-        store.composers.imagePickTarget = null
-        if (target != null && uris.isNotEmpty()) {
-            target.preparing = true
-            val limits = selection.second
-            store.composers.scope.launch {
-                val failures = mutableListOf<String>()
-                try {
-                    val existing = target.attachments.filterIsInstance<PendingAttachment.Image>()
-                    val accepted = withContext(Dispatchers.IO) {
-                        val selected = mutableListOf<PendingAttachment.Image>()
-                        val admission = com.labteto.dshmobile.core.session.PhotoBatchAdmission(limits, existing.map { it.bytes })
-                        for (uri in uris) {
-                            try {
-                                if (admission.full) {
-                                    failures.add(imageRejectionText(context, ImageRejection.TOO_MANY, limits))
-                                    continue
-                                }
-                                val resolver = context.contentResolver
-                                val mediaType = resolver.getType(uri)
-                                val bytes = (resolver.openInputStream(uri) ?: throw java.io.IOException("Unreadable image" )).use {
-                                    readImageBounded(it, limits.maxImageBytes.coerceIn(0, Int.MAX_VALUE.toLong() - 1))
-                                }
-                                if (bytes == null) {
-                                    failures.add(imageRejectionText(context, ImageRejection.TOO_LARGE, limits))
-                                    continue
-                                }
-                                val pick = decodePick(bytes)
-                                val rejection = admission.accept(
-                                    mediaType.orEmpty(), pick.detectedMediaType, bytes.size, pick.width, pick.height,
-                                )
-                                if (rejection != null) {
-                                    failures.add(imageRejectionText(context, rejection, limits))
-                                    continue
-                                }
-                                selected.add(PendingAttachment.Image(
-                                    mediaType = mediaType.orEmpty(), base64 = Base64.encodeToString(bytes, Base64.NO_WRAP),
-                                    preview = pick.preview, bytes = bytes.size, width = pick.width, height = pick.height,
-                                ))
-                            } catch (cancelled: CancellationException) { throw cancelled }
-                            catch (_: Exception) { failures.add(context.getString(R.string.err_attachment_failed)) }
-                        }
-                        selected
-                    }
-                    target.attachments.addAll(accepted)
-                    if (failures.isNotEmpty()) toast.second(context.getString(
-                        R.string.photos_skipped, failures.size, failures.distinct().joinToString("; "),
-                    ))
-                } finally { target.preparing = false }
-            }
-        }
-    }
-
-    /** Replace one pending file by identity; a chip that was removed meanwhile is left removed. */
-    fun updateFile(target: ComposerDraft, id: String, transform: (PendingAttachment.File) -> PendingAttachment.File) {
-        val attachments = target.attachments
-        val index = attachments.indexOfFirst { it is PendingAttachment.File && it.id == id }
-        if (index >= 0) attachments[index] = transform(attachments[index] as PendingAttachment.File)
-    }
-
-    /**
-     * Stream one picked file to the host and settle its chip.
-     *
-     * The upload starts the moment the file is picked, as the web client's does, so by the time
-     * the message is sent the receipt is usually already there; the chip shows progress until it
-     * is, and the send affordance waits for it.
-     */
-    fun startUpload(file: PendingAttachment.File, target: ComposerDraft = composer) {
-        updateFile(target, file.id) { it.copy(state = FileUploadState.Uploading(0)) }
-        store.composers.scope.launch {
-            val result = store.uploadFile(
-                name = file.name,
-                targetSessionId = target.key.sessionId,
-                targetHost = target.key.host,
-                size = file.size,
-                open = { runCatching { context.contentResolver.openInputStream(file.uri) }.getOrNull() },
-                onProgress = { sent -> updateFile(target, file.id) { it.copy(state = FileUploadState.Uploading(sent)) } },
-            )
-            updateFile(target, file.id) {
-                when (result) {
-                    is RpcResult.Ok -> it.copy(state = FileUploadState.Ready(result.value.receiptId, result.value.file))
-                    is RpcResult.Err -> it.copy(state = FileUploadState.Failed(result.error.message))
-                }
-            }
-        }
-    }
-
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val target = store.composers.filePickTarget
-        store.composers.filePickTarget = null
-        if (uri == null || target == null) return@rememberLauncherForActivityResult
-        val (name, size) = describeDocument(context.contentResolver, uri)
-        if (name == null) {
-            toast.second(context.getString(R.string.err_file_read_failed))
-            return@rememberLauncherForActivityResult
-        }
-        val file = PendingAttachment.File(
-            id = UUID.randomUUID().toString(),
-            uri = uri,
-            name = name,
-            size = size,
-            state = FileUploadState.Uploading(0),
-        )
-        target.attachments.add(file)
-        startUpload(file, target)
-    }
-
-    /** What a decoration gets to work with: the open session's conversation, a command runner, the draft. */
-    fun commandContext(sessionId: String, host: String): CommandContext = object : CommandContext {
-        override val conversation get() = store.currentConversation.value
-        override val draft get() = composer.text
-        override suspend fun run(line: String) = store.runCommand(line, emptyList(), sessionId, host)
-        override fun setDraft(text: String) { composer.text = text; composer.selection = text.length }
-    }
-
-    /**
-     * The phone's `commandUi.decorate` dispatch: a bare `/name` whose decoration is available
-     * opens that decoration's UI and submits nothing — exactly what the web client does before it
-     * would otherwise hand the line to `commands/execute`. Anything else returns false and takes
-     * the ordinary path, and so does a same-named command from a plugin the decoration is not a
-     * port of.
-     */
-    fun dispatchDecorated(text: String): Boolean {
-        val trimmed = text.trim()
-        if (!trimmed.startsWith("/") || trimmed.any { it.isWhitespace() }) return false
-        val name = trimmed.drop(1)
-        val decoration = CommandDecorations.forName(name) ?: return false
-        if (commands.none { it.name == name } || !decoration.recognizes(commands)) return false
-        if (!decoration.available(conversation)) return false
-        when (val ui = decoration.ui) {
-            is CommandUiSpec.PopupSelect -> popup = name to ui
-            is CommandUiSpec.Action -> scope.launch {
-                try {
-                    ui.run(commandContext(composer.key.sessionId, composer.key.host))
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    toast.second(e.message ?: context.getString(R.string.panel_failed))
-                }
-            }
-        }
-        return true
-    }
-
-    /**
-     * Put a sent prompt back in the composer to be corrected. An empty draft just takes it; one the
-     * reader has started is asked about first, because replacing it would lose what they typed.
-     */
-    fun editPrompt(text: String) {
-        if (draft.isBlank() || draft == text) {
-            draft = text
-            composer.selection = text.length
-            composerFocusTick++
-        } else {
-            replaceDraftWith = text
-        }
-    }
-
-    /** An `@` mention of a workspace path at the end of the draft, as the reference picker writes one. */
-    fun mention(path: String, folder: Boolean) {
-        val mention = fileMention(path, folder) ?: return
-        val end = composer.text.length
-        composer.insertReference(end, end, mention, path, if (folder) "folder" else "file", path)
-        composerFocusTick++
-    }
-
-    /** [deliveryOverride] is a mode picked for this message alone, from holding send. */
-    fun send(text: String, deliveryOverride: String? = null) {
-        if (composer.preparing || composer.submitting) { draft = text; return }
-        sentTick++
-        if (attachments.isEmpty() && dispatchDecorated(text)) return
-        val delivery = deliveryOverride ?: mode
-        val targetId = composer.key.sessionId
-        val targetHost = composer.key.host
-        val pending = attachments.toList()
-        if (text.isBlank() && pending.isEmpty()) return
-        val images = pending.filterIsInstance<PendingAttachment.Image>()
-        val files = pending.filterIsInstance<PendingAttachment.File>()
-        // A file without a receipt cannot be cited. The send affordance already waits for the
-        // chips, but a keyboard send lands here too.
-        if (files.any { it.state !is FileUploadState.Ready }) {
-            draft = text
-            toast.second(
-                context.getString(
-                    if (files.any { it.state is FileUploadState.Failed }) R.string.chat_attachment_upload_failed
-                    else R.string.chat_attachment_still_uploading,
-                ),
-            )
-            return
-        }
-        val receipts = files.mapNotNull { it.receiptId }
-        // A slash line that names a registered command is not a message: `session/prompt` would
-        // hand it to the model verbatim, so it has to be recognised here and written through the
-        // command gateway. A miss falls through to the prompt path — that is how skills work.
-        when (val submission = adjudicate(text, commands, pending.size, store.commandAttachmentsSupported)) {
-            is Submission.Refused -> {
-                // Nothing is sent and nothing is dropped. The composer clears the draft on its way
-                // here, so put it back, and leave the attachments alone — a refusal the user cannot
-                // act on without re-picking every one is not much of a refusal.
-                draft = text
-                val message = when (submission.reason) {
-                    RefusalReason.COMMAND_TAKES_NO_ATTACHMENTS -> R.string.err_command_no_images
-                    RefusalReason.HOST_TOO_OLD -> R.string.err_command_images_host
-                }
-                toast.second(context.getString(message, submission.command))
-            }
-
-            is Submission.Command -> {
-                composer.submitting = true
-                attachments.clear()
-                val submitted = images.map { it.encoded().asSubmit() } +
-                    receipts.map { CommandSubmitAttachment.File(it) }
-                store.composers.scope.launch {
-                    try {
-                    val outcome = store.runCommand(submission.line, submitted, targetId, targetHost)
-                    // An attachment-carrying command consumes its attachments only on success, as
-                    // the harness client does: an error result is something to correct, and
-                    // correcting it should not start with picking every file again. A plain
-                    // command that fails keeps today's behaviour, because its whole submission was
-                    // the line. The restore only lands in a composer nobody has touched meanwhile —
-                    // the call is in flight while the user can still type and pick.
-                    if (outcome is CommandOutcome.Failed) {
-                        composer.restoreRejected(text, pending)
-                    }
-                    report(outcome)
-                    } catch (e: kotlinx.coroutines.CancellationException) { composer.restoreRejected(text, pending); throw e }
-                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed)) }
-                    finally { composer.submitting = false }
-                }
-            }
-
-            is Submission.Prompt -> {
-                composer.submitting = true
-                attachments.clear()
-                store.composers.scope.launch {
-                    try {
-                    // One call, whatever the count. The host admits a prompt's images as a single
-                    // batch, and that batch is the only thing its per-message count and total-size
-                    // bounds are measured against — sending one image per call made a single
-                    // message into several and put both limits permanently out of reach. Files
-                    // ride the same call as receipts; a receipt the host refuses stays staged,
-                    // so restoring the chips is enough to try again.
-                    val outcome = if (pending.isEmpty()) {
-                        store.prompt(text, delivery, targetId, targetHost)
-                    } else {
-                        store.promptWithAttachments(text, delivery, images.map { it.encoded() }, receipts, targetId, targetHost)
-                    }
-                    if (outcome !is PromptOutcome.Ok) {
-                        composer.restoreRejected(text, pending)
-                        toast.second(
-                            if (outcome is PromptOutcome.Rejected) imageRejectionText(context, outcome.rejection, imageLimits, outcome.reason)
-                            else (outcome as PromptOutcome.Failed).message,
-                        )
-                    }
-                    } catch (e: kotlinx.coroutines.CancellationException) { composer.restoreRejected(text, pending); throw e }
-                    catch (e: Exception) { composer.restoreRejected(text, pending); toast.second(e.message ?: context.getString(R.string.panel_failed)) }
-                    finally { composer.submitting = false }
-                }
-            }
-        }
-    }
-
+    // The composer's submit path — draft, send mode, attachments, the two in-flight flags and
+    // every operation on them — lives in one object. See `ComposerSubmitter`.
+    val submitter = rememberComposerSubmitter(
+        store = store,
+        composer = composer,
+        commands = commands,
+        imageLimits = imageLimits,
+        report = responder::report,
+        onOpenPopup = { name, ui -> popup = name to ui },
+    )
+    val draft = submitter.draft
+    val attachments = submitter.attachments
+    val mode = submitter.mode
+    val filePicker = rememberFilePicker(submitter)
+    val imagePicker = rememberImagePicker(submitter)
     androidx.compose.runtime.CompositionLocalProvider(
         com.labteto.dshmobile.ui.media.LocalAttachmentScope provides (composer.key.host to composer.key.sessionId),
         com.labteto.dshmobile.ui.components.LocalFileOpener provides { path: String ->
             store.panels.get(composer.key).open(path); panelKey = composer.key
         },
+        // A folder link opens Files *at that directory* rather than a preview of it: upstream
+        // 0.15.0's file pills call this, and `browse` is the panel's own way to land on a listing.
         com.labteto.dshmobile.ui.components.LocalFolderOpener provides { path: String ->
             store.panels.get(composer.key).browse(path); panelKey = composer.key
         },
@@ -492,20 +254,59 @@ fun ChatScreen(
                 onOpenSubagents = { sheet = ChatSheet.Subagents },
                 onOpenDetails = onOpenDetails,
                 onTabChange = { tab = it },
+                // Disabled rather than hidden when there is no session to point at, which is what
+                // upstream 0.15.0's labelled button beside the tabs does with this pair.
                 onOpenWorkspace = { panelKey = composer.key },
                 workspaceEnabled = currentSessionId != null,
                 historyEnabled = currentSessionId != null,
+                searchQuery = search.query,
+                // The counter is 1-based and reads 0/0 when nothing matches.
+                searchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                searchCount = matches.size,
+                onSearchQueryChange = { search.onQueryChange(it) },
+                onSearchPrevious = { search.step(-1, matches.size) },
+                onSearchNext = { search.step(1, matches.size) },
+                searchOpen = search.open,
+                onToggleSearch = { search.open = !search.open },
             )
 
-            AnimatedPresence(connectionError) {
-                ConnectionBanner(
-                    message = it,
-                    actionLabel = stringResource(R.string.common_retry),
-                    onAction = { store.retryConnection() },
+            connectionError?.let {
+                androidx.compose.material3.TextButton(onClick = { store.retryConnection() }) { ConnectionBanner(it) }
+            }
+            if (conversation?.gap == true) {
+                ConnectionBanner(stringResource(R.string.common_reconnecting))
+            }
+
+            // Collapsible transcript search: hidden by default, opened by the toolbar's search
+            // icon, closed by its own × button. Sits above the todo dock so hits are visible
+            // while reading.
+            AnimatedVisibility(visible = search.open) {
+                TranscriptSearchBar(
+                    query = search.query,
+                    onQueryChange = { search.onQueryChange(it) },
+                    matchPosition = if (matches.isEmpty()) 0 else cursor + 1,
+                    matchCount = matches.size,
+                    onPrevious = { search.step(-1, matches.size) },
+                    onNext = { search.step(1, matches.size) },
+                    onClose = { search.close() },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = DsSpacing.pageHorizontal, vertical = DsSpacing.tiny),
                 )
             }
-            AnimatedPresence(Unit.takeIf { conversation?.gap == true && connectionError == null }) {
-                ConnectionBanner(stringResource(R.string.common_reconnecting), warning = true)
+
+            // The agent's live to-do list, pinned above the transcript. Hidden until a
+            // `todo/write` arrives, and dismissed state is keyed on the list so a later write
+            // brings the bar back on its own.
+            liveTodos?.let { todos ->
+                TodoBar(
+                    todos = todos,
+                    dismissed = todosDismissed,
+                    onDismiss = { todosDismissed = true },
+                    // Shares the page inset with the transcript and the composer: the bar spans
+                    // the same column, so its edges have to sit on the same lines.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 2.dp),
+                )
             }
 
             val nodeContext = ChatNodeContext(
@@ -522,26 +323,15 @@ fun ChatScreen(
                     conversation?.nodes?.filterIsInstance<com.labteto.dshmobile.core.session.AssistantMessageNode>()
                         ?.firstOrNull { it.seq == seq }?.messageId?.let { feedback = Triple(composer.key, it, positive) }
                 },
-                // Lambdas rather than references, for the reason given at the composer's `onSend`:
-                // a reference to a local function compares equal whatever composer it captured.
-                onEditPrompt = if (currentSessionId != null) ({ text -> editPrompt(text) }) else null,
-                // The rewind plugin's own picker refuses nothing while a turn runs, but withdrawing
-                // the message a running turn is answering is not something to offer from a hold.
-                onRewindTo = if (
-                    currentSessionId != null && conversation?.running != true &&
-                    commandsAvailable && RewindDecoration.recognizes(commands)
-                ) {
-                    { seq, preview -> rewindFrom = seq to preview }
-                } else {
-                    null
-                },
-                onMention = if (currentSessionId != null) ({ path, folder -> mention(path, folder) }) else null,
             )
 
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
                 // Keep transcript/question space even with a long draft. On very short screens,
                 // reserve enough for reference chips, a line of text and the fixed action row.
                 val composerMaxHeight = (maxHeight * 0.6f).coerceAtLeast(180.dp)
+                // The `/` menu's share of the same box. Read here, where the scope's `maxHeight` is
+                // in hand, rather than inside the menu's argument list.
+                val slashMenuMaxHeight = maxHeight * 0.45f
                 Column(Modifier.fillMaxSize()) {
                 AnimatedContent(
                     targetState = tab,
@@ -565,14 +355,9 @@ fun ChatScreen(
                             context = nodeContext,
                             listState = chatListState,
                             onLoadOlder = { scope.launch { store.loadOlder() } },
+                            focusSeq = currentMatch?.seq,
                             jumpToSeq = pendingJumpSeq,
                             onJumpConsumed = { pendingJumpSeq = null },
-                            sentTick = sentTick,
-                            onSuggestion = if (currentSessionId != null) {
-                                { text -> draft = text; composer.selection = text.length }
-                            } else {
-                                null
-                            },
                         )
                         ChatTab.Trajectory -> TrajectoryTab(
                             conversation = conversation,
@@ -580,177 +365,165 @@ fun ChatScreen(
                             usage = tokenUsage,
                             cwd = workingDirectory,
                             listState = trajectoryListState,
-                            loadingOlder = loadingOlder,
-                            loadOlderFailed = loadOlderFailed,
-                            onLoadOlder = { scope.launch { store.loadOlder() } },
                         )
                     }
                 }
-
-                conversation?.let { conv ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        // Each dock slides in and out on its own, so one arriving mid-turn eases the
-                        // transcript up rather than shoving it by a whole row in a single frame.
-                        AnimatedPresence(parseTodos(conv.projections["todos"])?.takeIf { it.isNotEmpty() }) { TodoDock(it) }
-                        AnimatedPresence(parseGoal(conv.projections["goal"])) { GoalBar(it, store) }
-                        AnimatedPresence(conv.queue.takeIf { it.isNotEmpty() }) { QueueDock(it, store) }
-                    }
+            conversation?.let { conv ->
+                PageColumn(spacing = 4.dp) {
+                    // The to-do list lives in the pinned bar above the transcript, not here:
+                    // two renderings of the same list on one screen read as two different lists.
+                    parseGoal(conv.projections["goal"])?.let { GoalBar(it, store) }
+                    QueueDock(conv.queue, store)
                 }
+            }
 
-                // Server-initiated requests take over the bottom of the screen: they block the turn,
-                // so burying them behind a scroll would strand the session.
-                val approval = pendingApproval?.takeIf { it.sessionId == currentSessionId }
-                AnimatedPresence(approval, enter = DsAnimations.cardEnter, exit = DsAnimations.cardExit) { approval ->
-                    // A refusal is said out loud here rather than swallowed, for the reason [refusalOf]
-                    // gives: the host's wait — and the tool call behind it — stays open, and a panel
-                    // that reported nothing would read as two buttons that do nothing.
-                    fun decide(allow: Boolean) = scope.launch {
-                        refusalOf(store.respondApproval(approval.sessionId, approval.approvalId, allow))
-                            ?.let { toast.second(it) }
-                    }
-                    ApprovalPanel(
-                        toolName = approval.toolName,
-                        reason = approval.reason,
-                        onAllow = { decide(true) },
-                        onReject = { decide(false) },
+            // Server-initiated requests take over the bottom of the screen: they block the turn,
+            // so burying them behind a scroll would strand the session.
+            val approval = pendingApprovals[currentSessionId]
+            if (approval != null) {
+                // A refusal is said out loud rather than swallowed, for the reason
+                // `HarnessResponder.refusalOf` gives: the host's wait — and the tool call behind it
+                // — stays open, and a panel that reported nothing would read as two buttons that do
+                // nothing.
+                fun decide(allow: Boolean) =
+                    responder.respondToApproval(approval.sessionId, approval.approvalId, allow)
+                ApprovalPanel(
+                    toolName = approval.toolName,
+                    reason = approval.reason,
+                    // The page inset lives here, at the call site, because the panel is one of
+                    // several stacked in the same column: a composable that inset itself would
+                    // fight whichever container also holds it.
+                    modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                    onAllow = { decide(true) },
+                    onReject = { decide(false) },
+                )
+            }
+            val questions = pendingQuestions[currentSessionId]
+            if (questions != null) {
+                // A plan review rides the question channel but is a different decision, so it gets
+                // the card built for it. The narrowing decides which — and hands back anything the
+                // card could not answer in full, because the card answers one question and the host
+                // refuses an answer batch shorter than the request it resolves.
+                val review = remember(questions.rpcId) { planReviewOf(questions.items) }
+                if (review != null) {
+                    fun decide(option: AskUserQuestionOption) = responder.answerPlanReview(
+                        questions.sessionId,
+                        AskUserQuestionAnswer(
+                            listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label))),
+                        ),
                     )
-                }
-                val questions = pendingQuestions?.takeIf { it.sessionId == currentSessionId }
-                AnimatedPresence(questions, enter = DsAnimations.cardEnter, exit = DsAnimations.cardExit) { questions ->
-                    var planBusy by remember(questions.rpcId) { mutableStateOf(false) }
-                    // A plan review rides the question channel but is a different decision, so it gets
-                    // the card built for it. The narrowing decides which — and hands back anything the
-                    // card could not answer in full, because the card answers one question and the host
-                    // refuses an answer batch shorter than the request it resolves.
-                    val review = remember(questions.rpcId) { planReviewOf(questions.items) }
-                    if (review != null) {
-                        fun settle(block: suspend () -> QuestionOutcome) {
-                            planBusy = true
-                            scope.launch {
-                                refusalOf(block())?.let {
-                                    planBusy = false
-                                    toast.second(it)
-                                }
-                            }
-                        }
-                        fun decide(option: AskUserQuestionOption) = settle {
-                            store.answerQuestions(
-                                questions.sessionId,
-                                AskUserQuestionAnswer(
-                                    listOf(AskUserQuestionAnswerItem(review.id, listOf(option.label))),
-                                ),
-                            )
-                        }
-                        PlanReviewPanel(
-                            review = review,
-                            busy = planBusy,
-                            onApprove = { decide(review.approve) },
-                            onDecline = { review.decline?.let { decide(it) } },
-                            // Wanting to talk it over first is not one of the options the asker stated,
-                            // so it ends the request rather than answering it with the refusal.
-                            onDiscuss = {
-                                draft = ""
-                                settle { store.dismissQuestions(questions.sessionId) }
-                            },
-                        )
-                    } else {
-                        QuestionsPanel(
-                            requestKey = questions.rpcId,
-                            questions = questions.items,
-                            onSubmit = { answer ->
-                                refusalOf(store.answerQuestions(questions.sessionId, answer))
-                            },
-                            onDismiss = { refusalOf(store.dismissQuestions(questions.sessionId)) },
-                        )
-                    }
-                }
-
-                // Weighted questions are measured after the composer, so long questions cannot
-                // consume its controls. The question area scrolls within its allotted height.
-                ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
-
-                // The `/` autocomplete sits where the web's does: directly above the composer,
-                // only while the draft is a slash token being typed.
-                AnimatedPresence(activeSlash(draft, composer.selection)) { slash ->
-                    SlashMenu(
-                        query = slash,
-                        commands = if (commandsAvailable) commands else emptyList(),
-                        skills = skills,
-                        onPick = { row ->
-                            when (row) {
-                                is SlashRow.Command -> if (row.descriptor.input == null) {
-                                    draft = ""
-                                    send(row.descriptor.line)
-                                } else {
-                                    draft = row.descriptor.draftPrefix
-                                    composer.selection = draft.length
-                                }
-                                is SlashRow.Skill -> {
-                                    draft = "/${row.entry.name} "
-                                    composer.selection = draft.length
-                                }
-                            }
+                    PlanReviewPanel(
+                        review = review,
+                        busy = responder.busy,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                        onApprove = { decide(review.approve) },
+                        onDecline = { review.decline?.let { decide(it) } },
+                        // Wanting to talk it over first is not one of the options the asker stated,
+                        // so it ends the request rather than answering it with the refusal.
+                        onDiscuss = {
+                            submitter.onDraftChange("")
+                            responder.dismissQuestions(questions.sessionId)
                         },
                     )
+                } else {
+                    QuestionsPanel(
+                        requestKey = questions.rpcId,
+                        questions = questions.items,
+                        modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal),
+                        onSubmit = { answer -> responder.answerQuestionsOrRefusal(questions.sessionId, answer) },
+                        onDismiss = { responder.dismissQuestionsOrRefusal(questions.sessionId) },
+                    )
                 }
+            }
 
-                Composer(
-                    modifier = Modifier.heightIn(max = composerMaxHeight),
-                    references = composer.references,
-                    onAddReference = {
-                        referencePicker = activeReference(draft, composer.selection) ?: AtQuery(composer.selection, composer.selection, "")
-                    },
-                    onOpenReference = { reference ->
-                        if (reference.kind == "session") scope.launch { store.openSession(reference.target) }
-                        else {
-                            val panel = store.panels.get(composer.key)
-                            if (reference.kind == "folder") {
-                                panel.directory = reference.target
-                                panel.section = 0
-                                // Reopening the panel must load this target, not reuse the previous
-                                // directory's cached rows. Its existing launch effect loads null listings.
-                                panel.listing = null
-                            } else panel.open(reference.target)
-                            panelKey = composer.key
+            // Weighted questions are measured after the composer, so long questions cannot
+            // consume its controls. The question area scrolls within its allotted height.
+            ModernQuestions(store, currentSessionId, Modifier.weight(1f, fill = false))
+
+            // The `/` autocomplete sits where the web's does: directly above the composer, and
+            // only while the draft is a slash token being typed. It is a second door onto the same
+            // commands as the `/` button's sheet — the two coexist on purpose; the button is the
+            // discoverable one and this is the one you get by typing.
+            activeSlash(draft, composer.selection)?.let { slash ->
+                SlashMenu(
+                    query = slash,
+                    commands = if (commandsAvailable) commands else emptyList(),
+                    skills = skills,
+                    // A share of the box, not a fixed 240dp. This menu is measured *before* the
+                    // composer, so on a short screen its full height left the card with only the
+                    // action row — see `COMPOSER_MIN_HEIGHT`. The menu is the thing that can afford
+                    // to be short here: it scrolls.
+                    modifier = Modifier.heightIn(max = slashMenuMaxHeight),
+                    onPick = { row ->
+                        when (row) {
+                            is SlashRow.Command -> if (row.descriptor.input == null) {
+                                submitter.onDraftChange("")
+                                submitter.send(row.descriptor.line)
+                            } else {
+                                submitter.onDraftChange(row.descriptor.draftPrefix)
+                                composer.selection = row.descriptor.draftPrefix.length
+                            }
+                            is SlashRow.Skill -> {
+                                submitter.onDraftChange("/${row.entry.name} ")
+                                composer.selection = row.entry.name.length + 2
+                            }
                         }
                     },
-                    draft = draft,
-                    onDraftChange = { draft = it },
-                    cursor = composer.selection,
-                    onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
-                    attachments = attachments,
-                    onRemoveAttachment = { index -> attachments.removeAt(index) },
-                    onRetryAttachment = { index ->
-                        (attachments.getOrNull(index) as? PendingAttachment.File)?.let { startUpload(it) }
-                    },
-                    permissions = permissions,
-                    pendingPermission = pendingPermission,
-                    onPermissionPick = { value -> scope.launch { report(store.setPermissionPreset(value)) } },
-                    contextBreakdown = contextBreakdown,
-                    contextPressure = contextPressure,
-                    running = conversation?.running == true,
-                    enabled = currentSessionId != null && !composer.submitting,
-                    preparing = composer.preparing,
-                    onOpenSheet = { sheet = ChatSheet.Commands },
-                    // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
-                    // which keeps what it has when the new value is equal to it, and a reference to a
-                    // local function equals every other reference to that function whatever it
-                    // captured. Each session's `::send` compared equal to the first and was dropped, so
-                    // the button went on sending with the attachment list of whichever session was
-                    // open when this screen first composed. A lambda is rebuilt when what it captures
-                    // changes and compares by identity, so the composer always holds the current one.
-                    onSend = { text -> send(text) },
-                    onSendWith = { text, delivery -> send(text, delivery) },
-                    onStop = { scope.launch { store.cancelTurn() } },
-                    focusTick = composerFocusTick,
                 )
+            }
 
-                StatsFooter(stats = sessionStats, usage = tokenUsage)
+            Composer(
+                draft = draft,
+                onDraftChange = submitter::onDraftChange,
+                attachments = attachments,
+                onRemoveAttachment = submitter::removeAttachment,
+                onRetryAttachment = { index ->
+                    submitter.retryAttachment(index)
+                },
+                permissions = permissions,
+                pendingPermission = pendingPermission,
+                onPermissionPick = { value -> scope.launch { responder.report(store.setPermissionPreset(value)) } },
+                contextBreakdown = contextBreakdown,
+                contextPressure = contextPressure,
+                running = conversation?.running == true,
+                enterToSend = appSettings.enterToSend,
+                enabled = currentSessionId != null && !composer.submitting,
+                preparing = composer.preparing,
+                onOpenCommands = { sheet = ChatSheet.Commands },
+                onOpenAttachments = { sheet = ChatSheet.Attachments },
+                // A lambda, not `::send`. The composer holds this through rememberUpdatedState,
+                // which keeps what it has when the new value is equal to it, and a reference to a
+                // local function equals every other reference to that function whatever it
+                // captured. Each session's `::send` compared equal to the first and was dropped, so
+                // the button went on sending with the attachment list of whichever session was
+                // open when this screen first composed. A lambda is rebuilt when what it captures
+                // changes and compares by identity, so the composer always holds the current one.
+                onSend = { submitter.send(it) },
+                onStop = { scope.launch { store.cancelTurn() } },
+                modifier = Modifier.heightIn(max = composerMaxHeight),
+                references = composer.references,
+                onAddReference = {
+                    referencePicker = activeReference(draft, composer.selection) ?: AtQuery(composer.selection, composer.selection, "")
+                },
+                onOpenReference = { reference ->
+                    if (reference.kind == "session") scope.launch { store.openSession(reference.target) }
+                    else {
+                        val panel = store.panels.get(composer.key)
+                        if (reference.kind == "folder") {
+                            panel.directory = reference.target
+                            panel.section = 0
+                            // Reopening the panel must load this target, not reuse the previous
+                            // directory's cached rows. Its existing launch effect loads null listings.
+                            panel.listing = null
+                        } else panel.open(reference.target)
+                        panelKey = composer.key
+                    }
+                },
+                cursor = composer.selection,
+                onCursorChange = { composer.selection = it; if (draft.take(it).endsWith("@")) referencePicker = activeReference(draft, it) },
+            )
+
+            StatsFooter(stats = sessionStats, usage = tokenUsage)
                 }
             }
         }
@@ -763,75 +536,42 @@ fun ChatScreen(
         PopupSelectSheet(
             command = name,
             spec = spec,
-            context = commandContext(composer.key.sessionId, composer.key.host),
+            context = submitter.commandContext(composer.key.sessionId, composer.key.host),
             onDismiss = { popup = null },
         )
     }
-    rewindFrom?.let { (seq, preview) ->
-        val rewindContext = commandContext(composer.key.sessionId, composer.key.host)
-        PopupSelectSheet(
-            command = "rewind",
-            spec = RewindDecoration.ui as CommandUiSpec.PopupSelect,
-            context = rewindContext,
-            onDismiss = { rewindFrom = null },
-            initialStep = remember(seq) { RewindDecoration.fromMessage(rewindContext, seq, preview) },
-        )
-    }
-    replaceDraftWith?.let { text ->
-        ConfirmDialog(
-            title = stringResource(R.string.hold_replace_draft_title),
-            body = stringResource(R.string.hold_replace_draft_body),
-            confirmLabel = stringResource(R.string.hold_replace_draft_confirm),
-            onDismiss = { replaceDraftWith = null },
-            onConfirm = {
-                replaceDraftWith = null
-                draft = text
-                composer.selection = text.length
-                composerFocusTick++
-            },
-        )
-    }
-    panelKey?.let { key ->
-        WorkspacePanels(
-            store,
-            store.panels.get(key),
-            onDismiss = { panelKey = null },
-            // Mentioning closes the panel: the chip in the composer is where the reader goes next.
-            onMention = { path, folder ->
-                mention(path, folder)
-                panelKey = null
-            },
-        )
-    }
+    panelKey?.let { key -> WorkspacePanels(store, store.panels.get(key), onDismiss = { panelKey = null }) }
     feedback?.let { (key, id, positive) -> FeedbackDialog(store, key, id, positive) { feedback = null } }
     when (sheet) {
         ChatSheet.Commands -> CommandSheet(
             commands = commands,
             commandsAvailable = commandsAvailable,
             skills = skills,
-            mode = mode,
-            running = conversation?.running == true,
-            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
-            onModeChange = { mode = it },
-            onAttach = {
-                if (!composer.preparing && store.composers.imagePickTarget == null) {
-                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
-                    imagePicker.launch("image/*")
-                }
-            },
-            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             // The sheet only auto-runs commands that take no input at all, and a command that
             // takes no input takes no attachments either — so a pending attachment refuses here
             // for the same reason it refuses at the composer, rather than being silently dropped.
             onRunCommand = { line ->
                 val name = line.removePrefix("/").substringBefore(' ')
                 if (attachments.isEmpty()) {
-                    if (!dispatchDecorated(line)) scope.launch { report(store.runCommand(line)) }
+                    if (!submitter.dispatchDecorated(line)) scope.launch { responder.report(store.runCommand(line)) }
                 } else {
                     toast.second(context.getString(R.string.err_command_no_images, name))
                 }
             },
-            onPrefillDraft = { prefix -> draft = prefix },
+            onPrefillDraft = submitter::prefill,
+            onDismiss = { sheet = null },
+        )
+        ChatSheet.Attachments -> AttachmentSheet(
+            // Both rows upload against an open session, so both need one; and a pick already in
+            // flight has to finish before another starts.
+            canAttach = currentSessionId != null && !composer.preparing && !composer.submitting,
+            onAttachImage = {
+                if (!composer.preparing && store.composers.imagePickTarget == null) {
+                    store.composers.imagePickTarget = composer to (imageLimits ?: ImageLimitsView())
+                    imagePicker.launch("image/*")
+                }
+            },
+            onAttachFile = { store.composers.filePickTarget = composer; filePicker.launch(arrayOf("*/*")) },
             onDismiss = { sheet = null },
         )
         ChatSheet.Models -> ModelsSheet(models = models, store = store, onDismiss = { sheet = null })
@@ -855,7 +595,6 @@ fun ChatScreen(
                 tab = ChatTab.Chat
             },
             onDismiss = { sheet = null },
-            onEdit = if (currentSessionId != null) ({ text -> editPrompt(text) }) else null,
         )
         ChatSheet.Presets -> PresetsSheet(
             presets = agentPresets,
@@ -876,7 +615,7 @@ fun ChatScreen(
 }
 
 /** Which sheet, if any, is open over the chat surface. */
-private enum class ChatSheet { Commands, Models, History, Presets, Subagents }
+private enum class ChatSheet { Commands, Attachments, Models, History, Presets, Subagents }
 
 /**
  * A picked document's display name and size, as its provider reports them.
@@ -885,7 +624,7 @@ private enum class ChatSheet { Commands, Models, History, Presets, Subagents }
  * `-1` — the upload route accepts a chunked body, so an unknown length costs only the progress
  * ring. A null name means the provider answered nothing at all, which is a read failure.
  */
-private fun describeDocument(resolver: android.content.ContentResolver, uri: android.net.Uri): Pair<String?, Long> {
+internal fun describeDocument(resolver: android.content.ContentResolver, uri: android.net.Uri): Pair<String?, Long> {
     var name: String? = null
     var size = -1L
     runCatching {

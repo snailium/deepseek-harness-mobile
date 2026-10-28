@@ -41,6 +41,7 @@ import com.labteto.dshmobile.ui.components.DsToastHost
 import com.labteto.dshmobile.ui.components.rememberDsToast
 import com.labteto.dshmobile.ui.screens.connect.ConnectScreen
 import com.labteto.dshmobile.ui.screens.main.MainScreen
+import com.labteto.dshmobile.ui.screens.settings.PluginsScreen
 import com.labteto.dshmobile.ui.screens.pair.PairScreen
 import com.labteto.dshmobile.ui.screens.settings.SettingsScreen
 import com.labteto.dshmobile.ui.theme.DsAnimations
@@ -88,10 +89,15 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
         // remembered. `pairUrl` is saveable because the scan launches another activity, and coming
         // back to an empty address field would lose the one thing the user had already supplied.
         var showPair by rememberSaveable { mutableStateOf(false) }
+        // Plugins is its own route rather than a section of Settings: the drawer opens it directly,
+        // and it is the one settings-shaped page a user reaches while working rather than while
+        // configuring. Making it a route keeps the drawer's button a plain navigation.
+        var showPlugins by rememberSaveable { mutableStateOf(false) }
         var pairUrl by rememberSaveable { mutableStateOf<String?>(null) }
         val showMain = connection.phase == ConnectionPhase.CONNECTED ||
             (connection.phase == ConnectionPhase.RECONNECTING && connection.hasConnected)
         val route = when {
+            showPlugins -> RootRoute.Plugins
             showSettings -> RootRoute.Settings
             showPair -> RootRoute.Pair
             showMain -> RootRoute.Main
@@ -108,9 +114,13 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
                 label = "rootRoute",
             ) { current ->
                 when (current) {
+                    RootRoute.Plugins -> PluginsScreen(onClose = { showPlugins = false })
                     RootRoute.Settings -> SettingsScreen(onClose = { showSettings = false })
                     RootRoute.Pair -> PairScreen(onClose = { showPair = false }, prefillUrl = pairUrl)
-                    RootRoute.Main -> MainScreen(onOpenSettings = { showSettings = true })
+                    RootRoute.Main -> MainScreen(
+                        onOpenSettings = { showSettings = true },
+                        onOpenPlugins = { showPlugins = true },
+                    )
                     RootRoute.Connect -> ConnectScreen(
                         onOpenSettings = { showSettings = true },
                         onPair = { url ->
@@ -149,7 +159,7 @@ fun AppRoot(viewModel: AppViewModel = hiltViewModel()) {
 }
 
 /** The top-level screens [AppRoot] switches between. */
-private enum class RootRoute { Connect, Main, Settings, Pair }
+private enum class RootRoute { Connect, Main, Settings, Pair, Plugins }
 
 /**
  * "There is a newer release."

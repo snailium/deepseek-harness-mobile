@@ -1,14 +1,23 @@
 package com.labteto.dshmobile.ui.screens.main
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.webkit.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -21,7 +30,6 @@ import com.labteto.dshmobile.data.SessionStore
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.ui.Alignment
 import com.labteto.dshmobile.ui.components.DsButton
 import com.labteto.dshmobile.ui.components.DsButtonSize
 import com.labteto.dshmobile.ui.components.DsButtonVariant
@@ -63,10 +71,33 @@ internal fun TerminalPanel(store: SessionStore, state: PanelState, modifier: Mod
         state.shells = api.terminalShells(key.sessionId).requireValue()
         if (state.terminals.none { it.id == state.selectedTerminal }) state.selectedTerminal = state.terminals.firstOrNull()?.id
     }
-    LaunchedEffect(key) { operation { refresh() } }
+    // Auto-open: on every entry to this tab, switch to an existing terminal if one is alive;
+    // create one only when there are none. The terminal lives server-side and survives navigation
+    // — closing the panel does not kill it (the terminal/retain stream holds it). Re-entering the
+    // tab restores the last session via PanelState persistence in PanelRepository.
+    //
+    // This deliberately does NOT go through `operation`: that helper only launches a coroutine and
+    // returns, so the emptiness test used to run before the listing arrived, saw an empty list on
+    // every visit, and created a fresh terminal each time. `refresh()` is already suspend —
+    // awaiting it here is the whole fix.
+    LaunchedEffect(key) {
+        val api = store.apiForHost(key.host)
+        if (api == null) { error = context.getString(R.string.common_offline); return@LaunchedEffect }
+        try {
+            refresh()
+            if (state.terminals.isEmpty()) {
+                val info = api.terminalCreate(key.sessionId, TerminalCreateRequest(UUID.randomUUID().toString(), 80, 24, state.shellPath)).requireValue()
+                state.selectedTerminal = info.id
+                refresh()
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { error = e.message }
+    }
     val colors = DsTheme.colors
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
-        // Toolbar: which shell, a new one, refresh.
+        // Toolbar: which shell, a new one, refresh. Not scrollable and not wrapping: the row is a
+        // fixed four items, and upstream's `Spacer(weight(1f))` below needs a bounded width — a
+        // `weight` inside a `horizontalScroll` row is measured at infinity and cannot work.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(DsSpacing.xsmall)) {
             Box {
                 DsPill(
@@ -147,9 +178,60 @@ private class TerminalBridge(private val receive: (String) -> Unit) {
     @JavascriptInterface fun postMessage(message: String) { if (message.length <= 131072) receive(message) }
 }
 
-@SuppressLint("SetJavaScriptEnabled")
+/**
+ * Reads the terminal bundle, then hands off to [TerminalWeb].
+ *
+ * Split out because the bundle is a few hundred KB of JavaScript that used to be read
+ * synchronously inside the WebView's `remember` — on the main thread, every time the tab was
+ * opened. The page is assembled as one string and handed to `loadDataWithBaseURL`, so the WebView
+ * cannot fetch those files itself; reading them off the main thread is the smaller change than
+ * rewiring the page through `WebViewAssetLoader`, and it keeps composition free of I/O.
+ */
 @Composable
 private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTerminalInfo, modifier: Modifier) {
+    val context = LocalContext.current
+    // `held` seeds the state so a second visit to the tab shows the terminal immediately instead
+    // of flashing a spinner for a read that already happened.
+    var assets by remember { mutableStateOf(TerminalAssets.held) }
+    LaunchedEffect(context) {
+        if (assets == null) assets = withContext(Dispatchers.IO) { TerminalAssets.load(context) }
+    }
+    val loaded = assets
+    if (loaded == null) {
+        Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    } else {
+        TerminalWeb(store, key, initial, modifier, loaded)
+    }
+}
+
+/**
+ * The terminal bundle, read once per process.
+ *
+ * `held` lets a second visit to the tab skip the read entirely rather than paying for it again.
+ */
+private class TerminalAssets(val js: String, val fit: String, val css: String) {
+    companion object {
+        @Volatile private var shared: TerminalAssets? = null
+
+        val held: TerminalAssets? get() = shared
+
+        fun load(context: Context): TerminalAssets = shared ?: TerminalAssets(
+            js = context.assets.open("terminal/xterm.js").bufferedReader().use { it.readText() },
+            fit = context.assets.open("terminal/addon-fit.js").bufferedReader().use { it.readText() },
+            css = context.assets.open("terminal/xterm.css").bufferedReader().use { it.readText() },
+        ).also { shared = it }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun TerminalWeb(
+    store: SessionStore,
+    key: ComposerKey,
+    initial: WebTerminalInfo,
+    modifier: Modifier,
+    assets: TerminalAssets,
+) {
     val context = LocalContext.current
     val connection by store.connectionState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
@@ -182,9 +264,9 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
                     if (json.optString("type") == "ready") ready = true else input.send(message)
                 }
             }, "TerminalHost")
-            val js = context.assets.open("terminal/xterm.js").bufferedReader().use { it.readText() }
-            val fit = context.assets.open("terminal/addon-fit.js").bufferedReader().use { it.readText() }
-            val css = context.assets.open("terminal/xterm.css").bufferedReader().use { it.readText() }
+            val js = assets.js
+            val fit = assets.fit
+            val css = assets.css
             loadDataWithBaseURL("https://terminal.invalid/", """
                 <!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
                 <style>html,body,#terminal{width:100%;height:100%;margin:0;overflow:hidden} $css</style></head><body><div id="terminal"></div>
@@ -200,6 +282,12 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
                 const term = new Terminal({fontSize:14,scrollback:1000,disableStdin:true});
                 const fit = new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('terminal'));
                 function post(value){TerminalHost.postMessage(JSON.stringify(value))}
+                // Raw key injection for the on-screen D-pad. Deliberately NOT term.paste(): that
+                // path runs the data through bracketTextForPaste and wraps it in \x1b[200~ / \x1b[201~,
+                // so a shell in bracketed-paste mode sees the arrow sequence as pasted *text* and
+                // the cursor never moves. Posting straight to the input channel is byte-identical
+                // to what term.onData emits for a real keypress.
+                window.sendKey=function(data){post({type:'input',data})};
                 function measure(){
                     // Older Android WebViews resolve percentage/vh heights to zero in a dialog.
                     const height=Math.max(1,window.innerHeight)+'px';
@@ -286,7 +374,125 @@ private fun TerminalScreen(store: SessionStore, key: ComposerKey, initial: WebTe
         }
         if (info.state != "running") Text(stringResource(if (info.state == "failed") R.string.common_error else R.string.chat_stopped) + " (${info.exitCode ?: "—"})", Modifier.padding(12.dp))
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp)) }
-        AndroidView(factory = { view }, modifier = Modifier.weight(1f).fillMaxWidth())
+        // The D-pad overlay sits in the top-right corner of the terminal content area. It sends
+        // arrow keys and Enter to the shell — a phone has no physical keyboard, so this is the
+        // primary way to navigate command-line UIs (fzf, htop, vim, etc.).
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            AndroidView(factory = { view }, modifier = Modifier.fillMaxSize())
+            VirtualDPad(
+                // sendKey() posts to the same input channel term.onData uses. term.paste() is
+                // wrong here: it brackets the payload as a paste, so the shell never sees a key.
+                onKey = { data -> view.evaluateJavascript("sendKey(${JSONObject.quote(data)})", null) },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * How long a direction has to be held before it starts repeating, and how fast it repeats after.
+ *
+ * The delay is what keeps a deliberate single tap from arriving twice; the interval is roughly a
+ * keyboard's auto-repeat, which is what a cursor key feels like.
+ */
+private const val DPAD_REPEAT_DELAY_MS = 400L
+private const val DPAD_REPEAT_INTERVAL_MS = 80L
+
+/**
+ * A virtual D-pad (directional pad) for navigating command-line UIs from a phone.
+ *
+ * A 128dp dial: Enter at the centre, four chevrons at the compass points.
+ *
+ * The geometry is deliberately loose. Enter is 48dp (radius 24) and a direction is 36dp (radius 18)
+ * centred 51.2dp out, so a direction's inner edge sits at 33.2dp — 9.2dp clear of Enter. An earlier
+ * 72dp Enter overlapped that ring by nearly 3dp and made Enter easy to hit while aiming for a
+ * direction.
+ *
+ * Keys go out through `sendKey`, which posts to the same channel `term.onData` uses for a real
+ * keypress:
+ * - Up:    \\u001b[A
+ * - Down:  \\u001b[B
+ * - Right: \\u001b[C
+ * - Left:  \\u001b[D
+ * - Enter: \\r
+ */
+@Composable
+private fun VirtualDPad(onKey: (String) -> Unit, modifier: Modifier = Modifier) {
+    val colors = DsTheme.colors
+    val size = 128.dp
+    val buttonSize = 36.dp
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        DpadButton(
+            glyph = "⏎",
+            sequence = "\r",
+            onKey = onKey,
+            repeats = false,
+            background = colors.bgLayer1.copy(alpha = 0.9f),
+            textColor = colors.labelPrimary,
+            modifier = Modifier.size(48.dp),
+        )
+        // Compass points. In Compose positive y is DOWN, so Up is -y and Down is +y.
+        data class DpadKey(val x: Float, val y: Float, val key: String, val glyph: String)
+        listOf(
+            DpadKey(0f, -1f, "\u001b[A", "˄"),   // Up (top of screen)
+            DpadKey(0f, 1f, "\u001b[B", "˅"),    // Down (bottom of screen)
+            DpadKey(1f, 0f, "\u001b[C", "›"),    // Right
+            DpadKey(-1f, 0f, "\u001b[D", "‹"),   // Left
+        ).forEach { (x, y, key, glyph) ->
+            DpadButton(
+                glyph = glyph,
+                sequence = key,
+                onKey = onKey,
+                repeats = true,
+                background = colors.bgLayer1.copy(alpha = 0.7f),
+                textColor = colors.labelTertiary,
+                modifier = Modifier
+                    .size(buttonSize)
+                    .offset(x = (x * size.value / 2.5f).toInt().dp, y = (y * size.value / 2.5f).toInt().dp),
+            )
+        }
+    }
+}
+
+/**
+ * One button of the dial.
+ *
+ * The key fires on *press*, not on release, because a `clickable` reports its click only after the
+ * finger lifts — which would make holding a direction do nothing at all. `collectIsPressedAsState`
+ * gives the press immediately, and [repeats] keeps it firing while the finger stays down.
+ */
+@Composable
+private fun DpadButton(
+    glyph: String,
+    sequence: String,
+    onKey: (String) -> Unit,
+    repeats: Boolean,
+    background: Color,
+    textColor: Color,
+    modifier: Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    LaunchedEffect(pressed, sequence, repeats) {
+        if (!pressed) return@LaunchedEffect
+        onKey(sequence)
+        if (!repeats) return@LaunchedEffect
+        delay(DPAD_REPEAT_DELAY_MS)
+        while (true) {
+            onKey(sequence)
+            delay(DPAD_REPEAT_INTERVAL_MS)
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .background(if (pressed) background.copy(alpha = 1f) else background)
+            // Empty onClick on purpose: the press state above is the trigger. A real onClick would
+            // fire the key a second time when the finger lifted.
+            .clickable(interactionSource = interaction, indication = null, onClick = {}),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(glyph, style = DsType.base16Strong, color = textColor)
     }
 }
 

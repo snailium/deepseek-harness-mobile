@@ -55,6 +55,26 @@ enum class JobStatus {
      * defaults to it.
      */
     UNKNOWN,
+    ;
+
+    companion object {
+        /**
+         * The status of a job that arrived as a plain string rather than as a [JobView].
+         *
+         * The `job/registered` and `job/settled` session events carry the status as a field on
+         * the event's own payload, not as a decoded [JobView], so the wire spelling has to be
+         * mapped by hand. An unrecognised one reads as [UNKNOWN] rather than failing, for the same
+         * reason the enum has an [UNKNOWN] member at all.
+         */
+        fun fromWire(value: String?): JobStatus = when (value) {
+            "running" -> RUNNING
+            "stopping" -> STOPPING
+            "completed" -> COMPLETED
+            "killed" -> KILLED
+            "failed" -> FAILED
+            else -> UNKNOWN
+        }
+    }
 }
 
 /** One background job as the client sees it. */

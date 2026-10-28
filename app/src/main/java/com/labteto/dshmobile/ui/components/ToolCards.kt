@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.components.media.AttachmentImageState
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
@@ -58,6 +59,21 @@ fun ToolCard(
     iconOverride: ImageVector? = null,
     /** Terminal state from the call's own result; null derives the running bit from the card. */
     state: DisclosureState? = null,
+    /** Trailing slot on the header line — the tool row passes its elapsed time here. */
+    trailing: (@Composable () -> Unit)? = null,
+    /**
+     * Resolved attachment states, keyed by attachment id, for any image block in the output.
+     *
+     * Passed in rather than fetched here because a component may not reach the session store (see
+     * `lint/`). An unresolved id renders as `Loading`, which is what an in-flight fetch looks like
+     * anyway — so a caller that does not care about images can omit this entirely.
+     */
+    imageStates: Map<String, AttachmentImageState> = emptyMap(),
+    /**
+     * Upstream 0.15.0's grouped-row header. When given, the card renders it as the whole row
+     * instead of its own disclosure header — that is how the compact tool group draws one heading
+     * over several calls.
+     */
     header: (@Composable () -> Unit)? = null,
     /** Opens the call's hold menu from the default header; a custom [header] wires its own. */
     onHold: (() -> Unit)? = null,
@@ -69,20 +85,25 @@ fun ToolCard(
             visible = expanded,
             enter = fadeIn(DsAnimations.fade) + expandVertically(DsAnimations.expand),
             exit = fadeOut(DsAnimations.fade) + shrinkVertically(DsAnimations.expand),
-        ) { ToolCardBody(view) }
+        ) { ToolCardBody(view, imageStates) }
         return
     }
     DisclosureRow(
+        // Full width of the transcript column. A tool call is a block in the message flow, not an
+        // inline chip: sized to its content it left a ragged right edge that made a run of calls
+        // read as a list of unrelated fragments.
+        modifier = Modifier.fillMaxWidth(),
         title = titleOverride ?: view.displayTitle(),
         summary = summaryOverride ?: view.summary(),
         icon = iconOverride ?: view.icon(),
         state = state ?: if (view.isRunning()) DisclosureState.Running else DisclosureState.Idle,
         expanded = expanded,
         onToggle = onToggle,
+        trailing = trailing,
         onHold = onHold,
         holdLabel = holdLabel,
     ) {
-        ToolCardBody(view)
+        ToolCardBody(view, imageStates)
     }
 }
 
@@ -149,7 +170,7 @@ private fun diffStats(diffs: List<DiffHunk>): Triple<Int, Int, Int> {
 // ---- Bodies -----------------------------------------------------------------
 
 @Composable
-private fun ToolCardBody(view: ToolCardView) {
+private fun ToolCardBody(view: ToolCardView, imageStates: Map<String, AttachmentImageState>) {
     val colors = DsTheme.colors
     Column(
         modifier = Modifier
@@ -161,7 +182,7 @@ private fun ToolCardBody(view: ToolCardView) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         when (view) {
-            is ToolCardView.GenericCard -> GenericBody(view)
+            is ToolCardView.GenericCard -> GenericBody(view, imageStates)
             is ToolCardView.TerminalCard -> TerminalBody(view)
             is ToolCardView.DiffCard -> DiffBody(view)
             is ToolCardView.SearchCard -> SearchBody(view)
@@ -445,7 +466,7 @@ private fun WebBody(card: ToolCardView.WebCard) {
 }
 
 @Composable
-private fun GenericBody(card: ToolCardView.GenericCard) {
+private fun GenericBody(card: ToolCardView.GenericCard, imageStates: Map<String, AttachmentImageState>) {
     val colors = DsTheme.colors
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         card.rawInput?.let { raw ->
@@ -489,8 +510,10 @@ private fun GenericBody(card: ToolCardView.GenericCard) {
                         color = colors.labelTertiary,
                     )
                     // A tool that returns a screenshot arrives here, not on the message path.
+                    // The state is resolved by the caller: a component may not reach the session
+                    // store (see `lint/`), and an image that fetches its own attachment does.
                     is ContentBlockView.ImageBlock -> AttachmentImage(
-                        attachmentId = block.attachmentId,
+                        state = imageStates[block.attachmentId] ?: AttachmentImageState.Loading,
                         intrinsicWidth = block.width,
                         intrinsicHeight = block.height,
                         contentDescription = block.name,
