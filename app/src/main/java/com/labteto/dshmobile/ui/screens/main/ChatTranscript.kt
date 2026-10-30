@@ -373,6 +373,7 @@ internal fun ChatTranscript(
                         is TranscriptRow.Message -> ChatNodeItem(node = row.node, context = context)
                         is TranscriptRow.Tools -> ToolGroupRow(row.calls, context)
                         is TranscriptRow.Context -> ContextGroupRow(row.nodes, context)
+                        is TranscriptRow.Process -> ProcessRow(row, context)
                     }
                 }
             }
