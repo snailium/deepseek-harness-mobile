@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.runtime.key
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -82,20 +85,21 @@ fun UserBubble(
     holdLabel: String = "",
 ) {
     val colors = DsTheme.colors
+    // Re-key the SelectionContainer when the shared dismiss token changes so an active selection is
+    // cleared. The token is incremented by a tap on any transcript row (see ChatTranscript).
+    val dismissToken = LocalSelectionDismiss.current.value
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-        Text(
-            text,
-            style = DsType.bubbleText,
-            color = colors.labelPrimary,
-            modifier = Modifier
-                .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
-                // Only the bubble holds, not the empty width beside it: a press in the gutter of a
-                // scrolling transcript is a scroll that has not started yet.
-                .then(if (onHold != null) Modifier.holdable(holdLabel, onHold = onHold) else Modifier)
-                .background(colors.userBubble, DsShapes.bubble)
-                .border(1.dp, colors.borderL3, DsShapes.bubble)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+        key(dismissToken) {
+            SelectionContainer(
+                modifier = Modifier
+                    .widthIn(max = minOf(525.dp, maxWidth * 0.82f))
+                    .then(if (onHold != null) Modifier.holdable(holdLabel, onHold = onHold) else Modifier)
+                    .background(colors.accent, DsShapes.bubble)
+                    .padding(DsSpacing.textFieldInset),
+            ) {
+                Text(text, style = DsType.bubbleText, color = colors.onAccent)
+            }
+        }
     }
 }
 

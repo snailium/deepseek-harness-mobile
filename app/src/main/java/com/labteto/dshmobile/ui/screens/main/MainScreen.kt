@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
@@ -76,7 +77,7 @@ import kotlin.math.roundToInt
  * never conflict.
  */
 @Composable
-fun MainScreen(onOpenSettings: () -> Unit) {
+fun MainScreen(onOpenSettings: () -> Unit, onOpenPlugins: () -> Unit) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var automationsOpen by remember { mutableStateOf(false) }
@@ -103,6 +104,21 @@ fun MainScreen(onOpenSettings: () -> Unit) {
         scope.launch { reveal.animateTo(if (open) 1f else 0f, PanelSpring, initialVelocity = velocity) }
     }
 
+    // Back opens the chat list instead of leaving the app, and only a second press exits.
+    //
+    // ModalNavigationDrawer closes on back when it is *open*, but does nothing when it is closed —
+    // so back from the chat surface went straight out of the app, which on a phone is one gesture
+    // away from a mis-tap that loses the session. Back is also what a drawer means to a reader who
+    // does not know the hamburger is the way in.
+    //
+    // Ordering matters: the details panel and the drawer register their own handlers deeper in the
+    // tree, and Compose dispatches to the innermost first, so an open panel or an open drawer
+    // still consumes back before this sees it. This is only the fallback for "nothing else is
+    // open" — exactly the case that used to exit.
+    BackHandler(enabled = drawerState.isClosed && !detailsOpen) {
+        scope.launch { drawerState.open() }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -119,6 +135,7 @@ fun MainScreen(onOpenSettings: () -> Unit) {
                 ChatListDrawer(
                     onClose = { scope.launch { drawerState.close() } },
                     onOpenSettings = onOpenSettings,
+                    onOpenPlugins = onOpenPlugins,
                     onOpenAutomations = { automationSession = null; automationsOpen = true; scope.launch { drawerState.close() } },
                 )
             }

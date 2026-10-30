@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -98,6 +99,7 @@ import com.labteto.dshmobile.ui.rememberSessionStore
 import com.labteto.dshmobile.ui.theme.DsShapes
 import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
+import com.labteto.dshmobile.ui.theme.DsTitleBar
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,6 +107,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import com.labteto.dshmobile.connection.PromptMode
+import com.labteto.dshmobile.ui.rememberHostsStore
+import com.labteto.dshmobile.connection.AppSettings
 
 /**
  * The session details panel: everything about the open session that is not the conversation.
@@ -231,6 +236,7 @@ fun DetailsPanel(
                     PlanCard(conv) { next ->
                         scope.launch { store.runCommand(if (next) "/plan" else "/plan off") }
                     }
+                    SendModeCard()
                     JobsCard(
                         jobs = jobs,
                         controls = jobControls,
@@ -322,10 +328,14 @@ private fun HeaderRow(onClose: () -> Unit) {
     val colors = DsTheme.colors
     // Close sits at the panel's outer edge, the side it slides away to. A back arrow pointing at
     // the chat read as "go further in", the opposite of what it did.
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.height(DsTitleBar.height),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(DsTitleBar.iconGap),
+    ) {
         Text(
             stringResource(R.string.chat_details_title),
-            style = DsType.large20,
+            style = DsTitleBar.titleStyle,
             color = colors.labelPrimary,
             modifier = Modifier.weight(1f).padding(start = DsSpacing.small),
         )
@@ -333,6 +343,8 @@ private fun HeaderRow(onClose: () -> Unit) {
             icon = Icons.Filled.Close,
             contentDescription = stringResource(R.string.common_close),
             onClick = onClose,
+            iconSize = DsTitleBar.iconSize,
+            touchTarget = DsTitleBar.iconTouchTarget,
         )
     }
 }
@@ -671,6 +683,51 @@ private fun PlanCard(conversation: ConversationSnapshot, onTogglePlan: (active: 
             label = stringResource(R.string.plan_mode_hint),
             checked = active,
             onChange = { onTogglePlan(!active) },
+        )
+    }
+}
+
+/**
+ * What the send button does mid-turn: queue the message, or steer the running one.
+ *
+ * Lives here rather than only in the + sheet because it is a setting, not a per-message choice —
+ * a reader who wants to steer should set it once. The + sheet still offers the same two options
+ * for a one-off override; this card is what makes the choice survive a restart.
+ */
+@Composable
+private fun SendModeCard() {
+    val hostsStore = rememberHostsStore()
+    val scope = rememberCoroutineScope()
+    // The store exposes a cold Flow, so this needs an explicit initial value.
+    val settings by hostsStore.settings.collectAsState(initial = AppSettings())
+    val steering = settings.promptMode == PromptMode.STEER
+    Card(
+        title = stringResource(R.string.chat_composer_mode),
+        summary = stringResource(
+            if (steering) R.string.chat_composer_steer else R.string.chat_composer_queue,
+        ),
+        // Open by default: like PlanCard this is a control, and one you have to expand first is
+        // most of the way back to not having it.
+        initiallyExpanded = true,
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(DsSpacing.small)) {
+            DsPill(
+                text = stringResource(R.string.chat_composer_queue),
+                selected = !steering,
+                onClick = { scope.launch { hostsStore.setSetting { it.copy(promptMode = PromptMode.QUEUE) } } },
+            )
+            DsPill(
+                text = stringResource(R.string.chat_composer_steer),
+                selected = steering,
+                onClick = { scope.launch { hostsStore.setSetting { it.copy(promptMode = PromptMode.STEER) } } },
+            )
+        }
+        Text(
+            stringResource(
+                if (steering) R.string.chat_composer_mode_steer_hint else R.string.chat_composer_mode_queue_hint,
+            ),
+            style = DsType.caption11,
+            color = DsTheme.colors.labelTertiary,
         )
     }
 }

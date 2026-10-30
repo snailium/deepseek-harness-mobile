@@ -1,5 +1,7 @@
 package com.labteto.dshmobile.ui.media
 
+import com.labteto.dshmobile.ui.components.media.AttachmentImageState
+
 import android.graphics.BitmapFactory
 import android.util.LruCache
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,6 +19,10 @@ import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.labteto.dshmobile.ui.rememberSessionStore
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -33,13 +39,6 @@ import kotlinx.coroutines.withContext
  */
 
 val LocalAttachmentScope = androidx.compose.runtime.staticCompositionLocalOf<Pair<String, String>?> { null }
-
-/** What a raster looks like while it is being fetched, and after. */
-sealed interface AttachmentImageState {
-    data object Loading : AttachmentImageState
-    data class Ready(val image: ImageBitmap) : AttachmentImageState
-    data object Failed : AttachmentImageState
-}
 
 /**
  * Process-wide decoded-bitmap cache, sized against the heap rather than a fixed entry count: one
@@ -119,10 +118,6 @@ private suspend fun loadAttachment(
     return AttachmentImageState.Ready(decoded)
 }
 
-/** Aspect ratio of the reference, guarded against a zero dimension on a malformed payload. */
-fun aspectRatioOf(width: Int, height: Int): Float =
-    if (width > 0 && height > 0) width.toFloat() / height.toFloat() else 1f
-
 /**
  * The smallest power-of-two subsampling that still covers [targetWidthPx]. `BitmapFactory` rounds
  * down to a power of two anyway, so computing it explicitly keeps the result predictable.
@@ -165,4 +160,35 @@ fun rememberAttachmentCache(): AttachmentCache {
         EntryPointAccessors.fromApplication(context, AttachmentCacheEntryPoint::class.java)
             .attachmentCache()
     }
+}
+
+/**
+ * The loading half of an attachment image, split from the drawing half.
+ *
+ * `ui/components` may not reach the session store (see `lint/`), and an image that resolves its own
+ * attachment does exactly that. The split is the ordinary stateful/stateless one: this resolves,
+ * `AttachmentImage` draws. The benefit is not only architectural — the presentational half becomes
+ * previewable with a hand-made `AttachmentImageState`, which was impossible while it fetched.
+ */
+@Composable
+fun rememberAttachmentImageState(
+    attachmentId: String,
+    intrinsicWidth: Int,
+    intrinsicHeight: Int,
+    maxHeight: Int = 240,
+): State<AttachmentImageState> {
+    val store = rememberSessionStore()
+    val cache = rememberAttachmentCache()
+    val density = LocalDensity.current
+    val screenWidthDp = LocalConfiguration.current.screenWidthDp
+    // Decode for the widest the transcript can ever show it, not for the source resolution.
+    val targetWidthPx = remember(screenWidthDp) { with(density) { screenWidthDp.dp.roundToPx() } }
+    return rememberAttachmentImage(
+        attachmentId = attachmentId,
+        intrinsicWidth = intrinsicWidth,
+        intrinsicHeight = intrinsicHeight,
+        targetWidthPx = targetWidthPx,
+        store = store,
+        cache = cache,
+    )
 }

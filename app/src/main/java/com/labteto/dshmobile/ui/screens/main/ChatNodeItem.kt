@@ -30,11 +30,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.labteto.dshmobile.ui.rememberSessionStore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
@@ -53,7 +56,10 @@ import com.labteto.dshmobile.core.session.CommandNode
 import com.labteto.dshmobile.core.session.CompactionNode
 import com.labteto.dshmobile.core.session.DeveloperMessageNode
 import com.labteto.dshmobile.core.session.GoalNode
+import com.labteto.dshmobile.core.session.JobNode
 import com.labteto.dshmobile.core.session.OtherNode
+import com.labteto.dshmobile.core.wire.dto.JobStatus
+import com.labteto.dshmobile.core.wire.dto.WorkspaceChangedFile
 import com.labteto.dshmobile.core.session.PlanModeNode
 import com.labteto.dshmobile.core.session.RetryNode
 import com.labteto.dshmobile.core.session.SubagentNode
@@ -81,8 +87,10 @@ import com.labteto.dshmobile.ui.components.StateDotState
 import com.labteto.dshmobile.ui.components.ThinkingPanel
 import com.labteto.dshmobile.ui.components.ToolCard
 import com.labteto.dshmobile.ui.components.UserBubble
+import com.labteto.dshmobile.ui.media.rememberAttachmentImageState
 import com.labteto.dshmobile.ui.theme.DsAnimations
 import com.labteto.dshmobile.ui.theme.DsShapes
+import com.labteto.dshmobile.ui.theme.DsSpacing
 import com.labteto.dshmobile.ui.theme.DsTheme
 import com.labteto.dshmobile.ui.theme.DsType
 import kotlinx.serialization.json.JsonArray
@@ -90,6 +98,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 
 /** Everything one transcript row needs that is not on the node itself. */
@@ -129,8 +138,13 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
         is UserMessageNode -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             node.blocks.filter { it.kind == "image" }.forEach { block ->
                 parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
+                    val imageState by rememberAttachmentImageState(
                         attachmentId = ref.attachmentId,
+                        intrinsicWidth = ref.width,
+                        intrinsicHeight = ref.height,
+                    )
+                    AttachmentImage(
+                        state = imageState,
                         intrinsicWidth = ref.width,
                         intrinsicHeight = ref.height,
                         contentDescription = ref.name,
@@ -224,6 +238,8 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
 
         is CommandNode -> CommandRow(node)
 
+        is JobNode -> JobRow(node)
+
         is WorkflowNode -> WorkflowRow(node.data, context.onOpenSubagent)
 
         is DeveloperMessageNode -> ToolSetChangeRow(node)
@@ -256,11 +272,114 @@ internal fun ChatNodeItem(node: ChatNode, context: ChatNodeContext) {
                         }
                     }
                 }
+            } else if (node.type == "workspace/changes") {
+                WorkspaceChangesRow(node)
             } else JsonDisclosure(when (node.type) {
                 "system/message", "request/context" -> stringResource(R.string.system_prompt)
                 "image/offload" -> stringResource(R.string.image_offload)
                 else -> node.type
             }, node.data)
+        }
+    }
+}
+
+/**
+ * One turn's changed files.
+ *
+ * The durable event carries only `{turn}`, so the file list has to be fetched from
+ * `GET /api/changes.summary?sessionId=…&seq=…`, addressed by the *announcing event's* sequence.
+ * That fetch is deliberately lazy — a long transcript can hold dozens of these events, and asking
+ * for all of them on open would issue dozens of requests for turns the reader never scrolls to.
+ *
+ * Three states, shown distinctly because they mean different things: still fetching (nothing yet),
+ * the host has no summary (a plain line — normal for an old transcript, since the host drops
+ * summaries once a session is disposed), and a real file list.
+ */
+@Composable
+private fun WorkspaceChangesRow(node: OtherNode) {
+    val colors = DsTheme.colors
+    val store = rememberSessionStore()
+    val sessionId by store.currentSessionId.collectAsStateWithLifecycle()
+    val summaries by store.changesSummaries.collectAsStateWithLifecycle()
+    val turn = (node.data as? JsonObject)?.get("turn")?.jsonPrimitive?.intOrNull
+
+    val key = sessionId?.let { it to node.seq.toInt() }
+    LaunchedEffect(key) {
+        val k = key ?: return@LaunchedEffect
+        store.loadWorkspaceChanges(k.first, k.second)
+    }
+    // `containsKey`, not a null check: absent means "not fetched", null means "the host has none".
+    val loaded = key != null && summaries.containsKey(key)
+    val summary = key?.let { summaries[it] }
+
+    Column(Modifier.fillMaxWidth().padding(vertical = DsSpacing.tiny)) {
+        Text(
+            if (turn != null) {
+                stringResource(R.string.workspace_changes, turn)
+            } else {
+                stringResource(R.string.workspace_changes_unknown)
+            },
+            style = DsType.caption11,
+            color = colors.labelTertiary,
+        )
+        Column(Modifier.padding(start = DsSpacing.medium, top = DsSpacing.tiny)) {
+            when {
+                summary != null -> {
+                    summary.files.forEach { file -> ChangedFileRow(file) }
+                    // The host caps the list, and `total` counts the ones it dropped. Saying so is
+                    // the difference between a truncated list and a wrong one.
+                    if (summary.total > summary.files.size) {
+                        Text(
+                            stringResource(R.string.workspace_changes_more, summary.total - summary.files.size),
+                            style = DsType.caption11,
+                            color = colors.labelTertiary,
+                        )
+                    }
+                }
+                // Unavailable is a fact about the transcript, not a failure to report.
+                loaded -> Text(
+                    stringResource(R.string.workspace_changes_gone),
+                    style = DsType.caption11,
+                    color = colors.labelTertiary,
+                )
+            }
+        }
+    }
+}
+
+/** One changed file: its path, then its line counts. */
+@Composable
+private fun ChangedFileRow(file: WorkspaceChangedFile) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            // The harness's `display` form: relative inside the session's cwd, `../` above it,
+            // `~` under home. Already slash-separated, so it needs no rewriting for a phone.
+            file.display,
+            style = DsType.caption11,
+            color = colors.labelSecondary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(DsSpacing.small))
+        if (file.hasCounts) {
+            // Only when the harness actually counted. A binary or oversized file reports 0/0, and
+            // rendering that blindly would claim "nothing changed" about a file it could not read.
+            Text("+${file.added}", style = DsType.caption11, color = colors.success)
+            Spacer(Modifier.width(DsSpacing.tiny))
+            Text("\u2212${file.deleted}", style = DsType.caption11, color = colors.error)
+        } else {
+            Text(
+                stringResource(
+                    if (file.binary) R.string.workspace_changes_binary else R.string.workspace_changes_oversized,
+                ),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
         }
     }
 }
@@ -410,8 +529,13 @@ private fun AssistantMessage(node: AssistantMessageNode, context: ChatNodeContex
                 }
                 "tool-result" -> Unit
                 "image" -> parseImageRef(block)?.let { ref ->
-                    AttachmentImage(
+                    val imageState by rememberAttachmentImageState(
                         attachmentId = ref.attachmentId,
+                        intrinsicWidth = ref.width,
+                        intrinsicHeight = ref.height,
+                    )
+                    AttachmentImage(
+                        state = imageState,
                         intrinsicWidth = ref.width,
                         intrinsicHeight = ref.height,
                         contentDescription = ref.name,
@@ -558,8 +682,18 @@ internal fun ToolCallRow(node: ToolCallNode, context: ChatNodeContext, compact: 
         // file changing or being deleted, and shares the transcript's decoded-image cache.
         val images = remember(result?.content) { toolResultImages(result?.content) }
         images.forEach { ref ->
-            AttachmentImage(
+            // Resolved here, in the screen layer, and handed to the component as a state: the same
+            // split every other image in this file uses, and the one `lint/` enforces — a
+            // `ui/components/` composable may not reach the session store, so upstream 0.15.0's
+            // `attachmentId`-taking signature is the one thing of its image work this fork cannot
+            // adopt. Its fullscreen viewer (`ImageViewer`) came across untouched.
+            val imageState by rememberAttachmentImageState(
                 attachmentId = ref.attachmentId,
+                intrinsicWidth = ref.width,
+                intrinsicHeight = ref.height,
+            )
+            AttachmentImage(
+                state = imageState,
                 intrinsicWidth = ref.width,
                 intrinsicHeight = ref.height,
                 contentDescription = ref.name,
@@ -629,6 +763,66 @@ private fun RewindMarkerRow() {
     }
 }
 
+/**
+ * One background job's start or its outcome.
+ *
+ * The harness emits two events for a job — `job/registered` when it starts and `job/settled`
+ * when it settles — and they arrive as separate rows, the way a command's run and done do. The
+ * leading glyph gives way to a state dot once the job has an outcome, because the outcome is the
+ * part worth reading at a glance: a job that failed should not look like a job that finished.
+ */
+@Composable
+private fun JobRow(node: JobNode) {
+    val colors = DsTheme.colors
+    val data = node.data as? JsonObject
+    val kind = data?.get("kind").asString().orEmpty()
+    val label = data?.get("label").asString().orEmpty()
+    val detail = data?.get("detail").asString().orEmpty()
+    // A `job/registered` carries no status: the job is running by definition until it settles.
+    val settled = node.kind == "job/settled"
+    val status = if (settled) JobStatus.fromWire(data?.get("status").asString()) else JobStatus.RUNNING
+    val state = when (status) {
+        JobStatus.RUNNING, JobStatus.STOPPING -> DisclosureState.Running
+        JobStatus.COMPLETED -> DisclosureState.Idle
+        JobStatus.KILLED -> DisclosureState.Stopped
+        JobStatus.FAILED -> DisclosureState.Error
+        JobStatus.UNKNOWN -> DisclosureState.Idle
+    }
+    var expanded by remember(node.seq) { mutableStateOf(false) }
+    DisclosureRow(
+        title = stringResource(if (settled) R.string.job_row_settled else R.string.job_row_started),
+        summary = listOf(kind, label).filter { it.isNotEmpty() }.joinToString(" · ").ifEmpty { null },
+        icon = FeatherIcons.Activity,
+        state = state,
+        expanded = expanded,
+        onToggle = { expanded = !expanded },
+        trailing = {
+            Text(
+                jobStatusLabel(status) ?: status.name.lowercase(),
+                style = DsType.caption11,
+                color = colors.labelTertiary,
+            )
+        },
+    ) {
+        // The producer's own words come first: "exit code: 3" is the reason a job failed, and
+        // it is the one field the collapsed row cannot show.
+        if (detail.isNotEmpty()) {
+            Text(
+                detail,
+                style = DsType.caption11,
+                color = colors.labelSecondary,
+                modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
+            )
+        }
+        Text(
+            node.data.toString(),
+            style = DsType.caption11.copy(fontFamily = DsType.codeFont),
+            color = colors.labelCaption,
+            modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
+        )
+    }
+}
+
 @Composable
 private fun CommandRow(node: CommandNode) {
     val colors = DsTheme.colors
@@ -647,7 +841,7 @@ private fun CommandRow(node: CommandNode) {
             node.data.toString(),
             style = DsType.caption11.copy(fontFamily = DsType.codeFont),
             color = colors.labelCaption,
-            modifier = Modifier.padding(start = 28.dp, top = 2.dp),
+            modifier = Modifier.padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp),
         )
     }
 }
@@ -675,7 +869,7 @@ private fun WorkflowRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 28.dp, top = 2.dp)
+                    .padding(start = DsSpacing.disclosureBodyIndent, top = 2.dp)
                     .then(
                         if (memberChildId != null) {
                             Modifier.clickable { onOpenMember(memberChildId) }

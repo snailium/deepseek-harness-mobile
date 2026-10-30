@@ -1,5 +1,6 @@
 package com.labteto.dshmobile.ui.screens.main
 
+import com.labteto.dshmobile.connection.PromptMode
 import androidx.compose.runtime.*
 import kotlinx.coroutines.*
 import android.content.SharedPreferences
@@ -65,11 +66,20 @@ internal class ComposerDraft(val key: ComposerKey, saved: SavedComposer = SavedC
 internal class ComposerRepository(private val preferences: SharedPreferences? = null) {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val drafts = mutableMapOf<ComposerKey, ComposerDraft>()
-    fun get(key: ComposerKey): ComposerDraft = drafts.getOrPut(key) {
+    /**
+     * The draft for [key], restored from storage and seeded with the persisted send mode.
+     *
+     * [defaultMode] is read from settings by the caller rather than injected here: the repository
+     * is not a settings holder, and a draft made before settings have loaded should still get the
+     * user's choice on the next call — `getOrPut` keeps the first one, so the seed only has to be
+     * right at creation, and the details-panel card writes settings directly for a live change.
+     */
+    fun get(key: ComposerKey, defaultMode: String = PromptMode.QUEUE): ComposerDraft = drafts.getOrPut(key) {
         val storageKey = "${key.host}/${key.sessionId}"
         val raw = preferences?.getString(storageKey, null)
         val saved = raw?.let { runCatching { WireJson.decodeFromString(SavedComposer.serializer(), it) }.getOrElse { _ -> SavedComposer(it) } } ?: SavedComposer()
         ComposerDraft(key, saved) { preferences?.edit()?.putString(storageKey, WireJson.encodeToString(SavedComposer.serializer(), it))?.apply() }
+            .apply { mode = defaultMode }
     }
     var imagePickTarget: Pair<ComposerDraft, com.labteto.dshmobile.core.wire.dto.ImageLimitsView>? = null
     var filePickTarget: ComposerDraft? = null

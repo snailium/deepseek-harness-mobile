@@ -102,8 +102,20 @@ private val JSON_MEDIA_TYPE: MediaType = "application/json; charset=utf-8".toMed
 
 /**
  * OkHttp-backed [RpcTransport]. Sends `Content-Type: application/json`, sets the `Host` header
- * from the base URL, and times out at [connectTimeoutMs]/[readTimeoutMs] (30s by default). Non-2xx
+ * from the base URL, and honours [connectTimeoutMs]/[readTimeoutMs]/[writeTimeoutMs]. Non-2xx
  * responses throw [RpcTransportException] (403 mentions the harness trust fence).
+ *
+ * **A [readTimeoutMs] of `0` means no read deadline**, which is OkHttp's own meaning and not this
+ * class's invention. The live unary channel is built that way (see `NO_READ_DEADLINE_MS` in the
+ * connection layer) for the reason the gateway on the other end documents for its own
+ * `upstreamApiTimeoutMs`: the response wait is gated on work the *host* does, and a request the host
+ * is working on puts nothing on the wire while it works. `/compact` is the case that found it —
+ * summarizing a whole session takes tens of seconds to minutes, and the 30s default killed it at
+ * exactly 30s with `transport failure: timeout`, on both the direct and the gateway route.
+ *
+ * [writeTimeoutMs] still bounds the upload and [connectTimeoutMs] the link, which is the same split
+ * the gateway makes between its transport budget and its API-response budget. A discovery probe
+ * passes an explicit short [readTimeoutMs] and keeps it — nothing here weakens a probe's budget.
  *
  * [baseUrl] may be `http://` or `https://`; see [hostHeaderFor] for how the header is spelled.
  *

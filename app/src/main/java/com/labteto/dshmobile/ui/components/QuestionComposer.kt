@@ -211,7 +211,9 @@ internal fun QuestionsPanel(
             shadowElevation = 2.dp,
         ) {
             Column(
-                modifier = Modifier.padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+                // Inner padding only: the outer inset that aligns this panel with the composer
+                // and the transcript is applied by the caller (see DsSpacing.pageHorizontal).
+                modifier = Modifier.padding(horizontal = DsSpacing.pageHorizontal, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 QuestionHeader(
