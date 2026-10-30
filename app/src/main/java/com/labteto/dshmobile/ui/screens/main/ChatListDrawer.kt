@@ -162,13 +162,10 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     var ungroupedExpanded by remember { mutableStateOf(false) }
-<<<<<<< HEAD
-=======
     // Workspaces the reader asked to see in full. Separate from `collapsed`: one says whether the
     // group is open, this says whether the preview inside it has been widened.
     val showAllWorkspaces = remember { mutableStateMapOf<String, Boolean>() }
     var archivedExpanded by remember { mutableStateOf(false) }
->>>>>>> compat/0.18.0
 
     LaunchedEffect(query) {
         delay(250)
