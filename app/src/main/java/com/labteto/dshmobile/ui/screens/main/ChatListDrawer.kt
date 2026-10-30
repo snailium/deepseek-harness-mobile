@@ -161,6 +161,9 @@ fun ChatListDrawer(
     var newWorkspaceOpen by remember { mutableStateOf(false) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
     var ungroupedExpanded by remember { mutableStateOf(false) }
+    // Workspaces the reader asked to see in full. Separate from `collapsed`: one says whether the
+    // group is open, this says whether the preview inside it has been widened.
+    val showAllWorkspaces = remember { mutableStateMapOf<String, Boolean>() }
     var archivedExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(query) {
@@ -404,7 +407,15 @@ fun ChatListDrawer(
                         )
                     }
                     if (!isCollapsed) {
-                        items(roots, key = { it.sessionId }) { session ->
+                        // A group that opens to twenty rows is a wall you have to scroll past to
+                        // reach the next workspace. The newest few say what you have been doing; the
+                        // rest are one tap away, and the session you are looking at is always kept
+                        // so opening the drawer mid-run never hides where you are.
+                        val preview = visibleWorkspaceRoots(roots, WORKSPACE_PREVIEW_LIMIT, listOfNotNull(currentSessionId).toSet())
+                        val foldable = preview.size < roots.size
+                        val showAll = foldable && showAllWorkspaces[workspace.workspaceId] == true
+                        val shownRoots = if (showAll) roots else preview
+                        items(shownRoots, key = { it.sessionId }) { session ->
                             Box(Modifier.animateItem()) {
                                 SessionRowItem(
                                     session = session,
@@ -413,6 +424,19 @@ fun ChatListDrawer(
                                     scope = scope,
                                     onClose = onClose,
                                     pinned = pinnedIds?.let { session.sessionId in it },
+                                )
+                            }
+                        }
+                        if (foldable) {
+                            item(key = "ws-more-${workspace.workspaceId}") {
+                                WorkspaceShowAllRow(
+                                    text = if (showAll) {
+                                        stringResource(R.string.chatlist_show_less)
+                                    } else {
+                                        // The whole group's size, the same number the header shows.
+                                        stringResource(R.string.chatlist_show_all, roots.size)
+                                    },
+                                    onClick = { showAllWorkspaces[workspace.workspaceId] = !showAll },
                                 )
                             }
                         }
@@ -1181,4 +1205,40 @@ internal fun sessionTitle(session: SessionRow): String {
     val title = session.title?.takeIf { it.isNotBlank() }
     val folder = session.cwd?.takeIf { it.isNotBlank() }?.let { basename(it) }?.takeIf { it.isNotBlank() }
     return title ?: folder ?: session.sessionId
+}
+
+
+/** How many sessions a collapsed workspace shows before the "Show all" row appears. */
+internal const val WORKSPACE_PREVIEW_LIMIT: Int = 5
+
+/**
+ * The newest [limit] rows, plus any row the reader is currently in.
+ *
+ * Indices rather than rows, so a kept session holds its own place in the order instead of being
+ * appended at the bottom, where it would read as the oldest thing you did.
+ */
+internal fun visibleWorkspaceRoots(
+    roots: List<SessionRow>,
+    limit: Int,
+    openPath: Set<String>,
+): List<SessionRow> {
+    if (limit <= 0 || roots.size <= limit) return roots
+    val keep = roots.indices.take(limit).toMutableSet()
+    roots.forEachIndexed { index, row -> if (row.sessionId in openPath) keep += index }
+    return roots.filterIndexed { index, _ -> index in keep }
+}
+
+/** The row under a workspace that widens its preview, or folds it back. */
+@Composable
+private fun WorkspaceShowAllRow(text: String, onClick: () -> Unit) {
+    val colors = DsTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = DsSpacing.medium, vertical = DsSpacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, style = DsType.std14, color = colors.labelSecondary)
+    }
 }
